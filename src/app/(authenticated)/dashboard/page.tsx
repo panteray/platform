@@ -1,28 +1,39 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+'use client'
 
-export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useUser } from '@/hooks/useUser'
+import { isGlobalRole } from '@/lib/roles'
 
-  if (!user) redirect('/login')
+export default function DashboardPage() {
+  const router = useRouter()
+  const { userRole, orgId, loading } = useUser()
 
-  const { data: dbUser } = await supabase
-    .from('users')
-    .select('role, is_global_admin, org_id')
-    .eq('auth_id', user.id)
-    .single()
+  useEffect(() => {
+    if (loading) return
 
-  // Global admins → admin portal
-  if (dbUser && ['GLOBAL_ADMIN', 'GLOBAL_MANAGER'].includes(dbUser.role)) {
-    redirect('/admin')
+    // Global admins → admin portal
+    if (userRole && isGlobalRole(userRole)) {
+      router.replace('/admin')
+      return
+    }
+
+    // Org users → org dashboard
+    if (orgId) {
+      router.replace('/org')
+      return
+    }
+  }, [loading, userRole, orgId, router])
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="text-sm text-muted-foreground">Loading...</div>
+      </div>
+    )
   }
 
-  // Org users → org dashboard
-  if (dbUser?.org_id) {
-    redirect('/org')
-  }
-
+  // Fallback: no org, not global
   return (
     <div>
       <h1 className="text-lg font-medium">Dashboard</h1>
