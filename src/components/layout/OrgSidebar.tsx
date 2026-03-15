@@ -2,18 +2,22 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Settings, HelpCircle } from 'lucide-react'
+import { LayoutDashboard, Settings, HelpCircle, Users } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
+import { canManageUsers } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 
 const orgNav = [
-  { href: '/org', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { href: '/org/settings', label: 'Settings', icon: Settings, exact: false },
+  { href: '/org', label: 'Dashboard', icon: LayoutDashboard, exact: true, requiresAdmin: false },
+  { href: '/org/users', label: 'Users', icon: Users, exact: false, requiresAdmin: true },
+  { href: '/org/settings', label: 'Settings', icon: Settings, exact: false, requiresAdmin: false },
 ]
 
 export function OrgSidebar() {
   const pathname = usePathname()
   const { user, userRole } = useUser()
+
+  const canManage = userRole ? canManageUsers(userRole) : false
 
   const initials = user
     ? `${(user.first_name?.[0] ?? '').toUpperCase()}${(user.last_name?.[0] ?? '').toUpperCase()}`
@@ -45,7 +49,9 @@ export function OrgSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 space-y-0.5 p-2">
-        {orgNav.map((item) => {
+        {orgNav
+          .filter((item) => !item.requiresAdmin || canManage)
+          .map((item) => {
           const active = item.exact
             ? pathname === item.href
             : pathname.startsWith(item.href)
