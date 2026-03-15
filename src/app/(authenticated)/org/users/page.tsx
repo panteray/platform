@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { useUser } from '@/hooks/useUser'
@@ -11,11 +12,11 @@ import type { User as DbUser } from '@/types/database'
 import type { UserRole, UserDivision } from '@/types/enums'
 
 export default function OrgUsersPage() {
+  const router = useRouter()
   const { userRole, orgId } = useUser()
   const [users, setUsers] = useState<DbUser[]>([])
   const [loading, setLoading] = useState(true)
-  const [userFormMode, setUserFormMode] = useState<'hidden' | 'create' | 'edit'>('hidden')
-  const [editingUser, setEditingUser] = useState<DbUser | null>(null)
+  const [showCreateForm, setShowCreateForm] = useState(false)
 
   const canManage = userRole ? canManageUsers(userRole) : false
 
@@ -38,18 +39,8 @@ export default function OrgUsersPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     })
-    if (res.ok) { toast.success('User created'); setUserFormMode('hidden'); fetchUsers() }
+    if (res.ok) { toast.success('User created'); setShowCreateForm(false); fetchUsers() }
     else { const err = await res.json(); toast.error(err.error ?? 'Failed to create user') }
-  }
-
-  async function handleEditUser(data: { email: string; first_name: string; last_name: string; role: UserRole; divisions: UserDivision[]; phone?: string }) {
-    if (!editingUser) return
-    const res = await fetch('/api/org/users', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: editingUser.id, ...data }),
-    })
-    if (res.ok) { toast.success('User updated'); setEditingUser(null); setUserFormMode('hidden'); fetchUsers() }
   }
 
   async function handleSuspendUser(user: DbUser) {
@@ -103,21 +94,22 @@ export default function OrgUsersPage() {
 
       <OrgUserTable
         users={users}
-        onAdd={() => { setEditingUser(null); setUserFormMode('create') }}
-        onEdit={(u) => { setEditingUser(u); setUserFormMode('edit') }}
+        onAdd={() => setShowCreateForm(true)}
+        onEdit={(u) => router.push(`/org/users/${u.id}`)}
         onSuspend={handleSuspendUser}
         onResetPassword={handleResetPassword}
         onDelete={handleDeleteUser}
+        getUserHref={(u) => `/org/users/${u.id}`}
       />
 
-      {userFormMode !== 'hidden' && (
+      {/* Inline create form only — edit goes to detail page */}
+      {showCreateForm && (
         <div className="mt-4">
           <UserForm
-            key={editingUser?.id ?? 'new'}
-            user={userFormMode === 'edit' ? editingUser : null}
+            key="new"
             orgId={orgId ?? ''}
-            onSubmit={userFormMode === 'edit' ? handleEditUser : handleCreateUser}
-            onCancel={() => { setUserFormMode('hidden'); setEditingUser(null) }}
+            onSubmit={handleCreateUser}
+            onCancel={() => setShowCreateForm(false)}
           />
         </div>
       )}

@@ -77,6 +77,7 @@ export async function PATCH(request: NextRequest) {
   if (body.first_name !== undefined) updateData.first_name = body.first_name
   if (body.last_name !== undefined) updateData.last_name = body.last_name
   if (body.phone !== undefined) updateData.phone = body.phone
+  if (body.title !== undefined) updateData.title = body.title
   if (body.role !== undefined) updateData.role = body.role
   if (body.divisions !== undefined) updateData.divisions = body.divisions
 

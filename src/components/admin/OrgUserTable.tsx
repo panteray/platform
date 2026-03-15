@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Pause, Trash2, KeyRound, Search, Plus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Pause, Trash2, KeyRound, Search, Plus, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { User } from '@/types/database'
@@ -13,9 +14,11 @@ interface OrgUserTableProps {
   onSuspend: (user: User) => void
   onResetPassword: (user: User) => void
   onDelete: (user: User) => void
+  getUserHref?: (user: User) => string
 }
 
-export function OrgUserTable({ users, onAdd, onEdit, onSuspend, onResetPassword, onDelete }: OrgUserTableProps) {
+export function OrgUserTable({ users, onAdd, onEdit, onSuspend, onResetPassword, onDelete, getUserHref }: OrgUserTableProps) {
+  const router = useRouter()
   const [search, setSearch] = useState('')
 
   const filtered = search
@@ -23,6 +26,14 @@ export function OrgUserTable({ users, onAdd, onEdit, onSuspend, onResetPassword,
         `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(search.toLowerCase())
       )
     : users
+
+  function handleNameClick(user: User) {
+    if (getUserHref) {
+      router.push(getUserHref(user))
+    } else {
+      onEdit(user)
+    }
+  }
 
   return (
     <div>
@@ -64,7 +75,7 @@ export function OrgUserTable({ users, onAdd, onEdit, onSuspend, onResetPassword,
                 <td className="px-5 py-2.5">
                   <div
                     className="flex cursor-pointer items-center gap-2.5"
-                    onClick={() => onEdit(user)}
+                    onClick={() => handleNameClick(user)}
                   >
                     <div className="flex h-[30px] w-[30px] items-center justify-center rounded-full border border-border bg-muted text-[10px] font-semibold text-muted-foreground">
                       {(user.first_name?.[0] ?? '').toUpperCase()}{(user.last_name?.[0] ?? '').toUpperCase()}
@@ -91,6 +102,9 @@ export function OrgUserTable({ users, onAdd, onEdit, onSuspend, onResetPassword,
                 </td>
                 <td className="px-3.5 py-2.5">
                   <div className="flex items-center justify-center gap-1">
+                    <button onClick={() => handleNameClick(user)} className="rounded p-1 text-muted-foreground hover:text-foreground" title="Edit">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
                     <button onClick={() => onSuspend(user)} className="rounded p-1 text-amber-500 hover:text-amber-400" title={user.is_active ? 'Suspend' : 'Activate'}>
                       <Pause className="h-3.5 w-3.5" />
                     </button>

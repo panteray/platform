@@ -48,8 +48,7 @@ export default function OrgDetailPage() {
 
   // ---- Tab + User form state ----
   const [activeTab, setActiveTab] = useState<TabKey>('users')
-  const [userFormMode, setUserFormMode] = useState<'hidden' | 'create' | 'edit'>('hidden')
-  const [editingUser, setEditingUser] = useState<DbUser | null>(null)
+  const [showCreateForm, setShowCreateForm] = useState(false)
   const [roleFormOpen, setRoleFormOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<CustomRole | null>(null)
 
@@ -134,18 +133,8 @@ export default function OrgDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...data, org_id: orgId }),
     })
-    if (res.ok) { toast.success('User created'); setUserFormMode('hidden'); refreshUsers() }
+    if (res.ok) { toast.success('User created'); setShowCreateForm(false); refreshUsers() }
     else { const err = await res.json(); toast.error(err.error ?? 'Failed to create user') }
-  }
-
-  async function handleEditUser(data: { email: string; first_name: string; last_name: string; role: UserRole; divisions: UserDivision[]; phone?: string }) {
-    if (!editingUser) return
-    const res = await fetch('/api/admin/users', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: editingUser.id, ...data }),
-    })
-    if (res.ok) { toast.success('User updated'); setEditingUser(null); setUserFormMode('hidden'); refreshUsers() }
   }
 
   async function handleSuspendUser(user: DbUser) {
@@ -279,7 +268,7 @@ export default function OrgDetailPage() {
         {tabDefs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => { setActiveTab(tab.key); setUserFormMode('hidden'); setEditingUser(null) }}
+            onClick={() => { setActiveTab(tab.key); setShowCreateForm(false) }}
             className={cn(
               'flex items-center gap-1.5 border-b-2 px-5 py-2.5 text-[13px] transition-colors',
               activeTab === tab.key
@@ -298,22 +287,22 @@ export default function OrgDetailPage() {
         <div>
           <OrgUserTable
             users={users}
-            onAdd={() => { setEditingUser(null); setUserFormMode('create') }}
-            onEdit={(u) => { setEditingUser(u); setUserFormMode('edit') }}
+            onAdd={() => setShowCreateForm(true)}
+            onEdit={(u) => router.push(`/admin/organizations/${orgId}/users/${u.id}`)}
             onSuspend={handleSuspendUser}
             onResetPassword={handleResetPassword}
             onDelete={handleDeleteUser}
+            getUserHref={(u) => `/admin/organizations/${orgId}/users/${u.id}`}
           />
 
-          {/* Inline User Form (below table) */}
-          {userFormMode !== 'hidden' && (
+          {/* Inline create form only — edit goes to detail page */}
+          {showCreateForm && (
             <div className="mt-4">
               <UserForm
-                key={editingUser?.id ?? 'new'}
-                user={userFormMode === 'edit' ? editingUser : null}
+                key="new"
                 orgId={orgId}
-                onSubmit={userFormMode === 'edit' ? handleEditUser : handleCreateUser}
-                onCancel={() => { setUserFormMode('hidden'); setEditingUser(null) }}
+                onSubmit={handleCreateUser}
+                onCancel={() => setShowCreateForm(false)}
               />
             </div>
           )}
