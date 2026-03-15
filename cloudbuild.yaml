@@ -1,0 +1,51 @@
+steps:
+  # Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/panteray/platform:$COMMIT_SHA'
+      - '-t'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/panteray/platform:latest'
+      - '.'
+
+  # Push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/panteray/platform'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'panteray-platform'
+      - '--image'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/panteray/platform:$COMMIT_SHA'
+      - '--region'
+      - 'us-east1'
+      - '--port'
+      - '3000'
+      - '--allow-unauthenticated'
+      - '--set-secrets'
+      - 'NEXT_PUBLIC_SUPABASE_URL=supabase-url:latest,NEXT_PUBLIC_SUPABASE_ANON_KEY=supabase-anon-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '10'
+      - '--memory'
+      - '512Mi'
+      - '--cpu'
+      - '1'
+      - '--concurrency'
+      - '80'
+
+images:
+  - 'us-east1-docker.pkg.dev/$PROJECT_ID/panteray/platform:$COMMIT_SHA'
+  - 'us-east1-docker.pkg.dev/$PROJECT_ID/panteray/platform:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -1,1 +1,0 @@
-# Panteray Platform
