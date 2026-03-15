@@ -62,11 +62,14 @@ export function OrgUserTable({ users, onAdd, onEdit, onSuspend, onResetPassword,
             {filtered.map((user) => (
               <tr key={user.id} className="border-b border-border">
                 <td className="px-5 py-2.5">
-                  <div className="flex items-center gap-2.5">
+                  <div
+                    className="flex cursor-pointer items-center gap-2.5"
+                    onClick={() => onEdit(user)}
+                  >
                     <div className="flex h-[30px] w-[30px] items-center justify-center rounded-full border border-border bg-muted text-[10px] font-semibold text-muted-foreground">
                       {(user.first_name?.[0] ?? '').toUpperCase()}{(user.last_name?.[0] ?? '').toUpperCase()}
                     </div>
-                    <span className="text-[13px] font-medium">{user.first_name} {user.last_name}</span>
+                    <span className="text-[13px] font-medium text-primary hover:underline">{user.first_name} {user.last_name}</span>
                   </div>
                 </td>
                 <td className="px-3.5 py-2.5 text-xs text-muted-foreground">{user.email}</td>

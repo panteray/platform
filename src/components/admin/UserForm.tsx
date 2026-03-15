@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { UserRole, UserDivision } from '@/types/enums'
 import { ORG_ASSIGNABLE_ROLES, ROLE_LABELS } from '@/lib/roles'
 import { DIVISION_LABELS } from '@/lib/constants'
+import { toast } from 'sonner'
 import type { User } from '@/types/database'
 
 interface UserFormProps {
@@ -16,7 +17,7 @@ interface UserFormProps {
   onOpenChange: (open: boolean) => void
   user?: User | null
   orgId: string
-  onSubmit: (data: { email: string; first_name: string; last_name: string; role: UserRole; divisions: UserDivision[]; phone?: string }) => void
+  onSubmit: (data: { email: string; first_name: string; last_name: string; role: UserRole; divisions: UserDivision[]; phone?: string; password?: string }) => void
 }
 
 export function UserForm({ open, onOpenChange, user, orgId, onSubmit }: UserFormProps) {
@@ -26,6 +27,9 @@ export function UserForm({ open, onOpenChange, user, orgId, onSubmit }: UserForm
   const [role, setRole] = useState<UserRole>(user?.role ?? UserRole.FIELD_TECH)
   const [division, setDivision] = useState<UserDivision | ''>(user?.divisions?.[0] ?? '')
   const [phone, setPhone] = useState(user?.phone ?? '')
+  const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [settingPassword, setSettingPassword] = useState(false)
 
   function handleSubmit() {
     if (!email.trim() || !firstName.trim() || !lastName.trim()) return
@@ -36,8 +40,37 @@ export function UserForm({ open, onOpenChange, user, orgId, onSubmit }: UserForm
       role,
       divisions: division ? [division] : [],
       phone: phone || undefined,
+      password: !user && password ? password : undefined,
     })
     onOpenChange(false)
+  }
+
+  async function handleSetPassword() {
+    if (!user || !newPassword || newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters')
+      return
+    }
+    setSettingPassword(true)
+    const res = await fetch(`/api/admin/users/${user.id}/password`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: newPassword }),
+    })
+    setSettingPassword(false)
+    if (res.ok) {
+      toast.success('Password updated')
+      setNewPassword('')
+    } else {
+      const err = await res.json()
+      toast.error(err.error ?? 'Failed to update password')
+    }
+  }
+
+  async function handleSendReset() {
+    if (!user) return
+    const res = await fetch(`/api/admin/users/${user.id}/reset-password`, { method: 'POST' })
+    if (res.ok) toast.success('Password reset email sent')
+    else toast.error('Failed to send reset email')
   }
 
   return (
@@ -62,6 +95,23 @@ export function UserForm({ open, onOpenChange, user, orgId, onSubmit }: UserForm
             <Label>Email</Label>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!user} />
           </div>
+
+          {/* Password on create */}
+          {!user && (
+            <div className="grid gap-2">
+              <Label>Password</Label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Min 6 characters (or leave blank for default)"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                If left blank, defaults to TempPass123! — user should change on first login.
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
               <Label>Role</Label>
@@ -90,6 +140,38 @@ export function UserForm({ open, onOpenChange, user, orgId, onSubmit }: UserForm
             <Label>Phone</Label>
             <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
           </div>
+
+          {/* Password management on edit */}
+          {user && (
+            <div className="rounded-md border border-border bg-muted/30 p-3">
+              <div className="mb-2 text-xs font-medium text-foreground">Password Management</div>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Label className="text-[11px]">Set new password</Label>
+                  <Input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="New password (min 6 chars)"
+                    className="mt-1"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleSetPassword}
+                  disabled={settingPassword || !newPassword}
+                >
+                  {settingPassword ? 'Setting...' : 'Set'}
+                </Button>
+              </div>
+              <div className="mt-2">
+                <Button size="sm" variant="outline" className="w-full text-xs" onClick={handleSendReset}>
+                  Send password reset email
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
