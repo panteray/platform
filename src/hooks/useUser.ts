@@ -11,7 +11,7 @@ interface UserState {
   orgId: string | null
   userRole: UserRole | null
   isGlobalAdmin: boolean
-  userTypes: UserType[]
+  userTypes: string[]
   loading: boolean
 }
 
@@ -49,8 +49,8 @@ export function useUser(): UserState {
         user: dbUser,
         authId: session.user.id,
         orgId: payload.org_id ?? null,
-        userRole: payload.user_role ?? null,
-        isGlobalAdmin: payload.is_global_admin === true,
+        userRole: (payload.user_role ?? dbUser?.role ?? null) as UserRole | null,
+        isGlobalAdmin: payload.is_global_admin === true || dbUser?.is_global_admin === true,
         userTypes: payload.user_types ?? [],
         loading: false,
       })

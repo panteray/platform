@@ -11,21 +11,27 @@ interface OrgFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   org?: Organization | null
-  onSubmit: (data: { name: string; address?: string; city?: string; state?: string; zip?: string; phone?: string; website?: string }) => void
+  onSubmit: (data: { name: string; description?: string; phone?: string; address?: string; primary_contact_name?: string; primary_contact_email?: string }) => void
 }
 
 export function OrgForm({ open, onOpenChange, org, onSubmit }: OrgFormProps) {
   const [name, setName] = useState(org?.name ?? '')
+  const [description, setDescription] = useState(org?.description ?? '')
   const [phone, setPhone] = useState(org?.phone ?? '')
-  const [website, setWebsite] = useState(org?.website ?? '')
   const [address, setAddress] = useState(org?.address ?? '')
-  const [city, setCity] = useState(org?.city ?? '')
-  const [state, setState] = useState(org?.state ?? '')
-  const [zip, setZip] = useState(org?.zip ?? '')
+  const [contactName, setContactName] = useState(org?.primary_contact_name ?? '')
+  const [contactEmail, setContactEmail] = useState(org?.primary_contact_email ?? '')
 
   function handleSubmit() {
     if (!name.trim()) return
-    onSubmit({ name: name.trim(), address: address || undefined, city: city || undefined, state: state || undefined, zip: zip || undefined, phone: phone || undefined, website: website || undefined })
+    onSubmit({
+      name: name.trim(),
+      description: description || undefined,
+      phone: phone || undefined,
+      address: address || undefined,
+      primary_contact_name: contactName || undefined,
+      primary_contact_email: contactEmail || undefined,
+    })
     onOpenChange(false)
   }
 
@@ -38,35 +44,31 @@ export function OrgForm({ open, onOpenChange, org, onSubmit }: OrgFormProps) {
         </DialogHeader>
         <div className="grid gap-4 py-2">
           <div className="grid gap-2">
-            <Label htmlFor="org-name">Organization name</Label>
-            <Input id="org-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Security" />
+            <Label>Organization name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Security" />
+          </div>
+          <div className="grid gap-2">
+            <Label>Description</Label>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Physical security integrator" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
-              <Label htmlFor="org-phone">Phone</Label>
-              <Input id="org-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
+              <Label>Phone</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="org-website">Website</Label>
-              <Input id="org-website" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="acmesec.com" />
+              <Label>Address</Label>
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St" />
             </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="org-address">Address</Label>
-            <Input id="org-address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St" />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
-              <Label htmlFor="org-city">City</Label>
-              <Input id="org-city" value={city} onChange={(e) => setCity(e.target.value)} />
+              <Label>Primary contact name</Label>
+              <Input value={contactName} onChange={(e) => setContactName(e.target.value)} />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="org-state">State</Label>
-              <Input id="org-state" value={state} onChange={(e) => setState(e.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="org-zip">Zip</Label>
-              <Input id="org-zip" value={zip} onChange={(e) => setZip(e.target.value)} />
+              <Label>Primary contact email</Label>
+              <Input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
             </div>
           </div>
         </div>

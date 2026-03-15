@@ -7,9 +7,8 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Verify global admin via JWT
-  const { data: dbUser } = await supabase.from('users').select('user_role').eq('auth_id', user.id).single()
-  if (!dbUser || !['GLOBAL_ADMIN', 'GLOBAL_MANAGER'].includes(dbUser.user_role)) {
+  const { data: dbUser } = await supabase.from('users').select('role, is_global_admin').eq('auth_id', user.id).single()
+  if (!dbUser || !['GLOBAL_ADMIN', 'GLOBAL_MANAGER'].includes(dbUser.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -18,12 +17,11 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await admin.from('organizations').insert({
     name: body.name,
-    address: body.address ?? null,
-    city: body.city ?? null,
-    state: body.state ?? null,
-    zip: body.zip ?? null,
+    description: body.description ?? null,
     phone: body.phone ?? null,
-    website: body.website ?? null,
+    address: body.address ?? null,
+    primary_contact_name: body.primary_contact_name ?? null,
+    primary_contact_email: body.primary_contact_email ?? null,
   }).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -32,10 +30,10 @@ export async function POST(request: NextRequest) {
   const { ALL_MODULES } = await import('@/types/enums')
   const { CalculatorType } = await import('@/types/enums')
 
-  const moduleRows = ALL_MODULES.map((m) => ({ org_id: data.id, module_name: m, enabled: false }))
+  const moduleRows = ALL_MODULES.map((m) => ({ org_id: data.id, module: m, is_enabled: false }))
   await admin.from('org_module_config').insert(moduleRows)
 
-  const calcRows = Object.values(CalculatorType).map((c) => ({ org_id: data.id, calculator_type: c, enabled: false }))
+  const calcRows = Object.values(CalculatorType).map((c) => ({ org_id: data.id, calculator_type: c, is_enabled: false }))
   await admin.from('org_calculator_config').insert(calcRows)
 
   return NextResponse.json(data)
@@ -51,12 +49,11 @@ export async function PATCH(request: NextRequest) {
 
   const { data, error } = await admin.from('organizations').update({
     name: body.name,
-    address: body.address,
-    city: body.city,
-    state: body.state,
-    zip: body.zip,
+    description: body.description,
     phone: body.phone,
-    website: body.website,
+    address: body.address,
+    primary_contact_name: body.primary_contact_name,
+    primary_contact_email: body.primary_contact_email,
   }).eq('id', body.id).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

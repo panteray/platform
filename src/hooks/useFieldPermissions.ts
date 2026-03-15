@@ -9,7 +9,7 @@ export function useFieldPermissions(orgId: string | null) {
   const [userPerms, setUserPerms] = useState<UserFieldPermission[]>([])
   const [loading, setLoading] = useState(true)
 
-  const fetch = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     if (!orgId) { setLoading(false); return }
     const supabase = createClient()
 
@@ -23,22 +23,22 @@ export function useFieldPermissions(orgId: string | null) {
     setLoading(false)
   }, [orgId])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => { fetchData() }, [fetchData])
 
-  const setRolePermission = async (roleIdentifier: string, fieldKey: string, permission: FieldPermissionLevel) => {
+  const setRolePermission = async (roleKey: string, fieldKey: string, permission: FieldPermissionLevel) => {
     if (!orgId) return
     const supabase = createClient()
     await supabase.from('role_field_permissions').upsert(
-      { org_id: orgId, role_identifier: roleIdentifier, field_key: fieldKey, permission },
-      { onConflict: 'org_id,role_identifier,field_key' }
+      { org_id: orgId, role_key: roleKey, field_key: fieldKey, permission },
+      { onConflict: 'org_id,role_key,field_key' }
     )
-    await fetch()
+    await fetchData()
   }
 
-  const getRolePermission = (roleIdentifier: string, fieldKey: string): FieldPermissionLevel => {
-    const perm = rolePerms.find((p) => p.role_identifier === roleIdentifier && p.field_key === fieldKey)
-    return perm?.permission ?? '-'
+  const getRolePermission = (roleKey: string, fieldKey: string): FieldPermissionLevel => {
+    const perm = rolePerms.find((p) => p.role_key === roleKey && p.field_key === fieldKey)
+    return perm?.permission as FieldPermissionLevel ?? '-'
   }
 
-  return { rolePerms, userPerms, loading, setRolePermission, getRolePermission, refresh: fetch }
+  return { rolePerms, userPerms, loading, setRolePermission, getRolePermission, refresh: fetchData }
 }

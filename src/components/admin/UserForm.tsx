@@ -16,15 +16,15 @@ interface UserFormProps {
   onOpenChange: (open: boolean) => void
   user?: User | null
   orgId: string
-  onSubmit: (data: { email: string; first_name: string; last_name: string; user_role: UserRole; division: UserDivision | null; phone?: string }) => void
+  onSubmit: (data: { email: string; first_name: string; last_name: string; role: UserRole; divisions: UserDivision[]; phone?: string }) => void
 }
 
 export function UserForm({ open, onOpenChange, user, orgId, onSubmit }: UserFormProps) {
   const [email, setEmail] = useState(user?.email ?? '')
   const [firstName, setFirstName] = useState(user?.first_name ?? '')
   const [lastName, setLastName] = useState(user?.last_name ?? '')
-  const [role, setRole] = useState<UserRole>(user?.user_role ?? UserRole.FIELD_TECH)
-  const [division, setDivision] = useState<UserDivision | ''>(user?.division ?? '')
+  const [role, setRole] = useState<UserRole>(user?.role ?? UserRole.FIELD_TECH)
+  const [division, setDivision] = useState<UserDivision | ''>(user?.divisions?.[0] ?? '')
   const [phone, setPhone] = useState(user?.phone ?? '')
 
   function handleSubmit() {
@@ -33,8 +33,8 @@ export function UserForm({ open, onOpenChange, user, orgId, onSubmit }: UserForm
       email: email.trim(),
       first_name: firstName.trim(),
       last_name: lastName.trim(),
-      user_role: role,
-      division: division || null,
+      role,
+      divisions: division ? [division] : [],
       phone: phone || undefined,
     })
     onOpenChange(false)

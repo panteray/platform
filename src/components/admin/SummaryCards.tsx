@@ -8,8 +8,8 @@ interface SummaryCardsProps {
 }
 
 export function SummaryCards({ organizations }: SummaryCardsProps) {
-  const active = organizations.filter((o) => o.status === 'active').length
-  const suspended = organizations.filter((o) => o.status === 'suspended').length
+  const active = organizations.filter((o) => o.is_active).length
+  const suspended = organizations.filter((o) => !o.is_active).length
 
   const cards = [
     { label: 'Organizations', value: organizations.length, icon: Building2, color: 'text-blue-500', bg: 'bg-blue-500/10' },

@@ -1,6 +1,7 @@
 -- ============================================================
 -- PANTERAY — PHASE 2 MIGRATION
 -- Expands module_name enum from 9 to 24 values
+-- Adds description column to custom_roles
 -- Run in Supabase SQL Editor BEFORE deploying Phase 2 code
 -- ============================================================
 
@@ -23,9 +24,12 @@ ALTER TYPE module_name ADD VALUE IF NOT EXISTS 'contract_builder';
 ALTER TYPE module_name ADD VALUE IF NOT EXISTS 'integrations';
 ALTER TYPE module_name ADD VALUE IF NOT EXISTS 'reporting';
 
+-- Add description to custom_roles (needed for Phase 2 UI)
+ALTER TABLE custom_roles ADD COLUMN IF NOT EXISTS description text;
+
 -- Seed new module config rows for all existing organizations
--- This ensures every org has a row for every module (all disabled by default)
-INSERT INTO org_module_config (org_id, module_name, enabled)
+-- Column is "module" (not "module_name"), "is_enabled" (not "enabled")
+INSERT INTO org_module_config (org_id, module, is_enabled)
 SELECT o.id, m.name, false
 FROM organizations o
 CROSS JOIN (
@@ -46,34 +50,7 @@ CROSS JOIN (
     ('integrations'::module_name),
     ('reporting'::module_name)
 ) AS m(name)
-ON CONFLICT (org_id, module_name) DO NOTHING;
-
--- Add unique constraint on org_module_config if not exists
--- (needed for upsert in the API)
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'org_module_config_org_id_module_name_key'
-  ) THEN
-    ALTER TABLE org_module_config
-      ADD CONSTRAINT org_module_config_org_id_module_name_key
-      UNIQUE (org_id, module_name);
-  END IF;
-END $$;
-
--- Add unique constraint on org_calculator_config if not exists
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'org_calculator_config_org_id_calculator_type_key'
-  ) THEN
-    ALTER TABLE org_calculator_config
-      ADD CONSTRAINT org_calculator_config_org_id_calculator_type_key
-      UNIQUE (org_id, calculator_type);
-  END IF;
-END $$;
+ON CONFLICT (org_id, module) DO NOTHING;
 
 -- Add unique constraint on role_field_permissions if not exists
 DO $$
@@ -84,6 +61,6 @@ BEGIN
   ) THEN
     ALTER TABLE role_field_permissions
       ADD CONSTRAINT role_field_permissions_org_role_field_key
-      UNIQUE (org_id, role_identifier, field_key);
+      UNIQUE (org_id, role_key, field_key);
   END IF;
 END $$;

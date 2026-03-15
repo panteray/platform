@@ -15,7 +15,7 @@ export async function PATCH(
   const admin = createAdminClient()
 
   const { data, error } = await admin.from('organizations')
-    .update({ status: body.status })
+    .update({ is_active: body.is_active })
     .eq('id', id)
     .select()
     .single()

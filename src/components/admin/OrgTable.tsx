@@ -1,9 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Pencil, Pause, Trash2, Search, Plus } from 'lucide-react'
+import { Pencil, Pause, Trash2, Search } from 'lucide-react'
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { Organization } from '@/types/database'
 
@@ -23,15 +22,8 @@ export function OrgTable({ organizations, onAdd, onEdit, onSuspend, onDelete }: 
     ? organizations.filter((o) => o.name.toLowerCase().includes(search.toLowerCase()))
     : organizations
 
-  function statusVariant(status: string) {
-    if (status === 'active') return 'success' as const
-    if (status === 'suspended') return 'warning' as const
-    return 'destructive' as const
-  }
-
   return (
     <div className="rounded-lg border border-border bg-card">
-      {/* Search bar */}
       <div className="flex items-center gap-3 border-b border-border px-5 py-3">
         <div className="flex max-w-[300px] flex-1 items-center gap-2 rounded-md border border-input bg-secondary px-3 py-1.5">
           <Search className="h-4 w-4 text-muted-foreground" />
@@ -47,8 +39,6 @@ export function OrgTable({ organizations, onAdd, onEdit, onSuspend, onDelete }: 
           Displaying {filtered.length} of {organizations.length}
         </span>
       </div>
-
-      {/* Table */}
       <table className="w-full">
         <thead>
           <tr className="border-b border-border bg-muted/50">
@@ -74,8 +64,8 @@ export function OrgTable({ organizations, onAdd, onEdit, onSuspend, onDelete }: 
                 </div>
               </td>
               <td className="px-4 py-3">
-                <Badge variant={statusVariant(org.status)} className="text-[10px] capitalize">
-                  {org.status}
+                <Badge variant={org.is_active ? 'success' : 'warning'} className="text-[10px]">
+                  {org.is_active ? 'Active' : 'Suspended'}
                 </Badge>
               </td>
               <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -86,7 +76,7 @@ export function OrgTable({ organizations, onAdd, onEdit, onSuspend, onDelete }: 
                   <button onClick={() => onEdit(org)} className="rounded p-1 text-muted-foreground hover:text-foreground" title="Edit">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={() => onSuspend(org)} className="rounded p-1 text-amber-500 hover:text-amber-400" title="Suspend">
+                  <button onClick={() => onSuspend(org)} className="rounded p-1 text-amber-500 hover:text-amber-400" title={org.is_active ? 'Suspend' : 'Activate'}>
                     <Pause className="h-3.5 w-3.5" />
                   </button>
                   <button onClick={() => onDelete(org)} className="rounded p-1 text-red-500 hover:text-red-400" title="Delete">
@@ -97,11 +87,7 @@ export function OrgTable({ organizations, onAdd, onEdit, onSuspend, onDelete }: 
             </tr>
           ))}
           {filtered.length === 0 && (
-            <tr>
-              <td colSpan={4} className="px-5 py-8 text-center text-sm text-muted-foreground">
-                No organizations found
-              </td>
-            </tr>
+            <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-muted-foreground">No organizations found</td></tr>
           )}
         </tbody>
       </table>

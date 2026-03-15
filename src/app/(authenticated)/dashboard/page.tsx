@@ -7,14 +7,13 @@ export default async function DashboardPage() {
 
   if (!user) redirect('/login')
 
-  // Check if global admin - if so redirect to admin
   const { data: dbUser } = await supabase
     .from('users')
-    .select('user_role')
+    .select('role, is_global_admin')
     .eq('auth_id', user.id)
     .single()
 
-  if (dbUser && ['GLOBAL_ADMIN', 'GLOBAL_MANAGER'].includes(dbUser.user_role)) {
+  if (dbUser && ['GLOBAL_ADMIN', 'GLOBAL_MANAGER'].includes(dbUser.role)) {
     redirect('/admin')
   }
 

@@ -24,12 +24,6 @@ export function OrgUserTable({ users, onAdd, onEdit, onSuspend, onResetPassword,
       )
     : users
 
-  function statusVariant(status: string) {
-    if (status === 'active') return 'success' as const
-    if (status === 'suspended') return 'warning' as const
-    return 'destructive' as const
-  }
-
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
@@ -59,7 +53,7 @@ export function OrgUserTable({ users, onAdd, onEdit, onSuspend, onResetPassword,
               <th className="px-5 py-2.5 text-left text-[11px] font-medium text-muted-foreground">Name</th>
               <th className="px-3.5 py-2.5 text-left text-[11px] font-medium text-muted-foreground">Email</th>
               <th className="px-3.5 py-2.5 text-left text-[11px] font-medium text-muted-foreground">Role</th>
-              <th className="px-3.5 py-2.5 text-left text-[11px] font-medium text-muted-foreground">Division</th>
+              <th className="px-3.5 py-2.5 text-left text-[11px] font-medium text-muted-foreground">Divisions</th>
               <th className="px-3.5 py-2.5 text-left text-[11px] font-medium text-muted-foreground">Status</th>
               <th className="px-3.5 py-2.5 text-center text-[11px] font-medium text-muted-foreground">Actions</th>
             </tr>
@@ -77,20 +71,24 @@ export function OrgUserTable({ users, onAdd, onEdit, onSuspend, onResetPassword,
                 </td>
                 <td className="px-3.5 py-2.5 text-xs text-muted-foreground">{user.email}</td>
                 <td className="px-3.5 py-2.5">
-                  <Badge variant="secondary" className="text-[10px]">{user.user_role}</Badge>
+                  <Badge variant="secondary" className="text-[10px]">{user.role}</Badge>
                 </td>
                 <td className="px-3.5 py-2.5">
-                  {user.division && <Badge variant="secondary" className="text-[10px]">{user.division}</Badge>}
+                  {user.divisions?.map((d) => (
+                    <Badge key={d} variant="secondary" className="mr-1 text-[10px]">{d}</Badge>
+                  ))}
                 </td>
                 <td className="px-3.5 py-2.5">
-                  <Badge variant={statusVariant(user.status)} className="text-[10px] capitalize">{user.status}</Badge>
+                  <Badge variant={user.is_active ? 'success' : 'warning'} className="text-[10px]">
+                    {user.is_active ? 'Active' : 'Suspended'}
+                  </Badge>
                 </td>
                 <td className="px-3.5 py-2.5">
                   <div className="flex items-center justify-center gap-1">
                     <button onClick={() => onEdit(user)} className="rounded p-1 text-muted-foreground hover:text-foreground" title="Edit">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => onSuspend(user)} className="rounded p-1 text-amber-500 hover:text-amber-400" title="Suspend">
+                    <button onClick={() => onSuspend(user)} className="rounded p-1 text-amber-500 hover:text-amber-400" title={user.is_active ? 'Suspend' : 'Activate'}>
                       <Pause className="h-3.5 w-3.5" />
                     </button>
                     <button onClick={() => onResetPassword(user)} className="rounded p-1 text-blue-500 hover:text-blue-400" title="Reset password">

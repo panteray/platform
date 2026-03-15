@@ -14,64 +14,45 @@ export default function OrganizationsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null)
 
-  async function handleCreate(data: { name: string; address?: string; city?: string; state?: string; zip?: string; phone?: string; website?: string }) {
+  async function handleCreate(data: { name: string; description?: string; phone?: string; address?: string; primary_contact_name?: string; primary_contact_email?: string }) {
     const res = await fetch('/api/admin/organizations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     })
-    if (res.ok) {
-      toast.success('Organization created')
-      refresh()
-    } else {
-      const err = await res.json()
-      toast.error(err.error ?? 'Failed to create organization')
-    }
+    if (res.ok) { toast.success('Organization created'); refresh() }
+    else { const err = await res.json(); toast.error(err.error ?? 'Failed to create organization') }
   }
 
-  async function handleEdit(data: { name: string; address?: string; city?: string; state?: string; zip?: string; phone?: string; website?: string }) {
+  async function handleEdit(data: { name: string; description?: string; phone?: string; address?: string; primary_contact_name?: string; primary_contact_email?: string }) {
     if (!editingOrg) return
     const res = await fetch('/api/admin/organizations', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: editingOrg.id, ...data }),
     })
-    if (res.ok) {
-      toast.success('Organization updated')
-      setEditingOrg(null)
-      refresh()
-    } else {
-      toast.error('Failed to update organization')
-    }
+    if (res.ok) { toast.success('Organization updated'); setEditingOrg(null); refresh() }
   }
 
   async function handleSuspend(org: Organization) {
-    const newStatus = org.status === 'suspended' ? 'active' : 'suspended'
     const res = await fetch(`/api/admin/organizations/${org.id}/suspend`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus }),
+      body: JSON.stringify({ is_active: !org.is_active }),
     })
-    if (res.ok) {
-      toast.success(`Organization ${newStatus}`)
-      refresh()
-    }
+    if (res.ok) { toast.success(org.is_active ? 'Organization suspended' : 'Organization activated'); refresh() }
   }
 
   async function handleDelete(org: Organization) {
     if (!confirm(`Delete "${org.name}"? This cannot be undone.`)) return
     const res = await fetch(`/api/admin/organizations?id=${org.id}`, { method: 'DELETE' })
-    if (res.ok) {
-      toast.success('Organization deleted')
-      refresh()
-    }
+    if (res.ok) { toast.success('Organization deleted'); refresh() }
   }
 
   if (loading) return <div className="text-sm text-muted-foreground">Loading...</div>
 
   return (
     <div>
-      {/* Breadcrumb */}
       <div className="mb-5 flex items-center gap-1.5 text-xs text-muted-foreground">
         <span>Home</span>
         <ChevronRight className="h-3 w-3" />
@@ -85,28 +66,10 @@ export default function OrganizationsPage() {
         </Button>
       </div>
 
-      <OrgTable
-        organizations={organizations}
-        onAdd={() => setFormOpen(true)}
-        onEdit={(org) => setEditingOrg(org)}
-        onSuspend={handleSuspend}
-        onDelete={handleDelete}
-      />
+      <OrgTable organizations={organizations} onAdd={() => setFormOpen(true)} onEdit={(org) => setEditingOrg(org)} onSuspend={handleSuspend} onDelete={handleDelete} />
 
-      {/* Create dialog */}
-      <OrgForm
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        onSubmit={handleCreate}
-      />
-
-      {/* Edit dialog */}
-      <OrgForm
-        open={!!editingOrg}
-        onOpenChange={(open) => { if (!open) setEditingOrg(null) }}
-        org={editingOrg}
-        onSubmit={handleEdit}
-      />
+      <OrgForm open={formOpen} onOpenChange={setFormOpen} onSubmit={handleCreate} />
+      <OrgForm open={!!editingOrg} onOpenChange={(open) => { if (!open) setEditingOrg(null) }} org={editingOrg} onSubmit={handleEdit} />
     </div>
   )
 }
