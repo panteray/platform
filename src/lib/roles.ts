@@ -44,9 +44,9 @@ export function isGlobalAdmin(role: UserRole): boolean {
   return role === UserRole.GLOBAL_ADMIN
 }
 
-/** True if role can manage users in an org (ORG_ADMIN or above) */
+/** True if role can manage users in an org (ORG_MANAGER or above) */
 export function canManageUsers(role: UserRole): boolean {
-  return canAccess(role, UserRole.ORG_ADMIN)
+  return canAccess(role, UserRole.ORG_MANAGER)
 }
 
 /** True if role can manage org settings (ORG_ADMIN or above) */

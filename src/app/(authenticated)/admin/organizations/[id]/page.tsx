@@ -98,6 +98,7 @@ export default function OrgDetailPage() {
         address: orgAddress || undefined,
         primary_contact_name: orgContactName || undefined,
         primary_contact_email: orgContactEmail || undefined,
+        primary_contact_phone: orgContactPhone || undefined,
       }),
     })
     if (res.ok) {

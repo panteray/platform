@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
     address: body.address ?? null,
     primary_contact_name: body.primary_contact_name ?? null,
     primary_contact_email: body.primary_contact_email ?? null,
+    primary_contact_phone: body.primary_contact_phone ?? null,
   }).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -71,6 +72,7 @@ export async function PATCH(request: NextRequest) {
     address: body.address,
     primary_contact_name: body.primary_contact_name,
     primary_contact_email: body.primary_contact_email,
+    primary_contact_phone: body.primary_contact_phone,
   }).eq('id', body.id).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
