@@ -84,3 +84,16 @@ export const ORG_ASSIGNABLE_ROLES: UserRole[] = ROLE_HIERARCHY.filter(
 
 /** All base roles */
 export const ALL_ROLES = ROLE_HIERARCHY
+
+/** Roles that do NOT require a division assignment */
+const NO_DIVISION_ROLES: UserRole[] = [
+  UserRole.GLOBAL_ADMIN,
+  UserRole.GLOBAL_MANAGER,
+  UserRole.ORG_ADMIN,
+  UserRole.ORG_MANAGER,
+]
+
+/** True if role requires a division to be set */
+export function requiresDivision(role: UserRole): boolean {
+  return !NO_DIVISION_ROLES.includes(role)
+}

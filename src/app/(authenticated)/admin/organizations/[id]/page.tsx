@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ChevronRight, Pencil, Pause, Trash2, Users, LayoutGrid, Shield } from 'lucide-react'
+import { ChevronRight, Users, LayoutGrid, Shield } from 'lucide-react'
 import { toast } from 'sonner'
 import { useOrgUsers } from '@/hooks/useOrgUsers'
 import { useModuleConfig } from '@/hooks/useModuleConfig'
@@ -10,20 +10,22 @@ import { useCustomRoles } from '@/hooks/useCustomRoles'
 import { useFieldPermissions } from '@/hooks/useFieldPermissions'
 import { OrgUserTable } from '@/components/admin/OrgUserTable'
 import { UserForm } from '@/components/admin/UserForm'
-import { OrgForm } from '@/components/admin/OrgForm'
 import { ModuleToggleGrid } from '@/components/admin/ModuleToggleGrid'
 import { CustomRoleTable } from '@/components/admin/CustomRoleTable'
 import { RoleForm } from '@/components/admin/RoleForm'
 import { FieldPermissionEditor } from '@/components/admin/FieldPermissionEditor'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type { Organization, User as DbUser, CustomRole } from '@/types/database'
 import type { UserRole, UserDivision } from '@/types/enums'
 
 type TabKey = 'users' | 'modules' | 'roles'
 
-const tabs: { key: TabKey; label: string; icon: typeof Users }[] = [
+const tabDefs: { key: TabKey; label: string; icon: typeof Users }[] = [
   { key: 'users', label: 'Users', icon: Users },
   { key: 'modules', label: 'Modules', icon: LayoutGrid },
   { key: 'roles', label: 'Roles & Permissions', icon: Shield },
@@ -34,26 +36,47 @@ export default function OrgDetailPage() {
   const router = useRouter()
   const orgId = params.id as string
 
+  // ---- Org state ----
   const [org, setOrg] = useState<Organization | null>(null)
+  const [orgName, setOrgName] = useState('')
+  const [orgPhone, setOrgPhone] = useState('')
+  const [orgAddress, setOrgAddress] = useState('')
+  const [orgDescription, setOrgDescription] = useState('')
+  const [orgContactName, setOrgContactName] = useState('')
+  const [orgContactEmail, setOrgContactEmail] = useState('')
+  const [orgContactPhone, setOrgContactPhone] = useState('')
+
+  // ---- Tab + User form state ----
   const [activeTab, setActiveTab] = useState<TabKey>('users')
-  const [editOrgOpen, setEditOrgOpen] = useState(false)
-  const [userFormOpen, setUserFormOpen] = useState(false)
+  const [userFormMode, setUserFormMode] = useState<'hidden' | 'create' | 'edit'>('hidden')
   const [editingUser, setEditingUser] = useState<DbUser | null>(null)
   const [roleFormOpen, setRoleFormOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<CustomRole | null>(null)
 
+  // ---- Hooks ----
   const { users, loading: usersLoading, refresh: refreshUsers } = useOrgUsers(orgId)
   const { isModuleEnabled, isCalcEnabled, toggleModule, toggleCalculator } = useModuleConfig(orgId)
   const { roles, refresh: refreshRoles } = useCustomRoles(orgId)
   const { getRolePermission, setRolePermission } = useFieldPermissions(orgId)
 
+  // ---- Load org ----
   useEffect(() => {
     async function loadOrg() {
       try {
         const res = await fetch(`/api/admin/organizations/${orgId}`)
         if (res.ok) {
           const data = await res.json()
-          if (data.org) setOrg(data.org)
+          if (data.org) {
+            const o = data.org as Organization
+            setOrg(o)
+            setOrgName(o.name)
+            setOrgPhone(o.phone ?? '')
+            setOrgAddress(o.address ?? '')
+            setOrgDescription(o.description ?? '')
+            setOrgContactName(o.primary_contact_name ?? '')
+            setOrgContactEmail(o.primary_contact_email ?? '')
+            setOrgContactPhone(o.primary_contact_phone ?? '')
+          }
         }
       } catch { /* silently fail */ }
     }
@@ -63,13 +86,25 @@ export default function OrgDetailPage() {
   if (!org) return <div className="text-sm text-muted-foreground">Loading...</div>
 
   // ---- Org actions ----
-  async function handleEditOrg(data: { name: string; description?: string; phone?: string; address?: string; primary_contact_name?: string; primary_contact_email?: string }) {
+  async function handleSaveOrg() {
     const res = await fetch('/api/admin/organizations', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: org!.id, ...data }),
+      body: JSON.stringify({
+        id: org!.id,
+        name: orgName,
+        description: orgDescription || undefined,
+        phone: orgPhone || undefined,
+        address: orgAddress || undefined,
+        primary_contact_name: orgContactName || undefined,
+        primary_contact_email: orgContactEmail || undefined,
+      }),
     })
-    if (res.ok) { const updated = await res.json(); setOrg(updated); toast.success('Organization updated') }
+    if (res.ok) {
+      const updated = await res.json()
+      setOrg(updated)
+      toast.success('Organization updated')
+    }
   }
 
   async function handleSuspendOrg() {
@@ -78,7 +113,11 @@ export default function OrgDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_active: !org!.is_active }),
     })
-    if (res.ok) { const updated = await res.json(); setOrg(updated); toast.success(updated.is_active ? 'Organization activated' : 'Organization suspended') }
+    if (res.ok) {
+      const updated = await res.json()
+      setOrg(updated)
+      toast.success(updated.is_active ? 'Organization activated' : 'Organization suspended')
+    }
   }
 
   async function handleDeleteOrg() {
@@ -88,13 +127,13 @@ export default function OrgDetailPage() {
   }
 
   // ---- User actions ----
-  async function handleCreateUser(data: { email: string; first_name: string; last_name: string; role: UserRole; divisions: UserDivision[]; phone?: string }) {
+  async function handleCreateUser(data: { email: string; first_name: string; last_name: string; role: UserRole; divisions: UserDivision[]; phone?: string; password?: string }) {
     const res = await fetch('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...data, org_id: orgId }),
     })
-    if (res.ok) { toast.success('User created'); refreshUsers() }
+    if (res.ok) { toast.success('User created'); setUserFormMode('hidden'); refreshUsers() }
     else { const err = await res.json(); toast.error(err.error ?? 'Failed to create user') }
   }
 
@@ -105,7 +144,7 @@ export default function OrgDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: editingUser.id, ...data }),
     })
-    if (res.ok) { toast.success('User updated'); setEditingUser(null); refreshUsers() }
+    if (res.ok) { toast.success('User updated'); setEditingUser(null); setUserFormMode('hidden'); refreshUsers() }
   }
 
   async function handleSuspendUser(user: DbUser) {
@@ -156,8 +195,6 @@ export default function OrgDetailPage() {
     if (res.ok) { toast.success('Role deleted'); refreshRoles() }
   }
 
-  const initials = org.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
-
   const roleIdentifiers = [
     { key: 'ORG_ADMIN', label: 'ORG_ADMIN' },
     { key: 'MANAGER', label: 'MANAGER' },
@@ -167,6 +204,7 @@ export default function OrgDetailPage() {
 
   return (
     <div>
+      {/* Breadcrumb */}
       <div className="mb-5 flex items-center gap-1.5 text-xs text-muted-foreground">
         <span className="cursor-pointer text-primary hover:underline" onClick={() => router.push('/admin')}>Home</span>
         <ChevronRight className="h-3 w-3" />
@@ -175,39 +213,72 @@ export default function OrgDetailPage() {
         <span className="text-foreground">{org.name}</span>
       </div>
 
-      <div className="mb-5 flex items-start justify-between">
-        <div className="flex items-center gap-3.5">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-muted text-base font-semibold text-muted-foreground">{initials}</div>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-lg font-medium">{org.name}</h1>
-              <Badge variant={org.is_active ? 'success' : 'warning'} className="text-[10px]">
-                {org.is_active ? 'Active' : 'Suspended'}
-              </Badge>
+      {/* ============ Inline Org Info Form ============ */}
+      <div className="mb-6 rounded-lg border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <span className="text-sm font-medium">Organization Info</span>
+            <Badge variant={org.is_active ? 'success' : 'warning'} className="text-[10px]">
+              {org.is_active ? 'Active' : 'Suspended'}
+            </Badge>
+          </div>
+          <span className="text-[11px] text-muted-foreground">
+            Created {new Date(org.created_at).toLocaleDateString()}
+          </span>
+        </div>
+        <div className="grid gap-4 px-5 py-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Organization Name</Label>
+              <Input value={orgName} onChange={(e) => setOrgName(e.target.value)} />
             </div>
-            <div className="mt-0.5 text-xs text-muted-foreground">
-              {users.length} users &middot; Created {new Date(org.created_at).toLocaleDateString()}
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Phone</Label>
+              <Input value={orgPhone} onChange={(e) => setOrgPhone(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Address</Label>
+            <Input value={orgAddress} onChange={(e) => setOrgAddress(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Description</Label>
+            <Textarea value={orgDescription} onChange={(e) => setOrgDescription(e.target.value)} rows={2} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Primary Contact Name</Label>
+              <Input value={orgContactName} onChange={(e) => setOrgContactName(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Primary Contact Email</Label>
+              <Input value={orgContactEmail} onChange={(e) => setOrgContactEmail(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Primary Contact Phone</Label>
+              <Input value={orgContactPhone} onChange={(e) => setOrgContactPhone(e.target.value)} />
             </div>
           </div>
         </div>
-        <div className="flex gap-1.5">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditOrgOpen(true)}>
-            <Pencil className="h-3.5 w-3.5" /> Edit
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 text-amber-500 hover:text-amber-400" onClick={handleSuspendOrg}>
-            <Pause className="h-3.5 w-3.5" /> {org.is_active ? 'Suspend' : 'Activate'}
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 text-red-500 hover:text-red-400" onClick={handleDeleteOrg}>
-            <Trash2 className="h-3.5 w-3.5" /> Delete
+        <div className="flex items-center justify-between border-t border-border px-5 py-3">
+          <div className="flex gap-1.5">
+            <Button size="sm" onClick={handleSaveOrg}>Save</Button>
+            <Button variant="outline" size="sm" className="text-amber-500 hover:text-amber-400" onClick={handleSuspendOrg}>
+              {org.is_active ? 'Deactivate' : 'Activate'}
+            </Button>
+          </div>
+          <Button variant="outline" size="sm" className="text-red-500 hover:text-red-400" onClick={handleDeleteOrg}>
+            Delete Organization
           </Button>
         </div>
       </div>
 
+      {/* ============ Tabs ============ */}
       <div className="mb-5 flex gap-0 border-b border-border">
-        {tabs.map((tab) => (
+        {tabDefs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => { setActiveTab(tab.key); setUserFormMode('hidden'); setEditingUser(null) }}
             className={cn(
               'flex items-center gap-1.5 border-b-2 px-5 py-2.5 text-[13px] transition-colors',
               activeTab === tab.key
@@ -221,12 +292,39 @@ export default function OrgDetailPage() {
         ))}
       </div>
 
+      {/* ============ Users Tab ============ */}
       {activeTab === 'users' && (
-        <OrgUserTable users={users} onAdd={() => setUserFormOpen(true)} onEdit={(u) => setEditingUser(u)} onSuspend={handleSuspendUser} onResetPassword={handleResetPassword} onDelete={handleDeleteUser} />
+        <div>
+          <OrgUserTable
+            users={users}
+            onAdd={() => { setEditingUser(null); setUserFormMode('create') }}
+            onEdit={(u) => { setEditingUser(u); setUserFormMode('edit') }}
+            onSuspend={handleSuspendUser}
+            onResetPassword={handleResetPassword}
+            onDelete={handleDeleteUser}
+          />
+
+          {/* Inline User Form (below table) */}
+          {userFormMode !== 'hidden' && (
+            <div className="mt-4">
+              <UserForm
+                key={editingUser?.id ?? 'new'}
+                user={userFormMode === 'edit' ? editingUser : null}
+                orgId={orgId}
+                onSubmit={userFormMode === 'edit' ? handleEditUser : handleCreateUser}
+                onCancel={() => { setUserFormMode('hidden'); setEditingUser(null) }}
+              />
+            </div>
+          )}
+        </div>
       )}
+
+      {/* ============ Modules Tab ============ */}
       {activeTab === 'modules' && (
         <ModuleToggleGrid isModuleEnabled={isModuleEnabled} isCalcEnabled={isCalcEnabled} onToggleModule={toggleModule} onToggleCalc={toggleCalculator} />
       )}
+
+      {/* ============ Roles Tab ============ */}
       {activeTab === 'roles' && (
         <div className="grid grid-cols-[1fr_1.3fr] gap-5">
           <div>
@@ -240,9 +338,7 @@ export default function OrgDetailPage() {
         </div>
       )}
 
-      <OrgForm open={editOrgOpen} onOpenChange={setEditOrgOpen} org={org} onSubmit={handleEditOrg} />
-      <UserForm open={userFormOpen} onOpenChange={setUserFormOpen} orgId={orgId} onSubmit={handleCreateUser} />
-      <UserForm open={!!editingUser} onOpenChange={(o) => { if (!o) setEditingUser(null) }} user={editingUser} orgId={orgId} onSubmit={handleEditUser} />
+      {/* Role dialogs — kept as dialogs (small forms, not full pages) */}
       <RoleForm open={roleFormOpen} onOpenChange={setRoleFormOpen} onSubmit={handleCreateRole} />
       <RoleForm open={!!editingRole} onOpenChange={(o) => { if (!o) setEditingRole(null) }} role={editingRole} onSubmit={handleEditRole} />
     </div>

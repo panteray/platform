@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, Pause, Trash2, KeyRound, Search, Plus } from 'lucide-react'
+import { Pause, Trash2, KeyRound, Search, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { User } from '@/types/database'
@@ -80,6 +80,9 @@ export function OrgUserTable({ users, onAdd, onEdit, onSuspend, onResetPassword,
                   {user.divisions?.map((d) => (
                     <Badge key={d} variant="secondary" className="mr-1 text-[10px]">{d}</Badge>
                   ))}
+                  {(!user.divisions || user.divisions.length === 0) && (
+                    <span className="text-[10px] text-muted-foreground">---</span>
+                  )}
                 </td>
                 <td className="px-3.5 py-2.5">
                   <Badge variant={user.is_active ? 'success' : 'warning'} className="text-[10px]">
@@ -88,9 +91,6 @@ export function OrgUserTable({ users, onAdd, onEdit, onSuspend, onResetPassword,
                 </td>
                 <td className="px-3.5 py-2.5">
                   <div className="flex items-center justify-center gap-1">
-                    <button onClick={() => onEdit(user)} className="rounded p-1 text-muted-foreground hover:text-foreground" title="Edit">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
                     <button onClick={() => onSuspend(user)} className="rounded p-1 text-amber-500 hover:text-amber-400" title={user.is_active ? 'Suspend' : 'Activate'}>
                       <Pause className="h-3.5 w-3.5" />
                     </button>
