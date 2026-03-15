@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { CustomRole } from '@/types/database'
 
 export function useCustomRoles(orgId: string | null) {
@@ -10,14 +9,13 @@ export function useCustomRoles(orgId: string | null) {
 
   const fetchRoles = useCallback(async () => {
     if (!orgId) { setLoading(false); return }
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('custom_roles')
-      .select('*')
-      .eq('org_id', orgId)
-      .order('name')
-
-    if (!error && data) setRoles(data)
+    try {
+      const res = await fetch(`/api/admin/organizations/${orgId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setRoles(data.roles ?? [])
+      }
+    } catch { /* silently fail */ }
     setLoading(false)
   }, [orgId])
 

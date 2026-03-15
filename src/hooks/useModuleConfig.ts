@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { OrgModuleConfig, OrgCalculatorConfig } from '@/types/database'
 import type { ModuleName, CalculatorType } from '@/types/enums'
 
@@ -12,15 +11,14 @@ export function useModuleConfig(orgId: string | null) {
 
   const fetchData = useCallback(async () => {
     if (!orgId) { setLoading(false); return }
-    const supabase = createClient()
-
-    const [modRes, calcRes] = await Promise.all([
-      supabase.from('org_module_config').select('*').eq('org_id', orgId),
-      supabase.from('org_calculator_config').select('*').eq('org_id', orgId),
-    ])
-
-    if (modRes.data) setModules(modRes.data)
-    if (calcRes.data) setCalculators(calcRes.data)
+    try {
+      const res = await fetch(`/api/admin/organizations/${orgId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setModules(data.modules ?? [])
+        setCalculators(data.calculators ?? [])
+      }
+    } catch { /* silently fail */ }
     setLoading(false)
   }, [orgId])
 
@@ -28,19 +26,21 @@ export function useModuleConfig(orgId: string | null) {
 
   const toggleModule = async (moduleName: ModuleName, enabled: boolean) => {
     if (!orgId) return
-    const supabase = createClient()
-    await supabase
-      .from('org_module_config')
-      .upsert({ org_id: orgId, module: moduleName, is_enabled: enabled }, { onConflict: 'org_id,module' })
+    await fetch(`/api/admin/organizations/${orgId}/modules`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'module', module: moduleName, is_enabled: enabled }),
+    })
     await fetchData()
   }
 
   const toggleCalculator = async (calcType: CalculatorType, enabled: boolean) => {
     if (!orgId) return
-    const supabase = createClient()
-    await supabase
-      .from('org_calculator_config')
-      .upsert({ org_id: orgId, calculator_type: calcType, is_enabled: enabled }, { onConflict: 'org_id,calculator_type' })
+    await fetch(`/api/admin/organizations/${orgId}/modules`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'calculator', calculator_type: calcType, is_enabled: enabled }),
+    })
     await fetchData()
   }
 

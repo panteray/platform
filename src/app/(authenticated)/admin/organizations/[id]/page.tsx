@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ChevronRight, Pencil, Pause, Trash2, Users, LayoutGrid, Shield } from 'lucide-react'
 import { toast } from 'sonner'
-import { createClient } from '@/lib/supabase/client'
 import { useOrgUsers } from '@/hooks/useOrgUsers'
 import { useModuleConfig } from '@/hooks/useModuleConfig'
 import { useCustomRoles } from '@/hooks/useCustomRoles'
@@ -50,9 +49,13 @@ export default function OrgDetailPage() {
 
   useEffect(() => {
     async function loadOrg() {
-      const supabase = createClient()
-      const { data } = await supabase.from('organizations').select('*').eq('id', orgId).single()
-      if (data) setOrg(data)
+      try {
+        const res = await fetch(`/api/admin/organizations/${orgId}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.org) setOrg(data.org)
+        }
+      } catch { /* silently fail */ }
     }
     loadOrg()
   }, [orgId])
@@ -128,24 +131,29 @@ export default function OrgDetailPage() {
 
   // ---- Role actions ----
   async function handleCreateRole(data: { name: string; base_role: UserRole; description: string }) {
-    const supabase = createClient()
-    const { error } = await supabase.from('custom_roles').insert({ org_id: orgId, ...data })
-    if (!error) { toast.success('Role created'); refreshRoles() }
-    else toast.error(error.message)
+    const res = await fetch(`/api/admin/organizations/${orgId}/roles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (res.ok) { toast.success('Role created'); refreshRoles() }
+    else { const err = await res.json(); toast.error(err.error ?? 'Failed to create role') }
   }
 
   async function handleEditRole(data: { name: string; base_role: UserRole; description: string }) {
     if (!editingRole) return
-    const supabase = createClient()
-    const { error } = await supabase.from('custom_roles').update(data).eq('id', editingRole.id)
-    if (!error) { toast.success('Role updated'); setEditingRole(null); refreshRoles() }
+    const res = await fetch(`/api/admin/organizations/${orgId}/roles`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role_id: editingRole.id, ...data }),
+    })
+    if (res.ok) { toast.success('Role updated'); setEditingRole(null); refreshRoles() }
   }
 
   async function handleDeleteRole(role: CustomRole) {
     if (!confirm(`Delete role "${role.name}"?`)) return
-    const supabase = createClient()
-    const { error } = await supabase.from('custom_roles').delete().eq('id', role.id)
-    if (!error) { toast.success('Role deleted'); refreshRoles() }
+    const res = await fetch(`/api/admin/organizations/${orgId}/roles?role_id=${role.id}`, { method: 'DELETE' })
+    if (res.ok) { toast.success('Role deleted'); refreshRoles() }
   }
 
   const initials = org.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()

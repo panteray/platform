@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { RoleFieldPermission, UserFieldPermission, FieldPermissionLevel } from '@/types/database'
 
 export function useFieldPermissions(orgId: string | null) {
@@ -11,15 +10,14 @@ export function useFieldPermissions(orgId: string | null) {
 
   const fetchData = useCallback(async () => {
     if (!orgId) { setLoading(false); return }
-    const supabase = createClient()
-
-    const [rpRes, upRes] = await Promise.all([
-      supabase.from('role_field_permissions').select('*').eq('org_id', orgId),
-      supabase.from('user_field_permissions').select('*').eq('org_id', orgId),
-    ])
-
-    if (rpRes.data) setRolePerms(rpRes.data)
-    if (upRes.data) setUserPerms(upRes.data)
+    try {
+      const res = await fetch(`/api/admin/organizations/${orgId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setRolePerms(data.rolePermissions ?? [])
+        setUserPerms(data.userPermissions ?? [])
+      }
+    } catch { /* silently fail */ }
     setLoading(false)
   }, [orgId])
 
@@ -27,11 +25,11 @@ export function useFieldPermissions(orgId: string | null) {
 
   const setRolePermission = async (roleKey: string, fieldKey: string, permission: FieldPermissionLevel) => {
     if (!orgId) return
-    const supabase = createClient()
-    await supabase.from('role_field_permissions').upsert(
-      { org_id: orgId, role_key: roleKey, field_key: fieldKey, permission },
-      { onConflict: 'org_id,role_key,field_key' }
-    )
+    await fetch(`/api/admin/organizations/${orgId}/permissions`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role_key: roleKey, field_key: fieldKey, permission }),
+    })
     await fetchData()
   }
 
