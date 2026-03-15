@@ -11,7 +11,7 @@ import {
   Settings,
 } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
-import { canManageUsers, canManageOrg } from '@/lib/roles'
+import { canManageUsers, canManageOrg, canManageCRM } from '@/lib/roles'
 
 import type { UserRole } from '@/types/enums'
 import type { LucideIcon } from 'lucide-react'
@@ -24,18 +24,6 @@ interface ManagementSection {
   visible: (role: UserRole) => boolean
   phase?: number
 }
-
-const RESOURCE_ROLES: UserRole[] = [
-  'ORG_ADMIN' as UserRole,
-  'ORG_MANAGER' as UserRole,
-  'MANAGER' as UserRole,
-  'OPERATIONS' as UserRole,
-  'SALES_ISR' as UserRole,
-  'SALES_OSR' as UserRole,
-  'PRESALES' as UserRole,
-  'PROJECT_MANAGER' as UserRole,
-  'TECH_SUP' as UserRole,
-]
 
 const ALL_SECTIONS: ManagementSection[] = [
   {
@@ -72,14 +60,21 @@ const ALL_SECTIONS: ManagementSection[] = [
     title: 'Roles & Permissions',
     description: 'Configure role permissions and field-level access',
     visible: (role) => canManageUsers(role),
-    phase: 5,
+    phase: 6,
+  },
+  {
+    href: '/org/customers',
+    icon: Users,
+    title: 'Customers',
+    description: 'Manage customer records, contacts, and documents',
+    visible: (role) => canManageCRM(role),
   },
   {
     href: '/org/management/vendors',
     icon: Building2,
     title: 'Vendors',
     description: 'Manage vendor relationships and compliance',
-    visible: (role) => RESOURCE_ROLES.includes(role),
+    visible: (role) => canManageCRM(role),
     phase: 5,
   },
   {
@@ -87,15 +82,7 @@ const ALL_SECTIONS: ManagementSection[] = [
     icon: Wrench,
     title: 'Subcontractors',
     description: 'Manage subcontractor onboarding and compliance',
-    visible: (role) => RESOURCE_ROLES.includes(role),
-    phase: 5,
-  },
-  {
-    href: '/org/management/customers',
-    icon: Users,
-    title: 'Customers',
-    description: 'Manage customer records, contacts, and documents',
-    visible: (role) => RESOURCE_ROLES.includes(role),
+    visible: (role) => canManageCRM(role),
     phase: 5,
   },
 ]
