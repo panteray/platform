@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Maximize2, Minimize2, Plus, RotateCcw } from 'lucide-react'
-import { useDashboardLayout, WIDGET_REGISTRY } from '@/hooks/useDashboardLayout'
-import type { WidgetConfig } from '@/hooks/useDashboardLayout'
+import { useState, useRef, useCallback } from 'react'
+import { X, Plus, RotateCcw, GripVertical } from 'lucide-react'
+import { useDashboardLayout, WIDGET_REGISTRY, snapColSpan, snapRowSpan, colSpanLabel } from '@/hooks/useDashboardLayout'
+import type { WidgetConfig, ColSpan, RowSpan } from '@/hooks/useDashboardLayout'
 import { NotificationFeed } from './NotificationFeed'
 import { QuickStatsWidget } from './QuickStatsWidget'
 import { Button } from '@/components/ui/button'
@@ -86,7 +86,7 @@ export function DashboardGrid({ divisionFilter }: DashboardGridProps) {
       )}
 
       {/* Grid */}
-      <div className="grid grid-cols-12 gap-4">
+      <div className="grid grid-cols-12 gap-4" id="dashboard-grid">
         {widgets.map((widget) => (
           <WidgetCard
             key={widget.id}
@@ -109,7 +109,7 @@ export function DashboardGrid({ divisionFilter }: DashboardGridProps) {
   )
 }
 
-// ---- Widget Card Wrapper ----
+// ---- Widget Card with Drag-to-Resize ----
 
 function WidgetCard({
   widget,
@@ -120,48 +120,120 @@ function WidgetCard({
   widget: WidgetConfig
   divisionFilter: string
   onRemove: () => void
-  onResize: (colSpan: 4 | 6 | 8 | 12, rowSpan: 1 | 2) => void
+  onResize: (colSpan: ColSpan, rowSpan: RowSpan) => void
 }) {
   const reg = WIDGET_REGISTRY[widget.id]
   const title = reg?.title ?? widget.id
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [draggingEdge, setDraggingEdge] = useState<'right' | 'bottom' | null>(null)
+  const [previewColSpan, setPreviewColSpan] = useState<ColSpan | null>(null)
+  const [previewRowSpan, setPreviewRowSpan] = useState<RowSpan | null>(null)
 
-  const isExpanded = widget.colSpan >= 8
-  const isTall = widget.rowSpan >= 2
+  const activeColSpan = previewColSpan ?? widget.colSpan
+  const activeRowSpan = previewRowSpan ?? widget.rowSpan
+
+  // Size selector buttons
+  const sizeOptions: ColSpan[] = [4, 6, 12]
+
+  const handleMouseDownRight = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const grid = document.getElementById('dashboard-grid')
+    const containerWidth = grid?.clientWidth ?? 800
+
+    setDraggingEdge('right')
+
+    function onMove(ev: MouseEvent) {
+      const deltaX = ev.clientX - startX
+      const snapped = snapColSpan(widget.colSpan, deltaX, containerWidth)
+      setPreviewColSpan(snapped)
+    }
+
+    function onUp(ev: MouseEvent) {
+      const deltaX = ev.clientX - startX
+      const snapped = snapColSpan(widget.colSpan, deltaX, containerWidth)
+      setDraggingEdge(null)
+      setPreviewColSpan(null)
+      if (snapped !== widget.colSpan) {
+        onResize(snapped, widget.rowSpan)
+      }
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [widget.colSpan, widget.rowSpan, onResize])
+
+  const handleMouseDownBottom = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startY = e.clientY
+
+    setDraggingEdge('bottom')
+
+    function onMove(ev: MouseEvent) {
+      const deltaY = ev.clientY - startY
+      const snapped = snapRowSpan(widget.rowSpan, deltaY)
+      setPreviewRowSpan(snapped)
+    }
+
+    function onUp(ev: MouseEvent) {
+      const deltaY = ev.clientY - startY
+      const snapped = snapRowSpan(widget.rowSpan, deltaY)
+      setDraggingEdge(null)
+      setPreviewRowSpan(null)
+      if (snapped !== widget.rowSpan) {
+        onResize(widget.colSpan, snapped)
+      }
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [widget.colSpan, widget.rowSpan, onResize])
 
   return (
     <div
+      ref={cardRef}
       className={cn(
-        'rounded-lg border border-border bg-card overflow-hidden',
-        widget.rowSpan === 2 ? 'row-span-2' : 'row-span-1'
+        'group relative overflow-hidden rounded-lg border bg-card',
+        draggingEdge ? 'border-blue-500/50' : 'border-border',
+        activeRowSpan === 2 ? 'row-span-2' : 'row-span-1'
       )}
       style={{
-        gridColumn: `span ${widget.colSpan} / span ${widget.colSpan}`,
-        minHeight: widget.rowSpan === 2 ? '320px' : '160px',
+        gridColumn: `span ${activeColSpan} / span ${activeColSpan}`,
+        minHeight: activeRowSpan === 2 ? '320px' : '160px',
       }}
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <span className="text-[13px] font-medium text-foreground">{title}</span>
         <div className="flex items-center gap-1">
-          {/* Size toggle */}
-          <button
-            onClick={() => onResize(isExpanded ? 6 : 12, widget.rowSpan)}
-            className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            title={isExpanded ? 'Shrink width' : 'Expand width'}
-          >
-            {isExpanded ? (
-              <Minimize2 className="h-3.5 w-3.5" />
-            ) : (
-              <Maximize2 className="h-3.5 w-3.5" />
-            )}
-          </button>
+          {/* Size selector: Third / Half / Full */}
+          <div className="mr-1 flex items-center rounded-md border border-border">
+            {sizeOptions.map((size) => (
+              <button
+                key={size}
+                onClick={() => onResize(size, widget.rowSpan)}
+                className={cn(
+                  'px-2 py-0.5 text-[10px] font-medium transition-colors',
+                  widget.colSpan === size
+                    ? 'bg-foreground/10 text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {colSpanLabel(size)}
+              </button>
+            ))}
+          </div>
           {/* Height toggle */}
           <button
-            onClick={() => onResize(widget.colSpan, isTall ? 1 : 2)}
+            onClick={() => onResize(widget.colSpan, widget.rowSpan === 2 ? 1 : 2)}
             className="rounded p-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            title={isTall ? 'Short' : 'Tall'}
+            title={widget.rowSpan === 2 ? 'Short' : 'Tall'}
           >
-            {isTall ? '1x' : '2x'}
+            {widget.rowSpan === 2 ? '1x' : '2x'}
           </button>
           {/* Remove */}
           <button
@@ -178,6 +250,31 @@ function WidgetCard({
       <div className="h-full overflow-y-auto">
         <WidgetContent widgetId={widget.id} divisionFilter={divisionFilter} />
       </div>
+
+      {/* Right edge drag handle */}
+      <div
+        onMouseDown={handleMouseDownRight}
+        className="absolute right-0 top-0 z-10 flex h-full w-2 cursor-col-resize items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+      >
+        <div className="h-8 w-1 rounded-full bg-muted-foreground/30" />
+      </div>
+
+      {/* Bottom edge drag handle */}
+      <div
+        onMouseDown={handleMouseDownBottom}
+        className="absolute bottom-0 left-0 z-10 flex h-2 w-full cursor-row-resize items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+      >
+        <div className="h-1 w-8 rounded-full bg-muted-foreground/30" />
+      </div>
+
+      {/* Drag preview indicator */}
+      {draggingEdge && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-blue-500/5">
+          <span className="rounded-md bg-blue-500/10 px-2 py-1 text-xs font-medium text-blue-500">
+            {colSpanLabel(activeColSpan)} / {activeRowSpan}x
+          </span>
+        </div>
+      )}
     </div>
   )
 }

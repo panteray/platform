@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Notification } from '@/types/database'
 
@@ -10,13 +10,15 @@ interface NotificationState {
   error: string | null
 }
 
-export function useNotifications(limit = 20): NotificationState {
+export function useNotifications(limit = 20) {
   const [state, setState] = useState<NotificationState>({
     notifications: [],
     loading: true,
     error: null,
   })
+  const [userId, setUserId] = useState<string | null>(null)
 
+  // Initial load
   useEffect(() => {
     const supabase = createClient()
 
@@ -27,7 +29,6 @@ export function useNotifications(limit = 20): NotificationState {
         return
       }
 
-      // Get the users table id for the current auth user
       const { data: dbUser } = await supabase
         .from('users')
         .select('id')
@@ -38,6 +39,8 @@ export function useNotifications(limit = 20): NotificationState {
         setState({ notifications: [], loading: false, error: null })
         return
       }
+
+      setUserId(dbUser.id)
 
       const { data, error } = await supabase
         .from('notifications')
@@ -56,5 +59,83 @@ export function useNotifications(limit = 20): NotificationState {
     load()
   }, [limit])
 
-  return state
+  // Realtime subscription
+  useEffect(() => {
+    if (!userId) return
+
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const newNotif = payload.new as Notification
+          setState((s) => ({
+            ...s,
+            notifications: [newNotif, ...s.notifications].slice(0, limit),
+          }))
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const updated = payload.new as Notification
+          setState((s) => ({
+            ...s,
+            notifications: s.notifications.map((n) =>
+              n.id === updated.id ? updated : n
+            ),
+          }))
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [userId, limit])
+
+  const markRead = useCallback(async (notificationId: string) => {
+    setState((s) => ({
+      ...s,
+      notifications: s.notifications.map((n) =>
+        n.id === notificationId ? { ...n, read: true } : n
+      ),
+    }))
+    await fetch('/api/notifications/mark-read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notificationId }),
+    })
+  }, [])
+
+  const markAllRead = useCallback(async () => {
+    setState((s) => ({
+      ...s,
+      notifications: s.notifications.map((n) => ({ ...n, read: true })),
+    }))
+    await fetch('/api/notifications/mark-read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    })
+  }, [])
+
+  return {
+    ...state,
+    markRead,
+    markAllRead,
+  }
 }

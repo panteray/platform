@@ -4,15 +4,18 @@ import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from './useUser'
 
+export type ColSpan = 4 | 6 | 12
+export type RowSpan = 1 | 2
+
 export interface WidgetConfig {
   id: string
-  colSpan: 4 | 6 | 8 | 12
-  rowSpan: 1 | 2
+  colSpan: ColSpan
+  rowSpan: RowSpan
 }
 
 export const WIDGET_REGISTRY: Record<
   string,
-  { title: string; description: string; defaultColSpan: 4 | 6 | 8 | 12; defaultRowSpan: 1 | 2 }
+  { title: string; description: string; defaultColSpan: ColSpan; defaultRowSpan: RowSpan }
 > = {
   notifications: {
     title: 'Notifications',
@@ -47,6 +50,36 @@ const DEFAULT_LAYOUT: WidgetConfig[] = [
   { id: 'active_projects', colSpan: 6, rowSpan: 1 },
 ]
 
+/** Snap a pixel-based drag delta to the nearest valid colSpan */
+export function snapColSpan(currentColSpan: ColSpan, deltaX: number, containerWidth: number): ColSpan {
+  const colWidth = containerWidth / 12
+  const currentPx = currentColSpan * colWidth
+  const targetPx = currentPx + deltaX
+  const targetCols = Math.round(targetPx / colWidth)
+
+  if (targetCols <= 5) return 4
+  if (targetCols <= 9) return 6
+  return 12
+}
+
+/** Snap a pixel-based drag delta to the nearest valid rowSpan */
+export function snapRowSpan(currentRowSpan: RowSpan, deltaY: number): RowSpan {
+  const rowHeight = 160
+  const currentPx = currentRowSpan * rowHeight
+  const targetPx = currentPx + deltaY
+  return targetPx > rowHeight * 1.5 ? 2 : 1
+}
+
+/** Human label for colSpan */
+export function colSpanLabel(colSpan: ColSpan): string {
+  switch (colSpan) {
+    case 4: return 'Third'
+    case 6: return 'Half'
+    case 12: return 'Full'
+    default: return 'Half'
+  }
+}
+
 interface DashboardLayoutState {
   widgets: WidgetConfig[]
   loading: boolean
@@ -61,7 +94,6 @@ export function useDashboardLayout() {
     saving: false,
   })
 
-  // Load layout from user preferences
   useEffect(() => {
     if (!user) return
     const prefs = (user.preferences ?? {}) as Record<string, unknown>
@@ -73,7 +105,6 @@ export function useDashboardLayout() {
     }
   }, [user])
 
-  // Persist layout to DB
   const saveLayout = useCallback(
     async (widgets: WidgetConfig[]) => {
       if (!authId) return
@@ -113,7 +144,7 @@ export function useDashboardLayout() {
   )
 
   const resizeWidget = useCallback(
-    (widgetId: string, colSpan: 4 | 6 | 8 | 12, rowSpan: 1 | 2) => {
+    (widgetId: string, colSpan: ColSpan, rowSpan: RowSpan) => {
       const next = state.widgets.map((w) =>
         w.id === widgetId ? { ...w, colSpan, rowSpan } : w
       )

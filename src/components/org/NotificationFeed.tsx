@@ -1,10 +1,10 @@
 'use client'
 
 import { useNotifications } from '@/hooks/useNotifications'
-import { Bell } from 'lucide-react'
+import { Bell, CheckCheck } from 'lucide-react'
 
 export function NotificationFeed() {
-  const { notifications, loading, error } = useNotifications(15)
+  const { notifications, loading, error, markRead } = useNotifications(15)
 
   if (loading) {
     return (
@@ -36,7 +36,9 @@ export function NotificationFeed() {
       {notifications.map((n) => (
         <div
           key={n.id}
-          className="flex items-start gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
+          className={`flex items-start gap-3 border-b border-border px-3 py-2.5 last:border-b-0 ${
+            !n.read ? 'bg-blue-500/[0.03]' : ''
+          }`}
         >
           <div
             className={`mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${
@@ -56,6 +58,16 @@ export function NotificationFeed() {
               {formatRelativeTime(n.created_at)}
             </div>
           </div>
+          {!n.read && (
+            <button
+              type="button"
+              onClick={() => markRead(n.id)}
+              className="mt-1 shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title="Mark as read"
+            >
+              <CheckCheck className="h-3 w-3" />
+            </button>
+          )}
         </div>
       ))}
     </div>
