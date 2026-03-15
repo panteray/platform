@@ -312,7 +312,7 @@ export default function ProfilePage() {
             type="tel"
             value={form.phone}
             onChange={(e) => { setForm((f) => ({ ...f, phone: e.target.value })); setDirty(true) }}
-            placeholder="(504) 555-0000"
+            placeholder="(504) 555-0000" autoComplete="tel"
             className="mt-1"
           />
         </div>
@@ -336,7 +336,7 @@ export default function ProfilePage() {
               type="password"
               value={passwordForm.newPassword}
               onChange={(e) => setPasswordForm((f) => ({ ...f, newPassword: e.target.value }))}
-              placeholder="Min 8 characters"
+              placeholder="Min 8 characters" autoComplete="new-password"
               className="mt-1"
             />
           </div>
@@ -346,7 +346,7 @@ export default function ProfilePage() {
               type="password"
               value={passwordForm.confirmPassword}
               onChange={(e) => setPasswordForm((f) => ({ ...f, confirmPassword: e.target.value }))}
-              placeholder="Confirm password"
+              placeholder="Confirm password" autoComplete="new-password"
               className="mt-1"
             />
           </div>

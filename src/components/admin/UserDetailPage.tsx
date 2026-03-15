@@ -263,11 +263,11 @@ export function UserDetailPage({ user, backHref, backLabel, apiBase, apiPassword
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label className="text-xs">Email</Label>
-                <Input value={email} disabled className="bg-muted/30" />
+                <Input value={email} disabled className="bg-muted/30" autoComplete="off" />
               </div>
               <div className="grid gap-1.5">
                 <Label className="text-xs">Phone</Label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" autoComplete="tel" />
               </div>
             </div>
           </div>
@@ -293,7 +293,7 @@ export function UserDetailPage({ user, backHref, backLabel, apiBase, apiPassword
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password (min 6 chars)"
+                  placeholder="New password (min 6 chars)" autoComplete="new-password"
                   className="mt-1"
                 />
               </div>

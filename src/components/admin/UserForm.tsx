@@ -105,11 +105,11 @@ export function UserForm({ user, orgId, onSubmit, onCancel }: UserFormProps) {
         <div className="grid grid-cols-2 gap-3">
           <div className="grid gap-1.5">
             <Label className="text-xs">Email</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!user} />
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!user} autoComplete="off" />
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs">Phone</Label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" autoComplete="tel" />
           </div>
         </div>
 
@@ -148,7 +148,7 @@ export function UserForm({ user, orgId, onSubmit, onCancel }: UserFormProps) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Min 6 characters (or leave blank for default)"
+              placeholder="Min 6 characters (or leave blank for default)" autoComplete="new-password"
             />
             <p className="text-[10px] text-muted-foreground">
               If left blank, defaults to TempPass123! — user should change on first login.
@@ -168,6 +168,7 @@ export function UserForm({ user, orgId, onSubmit, onCancel }: UserFormProps) {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="New password (min 6 chars)"
+                  autoComplete="new-password"
                   className="mt-1"
                 />
               </div>
