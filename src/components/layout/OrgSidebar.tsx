@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Settings, HelpCircle, Users } from 'lucide-react'
+import { LayoutDashboard, Settings, HelpCircle, Users, Sliders } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { canManageUsers } from '@/lib/roles'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 const orgNav = [
   { href: '/org', label: 'Dashboard', icon: LayoutDashboard, exact: true, requiresAdmin: false },
   { href: '/org/users', label: 'Users', icon: Users, exact: false, requiresAdmin: true },
+  { href: '/org/management', label: 'Management', icon: Sliders, exact: false, requiresAdmin: false },
   { href: '/org/settings', label: 'Settings', icon: Settings, exact: false, requiresAdmin: false },
 ]
 
