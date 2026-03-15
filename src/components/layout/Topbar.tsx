@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { Search, Sun, Moon, HelpCircle, LogOut, Bell, ChevronRight } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { Search, Sun, Moon, Bell, ChevronRight } from 'lucide-react'
 import { useTheme } from '@/components/layout/ThemeProvider'
 import { useNotifications } from '@/hooks/useNotifications'
 import { NotificationPanel } from '@/components/layout/NotificationPanel'
@@ -56,15 +55,8 @@ export function Topbar() {
 
   const unreadCount = notifications.filter((n) => !n.read).length
   const handleCloseNotif = useCallback(() => setNotifOpen(false), [])
-
   const crumbs = useMemo(() => buildBreadcrumbs(pathname), [pathname])
   const roleLbl = userRole ? roleLabel(userRole as UserRole) : null
-
-  async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
 
   return (
     <header className="flex h-14 min-h-[56px] items-center justify-between border-b border-border bg-card px-6">
@@ -127,10 +119,6 @@ export function Topbar() {
         {roleLbl && (
           <span className="ml-2 text-xs text-muted-foreground">{roleLbl}</span>
         )}
-        <Button variant="outline" size="sm" className="ml-1 gap-1.5" onClick={handleLogout}>
-          <LogOut className="h-4 w-4" />
-          Logout
-        </Button>
       </div>
     </header>
   )

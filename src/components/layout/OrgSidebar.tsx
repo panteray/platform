@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Settings, HelpCircle, Users, Sliders, PanelLeftClose, PanelLeft } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { LayoutDashboard, Settings, HelpCircle, Users, Sliders, PanelLeftClose, PanelLeft, LogOut } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { canManageUsers } from '@/lib/roles'
 import { useSidebarState } from '@/hooks/useSidebarState'
@@ -13,11 +14,12 @@ const orgNav = [
   { href: '/org', label: 'Dashboard', icon: LayoutDashboard, exact: true, requiresAdmin: false },
   { href: '/org/users', label: 'Users', icon: Users, exact: false, requiresAdmin: true },
   { href: '/org/management', label: 'Management', icon: Sliders, exact: false, requiresAdmin: false },
-  { href: '/org/settings', label: 'Settings', icon: Settings, exact: false, requiresAdmin: false },
+  { href: '/org/profile', label: 'Settings', icon: Settings, exact: false, requiresAdmin: false },
 ]
 
 export function OrgSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const { user, userRole } = useUser()
   const { collapsed, toggle, mounted } = useSidebarState()
 
@@ -29,6 +31,12 @@ export function OrgSidebar() {
   const displayName = user
     ? `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim()
     : 'Loading...'
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   return (
     <aside
@@ -103,35 +111,55 @@ export function OrgSidebar() {
           })}
       </nav>
 
-      {/* Collapse toggle */}
-      {mounted && (
-        <div className={cn('border-t border-border py-2', collapsed ? 'px-2' : 'px-3')}>
-          <button
-            onClick={toggle}
-            className={cn(
-              'flex w-full items-center rounded-md py-2 text-zinc-500 transition-colors hover:bg-zinc-900/50 hover:text-zinc-300',
-              collapsed ? 'justify-center px-2' : 'gap-2.5 px-4'
-            )}
-          >
-            {collapsed ? (
-              <PanelLeft className="h-[18px] w-[18px]" strokeWidth={1.5} />
-            ) : (
-              <>
-                <PanelLeftClose className="h-[18px] w-[18px]" strokeWidth={1.5} />
-                <span className="text-[13px]">Collapse</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
+      {/* Bottom section */}
+      <div className="border-t border-border">
+        {/* Collapse toggle */}
+        {mounted && (
+          <div className={cn('py-1', collapsed ? 'px-2' : 'px-3')}>
+            <button
+              onClick={toggle}
+              className={cn(
+                'flex w-full items-center rounded-md py-2 text-zinc-500 transition-colors hover:bg-zinc-900/50 hover:text-zinc-300',
+                collapsed ? 'justify-center px-2' : 'gap-2.5 px-4'
+              )}
+            >
+              {collapsed ? (
+                <PanelLeft className="h-[18px] w-[18px]" strokeWidth={1.5} />
+              ) : (
+                <>
+                  <PanelLeftClose className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                  <span className="text-[13px]">Collapse</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
-      {/* Footer */}
-      {!collapsed && (
-        <div className="flex items-center gap-2 border-t border-border px-4 py-3 text-[11px] text-zinc-500">
-          <HelpCircle className="h-4 w-4 opacity-50" />
-          Help & Support
+        {/* Logout */}
+        <div className={cn('border-t border-border py-1', collapsed ? 'px-2' : 'px-3')}>
+          {collapsed ? (
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleLogout}
+                  className="flex w-full items-center justify-center rounded-md px-2 py-2 text-zinc-500 transition-colors hover:bg-zinc-900/50 hover:text-zinc-300"
+                >
+                  <LogOut className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">Sign Out</TooltipContent>
+            </Tooltip>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className="flex w-full items-center gap-2.5 rounded-md px-4 py-2 text-[13px] text-zinc-500 transition-colors hover:bg-zinc-900/50 hover:text-zinc-300"
+            >
+              <LogOut className="h-[18px] w-[18px]" strokeWidth={1.5} />
+              Sign Out
+            </button>
+          )}
         </div>
-      )}
+      </div>
     </aside>
   )
 }
