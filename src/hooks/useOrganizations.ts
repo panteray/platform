@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { Organization } from '@/types/database'
 
 export function useOrganizations() {
@@ -9,13 +8,15 @@ export function useOrganizations() {
   const [loading, setLoading] = useState(true)
 
   const fetchOrgs = useCallback(async () => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('organizations')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (!error && data) setOrganizations(data)
+    try {
+      const res = await fetch('/api/admin/organizations')
+      if (res.ok) {
+        const data = await res.json()
+        setOrganizations(data)
+      }
+    } catch {
+      // silently fail
+    }
     setLoading(false)
   }, [])
 

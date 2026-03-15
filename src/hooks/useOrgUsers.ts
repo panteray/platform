@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { User } from '@/types/database'
 
 export function useOrgUsers(orgId: string | null) {
@@ -10,14 +9,15 @@ export function useOrgUsers(orgId: string | null) {
 
   const fetchUsers = useCallback(async () => {
     if (!orgId) { setLoading(false); return }
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('org_id', orgId)
-      .order('created_at', { ascending: false })
-
-    if (!error && data) setUsers(data)
+    try {
+      const res = await fetch(`/api/admin/users?org_id=${orgId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setUsers(data)
+      }
+    } catch {
+      // silently fail
+    }
     setLoading(false)
   }, [orgId])
 
