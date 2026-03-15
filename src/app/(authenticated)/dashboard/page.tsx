@@ -1,14 +1,28 @@
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  if (!user) redirect('/login')
+
+  // Check if global admin - if so redirect to admin
+  const { data: dbUser } = await supabase
+    .from('users')
+    .select('user_role')
+    .eq('auth_id', user.id)
+    .single()
+
+  if (dbUser && ['GLOBAL_ADMIN', 'GLOBAL_MANAGER'].includes(dbUser.user_role)) {
+    redirect('/admin')
+  }
+
   return (
-    <div className="min-h-screen bg-neutral-950 p-8">
-      <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-      <p className="text-neutral-400 mt-2">
-        Signed in as {user?.email}
+    <div>
+      <h1 className="text-lg font-medium">Dashboard</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Organization dashboard coming in Phase 3.
       </p>
     </div>
   )
