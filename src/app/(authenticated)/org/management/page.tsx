@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { canManageUsers, canManageOrg } from '@/lib/roles'
-import { ChevronRight } from 'lucide-react'
+
 import type { UserRole } from '@/types/enums'
 import type { LucideIcon } from 'lucide-react'
 
@@ -117,13 +117,6 @@ export default function ManagementPage() {
 
   return (
     <div>
-      {/* Breadcrumb */}
-      <div className="mb-5 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span>Home</span>
-        <ChevronRight className="h-3 w-3" />
-        <span className="text-foreground">Management</span>
-      </div>
-
       <div className="mb-6">
         <h1 className="text-lg font-medium">Management</h1>
         <p className="mt-1 text-sm text-muted-foreground">

@@ -4,9 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { Briefcase, FolderKanban, Users, Activity } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { DashboardWidget } from '@/components/shared/DashboardWidget'
-import { DashboardWelcome } from '@/components/shared/DashboardWelcome'
+
 import { NotificationFeed } from '@/components/org/NotificationFeed'
-import { useUser } from '@/hooks/useUser'
 
 interface OrgAdminDashboardProps {
   brandColor?: string | null
@@ -14,7 +13,7 @@ interface OrgAdminDashboardProps {
 }
 
 export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashboardProps) {
-  const { user } = useUser()
+  
   const [stats, setStats] = useState({ users: 0, opps: 0, projects: 0 })
   const [loading, setLoading] = useState(true)
 
@@ -38,11 +37,7 @@ export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashbo
 
   return (
     <div className="space-y-6">
-      <DashboardWelcome
-        title="Organization Dashboard"
-        subtitle="Your workspace overview"
-        firstName={user?.first_name}
-      />
+      <h1 className="text-lg font-medium text-foreground">Organization Dashboard</h1>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <DashboardWidget label="Active Users" icon={Users} value={stats.users} description="Team members in your org" loading={loading} brandColor={brandColor} />

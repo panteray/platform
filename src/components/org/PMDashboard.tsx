@@ -2,8 +2,7 @@
 
 import { FolderKanban, BarChart3, Clock, FileDiff, ListChecks, CalendarDays, MapPin, HardHat } from 'lucide-react'
 import { DashboardWidget } from '@/components/shared/DashboardWidget'
-import { DashboardWelcome } from '@/components/shared/DashboardWelcome'
-import { useUser } from '@/hooks/useUser'
+
 
 const widgets = [
   { label: 'Projects In Progress', icon: FolderKanban, emptyMessage: 'No active projects', description: 'Currently managed projects' },
@@ -22,11 +21,10 @@ interface PMDashboardProps {
 }
 
 export function PMDashboard({ brandColor }: PMDashboardProps) {
-  const { user } = useUser()
 
   return (
     <div className="space-y-6">
-      <DashboardWelcome title="Project Manager Dashboard" subtitle="Your projects and field operations" firstName={user?.first_name} />
+      <h1 className="text-lg font-medium text-foreground">Project Manager Dashboard</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {widgets.map((w) => (
           <DashboardWidget key={w.label} label={w.label} icon={w.icon} emptyMessage={w.emptyMessage} description={w.description} brandColor={brandColor} />

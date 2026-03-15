@@ -5,8 +5,7 @@ import {
   Clock, FileDiff, ListChecks, CalendarDays, BarChart3,
 } from 'lucide-react'
 import { DashboardWidget } from '@/components/shared/DashboardWidget'
-import { DashboardWelcome } from '@/components/shared/DashboardWelcome'
-import { useUser } from '@/hooks/useUser'
+
 
 const widgets = [
   { label: 'OPPs In Progress', icon: Briefcase, emptyMessage: 'No active opportunities', description: 'Opportunities currently being worked' },
@@ -27,11 +26,10 @@ interface ManagerDashboardProps {
 }
 
 export function ManagerDashboard({ brandColor }: ManagerDashboardProps) {
-  const { user } = useUser()
 
   return (
     <div className="space-y-6">
-      <DashboardWelcome title="Manager Dashboard" subtitle="Organization-wide overview" firstName={user?.first_name} />
+      <h1 className="text-lg font-medium text-foreground">Manager Dashboard</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {widgets.map((w) => (
           <DashboardWidget key={w.label} label={w.label} icon={w.icon} emptyMessage={w.emptyMessage} description={w.description} brandColor={brandColor} />

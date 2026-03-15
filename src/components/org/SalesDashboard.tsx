@@ -2,8 +2,7 @@
 
 import { Users, Briefcase, Send, Trophy, Clock, ListChecks, CalendarDays } from 'lucide-react'
 import { DashboardWidget } from '@/components/shared/DashboardWidget'
-import { DashboardWelcome } from '@/components/shared/DashboardWelcome'
-import { useUser } from '@/hooks/useUser'
+
 
 const widgets = [
   { label: 'Customer Status', icon: Users, emptyMessage: 'No customers yet', description: 'Active customer accounts' },
@@ -21,11 +20,10 @@ interface SalesDashboardProps {
 }
 
 export function SalesDashboard({ brandColor }: SalesDashboardProps) {
-  const { user } = useUser()
 
   return (
     <div className="space-y-6">
-      <DashboardWelcome title="Sales Dashboard" subtitle="Your sales pipeline at a glance" firstName={user?.first_name} />
+      <h1 className="text-lg font-medium text-foreground">Sales Dashboard</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {widgets.map((w) => (
           <DashboardWidget key={w.label} label={w.label} icon={w.icon} emptyMessage={w.emptyMessage} description={w.description} brandColor={brandColor} />

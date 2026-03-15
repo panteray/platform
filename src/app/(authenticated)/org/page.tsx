@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronRight } from 'lucide-react'
 import { DivisionFilter } from '@/components/org/DivisionFilter'
 import { DashboardGrid } from '@/components/org/DashboardGrid'
 import { OrgAdminDashboard } from '@/components/org/OrgAdminDashboard'
@@ -34,7 +33,6 @@ export default function OrgDashboard() {
     loadBrandColor()
   }, [loadBrandColor])
 
-  // Route to role-specific dashboard
   function renderDashboard() {
     const props = { brandColor, divisionFilter }
 
@@ -61,20 +59,12 @@ export default function OrgDashboard() {
       case UserRole.CUSTOMER:
         return <FieldDashboard {...props} />
       default:
-        // Fallback: editable widget grid (original Phase 3 behavior)
         return <DashboardGrid divisionFilter={divisionFilter} />
     }
   }
 
   return (
     <div>
-      {/* Breadcrumb */}
-      <div className="mb-5 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span>Home</span>
-        <ChevronRight className="h-3 w-3" />
-        <span className="text-foreground">Dashboard</span>
-      </div>
-
       {/* Header + Filter */}
       <div className="mb-5 flex items-center justify-between">
         <div />

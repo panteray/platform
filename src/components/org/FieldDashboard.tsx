@@ -2,7 +2,7 @@
 
 import { CalendarDays, CalendarClock, ListChecks, MapPin, FolderKanban } from 'lucide-react'
 import { DashboardWidget } from '@/components/shared/DashboardWidget'
-import { DashboardWelcome } from '@/components/shared/DashboardWelcome'
+
 import { useUser } from '@/hooks/useUser'
 import { UserRole } from '@/types/enums'
 
@@ -12,7 +12,7 @@ interface FieldDashboardProps {
 }
 
 export function FieldDashboard({ brandColor }: FieldDashboardProps) {
-  const { user, userRole } = useUser()
+  const { userRole } = useUser()
   const isLead = userRole === UserRole.LEAD
 
   const widgets = [
@@ -28,11 +28,7 @@ export function FieldDashboard({ brandColor }: FieldDashboardProps) {
 
   return (
     <div className="space-y-6">
-      <DashboardWelcome
-        title={isLead ? 'Field Lead Dashboard' : 'Field Tech Dashboard'}
-        subtitle={isLead ? 'Your team and field operations' : 'Your daily assignments'}
-        firstName={user?.first_name}
-      />
+      <h1 className="text-lg font-medium text-foreground">{isLead ? 'Field Lead Dashboard' : 'Field Tech Dashboard'}</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {widgets.map((w) => (
           <DashboardWidget key={w.label} label={w.label} icon={w.icon} emptyMessage={w.emptyMessage} description={w.description} brandColor={brandColor} />

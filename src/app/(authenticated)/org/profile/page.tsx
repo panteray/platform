@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Camera, KeyRound } from 'lucide-react'
-import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
@@ -188,15 +187,6 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-2xl">
-      {/* Breadcrumb */}
-      <div className="mb-5 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span>Home</span>
-        <ChevronRight className="h-3 w-3" />
-        <Link href="/org/management" className="hover:text-foreground">Management</Link>
-        <ChevronRight className="h-3 w-3" />
-        <span className="text-foreground">My Profile</span>
-      </div>
-
       <Link
         href="/org/management"
         className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"

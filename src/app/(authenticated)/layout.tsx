@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { SidebarRouter } from '@/components/layout/SidebarRouter'
 import { Topbar } from '@/components/layout/Topbar'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 export default async function AuthenticatedLayout({
   children,
@@ -16,14 +17,16 @@ export default async function AuthenticatedLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <SidebarRouter />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar />
-        <main className="flex-1 overflow-y-auto p-6">
-          {children}
-        </main>
+    <TooltipProvider>
+      <div className="flex h-screen overflow-hidden bg-background">
+        <SidebarRouter />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Topbar />
+          <main className="flex-1 overflow-y-auto p-6">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   )
 }

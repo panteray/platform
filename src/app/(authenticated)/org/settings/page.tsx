@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { Upload } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useOrgModules } from '@/hooks/useOrgModules'
@@ -9,12 +9,21 @@ import { MODULE_LABELS } from '@/lib/constants'
 import { PLATFORM_MODULES, PSA_SUB_MODULES, ModuleName } from '@/types/enums'
 import type { Organization } from '@/types/database'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 export default function OrgSettingsPage() {
   const { orgId } = useUser()
   const { modules, loading: modulesLoading } = useOrgModules(orgId)
   const [org, setOrg] = useState<Organization | null>(null)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    brand_color: '',
+  })
 
   useEffect(() => {
     if (!orgId) return
@@ -27,12 +36,44 @@ export default function OrgSettingsPage() {
         .eq('id', orgId)
         .single()
 
-      setOrg(data as Organization | null)
+      const orgData = data as Organization | null
+      setOrg(orgData)
+      if (orgData) {
+        setForm({
+          name: orgData.name ?? '',
+          description: orgData.description ?? '',
+          brand_color: orgData.brand_color ?? '',
+        })
+      }
       setLoading(false)
     }
 
     load()
   }, [orgId])
+
+  async function handleSave() {
+    if (!orgId || !org) return
+    setSaving(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('organizations')
+      .update({
+        name: form.name.trim() || org.name,
+        description: form.description.trim() || null,
+        brand_color: form.brand_color.trim() || null,
+      })
+      .eq('id', orgId)
+
+    if (!error) {
+      setOrg((prev) => prev ? {
+        ...prev,
+        name: form.name.trim() || prev.name,
+        description: form.description.trim() || null,
+        brand_color: form.brand_color.trim() || null,
+      } : null)
+    }
+    setSaving(false)
+  }
 
   if (loading || modulesLoading) {
     return <div className="text-sm text-muted-foreground">Loading...</div>
@@ -42,21 +83,85 @@ export default function OrgSettingsPage() {
     return <div className="text-sm text-muted-foreground">Organization not found</div>
   }
 
-  // Build lookup for enabled modules
   const enabledSet = new Set(
     modules.filter((m) => m.is_enabled).map((m) => m.module)
   )
 
   return (
     <div>
-      {/* Breadcrumb */}
-      <div className="mb-5 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span>Home</span>
-        <ChevronRight className="h-3 w-3" />
-        <span>Settings</span>
-      </div>
+      <h1 className="text-lg font-medium">Organization</h1>
+      <p className="mt-1 mb-6 text-sm text-muted-foreground">
+        Branding and organization information.
+      </p>
 
-      <h1 className="mb-5 text-lg font-medium">Organization Settings</h1>
+      {/* Branding + Logo — two column grid matching CASDEX */}
+      <div className="mb-6 grid gap-4 md:grid-cols-2">
+        {/* Branding Card */}
+        <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Branding
+          </p>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground">Display Name</Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Organization name"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground">Tagline / Description</Label>
+              <Input
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Optional tagline"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground">Brand color (hex)</Label>
+              <div className="mt-1 flex gap-2">
+                <input
+                  type="color"
+                  value={form.brand_color || '#7C3AED'}
+                  onChange={(e) => setForm((f) => ({ ...f, brand_color: e.target.value }))}
+                  className="h-10 w-10 cursor-pointer rounded-lg border border-input p-0.5"
+                />
+                <Input
+                  value={form.brand_color}
+                  onChange={(e) => setForm((f) => ({ ...f, brand_color: e.target.value }))}
+                  placeholder="#7C3AED"
+                  className="flex-1 font-mono text-sm"
+                />
+              </div>
+            </div>
+          </div>
+          <Button size="sm" disabled={saving} onClick={handleSave}>
+            {saving ? 'Saving...' : 'Save'}
+          </Button>
+        </div>
+
+        {/* Logo Card */}
+        <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Logo
+          </p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/30">
+              <Upload className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">Organization logo</p>
+              <p className="text-xs text-muted-foreground">Upload coming soon</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Legal name, plan, and other org details are managed by your admin.
+          </p>
+        </div>
+      </div>
 
       {/* Org Info — Read Only */}
       <div className="mb-6 rounded-lg border border-border bg-card">
@@ -90,41 +195,28 @@ export default function OrgSettingsPage() {
             Module configuration is managed by Global Admin. Contact your administrator to request changes.
           </div>
 
-          {/* Platform Modules */}
           <div className="mb-4">
             <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Platform
             </div>
             <div className="flex flex-wrap gap-2">
               {PLATFORM_MODULES.map((mod) => (
-                <ModuleBadge
-                  key={mod}
-                  name={MODULE_LABELS[mod]}
-                  enabled={enabledSet.has(mod)}
-                />
+                <ModuleBadge key={mod} name={MODULE_LABELS[mod]} enabled={enabledSet.has(mod)} />
               ))}
             </div>
           </div>
 
-          {/* PSA */}
           <div className="mb-4">
             <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               PSA — Service Engine
             </div>
             <div className="mb-2">
-              <ModuleBadge
-                name="PSA (Master)"
-                enabled={enabledSet.has(ModuleName.PSA)}
-              />
+              <ModuleBadge name="PSA (Master)" enabled={enabledSet.has(ModuleName.PSA)} />
             </div>
             {enabledSet.has(ModuleName.PSA) && (
               <div className="flex flex-wrap gap-2">
                 {PSA_SUB_MODULES.map((mod) => (
-                  <ModuleBadge
-                    key={mod}
-                    name={MODULE_LABELS[mod]}
-                    enabled={enabledSet.has(mod)}
-                  />
+                  <ModuleBadge key={mod} name={MODULE_LABELS[mod]} enabled={enabledSet.has(mod)} />
                 ))}
               </div>
             )}
