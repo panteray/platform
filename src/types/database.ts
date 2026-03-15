@@ -48,6 +48,7 @@ export interface User {
   region: string | null
   region_state: string | null
   ticket_email_notifications: boolean
+  preferences: Record<string, unknown>
   created_at: string
   updated_at: string
 }

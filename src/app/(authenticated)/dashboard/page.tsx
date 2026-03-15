@@ -9,19 +9,25 @@ export default async function DashboardPage() {
 
   const { data: dbUser } = await supabase
     .from('users')
-    .select('role, is_global_admin')
+    .select('role, is_global_admin, org_id')
     .eq('auth_id', user.id)
     .single()
 
+  // Global admins → admin portal
   if (dbUser && ['GLOBAL_ADMIN', 'GLOBAL_MANAGER'].includes(dbUser.role)) {
     redirect('/admin')
+  }
+
+  // Org users → org dashboard
+  if (dbUser?.org_id) {
+    redirect('/org')
   }
 
   return (
     <div>
       <h1 className="text-lg font-medium">Dashboard</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Organization dashboard coming in Phase 3.
+        No organization assigned. Contact your administrator.
       </p>
     </div>
   )
