@@ -1,7 +1,11 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import type { Design, DesignArea, DesignDevice, DesignCable, DesignMdfIdf, DesignFloorPlan } from '@/types/database'
+import type {
+  Design, DesignArea, DesignDevice, DesignCable, DesignMdfIdf,
+  DesignFloorPlan, DesignZone, DesignRackSlots, DesignVlanSubnet,
+  DesignTopologyNode, DesignTopologyLink, DesignAvoipDevice,
+} from '@/types/database'
 
 export interface DesignCanvasState {
   design: (Design & { opportunities?: Record<string, unknown> }) | null
@@ -10,6 +14,12 @@ export interface DesignCanvasState {
   cables: DesignCable[]
   mdfIdfs: DesignMdfIdf[]
   floorPlans: DesignFloorPlan[]
+  zones: DesignZone[]
+  racks: DesignRackSlots[]
+  vlans: DesignVlanSubnet[]
+  topologyNodes: DesignTopologyNode[]
+  topologyLinks: DesignTopologyLink[]
+  avoipDevices: DesignAvoipDevice[]
   loading: boolean
   error: string | null
   activeAreaId: string | null
@@ -25,7 +35,95 @@ export interface DesignCanvasState {
   addDevice: (data: Record<string, unknown>) => Promise<DesignDevice | null>
   updateDevice: (deviceId: string, data: Record<string, unknown>) => Promise<DesignDevice | null>
   deleteDevice: (deviceId: string) => Promise<boolean>
+  addCable: (data: Record<string, unknown>) => Promise<DesignCable | null>
+  deleteCable: (cableId: string) => Promise<boolean>
+  addInfrastructure: (data: Record<string, unknown>) => Promise<DesignMdfIdf | null>
+  addZone: (data: Record<string, unknown>) => Promise<DesignZone | null>
+  updateZone: (id: string, data: Record<string, unknown>) => Promise<boolean>
+  deleteZone: (id: string) => Promise<boolean>
+  addTopologyNode: (data: Record<string, unknown>) => Promise<DesignTopologyNode | null>
+  updateTopologyNode: (id: string, data: Record<string, unknown>) => Promise<unknown>
+  deleteTopologyNode: (id: string) => Promise<boolean>
+  addTopologyLink: (data: Record<string, unknown>) => Promise<DesignTopologyLink | null>
+  deleteTopologyLink: (id: string) => Promise<boolean>
+  addRack: (data: Record<string, unknown>) => Promise<DesignRackSlots | null>
+  updateRack: (id: string, data: Record<string, unknown>) => Promise<unknown>
+  deleteRack: (id: string) => Promise<boolean>
+  addVlan: (data: Record<string, unknown>) => Promise<DesignVlanSubnet | null>
+  updateVlan: (id: string, data: Record<string, unknown>) => Promise<unknown>
+  deleteVlan: (id: string) => Promise<boolean>
+  addAvoipDevice: (data: Record<string, unknown>) => Promise<DesignAvoipDevice | null>
+  updateAvoipDevice: (id: string, data: Record<string, unknown>) => Promise<unknown>
+  deleteAvoipDevice: (id: string) => Promise<boolean>
   refetch: () => Promise<void>
+}
+
+// Generic CRUD helper
+function useCrud<T extends { id: string }>(
+  designId: string,
+  endpoint: string,
+  key: string,
+  setState: React.Dispatch<React.SetStateAction<T[]>>,
+  selectedId?: string | null,
+  setSelectedId?: (id: string | null) => void,
+) {
+  const add = useCallback(async (data: Record<string, unknown>): Promise<T | null> => {
+    try {
+      const res = await fetch(`/api/org/designs/${designId}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) return null
+      const json = await res.json()
+      const item = json[key] as T
+      setState((prev) => [...prev, item])
+      return item
+    } catch { return null }
+  }, [designId, endpoint, key, setState])
+
+  const update = useCallback(async (id: string, data: Record<string, unknown>): Promise<unknown> => {
+    try {
+      setState((prev) => prev.map((item) => item.id === id ? { ...item, ...data } as T : item))
+      const singularEndpoint = endpoint.replace(/s$/, '')
+      const paramName = singularEndpoint.replace(/-/g, '') + 'Id'
+      // Build URL based on the actual route param name
+      const url = endpoint === 'topology' ? `/api/org/designs/${designId}/topology/${id}`
+        : endpoint === 'topology-links' ? `/api/org/designs/${designId}/topology-links/${id}`
+        : endpoint === 'racks' ? `/api/org/designs/${designId}/racks/${id}`
+        : endpoint === 'vlans' ? `/api/org/designs/${designId}/vlans/${id}`
+        : endpoint === 'zones' ? `/api/org/designs/${designId}/zones/${id}`
+        : endpoint === 'avoip' ? `/api/org/designs/${designId}/avoip/${id}`
+        : endpoint === 'infrastructure' ? `/api/org/designs/${designId}/infrastructure/${id}`
+        : endpoint === 'cables' ? `/api/org/designs/${designId}/cables/${id}`
+        : `/api/org/designs/${designId}/${endpoint}/${id}`
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) return null
+      return await res.json()
+    } catch { return null }
+  }, [designId, endpoint, setState])
+
+  const remove = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      setState((prev) => prev.filter((item) => item.id !== id))
+      if (selectedId === id && setSelectedId) setSelectedId(null)
+      // Determine the correct query param name
+      const paramMap: Record<string, string> = {
+        cables: 'cable_id', infrastructure: 'node_id', zones: 'zone_id',
+        doors: 'door_id', topology: 'node_id', 'topology-links': 'link_id',
+        racks: 'rack_id', vlans: 'vlan_id', avoip: 'av_id',
+      }
+      const paramName = paramMap[endpoint] || 'id'
+      const res = await fetch(`/api/org/designs/${designId}/${endpoint}?${paramName}=${id}`, { method: 'DELETE' })
+      return res.ok
+    } catch { return false }
+  }, [designId, endpoint, setState, selectedId, setSelectedId])
+
+  return { add, update, remove }
 }
 
 export function useDesignCanvas(designId: string): DesignCanvasState {
@@ -35,6 +133,12 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
   const [cables, setCables] = useState<DesignCable[]>([])
   const [mdfIdfs, setMdfIdfs] = useState<DesignMdfIdf[]>([])
   const [floorPlans, setFloorPlans] = useState<DesignFloorPlan[]>([])
+  const [zones, setZones] = useState<DesignZone[]>([])
+  const [racks, setRacks] = useState<DesignRackSlots[]>([])
+  const [vlans, setVlans] = useState<DesignVlanSubnet[]>([])
+  const [topologyNodes, setTopologyNodes] = useState<DesignTopologyNode[]>([])
+  const [topologyLinks, setTopologyLinks] = useState<DesignTopologyLink[]>([])
+  const [avoipDevices, setAvoipDevices] = useState<DesignAvoipDevice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeAreaId, setActiveAreaId] = useState<string | null>(null)
@@ -45,33 +149,37 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     setLoading(true)
     setError(null)
     try {
-      // Fetch design + areas
       const designRes = await fetch(`/api/org/designs/${designId}`)
       if (!designRes.ok) { setError('Failed to load design'); return }
       const designJson = await designRes.json()
       setDesign(designJson.design)
       setAreas(designJson.areas ?? [])
+      if (designJson.areas?.length > 0 && !activeAreaId) setActiveAreaId(designJson.areas[0].id)
 
-      // Auto-select first area
-      if (designJson.areas?.length > 0 && !activeAreaId) {
-        setActiveAreaId(designJson.areas[0].id)
-      }
+      // Parallel fetch all entities
+      const [fpRes, devRes, cabRes, infRes, zoneRes, rackRes, vlanRes, topoRes, linkRes, avRes] = await Promise.all([
+        fetch(`/api/org/designs/${designId}/floor-plans`),
+        fetch(`/api/org/designs/${designId}/devices`),
+        fetch(`/api/org/designs/${designId}/cables`),
+        fetch(`/api/org/designs/${designId}/infrastructure`),
+        fetch(`/api/org/designs/${designId}/zones`),
+        fetch(`/api/org/designs/${designId}/racks`),
+        fetch(`/api/org/designs/${designId}/vlans`),
+        fetch(`/api/org/designs/${designId}/topology`),
+        fetch(`/api/org/designs/${designId}/topology-links`),
+        fetch(`/api/org/designs/${designId}/avoip`),
+      ])
 
-      // Fetch floor plans
-      const fpRes = await fetch(`/api/org/designs/${designId}/floor-plans`)
-      if (fpRes.ok) {
-        const fpJson = await fpRes.json()
-        setFloorPlans(fpJson.floorPlans ?? [])
-      }
-
-      // Fetch devices
-      const devRes = await fetch(`/api/org/designs/${designId}/devices`)
-      if (devRes.ok) {
-        const devJson = await devRes.json()
-        setDevices(devJson.devices ?? [])
-      }
-
-      // TODO: Fetch cables in 7F, mdf_idfs in 7F
+      if (fpRes.ok) setFloorPlans((await fpRes.json()).floorPlans ?? [])
+      if (devRes.ok) setDevices((await devRes.json()).devices ?? [])
+      if (cabRes.ok) setCables((await cabRes.json()).cables ?? [])
+      if (infRes.ok) setMdfIdfs((await infRes.json()).infrastructure ?? [])
+      if (zoneRes.ok) setZones((await zoneRes.json()).zones ?? [])
+      if (rackRes.ok) setRacks((await rackRes.json()).racks ?? [])
+      if (vlanRes.ok) setVlans((await vlanRes.json()).vlans ?? [])
+      if (topoRes.ok) setTopologyNodes((await topoRes.json()).nodes ?? [])
+      if (linkRes.ok) setTopologyLinks((await linkRes.json()).links ?? [])
+      if (avRes.ok) setAvoipDevices((await avRes.json()).avoipDevices ?? [])
     } catch {
       setError('Network error')
     } finally {
@@ -79,18 +187,12 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     }
   }, [designId, activeAreaId])
 
-  useEffect(() => {
-    void fetchDesign()
-  }, [fetchDesign])
+  useEffect(() => { void fetchDesign() }, [fetchDesign])
 
-  // ---- Area CRUD ----
+  // Area CRUD
   const addArea = useCallback(async (name: string, canvasType: string): Promise<DesignArea | null> => {
     try {
-      const res = await fetch(`/api/org/designs/${designId}/areas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, canvas_type: canvasType }),
-      })
+      const res = await fetch(`/api/org/designs/${designId}/areas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, canvas_type: canvasType }) })
       if (!res.ok) return null
       const json = await res.json()
       await fetchDesign()
@@ -100,11 +202,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
 
   const updateArea = useCallback(async (areaId: string, data: Record<string, unknown>): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/org/designs/${designId}/areas/${areaId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
+      const res = await fetch(`/api/org/designs/${designId}/areas/${areaId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       if (!res.ok) return false
       await fetchDesign()
       return true
@@ -115,9 +213,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     try {
       const res = await fetch(`/api/org/designs/${designId}/areas/${areaId}`, { method: 'DELETE' })
       if (!res.ok) return false
-      if (activeAreaId === areaId) {
-        setActiveAreaId(areas.find((a) => a.id !== areaId)?.id ?? null)
-      }
+      if (activeAreaId === areaId) setActiveAreaId(areas.find((a) => a.id !== areaId)?.id ?? null)
       await fetchDesign()
       return true
     } catch { return false }
@@ -136,73 +232,60 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     } catch { return null }
   }, [designId, fetchDesign])
 
-  // ---- Device CRUD ----
+  // Device CRUD (special — optimistic)
   const addDevice = useCallback(async (data: Record<string, unknown>): Promise<DesignDevice | null> => {
     try {
-      const res = await fetch(`/api/org/designs/${designId}/devices`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
+      const res = await fetch(`/api/org/designs/${designId}/devices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       if (!res.ok) return null
       const json = await res.json()
-      const newDevice = json.device as DesignDevice
-      // Optimistic: add to local state immediately
-      setDevices((prev) => [...prev, newDevice])
-      return newDevice
+      setDevices((prev) => [...prev, json.device as DesignDevice])
+      return json.device
     } catch { return null }
   }, [designId])
 
   const updateDevice = useCallback(async (deviceId: string, data: Record<string, unknown>): Promise<DesignDevice | null> => {
     try {
-      // Optimistic update
-      setDevices((prev) => prev.map((d) =>
-        d.id === deviceId ? { ...d, ...data, updated_at: new Date().toISOString() } as DesignDevice : d
-      ))
-
-      const res = await fetch(`/api/org/designs/${designId}/devices/${deviceId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) {
-        // Revert on failure
-        await fetchDesign()
-        return null
-      }
-      const json = await res.json()
-      return json.device
-    } catch {
-      await fetchDesign()
-      return null
-    }
+      setDevices((prev) => prev.map((d) => d.id === deviceId ? { ...d, ...data, updated_at: new Date().toISOString() } as DesignDevice : d))
+      const res = await fetch(`/api/org/designs/${designId}/devices/${deviceId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (!res.ok) { await fetchDesign(); return null }
+      return (await res.json()).device
+    } catch { await fetchDesign(); return null }
   }, [designId, fetchDesign])
 
   const deleteDevice = useCallback(async (deviceId: string): Promise<boolean> => {
     try {
-      // Optimistic
       setDevices((prev) => prev.filter((d) => d.id !== deviceId))
       if (selectedDeviceId === deviceId) setSelectedDeviceId(null)
-
       const res = await fetch(`/api/org/designs/${designId}/devices?device_id=${deviceId}`, { method: 'DELETE' })
-      if (!res.ok) {
-        await fetchDesign()
-        return false
-      }
-      return true
-    } catch {
-      await fetchDesign()
-      return false
-    }
+      return res.ok
+    } catch { await fetchDesign(); return false }
   }, [designId, selectedDeviceId, fetchDesign])
 
+  // Generic CRUD for remaining entities
+  const cableCrud = useCrud<DesignCable>(designId, 'cables', 'cable', setCables, selectedCableId, setSelectedCableId)
+  const infraCrud = useCrud<DesignMdfIdf>(designId, 'infrastructure', 'node', setMdfIdfs)
+  const zoneCrud = useCrud<DesignZone>(designId, 'zones', 'zone', setZones)
+  const topoNodeCrud = useCrud<DesignTopologyNode>(designId, 'topology', 'node', setTopologyNodes)
+  const topoLinkCrud = useCrud<DesignTopologyLink>(designId, 'topology-links', 'link', setTopologyLinks)
+  const rackCrud = useCrud<DesignRackSlots>(designId, 'racks', 'rack', setRacks)
+  const vlanCrud = useCrud<DesignVlanSubnet>(designId, 'vlans', 'vlan', setVlans)
+  const avoipCrud = useCrud<DesignAvoipDevice>(designId, 'avoip', 'avoipDevice', setAvoipDevices)
+
   return {
-    design, areas, devices, cables, mdfIdfs, floorPlans,
+    design, areas, devices, cables, mdfIdfs, floorPlans, zones, racks, vlans, topologyNodes, topologyLinks, avoipDevices,
     loading, error,
     activeAreaId, selectedDeviceId, selectedCableId,
     setActiveAreaId, setSelectedDeviceId, setSelectedCableId,
     addArea, updateArea, deleteArea, uploadFloorPlan,
     addDevice, updateDevice, deleteDevice,
+    addCable: cableCrud.add, deleteCable: cableCrud.remove,
+    addInfrastructure: infraCrud.add,
+    addZone: zoneCrud.add, updateZone: zoneCrud.update as (id: string, data: Record<string, unknown>) => Promise<boolean>, deleteZone: zoneCrud.remove,
+    addTopologyNode: topoNodeCrud.add, updateTopologyNode: topoNodeCrud.update, deleteTopologyNode: topoNodeCrud.remove,
+    addTopologyLink: topoLinkCrud.add, deleteTopologyLink: topoLinkCrud.remove,
+    addRack: rackCrud.add, updateRack: rackCrud.update, deleteRack: rackCrud.remove,
+    addVlan: vlanCrud.add, updateVlan: vlanCrud.update, deleteVlan: vlanCrud.remove,
+    addAvoipDevice: avoipCrud.add, updateAvoipDevice: avoipCrud.update, deleteAvoipDevice: avoipCrud.remove,
     refetch: fetchDesign,
   }
 }
