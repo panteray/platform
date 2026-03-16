@@ -2,19 +2,30 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Settings, HelpCircle, Users, Sliders, PanelLeftClose, PanelLeft, LogOut } from 'lucide-react'
+import { LayoutDashboard, Settings, Users, Sliders, PanelLeftClose, PanelLeft, LogOut, Briefcase, Building2, Wrench, Factory, Truck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
-import { canManageUsers } from '@/lib/roles'
+import { canManageUsers, canManageCRM } from '@/lib/roles'
 import { useSidebarState } from '@/hooks/useSidebarState'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 const orgNav = [
-  { href: '/org', label: 'Dashboard', icon: LayoutDashboard, exact: true, requiresAdmin: false },
-  { href: '/org/users', label: 'Users', icon: Users, exact: false, requiresAdmin: true },
-  { href: '/org/management', label: 'Management', icon: Sliders, exact: false, requiresAdmin: false },
-  { href: '/org/profile', label: 'Settings', icon: Settings, exact: false, requiresAdmin: false },
+  { href: '/org', label: 'Dashboard', icon: LayoutDashboard, exact: true, requiresAdmin: false, requiresCRM: false },
+  { href: '/org/users', label: 'Users', icon: Users, exact: false, requiresAdmin: true, requiresCRM: false },
+  { href: '/org/management', label: 'Management', icon: Sliders, exact: false, requiresAdmin: false, requiresCRM: false },
+]
+
+const crmNav = [
+  { href: '/org/opportunities', label: 'Opportunities', icon: Briefcase, exact: false },
+  { href: '/org/customers', label: 'Customers', icon: Building2, exact: false },
+  { href: '/org/manufacturers', label: 'Manufacturers', icon: Factory, exact: false },
+  { href: '/org/subcontractors', label: 'Subcontractors', icon: Wrench, exact: false },
+  { href: '/org/distributors', label: 'Distributors', icon: Truck, exact: false },
+]
+
+const bottomNav = [
+  { href: '/org/profile', label: 'Settings', icon: Settings, exact: false },
 ]
 
 export function OrgSidebar() {
@@ -24,6 +35,7 @@ export function OrgSidebar() {
   const { collapsed, toggle, mounted } = useSidebarState()
 
   const canManage = userRole ? canManageUsers(userRole) : false
+  const canCRM = userRole ? canManageCRM(userRole) : false
 
   const initials = user
     ? `${(user.first_name?.[0] ?? '').toUpperCase()}${(user.last_name?.[0] ?? '').toUpperCase()}`
@@ -73,13 +85,13 @@ export function OrgSidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-0.5 p-2">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
         {orgNav
           .filter((item) => !item.requiresAdmin || canManage)
           .map((item) => {
             const active = item.exact
               ? pathname === item.href
-              : pathname.startsWith(item.href)
+              : pathname.startsWith(item.href) && (item.href !== '/org' || pathname === '/org')
 
             const link = (
               <Link
@@ -109,6 +121,80 @@ export function OrgSidebar() {
 
             return link
           })}
+
+        {/* CRM Section */}
+        {canCRM && (
+          <>
+            <div className={cn('pt-2 pb-1', collapsed ? 'px-2' : 'px-4')}>
+              <div className="border-t border-zinc-800" />
+              {!collapsed && <p className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">CRM</p>}
+            </div>
+            {crmNav.map((item) => {
+              const active = pathname.startsWith(item.href)
+
+              const link = (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex items-center rounded-md border-l-[3px] text-[13px] transition-colors',
+                    collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-4 py-2',
+                    active
+                      ? 'border-blue-500 bg-zinc-900 font-medium text-white'
+                      : 'border-transparent text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
+                  )}
+                >
+                  <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
+                  {!collapsed && item.label}
+                </Link>
+              )
+
+              if (collapsed) {
+                return (
+                  <Tooltip key={item.href} delayDuration={0}>
+                    <TooltipTrigger asChild>{link}</TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs">{item.label}</TooltipContent>
+                  </Tooltip>
+                )
+              }
+
+              return link
+            })}
+          </>
+        )}
+
+        {/* Settings */}
+        <div className={cn('pt-2', collapsed ? 'px-2' : 'px-4')}>
+          <div className="border-t border-zinc-800" />
+        </div>
+        {bottomNav.map((item) => {
+          const active = pathname.startsWith(item.href)
+          const link = (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex items-center rounded-md border-l-[3px] text-[13px] transition-colors',
+                collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-4 py-2',
+                active
+                  ? 'border-blue-500 bg-zinc-900 font-medium text-white'
+                  : 'border-transparent text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
+              )}
+            >
+              <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
+              {!collapsed && item.label}
+            </Link>
+          )
+          if (collapsed) {
+            return (
+              <Tooltip key={item.href} delayDuration={0}>
+                <TooltipTrigger asChild>{link}</TooltipTrigger>
+                <TooltipContent side="right" className="text-xs">{item.label}</TooltipContent>
+              </Tooltip>
+            )
+          }
+          return link
+        })}
       </nav>
 
       {/* Bottom section */}
