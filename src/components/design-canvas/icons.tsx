@@ -1,0 +1,173 @@
+// Design Canvas — SVG Icon Registry
+// Ported from CASDEX — 25 device SVGs (64x64, stroke #000 for Fabric.js tinting)
+// Exports:
+//   DEVICE_SVG_STRINGS — raw SVG strings for Fabric.js loadSVGFromString()
+//   CATEGORY_TO_ICON — map device sub-type to SVG key
+//   SidebarIcons — JSX elements for icon tab bar (20x20)
+//   ToolbarIcons — JSX elements for toolbar (16x16)
+//   ActionIcons — JSX elements for action buttons (16x16)
+
+import React from 'react'
+
+// ---- Device SVG strings for Fabric.js canvas rendering ----
+// Stroke uses #000 which gets replaced with device color_hex at render time
+export const DEVICE_SVG_STRINGS: Record<string, string> = {
+  dome_camera: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><path d="M18 38 A14 14 0 0 1 46 38" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 38 H48" stroke="#000" stroke-width="1.7"/><path d="M14 41 H50" stroke="#000" stroke-width="1.7"/><path d="M14 44 L50 44 L50 54 L14 54 Z" stroke="#000" stroke-width="2.5" fill="none"/><line x1="14" y1="49" x2="50" y2="49" stroke="#000" stroke-width="1.7"/><circle cx="32" cy="41" r="2.2" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  bullet_camera: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="6" y="18" width="26" height="18" rx="5" stroke="#000" stroke-width="2.5" fill="none"/><path d="M6 23 H32" stroke="#000" stroke-width="1.7"/><path d="M6 31 H32" stroke="#000" stroke-width="1.7"/><rect x="18" y="22.5" width="9" height="9" rx="4.5" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="24" cy="27" r="2.2" stroke="#000" stroke-width="1.7" fill="none"/><line x1="32" y1="27" x2="38" y2="27" stroke="#000" stroke-width="2.5"/><rect x="38" y="22" width="12" height="10" rx="1.5" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="44" cy="27" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><path d="M52 14 L56 14 L58 27 L56 40 L52 40 Z" stroke="#000" stroke-width="2.5" fill="none"/><path d="M50 14 L52 14 L52 40 L50 40 Z" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  turret_camera: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><ellipse cx="32" cy="18" rx="18" ry="8" stroke="#000" stroke-width="2.5" fill="none"/><ellipse cx="32" cy="18" rx="12.5" ry="4.5" stroke="#000" stroke-width="1.7" fill="none"/><path d="M18 20 Q18 38 32 48 Q46 38 46 20" stroke="#000" stroke-width="2.5" fill="none"/><path d="M22 23 Q32 18 42 23" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="32" cy="31" r="8.5" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="32" cy="31" r="3.5" stroke="#000" stroke-width="1.7" fill="none"/><path d="M24 38 Q32 42 40 38" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  ptz_camera: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><path d="M24 16 H40 Q46 16 48 22 L50 28 Q50 34 44 36 H20 Q14 34 14 28 L16 22 Q18 16 24 16 Z" stroke="#000" stroke-width="2.5" fill="none"/><path d="M20 36 Q32 47 44 36" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="32" cy="30" r="8" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="32" cy="30" r="3" stroke="#000" stroke-width="1.7" fill="none"/><rect x="28" y="10" width="8" height="6" rx="2" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  fisheye_camera: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="22" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="32" cy="32" r="10" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="32" cy="32" r="4" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="18" cy="18" r="1.8" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="46" cy="18" r="1.8" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="18" cy="46" r="1.8" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="46" cy="46" r="1.8" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  multisensor_quad: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="12" y="12" width="40" height="40" rx="20" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="24" cy="24" r="6" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="40" cy="24" r="6" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="24" cy="40" r="6" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="40" cy="40" r="6" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="32" cy="32" r="3" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  multisensor_dual: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="10" y="20" width="44" height="24" rx="12" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="24" cy="32" r="9" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="40" cy="32" r="9" stroke="#000" stroke-width="1.7" fill="none"/><rect x="28" y="21" width="8" height="4" fill="#000" stroke="none"/><rect x="28" y="39" width="8" height="4" fill="#000" stroke="none"/></svg>`,
+
+  switch: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="8" y="18" width="48" height="28" rx="4" stroke="#000" stroke-width="2.5" fill="none"/><rect x="12" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="17" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="22" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="27" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="32" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="37" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="42" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="47" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><circle cx="16" cy="39" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="22" cy="39" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  access_switch: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="8" y="18" width="48" height="28" rx="4" stroke="#000" stroke-width="2.5" fill="none"/><rect x="12" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="17" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="22" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="27" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="32" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="37" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="42" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><rect x="47" y="26" width="3" height="7" rx="0.7" stroke="#000" stroke-width="1.2" fill="none"/><circle cx="16" cy="39" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="22" cy="39" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><path d="M44 40 h8" stroke="#000" stroke-width="1.7"/><path d="M48 36 v8" stroke="#000" stroke-width="1.7"/></svg>`,
+
+  rack: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="18" y="8" width="28" height="48" rx="2" stroke="#000" stroke-width="2.5" fill="none"/><line x1="24" y1="8" x2="24" y2="56" stroke="#000" stroke-width="1.7"/><line x1="40" y1="8" x2="40" y2="56" stroke="#000" stroke-width="1.7"/><line x1="24" y1="16" x2="40" y2="16" stroke="#000" stroke-width="1.7"/><line x1="24" y1="24" x2="40" y2="24" stroke="#000" stroke-width="1.7"/><line x1="24" y1="32" x2="40" y2="32" stroke="#000" stroke-width="1.7"/><line x1="24" y1="40" x2="40" y2="40" stroke="#000" stroke-width="1.7"/><line x1="24" y1="48" x2="40" y2="48" stroke="#000" stroke-width="1.7"/></svg>`,
+
+  nvr: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="10" y="18" width="44" height="24" rx="4" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="18" cy="30" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="22" cy="30" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><path d="M28 26 H46" stroke="#000" stroke-width="1.7"/><path d="M28 34 H40" stroke="#000" stroke-width="1.7"/><circle cx="48" cy="34" r="2.2" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  door: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="18" y="8" width="28" height="48" rx="1" stroke="#000" stroke-width="2.5" fill="none"/><line x1="24" y1="8" x2="24" y2="56" stroke="#000" stroke-width="1.7"/><circle cx="39" cy="32" r="1.8" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  door_controller: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="10" y="8" width="44" height="48" rx="4" stroke="#000" stroke-width="2.5" fill="none"/><rect x="16" y="14" width="20" height="10" rx="2" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="44" cy="19" r="3" stroke="#000" stroke-width="1.7" fill="none"/><line x1="16" y1="30" x2="48" y2="30" stroke="#000" stroke-width="1.7"/><line x1="16" y1="36" x2="48" y2="36" stroke="#000" stroke-width="1.7"/><line x1="16" y1="42" x2="48" y2="42" stroke="#000" stroke-width="1.7"/><line x1="16" y1="48" x2="48" y2="48" stroke="#000" stroke-width="1.7"/></svg>`,
+
+  card_reader: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="20" y="8" width="24" height="48" rx="5" stroke="#000" stroke-width="2.5" fill="none"/><path d="M26 18 H38" stroke="#000" stroke-width="1.7"/><path d="M26 24 H38" stroke="#000" stroke-width="1.7"/><circle cx="32" cy="40" r="7" stroke="#000" stroke-width="1.7" fill="none"/><path d="M29 40 L31 42 L35 37" stroke="#000" stroke-width="1.7"/></svg>`,
+
+  electric_strike: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="20" y="10" width="24" height="44" rx="3" stroke="#000" stroke-width="2.5" fill="none"/><path d="M30 16 H38 Q42 16 42 20 V30 Q42 34 38 34 H30" stroke="#000" stroke-width="2.5" fill="none"/><line x1="26" y1="16" x2="26" y2="48" stroke="#000" stroke-width="1.7"/><circle cx="24" cy="18" r="1.5" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="24" cy="46" r="1.5" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  maglock: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="10" y="22" width="28" height="12" rx="2" stroke="#000" stroke-width="2.5" fill="none"/><rect x="40" y="20" width="14" height="16" rx="2" stroke="#000" stroke-width="2.5" fill="none"/><line x1="38" y1="28" x2="40" y2="28" stroke="#000" stroke-width="2.5"/><line x1="14" y1="28" x2="34" y2="28" stroke="#000" stroke-width="1.7"/></svg>`,
+
+  router_gateway: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="10" y="24" width="44" height="18" rx="4" stroke="#000" stroke-width="2.5" fill="none"/><path d="M20 24 L24 14 H40 L44 24" stroke="#000" stroke-width="2.5" fill="none"/><path d="M26 33 H38" stroke="#000" stroke-width="1.7"/><circle cx="20" cy="33" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="44" cy="33" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  firewall: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="12" y="12" width="40" height="40" rx="4" stroke="#000" stroke-width="2.5" fill="none"/><path d="M24 12 V52" stroke="#000" stroke-width="1.7"/><path d="M40 12 V52" stroke="#000" stroke-width="1.7"/><path d="M12 24 H52" stroke="#000" stroke-width="1.7"/><path d="M12 40 H52" stroke="#000" stroke-width="1.7"/><path d="M28 20 L20 32 L28 44" stroke="#000" stroke-width="1.7" fill="none"/><path d="M36 20 L44 32 L36 44" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  wireless_ap: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="18" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="32" cy="32" r="4" stroke="#000" stroke-width="1.7" fill="none"/><path d="M22 32 A10 10 0 0 1 42 32" stroke="#000" stroke-width="1.7" fill="none"/><path d="M18 32 A14 14 0 0 1 46 32" stroke="#000" stroke-width="1.7" fill="none"/><path d="M14 32 A18 18 0 0 1 50 32" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  bridge_ptp: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><circle cx="18" cy="32" r="8" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="46" cy="32" r="8" stroke="#000" stroke-width="2.5" fill="none"/><line x1="26" y1="32" x2="38" y2="32" stroke="#000" stroke-width="2.5"/><path d="M24 24 Q32 18 40 24" stroke="#000" stroke-width="1.7" fill="none"/><path d="M24 40 Q32 46 40 40" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  server: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="12" y="10" width="40" height="14" rx="2" stroke="#000" stroke-width="2.5" fill="none"/><rect x="12" y="26" width="40" height="14" rx="2" stroke="#000" stroke-width="2.5" fill="none"/><rect x="12" y="42" width="40" height="12" rx="2" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="18" cy="17" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="22" cy="17" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><line x1="28" y1="17" x2="46" y2="17" stroke="#000" stroke-width="1.7"/><circle cx="18" cy="33" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="22" cy="33" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><line x1="28" y1="33" x2="46" y2="33" stroke="#000" stroke-width="1.7"/><circle cx="18" cy="48" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="22" cy="48" r="1.2" stroke="#000" stroke-width="1.7" fill="none"/><line x1="28" y1="48" x2="46" y2="48" stroke="#000" stroke-width="1.7"/></svg>`,
+
+  monitor: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="12" y="12" width="40" height="28" rx="3" stroke="#000" stroke-width="2.5" fill="none"/><line x1="26" y1="44" x2="38" y2="44" stroke="#000" stroke-width="2.5"/><line x1="32" y1="40" x2="32" y2="48" stroke="#000" stroke-width="2.5"/><line x1="22" y1="48" x2="42" y2="48" stroke="#000" stroke-width="2.5"/></svg>`,
+
+  patch_panel: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="8" y="22" width="48" height="20" rx="2" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="14" cy="28" r="0.7" fill="#000"/><circle cx="18" cy="28" r="0.7" fill="#000"/><circle cx="22" cy="28" r="0.7" fill="#000"/><circle cx="26" cy="28" r="0.7" fill="#000"/><circle cx="30" cy="28" r="0.7" fill="#000"/><circle cx="34" cy="28" r="0.7" fill="#000"/><circle cx="38" cy="28" r="0.7" fill="#000"/><circle cx="42" cy="28" r="0.7" fill="#000"/><circle cx="46" cy="28" r="0.7" fill="#000"/><circle cx="50" cy="28" r="0.7" fill="#000"/><circle cx="14" cy="36" r="0.7" fill="#000"/><circle cx="18" cy="36" r="0.7" fill="#000"/><circle cx="22" cy="36" r="0.7" fill="#000"/><circle cx="26" cy="36" r="0.7" fill="#000"/><circle cx="30" cy="36" r="0.7" fill="#000"/><circle cx="34" cy="36" r="0.7" fill="#000"/><circle cx="38" cy="36" r="0.7" fill="#000"/><circle cx="42" cy="36" r="0.7" fill="#000"/><circle cx="46" cy="36" r="0.7" fill="#000"/><circle cx="50" cy="36" r="0.7" fill="#000"/></svg>`,
+
+  horn_speaker: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><path d="M14 30 L28 22 L28 42 L14 34 Z" stroke="#000" stroke-width="2.5" fill="none"/><rect x="28" y="25" width="12" height="14" rx="2" stroke="#000" stroke-width="2.5" fill="none"/><line x1="40" y1="32" x2="48" y2="32" stroke="#000" stroke-width="2.5"/><path d="M50 26 Q56 32 50 38" stroke="#000" stroke-width="1.7" fill="none"/><path d="M53 22 Q62 32 53 42" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  intercom: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="18" y="10" width="28" height="44" rx="4" stroke="#000" stroke-width="2.5" fill="none"/><line x1="24" y1="18" x2="40" y2="18" stroke="#000" stroke-width="1.7"/><line x1="24" y1="22" x2="40" y2="22" stroke="#000" stroke-width="1.7"/><line x1="24" y1="26" x2="40" y2="26" stroke="#000" stroke-width="1.7"/><circle cx="32" cy="36" r="6" stroke="#000" stroke-width="1.7" fill="none"/><rect x="26" y="46" width="12" height="4" rx="2" stroke="#000" stroke-width="1.7" fill="none"/></svg>`,
+
+  junction_box: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="12" y="12" width="40" height="40" rx="4" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="18" cy="18" r="1.8" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="46" cy="18" r="1.8" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="18" cy="46" r="1.8" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="46" cy="46" r="1.8" stroke="#000" stroke-width="1.7" fill="none"/><circle cx="32" cy="32" r="7" stroke="#000" stroke-width="2.5" fill="none"/></svg>`,
+
+  mount_ring: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="28" stroke="#000" stroke-width="1.2" fill="none"/><circle cx="32" cy="32" r="25.5" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="32" cy="32" r="19" stroke="#000" stroke-width="1.2" fill="none"/><circle cx="32" cy="32" r="16.5" stroke="#000" stroke-width="2.5" fill="none"/><circle cx="32" cy="32" r="7.5" stroke="#000" stroke-width="1.2" fill="none"/><circle cx="32" cy="32" r="5.5" stroke="#000" stroke-width="2.5" fill="none"/></svg>`,
+}
+
+// ---- Map device sub-type to SVG key ----
+export const CATEGORY_TO_ICON: Record<string, string> = {
+  dome: 'dome_camera',
+  bullet: 'bullet_camera',
+  turret: 'turret_camera',
+  ptz: 'ptz_camera',
+  fisheye: 'fisheye_camera',
+  multisensor_quad: 'multisensor_quad',
+  multisensor_dual: 'multisensor_dual',
+  door: 'door',
+  door_controller: 'door_controller',
+  card_reader: 'card_reader',
+  electric_strike: 'electric_strike',
+  maglock: 'maglock',
+  switch: 'switch',
+  access_switch: 'access_switch',
+  rack: 'rack',
+  nvr: 'nvr',
+  router: 'router_gateway',
+  firewall: 'firewall',
+  wireless_ap: 'wireless_ap',
+  bridge: 'bridge_ptp',
+  server: 'server',
+  monitor: 'monitor',
+  patch_panel: 'patch_panel',
+  speaker: 'horn_speaker',
+  intercom: 'intercom',
+  junction_box: 'junction_box',
+  mount_ring: 'mount_ring',
+  // Fallback mappings for DeviceCategory enums
+  cctv: 'dome_camera',
+  access_control: 'door',
+  network: 'switch',
+  av: 'horn_speaker',
+  vape_environmental: 'junction_box',
+  other: 'junction_box',
+}
+
+// ---- Sidebar Icon JSX (20x20 for icon tab bar) ----
+export const SidebarIcons: Record<string, React.JSX.Element> = {
+  layers: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>,
+  camera: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" /><circle cx="12" cy="13" r="4" /></svg>,
+  door: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18" /><path d="M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16" /><circle cx="14" cy="12" r="1" /></svg>,
+  network: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="2" width="6" height="6" rx="1" /><rect x="16" y="16" width="6" height="6" rx="1" /><rect x="2" y="16" width="6" height="6" rx="1" /><path d="M12 8v4" /><path d="M5 16v-2a2 2 0 012-2h10a2 2 0 012 2v2" /></svg>,
+  av: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M17 2l-5 5-5-5" /></svg>,
+  sensors: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12a10 10 0 0120 0" /><path d="M5 12a7 7 0 0114 0" /><path d="M8 12a4 4 0 018 0" /><circle cx="12" cy="12" r="1" /></svg>,
+  other: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>,
+}
+
+// ---- Toolbar Icon JSX (16x16) ----
+export const ToolbarIcons: Record<string, React.JSX.Element> = {
+  select: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" /></svg>,
+  measure: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12h20M6 8v8M18 8v8M12 8v8" /></svg>,
+  cable: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20L20 4" /><circle cx="4" cy="20" r="2" /><circle cx="20" cy="4" r="2" /></svg>,
+  zoomIn: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></svg>,
+  zoomOut: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="8" y1="11" x2="14" y2="11" /></svg>,
+  fitView: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" /></svg>,
+}
+
+// ---- Action Icon JSX (14-16px) ----
+export const ActionIcons: Record<string, React.JSX.Element> = {
+  plus: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
+  close: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>,
+  copy: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>,
+  trash: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>,
+}
+
+// ---- Auto-label prefix by category ----
+export const LABEL_PREFIX: Record<string, string> = {
+  cctv: 'CAM',
+  access_control: 'DOOR',
+  network: 'SW',
+  av: 'AV',
+  vape_environmental: 'ENV',
+  other: 'DEV',
+  // Sub-types
+  dome: 'CAM',
+  bullet: 'CAM',
+  turret: 'CAM',
+  ptz: 'PTZ',
+  fisheye: 'CAM',
+  multisensor_quad: 'MCAM',
+  multisensor_dual: 'MCAM',
+  door: 'DOOR',
+  door_controller: 'CTRL',
+  card_reader: 'RDR',
+  electric_strike: 'STRK',
+  maglock: 'MAG',
+  switch: 'SW',
+  access_switch: 'ASW',
+  rack: 'RACK',
+  nvr: 'NVR',
+  router: 'RTR',
+  firewall: 'FW',
+  wireless_ap: 'WAP',
+  bridge: 'PTP',
+  server: 'SRV',
+  monitor: 'MON',
+  patch_panel: 'PP',
+  speaker: 'SPK',
+  intercom: 'ICOM',
+  junction_box: 'JB',
+  mount_ring: 'MNT',
+}
