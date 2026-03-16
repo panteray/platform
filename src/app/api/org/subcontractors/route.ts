@@ -23,13 +23,13 @@ async function verifyOrgCRM() {
   return dbUser
 }
 
-async function nextCustomerNumber(admin: ReturnType<typeof createAdminClient>, orgId: string) {
+async function nextSubNumber(admin: ReturnType<typeof createAdminClient>, orgId: string) {
   const { count } = await admin
-    .from('customers')
+    .from('subcontractors')
     .select('id', { count: 'exact', head: true })
     .eq('org_id', orgId)
   const next = (count ?? 0) + 1
-  return `CU-${String(next).padStart(6, '0')}`
+  return `SC-${String(next).padStart(6, '0')}`
 }
 
 export async function GET() {
@@ -38,7 +38,7 @@ export async function GET() {
 
   const admin = createAdminClient()
   const { data, error } = await admin
-    .from('customers')
+    .from('subcontractors')
     .select('*')
     .eq('org_id', caller.org_id)
     .order('created_at', { ascending: false })
@@ -53,40 +53,33 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json()
   const admin = createAdminClient()
-  const customerNumber = await nextCustomerNumber(admin, caller.org_id)
+  const subNumber = await nextSubNumber(admin, caller.org_id)
 
-  const { data, error } = await admin.from('customers').insert({
+  const { data, error } = await admin.from('subcontractors').insert({
     org_id: caller.org_id,
-    customer_number: customerNumber,
+    sub_number: subNumber,
     name: body.name,
     official_business_name: body.official_business_name ?? null,
-    customer_type: body.customer_type ?? null,
-    tier: body.tier ?? null,
+    type: body.type ?? null,
     contact_name: body.contact_name ?? null,
     contact_email: body.contact_email ?? null,
     contact_phone: body.contact_phone ?? null,
     address: body.address ?? null,
     state: body.state ?? null,
-    telephone: body.telephone ?? null,
-    primary_website: body.primary_website ?? null,
-    territory: body.territory ?? null,
-    region: body.region ?? null,
     region_state: body.region_state ?? null,
-    payment_terms: body.payment_terms ?? null,
     notes: body.notes ?? null,
     created_by: caller.id,
   }).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  // Audit log
   await admin.from('audit_log').insert({
     org_id: caller.org_id,
     user_id: caller.id,
-    action: 'customer.created',
-    entity_type: 'customer',
+    action: 'subcontractor.created',
+    entity_type: 'subcontractor',
     entity_id: data.id,
-    details: { customer_number: customerNumber },
+    details: { sub_number: subNumber },
   })
 
   return NextResponse.json(data)
@@ -99,35 +92,37 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json()
   const admin = createAdminClient()
 
-  // Verify customer is in caller's org
-  const { data: target } = await admin.from('customers').select('org_id').eq('id', body.id).single()
+  const { data: target } = await admin.from('subcontractors').select('org_id').eq('id', body.id).single()
   if (!target || target.org_id !== caller.org_id) {
-    return NextResponse.json({ error: 'Customer not in your organization' }, { status: 403 })
+    return NextResponse.json({ error: 'Subcontractor not in your organization' }, { status: 403 })
   }
 
   const updateData: Record<string, unknown> = {}
   const fields = [
-    'name', 'official_business_name', 'entity_type', 'customer_type', 'tier', 'tier_priority', 'status',
-    'contact_name', 'contact_email', 'contact_phone', 'address', 'state',
-    'telephone', 'primary_website', 'territory', 'region', 'region_state',
+    'name', 'official_business_name', 'entity_type', 'type', 'status',
+    'contact_name', 'contact_email', 'contact_phone', 'po_email',
+    'address', 'state', 'territory', 'region', 'region_state', 'org_contact',
+    'license_number', 'setup_required', 'setup_complete',
+    'onboarding_status', 'onboarding_health_score', 'overall_score', 'onboarded_by',
+    'e_verified', 'w9_received', 'insurance_certs', 'sub_agreement_signed',
+    'doc_signed_contract', 'doc_licenses', 'coi_expiration_date',
+    'workers_comp_expiry', 'general_liability_expiry', 'background_check_status',
+    'safety_rating_emr', 'approval_av_manager', 'approval_net_manager',
+    'approval_sec_manager', 'experience_skills_certs', 'certified_brands',
+    'government_labor_provider', 'gov_labor_categories', 'gov_labor_states',
+    'hourly_rate', 'day_rate', 'tin_ein', 'payment_terms',
+    'accepted_payment_methods', 'late_fee_policy', 'invoicing_contact',
     'payment_address', 'payment_city', 'payment_state', 'payment_zip',
-    'setup_required', 'setup_complete', 'onboarding_status',
-    'onboarding_health_score', 'overall_score', 'onboarded_by', 'target_go_live_date',
-    'referral_source', 'pain_points', 'success_metric_goal',
-    'contract_start_date', 'contract_renewal_date', 'current_tech_stack',
-    'w9_received', 'doc_signed_contract', 'doc_licenses',
-    'tin_ein', 'payment_terms', 'accepted_payment_methods',
-    'late_fee_policy', 'invoicing_contact', 'site_access_notes',
-    'tax_exempt', 'emergency_contact', 'service_states', 'notes',
-    'mac_serial_inventory_link', 'last_audit_date', 'audit_note',
-    'payment_behavior_score', 'response_time_score', 'delay_frequency_score',
-    'ease_of_working_score', 'signature_timeframe_score',
+    'preferred_toolset', 'is_preferred', 'is_active',
+    'timeliness_score', 'qc_pass_rate', 'rework_count',
+    'report_cadence_score', 'daily_task_completion', 'revisit_count',
+    'service_states', 'last_audit_date', 'audit_note', 'notes',
   ]
   for (const f of fields) {
     if (body[f] !== undefined) updateData[f] = body[f]
   }
 
-  const { data, error } = await admin.from('customers')
+  const { data, error } = await admin.from('subcontractors')
     .update(updateData)
     .eq('id', body.id)
     .select()
@@ -146,20 +141,19 @@ export async function DELETE(request: NextRequest) {
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
   const admin = createAdminClient()
-
-  const { data: target } = await admin.from('customers').select('org_id').eq('id', id).single()
+  const { data: target } = await admin.from('subcontractors').select('org_id').eq('id', id).single()
   if (!target || target.org_id !== caller.org_id) {
-    return NextResponse.json({ error: 'Customer not in your organization' }, { status: 403 })
+    return NextResponse.json({ error: 'Subcontractor not in your organization' }, { status: 403 })
   }
 
-  const { error } = await admin.from('customers').delete().eq('id', id)
+  const { error } = await admin.from('subcontractors').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   await admin.from('audit_log').insert({
     org_id: caller.org_id,
     user_id: caller.id,
-    action: 'customer.deleted',
-    entity_type: 'customer',
+    action: 'subcontractor.deleted',
+    entity_type: 'subcontractor',
     entity_id: id,
     details: {},
   })

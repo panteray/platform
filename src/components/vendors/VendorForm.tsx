@@ -2,21 +2,18 @@
 
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { CustomerType, CustomerTier } from '@/types/enums'
-import { US_STATES } from '@/types/enums'
+import { US_STATES, VENDOR_CATEGORY_OPTIONS } from '@/types/enums'
 
-interface CustomerFormProps {
+interface VendorFormProps {
   onSave: (data: Record<string, unknown>) => Promise<void>
   onCancel: () => void
   saving?: boolean
 }
 
-export function CustomerForm({ onSave, onCancel, saving }: CustomerFormProps) {
+export function VendorForm({ onSave, onCancel, saving }: VendorFormProps) {
   const [form, setForm] = useState({
     name: '',
-    customer_type: '',
-    tier: '',
-    contact_name: '',
+    product_category: '',
     contact_email: '',
     region_state: '',
   })
@@ -28,8 +25,7 @@ export function CustomerForm({ onSave, onCancel, saving }: CustomerFormProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const payload: Record<string, unknown> = { ...form }
-    if (!payload.customer_type) payload.customer_type = null
-    if (!payload.tier) payload.tier = null
+    if (!payload.product_category) payload.product_category = null
     if (!payload.region_state) payload.region_state = null
     await onSave(payload)
   }
@@ -40,7 +36,7 @@ export function CustomerForm({ onSave, onCancel, saving }: CustomerFormProps) {
   return (
     <form onSubmit={handleSubmit} className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-foreground">Quick Add Customer</h3>
+        <h3 className="text-sm font-semibold text-foreground">Quick Add Vendor</h3>
         <button type="button" onClick={onCancel} className="rounded p-1 hover:bg-muted">
           <X className="h-4 w-4 text-muted-foreground" />
         </button>
@@ -50,23 +46,12 @@ export function CustomerForm({ onSave, onCancel, saving }: CustomerFormProps) {
           <label className={labelCls}>Name *</label>
           <input className={inputCls} value={form.name} onChange={(e) => set('name', e.target.value)} required autoComplete="organization" />
         </div>
-        <div className="min-w-[100px] flex-1">
-          <label className={labelCls}>Type</label>
-          <select className={inputCls} value={form.customer_type} onChange={(e) => set('customer_type', e.target.value)}>
-            <option value="">—</option>
-            {Object.values(CustomerType).map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div className="min-w-[100px] flex-1">
-          <label className={labelCls}>Tier</label>
-          <select className={inputCls} value={form.tier} onChange={(e) => set('tier', e.target.value)}>
-            <option value="">—</option>
-            {Object.values(CustomerTier).map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
         <div className="min-w-[140px] flex-1">
-          <label className={labelCls}>Contact Name</label>
-          <input className={inputCls} value={form.contact_name} onChange={(e) => set('contact_name', e.target.value)} autoComplete="name" />
+          <label className={labelCls}>Category</label>
+          <select className={inputCls} value={form.product_category} onChange={(e) => set('product_category', e.target.value)}>
+            <option value="">—</option>
+            {VENDOR_CATEGORY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
         <div className="min-w-[160px] flex-1">
           <label className={labelCls}>Contact Email</label>

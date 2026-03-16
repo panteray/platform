@@ -296,3 +296,46 @@ export const LEAD_STATUS_TRANSITIONS: Record<LeadStatus, LeadStatus[]> = {
   [LeadStatus.CONVERTED]: [],
   [LeadStatus.ARCHIVED]: [LeadStatus.NEW],
 }
+
+// ---- Shared Constants ----
+
+export const US_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+  'VA','WA','WV','WI','WY','DC',
+] as const
+
+export const ENTITY_TYPES = ['LLC', 'Corporation', 'S-Corp', 'Sole Proprietorship', 'Partnership', 'Non-Profit'] as const
+export const ONBOARDING_STATUSES = ['Not Started', 'Documentation Pending', 'Internal Review', 'Active', 'At Risk'] as const
+export const VENDOR_STATUSES = ['Pending Docs', 'Not Started', 'Internal Review', 'Needs Approval', 'Active', 'At Risk', 'Stalled'] as const
+export const SUB_STATUSES = ['Pending Docs', 'Internal Review', 'Active', 'At Risk', 'Stalled'] as const
+export const SUB_TYPES = ['Labor', 'Full'] as const
+export const PAYMENT_TERMS_OPTIONS = ['Net-15', 'Net-30', 'Net-60', 'Net-90', 'Due on Receipt'] as const
+export const ACCEPTED_PAYMENT_METHODS_OPTIONS = ['ACH', 'Credit Card', 'Check', 'Stripe', 'PayPal'] as const
+export const PARTNER_LEVELS = ['Platinum', 'Gold', 'Silver', 'Bronze', 'Authorized', 'Reseller'] as const
+
+export const VENDOR_CATEGORY_OPTIONS = [
+  { value: 'CCTV', label: 'CCTV' },
+  { value: 'ACCESS_CONTROL', label: 'Access Control' },
+  { value: 'VMS', label: 'VMS' },
+  { value: 'NETWORKING', label: 'Networking' },
+  { value: 'AV', label: 'AV' },
+  { value: 'GENERAL', label: 'General' },
+  { value: 'SOFTWARE', label: 'Software' },
+  { value: 'CYBERSECURITY', label: 'Cybersecurity' },
+] as const
+
+export const DISCIPLINE_TYPES = ['SEC', 'AV', 'NET', 'CYB', 'MSP', 'SVC'] as const
+
+/** Tier badge colors */
+export const TIER_COLORS: Record<string, { bg: string; fg: string }> = {
+  Platinum: { bg: 'rgba(148,163,184,0.15)', fg: '#94a3b8' },
+  Gold: { bg: 'rgba(234,179,8,0.15)', fg: '#eab308' },
+  Silver: { bg: 'rgba(148,163,184,0.12)', fg: '#9ca3af' },
+  Bronze: { bg: 'rgba(180,120,60,0.15)', fg: '#b4783c' },
+  Review: { bg: 'rgba(161,161,170,0.12)', fg: '#a1a1aa' },
+  Authorized: { bg: 'rgba(161,161,170,0.12)', fg: '#a1a1aa' },
+  Reseller: { bg: 'rgba(161,161,170,0.12)', fg: '#a1a1aa' },
+  Preferred: { bg: 'rgba(34,197,94,0.12)', fg: '#22c55e' },
+}

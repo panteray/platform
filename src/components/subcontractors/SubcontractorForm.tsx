@@ -2,34 +2,22 @@
 
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { CustomerType, CustomerTier } from '@/types/enums'
-import { US_STATES } from '@/types/enums'
+import { US_STATES, SUB_TYPES } from '@/types/enums'
 
-interface CustomerFormProps {
+interface SubcontractorFormProps {
   onSave: (data: Record<string, unknown>) => Promise<void>
   onCancel: () => void
   saving?: boolean
 }
 
-export function CustomerForm({ onSave, onCancel, saving }: CustomerFormProps) {
-  const [form, setForm] = useState({
-    name: '',
-    customer_type: '',
-    tier: '',
-    contact_name: '',
-    contact_email: '',
-    region_state: '',
-  })
-
-  function set(key: string, value: string) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
+export function SubcontractorForm({ onSave, onCancel, saving }: SubcontractorFormProps) {
+  const [form, setForm] = useState({ name: '', type: '', contact_email: '', region_state: '' })
+  function set(key: string, value: string) { setForm((prev) => ({ ...prev, [key]: value })) }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const payload: Record<string, unknown> = { ...form }
-    if (!payload.customer_type) payload.customer_type = null
-    if (!payload.tier) payload.tier = null
+    if (!payload.type) payload.type = null
     if (!payload.region_state) payload.region_state = null
     await onSave(payload)
   }
@@ -40,10 +28,8 @@ export function CustomerForm({ onSave, onCancel, saving }: CustomerFormProps) {
   return (
     <form onSubmit={handleSubmit} className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-foreground">Quick Add Customer</h3>
-        <button type="button" onClick={onCancel} className="rounded p-1 hover:bg-muted">
-          <X className="h-4 w-4 text-muted-foreground" />
-        </button>
+        <h3 className="text-sm font-semibold text-foreground">Quick Add Subcontractor</h3>
+        <button type="button" onClick={onCancel} className="rounded p-1 hover:bg-muted"><X className="h-4 w-4 text-muted-foreground" /></button>
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[160px] flex-1">
@@ -52,21 +38,10 @@ export function CustomerForm({ onSave, onCancel, saving }: CustomerFormProps) {
         </div>
         <div className="min-w-[100px] flex-1">
           <label className={labelCls}>Type</label>
-          <select className={inputCls} value={form.customer_type} onChange={(e) => set('customer_type', e.target.value)}>
+          <select className={inputCls} value={form.type} onChange={(e) => set('type', e.target.value)}>
             <option value="">—</option>
-            {Object.values(CustomerType).map((t) => <option key={t} value={t}>{t}</option>)}
+            {SUB_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
-        </div>
-        <div className="min-w-[100px] flex-1">
-          <label className={labelCls}>Tier</label>
-          <select className={inputCls} value={form.tier} onChange={(e) => set('tier', e.target.value)}>
-            <option value="">—</option>
-            {Object.values(CustomerTier).map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div className="min-w-[140px] flex-1">
-          <label className={labelCls}>Contact Name</label>
-          <input className={inputCls} value={form.contact_name} onChange={(e) => set('contact_name', e.target.value)} autoComplete="name" />
         </div>
         <div className="min-w-[160px] flex-1">
           <label className={labelCls}>Contact Email</label>
@@ -79,11 +54,7 @@ export function CustomerForm({ onSave, onCancel, saving }: CustomerFormProps) {
             {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        <button
-          type="submit"
-          disabled={saving || !form.name.trim()}
-          className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
+        <button type="submit" disabled={saving || !form.name.trim()} className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
           {saving ? 'Saving...' : 'Create'}
         </button>
       </div>

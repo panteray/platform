@@ -70,20 +70,18 @@ const ALL_SECTIONS: ManagementSection[] = [
     visible: (role) => canManageCRM(role),
   },
   {
-    href: '/org/management/vendors',
+    href: '/org/vendors',
     icon: Building2,
     title: 'Vendors',
     description: 'Manage vendor relationships and compliance',
     visible: (role) => canManageCRM(role),
-    phase: 5,
   },
   {
-    href: '/org/management/subcontractors',
+    href: '/org/subcontractors',
     icon: Wrench,
     title: 'Subcontractors',
     description: 'Manage subcontractor onboarding and compliance',
     visible: (role) => canManageCRM(role),
-    phase: 5,
   },
 ]
 
