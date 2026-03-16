@@ -109,7 +109,7 @@ export const OPP_VIEW_ROLES: UserRole[] = [
   UserRole.TECH_SUP, UserRole.LEAD, UserRole.FIELD_TECH,
 ]
 
-/** Roles that can manage CRM entities (customers/vendors/subcontractors) */
+/** Roles that can manage CRM entities (customers/manufacturers/subcontractors) */
 export const CRM_MANAGE_ROLES: UserRole[] = [
   UserRole.GLOBAL_ADMIN, UserRole.GLOBAL_MANAGER,
   UserRole.ORG_ADMIN, UserRole.ORG_MANAGER,

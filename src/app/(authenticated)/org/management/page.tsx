@@ -8,6 +8,7 @@ import {
   Users,
   ShieldCheck,
   Wrench,
+  Briefcase,
   Settings,
 } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
@@ -70,10 +71,10 @@ const ALL_SECTIONS: ManagementSection[] = [
     visible: (role) => canManageCRM(role),
   },
   {
-    href: '/org/vendors',
+    href: '/org/manufacturers',
     icon: Building2,
-    title: 'Vendors',
-    description: 'Manage vendor relationships and compliance',
+    title: 'Manufacturers',
+    description: 'Manage manufacturer relationships and compliance',
     visible: (role) => canManageCRM(role),
   },
   {
@@ -81,6 +82,20 @@ const ALL_SECTIONS: ManagementSection[] = [
     icon: Wrench,
     title: 'Subcontractors',
     description: 'Manage subcontractor onboarding and compliance',
+    visible: (role) => canManageCRM(role),
+  },
+  {
+    href: '/org/distributors',
+    icon: Building2,
+    title: 'Distributors',
+    description: 'Manage distributors, accounts, and purchasing',
+    visible: (role) => canManageCRM(role),
+  },
+  {
+    href: '/org/opportunities',
+    icon: Briefcase,
+    title: 'Opportunities',
+    description: 'Manage pipeline, quoting, and project lifecycle',
     visible: (role) => canManageCRM(role),
   },
 ]

@@ -21,7 +21,7 @@ interface RecentCustomer {
 }
 
 export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashboardProps) {
-  const [stats, setStats] = useState({ users: 0, opps: 0, projects: 0, customers: 0, vendors: 0, subcontractors: 0 })
+  const [stats, setStats] = useState({ users: 0, opps: 0, projects: 0, customers: 0, manufacturers: 0, subcontractors: 0, distributors: 0 })
   const [recentCustomers, setRecentCustomers] = useState<RecentCustomer[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -31,8 +31,9 @@ export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashbo
     const oppsRes = await supabase.from('opportunities').select('id', { count: 'exact', head: true })
     const projectsRes = await supabase.from('projects').select('id', { count: 'exact', head: true })
     const customersRes = await supabase.from('customers').select('id', { count: 'exact', head: true })
-    const vendorsRes = await supabase.from('vendors').select('id', { count: 'exact', head: true })
+    const mfrsRes = await supabase.from('manufacturers').select('id', { count: 'exact', head: true })
     const subsRes = await supabase.from('subcontractors').select('id', { count: 'exact', head: true })
+    const distRes = await supabase.from('distributors').select('id', { count: 'exact', head: true })
     const { data: recent } = await supabase
       .from('customers')
       .select('id, name, customer_number, customer_type, created_at')
@@ -44,8 +45,9 @@ export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashbo
       opps: oppsRes.count ?? 0,
       projects: projectsRes.count ?? 0,
       customers: customersRes.count ?? 0,
-      vendors: vendorsRes.count ?? 0,
+      manufacturers: mfrsRes.count ?? 0,
       subcontractors: subsRes.count ?? 0,
+      distributors: distRes.count ?? 0,
     })
     setRecentCustomers(recent ?? [])
     setLoading(false)
@@ -65,8 +67,9 @@ export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashbo
         <DashboardWidget label="Opportunities" icon={Briefcase} value={stats.opps} description="Total pipeline opportunities" loading={loading} brandColor={brandColor} />
         <DashboardWidget label="Projects" icon={FolderKanban} value={stats.projects} description="Active project engagements" loading={loading} brandColor={brandColor} />
         <DashboardWidget label="Customers" icon={Building2} value={stats.customers} description="Customer accounts" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Vendors" icon={Building2} value={stats.vendors} description="Vendor relationships" loading={loading} brandColor={brandColor} />
+        <DashboardWidget label="Manufacturers" icon={Building2} value={stats.manufacturers} description="Manufacturer relationships" loading={loading} brandColor={brandColor} />
         <DashboardWidget label="Subcontractors" icon={Wrench} value={stats.subcontractors} description="Subcontractor partners" loading={loading} brandColor={brandColor} />
+        <DashboardWidget label="Distributors" icon={Building2} value={stats.distributors} description="Distributor accounts" loading={loading} brandColor={brandColor} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

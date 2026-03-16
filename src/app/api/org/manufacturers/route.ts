@@ -13,36 +13,22 @@ async function verifyOrgCRM() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const admin = createAdminClient()
-  const { data: dbUser } = await admin
-    .from('users')
-    .select('id, role, org_id, is_global_admin')
-    .eq('auth_id', user.id)
-    .single()
+  const { data: dbUser } = await admin.from('users').select('id, role, org_id, is_global_admin').eq('auth_id', user.id).single()
   if (!dbUser || !dbUser.org_id) return null
   if (!CRM_ALLOWED_ROLES.includes(dbUser.role)) return null
   return dbUser
 }
 
-async function nextVendorNumber(admin: ReturnType<typeof createAdminClient>, orgId: string) {
-  const { count } = await admin
-    .from('vendors')
-    .select('id', { count: 'exact', head: true })
-    .eq('org_id', orgId)
-  const next = (count ?? 0) + 1
-  return `VN-${String(next).padStart(6, '0')}`
+async function nextMfrNumber(admin: ReturnType<typeof createAdminClient>, orgId: string) {
+  const { count } = await admin.from('manufacturers').select('id', { count: 'exact', head: true }).eq('org_id', orgId)
+  return `MFR-${String((count ?? 0) + 1).padStart(6, '0')}`
 }
 
 export async function GET() {
   const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('vendors')
-    .select('*')
-    .eq('org_id', caller.org_id)
-    .order('created_at', { ascending: false })
-
+  const { data, error } = await admin.from('manufacturers').select('*').eq('org_id', caller.org_id).order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)
 }
@@ -50,53 +36,29 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
   const body = await request.json()
   const admin = createAdminClient()
-  const vendorNumber = await nextVendorNumber(admin, caller.org_id)
-
-  const { data, error } = await admin.from('vendors').insert({
-    org_id: caller.org_id,
-    vendor_number: vendorNumber,
-    name: body.name,
-    official_business_name: body.official_business_name ?? null,
-    product_category: body.product_category ?? null,
-    contact_name: body.contact_name ?? null,
-    contact_email: body.contact_email ?? null,
-    contact_phone: body.contact_phone ?? null,
-    address: body.address ?? null,
-    state: body.state ?? null,
-    region_state: body.region_state ?? null,
-    notes: body.notes ?? null,
-    created_by: caller.id,
+  const mfrNumber = await nextMfrNumber(admin, caller.org_id)
+  const { data, error } = await admin.from('manufacturers').insert({
+    org_id: caller.org_id, manufacturer_number: mfrNumber,
+    name: body.name, official_business_name: body.official_business_name ?? null,
+    product_category: body.product_category ?? null, contact_name: body.contact_name ?? null,
+    contact_email: body.contact_email ?? null, contact_phone: body.contact_phone ?? null,
+    address: body.address ?? null, state: body.state ?? null, region_state: body.region_state ?? null,
+    notes: body.notes ?? null, created_by: caller.id,
   }).select().single()
-
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-
-  await admin.from('audit_log').insert({
-    org_id: caller.org_id,
-    user_id: caller.id,
-    action: 'vendor.created',
-    entity_type: 'vendor',
-    entity_id: data.id,
-    details: { vendor_number: vendorNumber },
-  })
-
+  await admin.from('audit_log').insert({ org_id: caller.org_id, user_id: caller.id, action: 'manufacturer.created', entity_type: 'manufacturer', entity_id: data.id, details: { manufacturer_number: mfrNumber } })
   return NextResponse.json(data)
 }
 
 export async function PATCH(request: NextRequest) {
   const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
   const body = await request.json()
   const admin = createAdminClient()
-
-  const { data: target } = await admin.from('vendors').select('org_id').eq('id', body.id).single()
-  if (!target || target.org_id !== caller.org_id) {
-    return NextResponse.json({ error: 'Vendor not in your organization' }, { status: 403 })
-  }
-
+  const { data: target } = await admin.from('manufacturers').select('org_id').eq('id', body.id).single()
+  if (!target || target.org_id !== caller.org_id) return NextResponse.json({ error: 'Not in your organization' }, { status: 403 })
   const updateData: Record<string, unknown> = {}
   const fields = [
     'name', 'official_business_name', 'entity_type', 'status', 'product_category',
@@ -104,7 +66,7 @@ export async function PATCH(request: NextRequest) {
     'support_email', 'address', 'city', 'state', 'zip', 'region', 'region_state',
     'is_ndaa_compliant', 'rma_contact_name', 'rma_policy', 'rma_support_phone',
     'rma_portal_link', 'warranty_policy_link', 'support_portal_login',
-    'org_procurement_lead', 'preferred_vendor', 'api_integration_available',
+    'org_procurement_lead', 'preferred_manufacturer', 'api_integration_available',
     'price_list_uploaded', 'lead_time_avg_days', 'standard_shipping_method',
     'shipping_account_number', 'last_price_update_date', 'payment_terms',
     'credit_limit', 'discount_tier', 'partner_level', 'partner_discount_pct',
@@ -113,16 +75,8 @@ export async function PATCH(request: NextRequest) {
     'onboarding_status', 'onboarding_health_score', 'overall_score', 'onboarded_by',
     'disciplines', 'service_states', 'last_audit_date', 'audit_note', 'notes',
   ]
-  for (const f of fields) {
-    if (body[f] !== undefined) updateData[f] = body[f]
-  }
-
-  const { data, error } = await admin.from('vendors')
-    .update(updateData)
-    .eq('id', body.id)
-    .select()
-    .single()
-
+  for (const f of fields) { if (body[f] !== undefined) updateData[f] = body[f] }
+  const { data, error } = await admin.from('manufacturers').update(updateData).eq('id', body.id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)
 }
@@ -130,28 +84,14 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-
   const admin = createAdminClient()
-  const { data: target } = await admin.from('vendors').select('org_id').eq('id', id).single()
-  if (!target || target.org_id !== caller.org_id) {
-    return NextResponse.json({ error: 'Vendor not in your organization' }, { status: 403 })
-  }
-
-  const { error } = await admin.from('vendors').delete().eq('id', id)
+  const { data: target } = await admin.from('manufacturers').select('org_id').eq('id', id).single()
+  if (!target || target.org_id !== caller.org_id) return NextResponse.json({ error: 'Not in your organization' }, { status: 403 })
+  const { error } = await admin.from('manufacturers').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-
-  await admin.from('audit_log').insert({
-    org_id: caller.org_id,
-    user_id: caller.id,
-    action: 'vendor.deleted',
-    entity_type: 'vendor',
-    entity_id: id,
-    details: {},
-  })
-
+  await admin.from('audit_log').insert({ org_id: caller.org_id, user_id: caller.id, action: 'manufacturer.deleted', entity_type: 'manufacturer', entity_id: id, details: {} })
   return NextResponse.json({ success: true })
 }

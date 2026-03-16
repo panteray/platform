@@ -28,18 +28,22 @@ interface ManagerDashboardProps {
 }
 
 export function ManagerDashboard({ brandColor }: ManagerDashboardProps) {
-  const [stats, setStats] = useState({ customers: 0, vendors: 0, subcontractors: 0 })
+  const [stats, setStats] = useState({ customers: 0, manufacturers: 0, subcontractors: 0, distributors: 0, opportunities: 0 })
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
     const supabase = createClient()
     const customersRes = await supabase.from('customers').select('id', { count: 'exact', head: true })
-    const vendorsRes = await supabase.from('vendors').select('id', { count: 'exact', head: true })
+    const mfrsRes = await supabase.from('manufacturers').select('id', { count: 'exact', head: true })
     const subsRes = await supabase.from('subcontractors').select('id', { count: 'exact', head: true })
+    const distRes = await supabase.from('distributors').select('id', { count: 'exact', head: true })
+    const oppsRes = await supabase.from('opportunities').select('id', { count: 'exact', head: true })
     setStats({
       customers: customersRes.count ?? 0,
-      vendors: vendorsRes.count ?? 0,
+      manufacturers: mfrsRes.count ?? 0,
       subcontractors: subsRes.count ?? 0,
+      distributors: distRes.count ?? 0,
+      opportunities: oppsRes.count ?? 0,
     })
     setLoading(false)
   }, [])
@@ -54,8 +58,10 @@ export function ManagerDashboard({ brandColor }: ManagerDashboardProps) {
       <h1 className="text-lg font-medium text-foreground">Manager Dashboard</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <DashboardWidget label="Customers" icon={Users} value={stats.customers} description="Customer accounts" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Vendors" icon={Building2} value={stats.vendors} description="Vendor relationships" loading={loading} brandColor={brandColor} />
+        <DashboardWidget label="Manufacturers" icon={Building2} value={stats.manufacturers} description="Manufacturer relationships" loading={loading} brandColor={brandColor} />
         <DashboardWidget label="Subcontractors" icon={Wrench} value={stats.subcontractors} description="Subcontractor partners" loading={loading} brandColor={brandColor} />
+        <DashboardWidget label="Distributors" icon={Building2} value={stats.distributors} description="Distributor accounts" loading={loading} brandColor={brandColor} />
+        <DashboardWidget label="Opportunities" icon={Briefcase} value={stats.opportunities} description="Pipeline opportunities" loading={loading} brandColor={brandColor} />
         {placeholderWidgets.map((w) => (
           <DashboardWidget key={w.label} label={w.label} icon={w.icon} emptyMessage={w.emptyMessage} description={w.description} brandColor={brandColor} />
         ))}

@@ -105,7 +105,7 @@ export enum CustomerTier {
   Platinum = 'Platinum', Gold = 'Gold', Silver = 'Silver', Bronze = 'Bronze', Review = 'Review',
 }
 
-export enum VendorType {
+export enum ManufacturerType {
   CCTV = 'CCTV', ACCESS_CONTROL = 'ACCESS_CONTROL', VMS = 'VMS',
   NETWORKING = 'NETWORKING', AV = 'AV', GENERAL = 'GENERAL',
   SOFTWARE = 'SOFTWARE', CYBERSECURITY = 'CYBERSECURITY',
@@ -308,14 +308,14 @@ export const US_STATES = [
 
 export const ENTITY_TYPES = ['LLC', 'Corporation', 'S-Corp', 'Sole Proprietorship', 'Partnership', 'Non-Profit'] as const
 export const ONBOARDING_STATUSES = ['Not Started', 'Documentation Pending', 'Internal Review', 'Active', 'At Risk'] as const
-export const VENDOR_STATUSES = ['Pending Docs', 'Not Started', 'Internal Review', 'Needs Approval', 'Active', 'At Risk', 'Stalled'] as const
+export const MANUFACTURER_STATUSES = ['Pending Docs', 'Not Started', 'Internal Review', 'Needs Approval', 'Active', 'At Risk', 'Stalled'] as const
 export const SUB_STATUSES = ['Pending Docs', 'Internal Review', 'Active', 'At Risk', 'Stalled'] as const
 export const SUB_TYPES = ['Labor', 'Full'] as const
 export const PAYMENT_TERMS_OPTIONS = ['Net-15', 'Net-30', 'Net-60', 'Net-90', 'Due on Receipt'] as const
 export const ACCEPTED_PAYMENT_METHODS_OPTIONS = ['ACH', 'Credit Card', 'Check', 'Stripe', 'PayPal'] as const
 export const PARTNER_LEVELS = ['Platinum', 'Gold', 'Silver', 'Bronze', 'Authorized', 'Reseller'] as const
 
-export const VENDOR_CATEGORY_OPTIONS = [
+export const MANUFACTURER_CATEGORY_OPTIONS = [
   { value: 'CCTV', label: 'CCTV' },
   { value: 'ACCESS_CONTROL', label: 'Access Control' },
   { value: 'VMS', label: 'VMS' },
@@ -339,3 +339,13 @@ export const TIER_COLORS: Record<string, { bg: string; fg: string }> = {
   Reseller: { bg: 'rgba(161,161,170,0.12)', fg: '#a1a1aa' },
   Preferred: { bg: 'rgba(34,197,94,0.12)', fg: '#22c55e' },
 }
+
+// ---- Distributor Constants ----
+export const DISTRIBUTOR_STATUSES = ['Active', 'Inactive'] as const
+export const CARRIER_OPTIONS = ['FedEx', 'UPS', 'USPS', 'Freight', 'Courier', 'Direct Ship', 'Customer Pickup', 'Other'] as const
+export const MATERIAL_SHIP_STATUSES = ['NOT_ORDERED', 'ORDERED', 'IN_TRANSIT', 'DELIVERED', 'PARTIAL', 'BACKORDERED'] as const
+export const OPP_DISTRIBUTOR_STATUSES = ['QUOTING', 'QUOTED', 'APPROVED', 'ORDERED'] as const
+export const REQUEST_TYPE_OPTIONS = ['New Install', 'Upgrade', 'Service', 'Add-On', 'Renewal', 'Consultation'] as const
+export const LABOR_REQUIREMENT_OPTIONS = ['TBD', 'Standard', 'Complex', 'Government', 'Union'] as const
+export const OPP_GRADE_OPTIONS = ['A', 'B', 'C', 'D', 'F'] as const
+export const COMPLEXITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical'] as const

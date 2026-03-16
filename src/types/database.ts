@@ -1,12 +1,12 @@
 // ============================================================
 // PANTERAY — Database Types (mirrors Supabase schema)
-// Phase 5: Customer, Vendor, Subcontractor, Opportunity,
+// Phase 5: Customer, Manufacturer, Subcontractor, Opportunity,
 // polymorphic entities, Huddle, and CRM Lead types
 // ============================================================
 
 import type {
   UserRole, UserDivision, UserType, ModuleName, CalculatorType,
-  OppStatus, OppType, CustomerType, CustomerTier, VendorType, SubWorkType,
+  OppStatus, OppType, CustomerType, CustomerTier, ManufacturerType, SubWorkType,
   PeerHuddleRole, PeerHuddleVertical, PeerHuddleType,
   LeadStatus, LeadSource, LeadPriority, LeadArchiveReason,
   InteractionType, InteractionDirection,
@@ -259,12 +259,12 @@ export interface CustomerInventory {
   updated_at: string
 }
 
-// ---- Vendor Management (Section 11.5) ----
+// ---- Manufacturer Management (Section 11.5) ----
 
-export interface Vendor {
+export interface Manufacturer {
   id: string
   org_id: string
-  vendor_number: string | null
+  manufacturer_number: string | null
   name: string
   official_business_name: string | null
   entity_type: string
@@ -290,7 +290,7 @@ export interface Vendor {
   warranty_policy_link: string | null
   support_portal_login: string | null
   org_procurement_lead: string | null
-  preferred_vendor: boolean
+  preferred_manufacturer: boolean
   api_integration_available: boolean
   price_list_uploaded: boolean
   lead_time_avg_days: number | null
@@ -324,16 +324,16 @@ export interface Vendor {
   updated_at: string
 }
 
-export interface VendorTypeRecord {
+export interface ManufacturerTypeRecord {
   id: string
-  vendor_id: string
-  type: VendorType
+  manufacturer_id: string
+  type: ManufacturerType
   created_at: string
 }
 
-export interface VendorContact {
+export interface ManufacturerContact {
   id: string
-  vendor_id: string
+  manufacturer_id: string
   role: string | null
   name: string | null
   email: string | null
@@ -445,7 +445,7 @@ export interface SubcontractorLicensedState {
 
 // ---- Polymorphic Entity Tables (Section 11.3) ----
 
-export type EntityType = 'customer' | 'vendor' | 'subcontractor'
+export type EntityType = 'customer' | 'manufacturer' | 'subcontractor' | 'opportunity' | 'distributor'
 export type DocType = 'w9' | 'contract' | 'insurance' | 'license' | 'other'
 
 export interface Contact {
@@ -646,11 +646,11 @@ export interface OppTeamMember {
   created_at: string
 }
 
-export interface OppVendor {
+export interface OppManufacturer {
   id: string
   org_id: string
   opp_id: string
-  vendor_id: string
+  manufacturer_id: string
   added_by: string | null
   notes: string | null
   created_at: string
@@ -805,6 +805,84 @@ export interface UserCredential {
   user_id: string
   provider: string
   credentials: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+// ============================================================
+// Phase 5D — Distributors + Material Tracking
+// ============================================================
+
+export interface Distributor {
+  id: string
+  org_id: string
+  distributor_number: string | null
+  name: string
+  account_number: string | null
+  rep_name: string | null
+  rep_email: string | null
+  rep_phone: string | null
+  website: string | null
+  portal_login: string | null
+  address: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+  region: string | null
+  region_state: string | null
+  payment_terms: string | null
+  shipping_methods: string[]
+  credit_limit: number | null
+  discount_tier: string | null
+  is_preferred: boolean
+  is_active: boolean
+  notes: string | null
+  status: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface OppDistributor {
+  id: string
+  org_id: string
+  opp_id: string
+  distributor_id: string
+  quote_number: string | null
+  quote_date: string | null
+  quote_amount: number | null
+  status: string
+  notes: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface OppMaterialTracking {
+  id: string
+  org_id: string
+  opp_id: string
+  line_number: string | null
+  distributor_id: string | null
+  manufacturer_id: string | null
+  item_description: string
+  part_number: string | null
+  quantity: number
+  unit_cost: number | null
+  extended_cost: number | null
+  order_number: string | null
+  tracking_number: string | null
+  carrier: string | null
+  ship_status: string
+  date_ordered: string | null
+  estimated_delivery_date: string | null
+  actual_delivery_date: string | null
+  ship_to_address: string | null
+  ship_to_city: string | null
+  ship_to_state: string | null
+  ship_to_zip: string | null
+  warehouse_location: string | null
+  notes: string | null
+  created_by: string | null
   created_at: string
   updated_at: string
 }
