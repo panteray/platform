@@ -1,22 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { verifyOrgAdmin } from '@/lib/auth'
 
-async function verifyOrgAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin
-    .from('users')
-    .select('id, role, org_id')
-    .eq('auth_id', user.id)
-    .single()
-  if (!dbUser || !dbUser.org_id) return null
-  const allowed = ['GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER']
-  if (!allowed.includes(dbUser.role)) return null
-  return dbUser
-}
 
 export async function PATCH(
   request: NextRequest,
@@ -28,8 +13,8 @@ export async function PATCH(
   const { id } = await params
   const body = await request.json()
 
-  if (!body.password || body.password.length < 6) {
-    return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
+  if (!body.password || body.password.length < 8) {
+    return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
   }
 
   const admin = createAdminClient()

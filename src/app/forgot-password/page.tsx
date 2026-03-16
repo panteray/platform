@@ -17,10 +17,10 @@ export default function ForgotPasswordPage() {
     setError('')
 
     const supabase = createClient()
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim())
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(email.trim())
 
-    if (error) {
-      setError(error.message)
+    if (authError) {
+      setError(authError.message)
       setLoading(false)
       return
     }

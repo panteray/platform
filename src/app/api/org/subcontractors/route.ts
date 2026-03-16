@@ -1,35 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-
-const CRM_ALLOWED_ROLES = [
-  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
-  'MANAGER', 'OPERATIONS', 'SALES_ISR', 'SALES_OSR',
-  'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP',
-]
-
-async function verifyOrgCRM() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin
-    .from('users')
-    .select('id, role, org_id, is_global_admin')
-    .eq('auth_id', user.id)
-    .single()
-  if (!dbUser || !dbUser.org_id) return null
-  if (!CRM_ALLOWED_ROLES.includes(dbUser.role)) return null
-  return dbUser
-}
-
+import { verifyOrgCRM } from '@/lib/auth'
 async function nextSubNumber(admin: ReturnType<typeof createAdminClient>, orgId: string) {
-  const { count } = await admin
+  const { data } = await admin
     .from('subcontractors')
-    .select('id', { count: 'exact', head: true })
+    .select('sub_number')
     .eq('org_id', orgId)
-  const next = (count ?? 0) + 1
-  return `SC-${String(next).padStart(6, '0')}`
+    .order('sub_number', { ascending: false })
+    .limit(1)
+  const last = data?.[0]?.sub_number
+  const num = last ? parseInt(last.replace('SC-', ''), 10) + 1 : 1
+  return `SC-${String(num).padStart(6, '0')}`
 }
 
 export async function GET() {

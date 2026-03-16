@@ -8,17 +8,23 @@ export function useModuleConfig(orgId: string | null) {
   const [modules, setModules] = useState<OrgModuleConfig[]>([])
   const [calculators, setCalculators] = useState<OrgCalculatorConfig[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     if (!orgId) { setLoading(false); return }
     try {
+      setError(null)
       const res = await fetch(`/api/admin/organizations/${orgId}`)
       if (res.ok) {
         const data = await res.json()
         setModules(data.modules ?? [])
         setCalculators(data.calculators ?? [])
+      } else {
+        setError('Failed to load module config')
       }
-    } catch { /* silently fail */ }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load module config')
+    }
     setLoading(false)
   }, [orgId])
 
@@ -54,5 +60,5 @@ export function useModuleConfig(orgId: string | null) {
     return calc?.is_enabled ?? false
   }
 
-  return { modules, calculators, loading, toggleModule, toggleCalculator, isModuleEnabled, isCalcEnabled, refresh: fetchData }
+  return { modules, calculators, loading, error, toggleModule, toggleCalculator, isModuleEnabled, isCalcEnabled, refresh: fetchData }
 }

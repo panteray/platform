@@ -51,13 +51,13 @@ export function NotificationPanel({ open, onClose }: NotificationPanelProps) {
     if (!n.read) {
       markRead(n.id)
     }
-    // Entity link navigation (scaffolded — routes come in Phase 5+)
+    // Entity link navigation
     if (n.entity_type && n.entity_id) {
       const routes: Record<string, string> = {
-        opportunity: `/opportunities/${n.entity_id}`,
-        project: `/projects/${n.entity_id}`,
-        customer: `/management/customers/${n.entity_id}`,
-        ticket: `/psa/tickets/${n.entity_id}`,
+        opportunity: `/org/opportunities/${n.entity_id}`,
+        project: `/org/projects/${n.entity_id}`,
+        customer: `/org/management/customers/${n.entity_id}`,
+        ticket: `/org/psa/tickets/${n.entity_id}`,
       }
       const route = routes[n.entity_type]
       if (route) {

@@ -7,17 +7,23 @@ export function useFieldPermissions(orgId: string | null) {
   const [rolePerms, setRolePerms] = useState<RoleFieldPermission[]>([])
   const [userPerms, setUserPerms] = useState<UserFieldPermission[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     if (!orgId) { setLoading(false); return }
     try {
+      setError(null)
       const res = await fetch(`/api/admin/organizations/${orgId}`)
       if (res.ok) {
         const data = await res.json()
         setRolePerms(data.rolePermissions ?? [])
         setUserPerms(data.userPermissions ?? [])
+      } else {
+        setError('Failed to load permissions')
       }
-    } catch { /* silently fail */ }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load permissions')
+    }
     setLoading(false)
   }, [orgId])
 
@@ -35,8 +41,8 @@ export function useFieldPermissions(orgId: string | null) {
 
   const getRolePermission = (roleKey: string, fieldKey: string): FieldPermissionLevel => {
     const perm = rolePerms.find((p) => p.role_key === roleKey && p.field_key === fieldKey)
-    return perm?.permission as FieldPermissionLevel ?? '-'
+    return (perm?.permission ?? '-') as FieldPermissionLevel
   }
 
-  return { rolePerms, userPerms, loading, setRolePermission, getRolePermission, refresh: fetchData }
+  return { rolePerms, userPerms, loading, error, setRolePermission, getRolePermission, refresh: fetchData }
 }

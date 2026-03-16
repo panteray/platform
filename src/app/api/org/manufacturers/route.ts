@@ -1,27 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-
-const CRM_ALLOWED_ROLES = [
-  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
-  'MANAGER', 'OPERATIONS', 'SALES_ISR', 'SALES_OSR',
-  'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP',
-]
-
-async function verifyOrgCRM() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin.from('users').select('id, role, org_id, is_global_admin').eq('auth_id', user.id).single()
-  if (!dbUser || !dbUser.org_id) return null
-  if (!CRM_ALLOWED_ROLES.includes(dbUser.role)) return null
-  return dbUser
-}
-
+import { verifyOrgCRM } from '@/lib/auth'
 async function nextMfrNumber(admin: ReturnType<typeof createAdminClient>, orgId: string) {
-  const { count } = await admin.from('manufacturers').select('id', { count: 'exact', head: true }).eq('org_id', orgId)
-  return `MFR-${String((count ?? 0) + 1).padStart(6, '0')}`
+  const { data } = await admin.from('manufacturers').select('manufacturer_number').eq('org_id', orgId).order('manufacturer_number', { ascending: false }).limit(1)
+  const last = data?.[0]?.manufacturer_number
+  const num = last ? parseInt(last.replace('MFR-', ''), 10) + 1 : 1
+  return `MFR-${String(num).padStart(6, '0')}`
 }
 
 export async function GET() {

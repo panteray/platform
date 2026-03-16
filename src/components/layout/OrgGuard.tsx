@@ -2,23 +2,24 @@
 
 import { useUser } from '@/hooks/useUser'
 import { isGlobalRole } from '@/lib/roles'
-import { redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
 export function OrgGuard({ children }: { children: React.ReactNode }) {
   const { userRole, orgId, loading } = useUser()
+  const router = useRouter()
 
   useEffect(() => {
     if (loading) return
     // Global-only users go to /admin
     if (userRole && isGlobalRole(userRole)) {
-      redirect('/admin')
+      router.push('/admin')
     }
     // Users without org_id cannot access org routes
     if (!orgId) {
-      redirect('/dashboard')
+      router.push('/dashboard')
     }
-  }, [loading, userRole, orgId])
+  }, [loading, userRole, orgId, router])
 
   if (loading) {
     return (

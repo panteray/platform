@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { verifyGlobalAdmin } from '@/lib/auth'
 
-async function verifyGlobalAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin.from('users').select('role, is_global_admin').eq('auth_id', user.id).single()
-  if (!dbUser || !['GLOBAL_ADMIN', 'GLOBAL_MANAGER'].includes(dbUser.role)) return null
-  return user
-}
 
 export async function GET(request: NextRequest) {
   const user = await verifyGlobalAdmin()
@@ -80,6 +71,7 @@ export async function PATCH(request: NextRequest) {
   if (body.title !== undefined) updateData.title = body.title
   if (body.role !== undefined) updateData.role = body.role
   if (body.divisions !== undefined) updateData.divisions = body.divisions
+  if (body.is_active !== undefined) updateData.is_active = body.is_active
 
   const { data, error } = await admin.from('users')
     .update(updateData)

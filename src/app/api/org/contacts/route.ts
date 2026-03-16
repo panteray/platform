@@ -1,28 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-
-const CRM_ALLOWED_ROLES = [
-  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
-  'MANAGER', 'OPERATIONS', 'SALES_ISR', 'SALES_OSR',
-  'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP',
-]
-
-async function verifyOrgCRM() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin
-    .from('users')
-    .select('id, role, org_id, is_global_admin')
-    .eq('auth_id', user.id)
-    .single()
-  if (!dbUser || !dbUser.org_id) return null
-  if (!CRM_ALLOWED_ROLES.includes(dbUser.role)) return null
-  return dbUser
-}
-
+import { verifyOrgCRM } from '@/lib/auth'
 export async function GET(request: NextRequest) {
   const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

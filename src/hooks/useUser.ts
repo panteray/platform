@@ -15,6 +15,17 @@ interface UserState {
   loading: boolean
 }
 
+function decodeJwtPayload(token: string): Record<string, any> {
+  try {
+    const base64 = token.split('.')[1]
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+    return JSON.parse(atob(base64))
+  } catch {
+    return {}
+  }
+}
+
 export function useUser(): UserState {
   const [state, setState] = useState<UserState>({
     user: null,
@@ -36,8 +47,7 @@ export function useUser(): UserState {
         return
       }
 
-      const jwt = session.access_token
-      const payload = JSON.parse(atob(jwt.split('.')[1]))
+      const payload = decodeJwtPayload(session.access_token)
 
       const { data: dbUser } = await supabase
         .from('users')

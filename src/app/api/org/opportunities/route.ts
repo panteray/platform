@@ -16,8 +16,10 @@ async function verifyCaller() {
 }
 
 async function nextOppNumber(admin: ReturnType<typeof createAdminClient>, orgId: string) {
-  const { count } = await admin.from('opportunities').select('id', { count: 'exact', head: true }).eq('org_id', orgId)
-  return `OPP-${String((count ?? 0) + 1).padStart(6, '0')}`
+  const { data } = await admin.from('opportunities').select('opp_number').eq('org_id', orgId).order('opp_number', { ascending: false }).limit(1)
+  const last = data?.[0]?.opp_number
+  const num = last ? parseInt(last.replace('OPP-', ''), 10) + 1 : 1
+  return `OPP-${String(num).padStart(6, '0')}`
 }
 
 export async function GET() {

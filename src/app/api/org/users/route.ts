@@ -1,23 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { verifyOrgAdmin } from '@/lib/auth'
 
-async function verifyOrgAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin
-    .from('users')
-    .select('id, role, org_id, is_global_admin')
-    .eq('auth_id', user.id)
-    .single()
-  if (!dbUser || !dbUser.org_id) return null
-  // ORG_ADMIN, ORG_MANAGER, or global roles can manage org users
-  const allowed = ['GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER']
-  if (!allowed.includes(dbUser.role)) return null
-  return dbUser
-}
 
 export async function GET() {
   const caller = await verifyOrgAdmin()
@@ -91,6 +75,7 @@ export async function PATCH(request: NextRequest) {
   if (body.title !== undefined) updateData.title = body.title
   if (body.role !== undefined) updateData.role = body.role
   if (body.divisions !== undefined) updateData.divisions = body.divisions
+  if (body.is_active !== undefined) updateData.is_active = body.is_active
 
   const { data, error } = await admin.from('users')
     .update(updateData)

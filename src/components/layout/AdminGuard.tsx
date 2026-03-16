@@ -2,17 +2,18 @@
 
 import { useUser } from '@/hooks/useUser'
 import { isGlobalRole } from '@/lib/roles'
-import { redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
 export function AdminGuard({ children }: { children: React.ReactNode }) {
   const { userRole, loading } = useUser()
+  const router = useRouter()
 
   useEffect(() => {
     if (!loading && (!userRole || !isGlobalRole(userRole))) {
-      redirect('/dashboard')
+      router.push('/dashboard')
     }
-  }, [loading, userRole])
+  }, [loading, userRole, router])
 
   if (loading) {
     return (

@@ -1,42 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-
-const CRM_ALLOWED_ROLES = [
-  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
-  'MANAGER', 'OPERATIONS', 'SALES_ISR', 'SALES_OSR',
-  'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP',
-]
-
-async function verifyOrgCRM() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin
-    .from('users')
-    .select('id, role, org_id, is_global_admin')
-    .eq('auth_id', user.id)
-    .single()
-  if (!dbUser || !dbUser.org_id) return null
-  if (!CRM_ALLOWED_ROLES.includes(dbUser.role)) return null
-  return dbUser
-}
-
+import { verifyOrgCRM } from '@/lib/auth'
 async function nextCustomerNumber(admin: ReturnType<typeof createAdminClient>, orgId: string) {
-  const { count } = await admin
+  const { data } = await admin
     .from('customers')
-    .select('id', { count: 'exact', head: true })
+    .select('customer_number')
     .eq('org_id', orgId)
-  const next = (count ?? 0) + 1
-  return `CU-${String(next).padStart(6, '0')}`
+    .order('customer_number', { ascending: false })
+    .limit(1)
+  const last = data?.[0]?.customer_number
+  const num = last ? parseInt(last.replace('CU-', ''), 10) + 1 : 1
+  return `CU-${String(num).padStart(6, '0')}`
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const admin = createAdminClient()
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+
+  // Single record fetch
+  if (id) {
+    const { data, error } = await admin
+      .from('customers')
+      .select('*')
+      .eq('id', id)
+      .eq('org_id', caller.org_id)
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 404 })
+    return NextResponse.json(data)
+  }
+
+  // Full list fetch
   const { data, error } = await admin
     .from('customers')
     .select('*')

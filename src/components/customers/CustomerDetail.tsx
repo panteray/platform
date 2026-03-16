@@ -54,10 +54,10 @@ export function CustomerDetail({ customerId }: CustomerDetailProps) {
   const [tab, setTab] = useState<Tab>('Overview')
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/org/customers')
-    if (!res.ok) return
-    const data: Customer[] = await res.json()
-    setCustomer(data.find((c) => c.id === customerId) ?? null)
+    const res = await fetch(`/api/org/customers?id=${customerId}`)
+    if (!res.ok) { setLoading(false); return }
+    const data: Customer = await res.json()
+    setCustomer(data)
     setLoading(false)
   }, [customerId])
 

@@ -79,6 +79,7 @@ export function UserDetailPage({ user, backHref, backLabel, apiBase, apiPassword
         phone: phone || null,
         role,
         divisions: showDivision && division ? [division] : [],
+        is_active: isActive,
       }),
     })
     if (res.ok) {
@@ -105,8 +106,8 @@ export function UserDetailPage({ user, backHref, backLabel, apiBase, apiPassword
   }
 
   async function handleSetPassword() {
-    if (!newPassword || newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters')
+    if (!newPassword || newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters')
       return
     }
     setSettingPassword(true)
@@ -293,7 +294,7 @@ export function UserDetailPage({ user, backHref, backLabel, apiBase, apiPassword
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password (min 6 chars)" autoComplete="new-password"
+                  placeholder="New password (min 8 chars)" autoComplete="new-password"
                   className="mt-1"
                 />
               </div>

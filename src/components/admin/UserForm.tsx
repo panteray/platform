@@ -56,8 +56,8 @@ export function UserForm({ user, orgId, onSubmit, onCancel }: UserFormProps) {
   }
 
   async function handleSetPassword() {
-    if (!user || !newPassword || newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters')
+    if (!user || !newPassword || newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters')
       return
     }
     setSettingPassword(true)
@@ -148,7 +148,7 @@ export function UserForm({ user, orgId, onSubmit, onCancel }: UserFormProps) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Min 6 characters (or leave blank for default)" autoComplete="new-password"
+              placeholder="Min 8 characters (or leave blank for default)" autoComplete="new-password"
             />
             <p className="text-[10px] text-muted-foreground">
               If left blank, defaults to TempPass123! — user should change on first login.
@@ -167,7 +167,7 @@ export function UserForm({ user, orgId, onSubmit, onCancel }: UserFormProps) {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password (min 6 chars)"
+                  placeholder="New password (min 8 chars)"
                   autoComplete="new-password"
                   className="mt-1"
                 />
