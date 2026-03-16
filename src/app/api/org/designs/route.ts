@@ -10,9 +10,10 @@ export async function GET() {
 
   const admin = createAdminClient()
 
-  const { data, error } = await admin
+  // Fetch designs (no embedded join — avoids FK schema issues)
+  const { data: designs, error } = await admin
     .from('designs')
-    .select('*, opportunities:opp_id ( id, opp_number, project_name, customer_name )')
+    .select('*')
     .eq('org_id', dbUser.org_id)
     .neq('status', 'ARCHIVED')
     .order('created_at', { ascending: false })
@@ -21,7 +22,30 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
-  return NextResponse.json({ designs: data ?? [] })
+  // Batch-fetch linked opportunities
+  const oppIds = (designs ?? [])
+    .map((d) => d.opp_id)
+    .filter((id): id is string => !!id)
+
+  let oppMap: Record<string, Record<string, unknown>> = {}
+  if (oppIds.length > 0) {
+    const { data: opps } = await admin
+      .from('opportunities')
+      .select('id, opp_number, project_name, customer_name')
+      .in('id', oppIds)
+
+    if (opps) {
+      oppMap = Object.fromEntries(opps.map((o) => [o.id, o]))
+    }
+  }
+
+  // Merge opportunity data into designs
+  const enriched = (designs ?? []).map((d) => ({
+    ...d,
+    opportunities: d.opp_id ? oppMap[d.opp_id] ?? null : null,
+  }))
+
+  return NextResponse.json({ designs: enriched })
 }
 
 export async function POST(req: NextRequest) {

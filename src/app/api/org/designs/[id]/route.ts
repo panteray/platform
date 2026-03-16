@@ -14,15 +14,27 @@ export async function GET(
   const { id } = await params
   const admin = createAdminClient()
 
+  // Fetch design (no embedded join — avoids FK schema issues)
   const { data: design, error } = await admin
     .from('designs')
-    .select('*, opportunities:opp_id ( id, opp_number, project_name, customer_name, install_address, state )')
+    .select('*')
     .eq('id', id)
     .eq('org_id', dbUser.org_id)
     .single()
 
   if (error || !design) {
     return NextResponse.json({ error: error?.message ?? 'Not found' }, { status: 404 })
+  }
+
+  // Fetch linked opportunity separately if opp_id exists
+  let opportunities: Record<string, unknown> | null = null
+  if (design.opp_id) {
+    const { data: opp } = await admin
+      .from('opportunities')
+      .select('id, opp_number, project_name, customer_name, install_address, state')
+      .eq('id', design.opp_id)
+      .single()
+    opportunities = opp
   }
 
   // Fetch areas for this design
@@ -32,7 +44,10 @@ export async function GET(
     .eq('design_id', id)
     .order('sort_order', { ascending: true })
 
-  return NextResponse.json({ design, areas: areas ?? [] })
+  return NextResponse.json({
+    design: { ...design, opportunities },
+    areas: areas ?? [],
+  })
 }
 
 export async function PATCH(
@@ -47,7 +62,6 @@ export async function PATCH(
   const { id } = await params
   const admin = createAdminClient()
 
-  // Verify ownership
   const { data: existing } = await admin
     .from('designs')
     .select('id, org_id')
@@ -79,15 +93,15 @@ export async function PATCH(
 
   updates.updated_at = new Date().toISOString()
 
-  const { data, error } = await admin
+  const { data, error: updateErr } = await admin
     .from('designs')
     .update(updates)
     .eq('id', id)
     .select()
     .single()
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+  if (updateErr) {
+    return NextResponse.json({ error: updateErr.message }, { status: 400 })
   }
 
   return NextResponse.json({ design: data })
@@ -105,7 +119,6 @@ export async function DELETE(
   const { id } = await params
   const admin = createAdminClient()
 
-  // Soft delete — set status to ARCHIVED
   const { error } = await admin
     .from('designs')
     .update({ status: 'ARCHIVED', updated_at: new Date().toISOString() })
