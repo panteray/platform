@@ -70,6 +70,7 @@ interface CanvasAreaProps {
   onCableCreated?: (cable: { from_device_id: string; to_device_id: string | null; waypoints: Array<{ x: number; y: number }>; length_ft: number }) => void
   onToolChange?: (tool: CanvasTool) => void
   onScaleCalibrated?: (pxPerFt: number) => void
+  onFloorPlanError?: (msg: string) => void
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
@@ -80,7 +81,7 @@ export function CanvasArea({
   designId, areaId, floorPlan, devices, cables, showGrid, activeTool, selectedDeviceId,
   showFovCones, fovData, scalePxPerFt,
   onZoomChange, onSelectDevice, onDeviceMoved, onDeviceRotated, onCanvasClick,
-  onDeviceCopy, onDeviceDelete, onCableCreated, onToolChange, onScaleCalibrated,
+  onDeviceCopy, onDeviceDelete, onCableCreated, onToolChange, onScaleCalibrated, onFloorPlanError,
 }: CanvasAreaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
@@ -444,14 +445,75 @@ export function CanvasArea({
     if (!fabricRef.current || !fabricReady) return
     const canvas = fabricRef.current
     if (!floorPlan?.file_url) { canvas.backgroundImage = undefined; canvas.requestRenderAll(); return }
-    async function loadFP() {
-      const fm = await import('fabric')
-      const img = await fm.FabricImage.fromURL(floorPlan!.file_url!, { crossOrigin: 'anonymous' })
-      img.set({ opacity: floorPlan!.opacity ?? 0.5, selectable: false, evented: false })
-      canvas.backgroundImage = img; canvas.requestRenderAll()
+
+    const url = floorPlan.file_url
+    const ext = url.split('.').pop()?.split('?')[0]?.toLowerCase() ?? ''
+    const opacity = floorPlan.opacity ?? 0.5
+
+    async function loadFloorPlanSVG() {
+      try {
+        const response = await fetch(url, { mode: 'cors' })
+        if (!response.ok) throw new Error(`Fetch failed: ${response.status}`)
+        const svgText = await response.text()
+        const fm = await import('fabric')
+        const result = await fm.loadSVGFromString(svgText)
+        const objs = result.objects.filter(Boolean) as FabricObject[]
+        if (objs.length === 0) throw new Error('SVG parse returned no objects')
+        const group = fm.util.groupSVGElements(objs, result.options)
+        group.set({ opacity, selectable: false, evented: false, originX: 'left', originY: 'top' })
+        canvas.backgroundImage = group as unknown as import('fabric').FabricImage
+        canvas.requestRenderAll()
+      } catch (err) {
+        console.error('SVG floor plan load failed:', err)
+        // Fallback: try as regular image (browser can render simple SVGs via <img>)
+        await loadFloorPlanImage()
+      }
     }
-    void loadFP()
-  }, [floorPlan, fabricReady])
+
+    async function loadFloorPlanPDF() {
+      try {
+        const pdfjsLib = await import('pdfjs-dist')
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+        const loadingTask = pdfjsLib.getDocument({ url, disableAutoFetch: true, disableStream: true })
+        const pdf = await loadingTask.promise
+        const page = await pdf.getPage(1)
+        const viewport = page.getViewport({ scale: 2 })
+        const offscreen = document.createElement('canvas')
+        offscreen.width = viewport.width
+        offscreen.height = viewport.height
+        const ctx = offscreen.getContext('2d')
+        if (!ctx) throw new Error('No 2d context')
+        await page.render({ canvasContext: ctx, viewport }).promise
+        const dataUrl = offscreen.toDataURL('image/png')
+        const fm = await import('fabric')
+        const img = await fm.FabricImage.fromURL(dataUrl)
+        img.set({ opacity, selectable: false, evented: false })
+        canvas.backgroundImage = img
+        canvas.requestRenderAll()
+        pdf.destroy()
+      } catch (err) {
+        console.error('PDF floor plan load failed:', err)
+        onFloorPlanError?.('Failed to render PDF. Try uploading as PNG or JPG instead.')
+      }
+    }
+
+    async function loadFloorPlanImage() {
+      try {
+        const fm = await import('fabric')
+        const img = await fm.FabricImage.fromURL(url, { crossOrigin: 'anonymous' })
+        img.set({ opacity, selectable: false, evented: false })
+        canvas.backgroundImage = img
+        canvas.requestRenderAll()
+      } catch (err) {
+        console.error('Image floor plan load failed:', err)
+        onFloorPlanError?.('Failed to load floor plan image. Check the file and try again.')
+      }
+    }
+
+    if (ext === 'svg') { void loadFloorPlanSVG() }
+    else if (ext === 'pdf') { void loadFloorPlanPDF() }
+    else { void loadFloorPlanImage() }
+  }, [floorPlan, fabricReady, onFloorPlanError])
 
   // Grid
   const drawGrid = useCallback(() => {

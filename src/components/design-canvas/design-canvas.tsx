@@ -48,6 +48,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [activeView, setActiveView] = useState<DesignView>('physical')
   const [showFovCones, setShowFovCones] = useState(false)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
+  const [floorPlanError, setFloorPlanError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const activeArea = areas.find((a) => a.id === activeAreaId) ?? null
@@ -128,7 +129,10 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   // ---- Handlers ----
   async function handleFloorPlanUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file || !activeAreaId) return
-    await uploadFloorPlan(activeAreaId, file); if (fileInputRef.current) fileInputRef.current.value = ''
+    setFloorPlanError(null)
+    const result = await uploadFloorPlan(activeAreaId, file)
+    if (!result) setFloorPlanError('Upload failed — check file type and try again.')
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
   function handleIconChange(tabId: IconTabId) {
     setActiveIcon(tabId)
@@ -176,13 +180,20 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
           </button>
           <button onClick={() => setShowGrid(!showGrid)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, borderRadius: 6, border: `0.5px solid ${showGrid ? C.accent : C.border}`, background: showGrid ? C.accentSubtle : 'transparent', color: showGrid ? C.accent : C.textMuted, cursor: 'pointer' }}><Grid3X3 size={14} /> Grid</button>
           <button onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, borderRadius: 6, border: `0.5px solid ${C.border}`, background: 'transparent', color: C.textMuted, cursor: 'pointer' }}><Upload size={14} /> Floor plan</button>
-          <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
+          <input ref={fileInputRef} type="file" accept=".svg,.pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
           <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, borderRadius: 6, border: `0.5px solid ${C.border}`, background: 'transparent', color: C.textMuted, cursor: 'pointer' }}><FileDown size={14} /> Export</button>
           <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, borderRadius: 6, background: C.text, color: C.bg, cursor: 'pointer', border: 'none', fontWeight: 500 }}><Save size={14} /> Save</button>
         </div>
       </div>
 
       <RequirementsBar requirements={requirements} cableEstimate={cableEstimate} />
+
+      {floorPlanError && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 16px', background: 'rgba(239,68,68,0.1)', borderBottom: `1px solid rgba(239,68,68,0.3)`, fontSize: 12, color: '#ef4444', flexShrink: 0 }}>
+          <span>{floorPlanError}</span>
+          <button onClick={() => setFloorPlanError(null)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>x</button>
+        </div>
+      )}
 
       {/* View switcher */}
       <div style={{ display: 'flex', gap: 0, background: C.bgSurface, borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
@@ -219,7 +230,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               onCanvasClick={handleCanvasClick} onDeviceCopy={handleDeviceCopy} onDeviceDelete={handleDeviceDelete}
               onCableCreated={handleCableCreated}
               onToolChange={(t) => setActiveTool(t)}
-              onScaleCalibrated={(px) => setScalePxPerFt(px)} />
+              onScaleCalibrated={(px) => setScalePxPerFt(px)}
+              onFloorPlanError={(msg) => setFloorPlanError(msg)} />
             <RightPanel device={selectedDeviceId ? devices.find((dev) => dev.id === selectedDeviceId) ?? null : null}
               onClose={() => setSelectedDeviceId(null)} onDuplicate={handleDeviceCopy} onDelete={handleDeviceDelete}
               onUpdateDevice={(id, updates) => updateDevice(id, updates as Record<string, unknown>)} />
