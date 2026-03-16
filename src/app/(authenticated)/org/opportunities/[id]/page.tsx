@@ -10,6 +10,7 @@ import { useUser } from '@/hooks/useUser'
 import { OverviewTab } from '@/components/opportunities/OverviewTab'
 import { DeliveryTab } from '@/components/opportunities/DeliveryTab'
 import { StubTab } from '@/components/opportunities/StubTab'
+import { HuddleTab } from '@/components/opportunities/HuddleTab'
 import { CustomerCard } from '@/components/opportunities/CustomerCard'
 
 const TABS = ['Overview','Surveys','Designs','Door Compliance','Hardware Schedule','SOW','BOM','Project','Field','Risk Factors','Delivery','Huddle'] as const
@@ -22,6 +23,7 @@ export default function OppDetailPage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('Overview')
   const [callerRole, setCallerRole] = useState<string | null>(null)
+  const [callerUserId, setCallerUserId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!params?.id) return
@@ -40,7 +42,7 @@ export default function OppDetailPage() {
       if (!r.ok) return
       const users = await r.json()
       const me = users.find((u: { auth_id: string }) => u.auth_id === user.id)
-      if (me) setCallerRole(me.role)
+      if (me) { setCallerRole(me.role); setCallerUserId(me.id) }
     })
   }, [user])
 
@@ -79,7 +81,7 @@ export default function OppDetailPage() {
         {tab === 'Project' && <StubTab name="Project" />}
         {tab === 'Field' && <StubTab name="Field" />}
         {tab === 'Risk Factors' && <StubTab name="Risk Factors" />}
-        {tab === 'Huddle' && <StubTab name="Huddle" />}
+        {tab === 'Huddle' && <HuddleTab oppId={opp.id} callerRole={callerRole} callerUserId={callerUserId} />}
       </div>
 
       {/* Customer Card */}

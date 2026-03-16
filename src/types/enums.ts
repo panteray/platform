@@ -349,3 +349,7 @@ export const REQUEST_TYPE_OPTIONS = ['New Install', 'Upgrade', 'Service', 'Add-O
 export const LABOR_REQUIREMENT_OPTIONS = ['TBD', 'Standard', 'Complex', 'Government', 'Union'] as const
 export const OPP_GRADE_OPTIONS = ['A', 'B', 'C', 'D', 'F'] as const
 export const COMPLEXITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical'] as const
+
+// ---- Huddle Role Constants ----
+export const HUDDLE_VISIBLE_ROLES = ['GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER', 'MANAGER', 'OPERATIONS', 'SALES_ISR', 'SALES_OSR', 'PRESALES', 'PROJECT_MANAGER'] as const
+export const HUDDLE_ADMIN_ROLES = ['GLOBAL_ADMIN', 'ORG_ADMIN', 'ORG_MANAGER'] as const
