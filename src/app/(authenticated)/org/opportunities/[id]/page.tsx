@@ -11,6 +11,7 @@ import { OverviewTab } from '@/components/opportunities/OverviewTab'
 import { DeliveryTab } from '@/components/opportunities/DeliveryTab'
 import { StubTab } from '@/components/opportunities/StubTab'
 import { HuddleTab } from '@/components/opportunities/HuddleTab'
+import { DesignsTab } from '@/components/opportunities/DesignsTab'
 import { CustomerCard } from '@/components/opportunities/CustomerCard'
 
 const TABS = ['Overview','Surveys','Designs','Door Compliance','Hardware Schedule','SOW','BOM','Project','Field','Risk Factors','Delivery','Huddle'] as const
@@ -73,7 +74,7 @@ export default function OppDetailPage() {
         {tab === 'Overview' && <OverviewTab opp={opp} callerRole={callerRole} onUpdate={(updated) => setOpp(updated)} />}
         {tab === 'Delivery' && <DeliveryTab oppId={opp.id} />}
         {tab === 'Surveys' && <StubTab name="Surveys" />}
-        {tab === 'Designs' && <StubTab name="Designs" />}
+        {tab === 'Designs' && <DesignsTab oppId={opp.id} oppNumber={opp.opp_number ?? ''} projectName={opp.project_name ?? undefined} />}
         {tab === 'Door Compliance' && <StubTab name="Door Compliance" />}
         {tab === 'Hardware Schedule' && <StubTab name="Hardware Schedule" />}
         {tab === 'SOW' && <StubTab name="SOW" />}
