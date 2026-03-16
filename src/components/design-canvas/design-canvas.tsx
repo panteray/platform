@@ -8,6 +8,7 @@ import { AreaTabs } from './area-tabs'
 import { CanvasArea } from './canvas-area'
 import { IconSidebar } from './icon-sidebar'
 import { LeftPanel } from './left-panel'
+import { RightPanel } from './right-panel'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import type { DesignFloorPlan } from '@/types/database'
 
@@ -249,48 +250,14 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
           onDeviceDelete={handleDeviceDelete}
         />
 
-        {/* Right panel placeholder — built in 7D */}
-        <div style={{ width: 260, background: C.bgPanel, borderLeft: `1px solid ${C.border}`, padding: 12, flexShrink: 0, overflowY: 'auto' }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: C.text, marginBottom: 8 }}>Properties</div>
-          {selectedDeviceId ? (
-            (() => {
-              const d = devices.find((dev) => dev.id === selectedDeviceId)
-              if (!d) return <div style={{ fontSize: 11, color: C.textDim }}>Device not found</div>
-              const props = (d.properties ?? {}) as Record<string, unknown>
-              return (
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: C.text, marginBottom: 4 }}>{d.label}</div>
-                  <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 8 }}>Category: {d.category}</div>
-                  <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>Position: {d.position_x}, {d.position_y}</div>
-                  <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>Rotation: {d.rotation} deg</div>
-                  <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>Status: {d.status}</div>
-                  {props.manufacturer ? <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>Manufacturer: {String(props.manufacturer)}</div> : null}
-                  {props.model ? <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>Model: {String(props.model)}</div> : null}
-                  {d.color_hex && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
-                      <div style={{ width: 12, height: 12, borderRadius: 3, background: d.color_hex, border: '1px solid rgba(255,255,255,0.15)' }} />
-                      <span style={{ fontSize: 10, color: C.textMuted }}>{d.color_hex}</span>
-                    </div>
-                  )}
-                </div>
-              )
-            })()
-          ) : (
-            <div style={{ fontSize: 11, color: C.textDim }}>
-              Select a device on the canvas to view its properties.
-            </div>
-          )}
-          {activeArea && (
-            <div style={{ marginTop: 16, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-              <div style={{ fontSize: 10, fontWeight: 500, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Active area</div>
-              <div style={{ fontSize: 12, color: C.text }}>{activeArea.name}</div>
-              <div style={{ fontSize: 10, color: C.textDim, marginTop: 2 }}>Type: {activeArea.canvas_type}</div>
-              {activeArea.scale_calibration && (
-                <div style={{ fontSize: 10, color: C.textDim, marginTop: 2 }}>Scale: {activeArea.scale_calibration} px/ft</div>
-              )}
-            </div>
-          )}
-        </div>
+        {/* Right panel */}
+        <RightPanel
+          device={selectedDeviceId ? devices.find((dev) => dev.id === selectedDeviceId) ?? null : null}
+          onClose={() => setSelectedDeviceId(null)}
+          onDuplicate={handleDeviceCopy}
+          onDelete={handleDeviceDelete}
+          onUpdateDevice={(id, updates) => updateDevice(id, updates as Record<string, unknown>)}
+        />
       </div>
     </div>
   )
