@@ -1,5 +1,6 @@
 # Stage 1: Install dependencies
 FROM node:22-alpine AS deps
+RUN apk add --no-cache python3 make g++ cairo-dev pango-dev jpeg-dev giflib-dev pixman-dev
 RUN npm install -g pnpm
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
