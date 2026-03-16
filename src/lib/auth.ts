@@ -74,3 +74,24 @@ export async function verifyDeviceLibraryAccess() {
   if (!DEVICE_LIBRARY_ALLOWED_ROLES.includes(dbUser.role)) return null
   return dbUser
 }
+
+const DESIGN_ALLOWED_ROLES = [
+  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
+  'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP', 'LEAD', 'MANAGER', 'OPERATIONS',
+]
+
+/** Verify caller has Design Canvas access and has an org. Returns dbUser {id, role, org_id, is_global_admin} or null. */
+export async function verifyDesignAccess() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const admin = createAdminClient()
+  const { data: dbUser } = await admin
+    .from('users')
+    .select('id, role, org_id, is_global_admin')
+    .eq('auth_id', user.id)
+    .single()
+  if (!dbUser || !dbUser.org_id) return null
+  if (!DESIGN_ALLOWED_ROLES.includes(dbUser.role)) return null
+  return dbUser
+}

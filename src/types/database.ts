@@ -984,3 +984,271 @@ export interface DeviceSearchResult {
   poe_standard: string | null
   manufacturer_id: string | null
 }
+
+// ============================================================
+// ENGINEERING ENGINE — DESIGN CANVAS (Phase 7 — Section 11.8)
+// ============================================================
+
+export interface Design {
+  id: string
+  org_id: string | null
+  opp_id: string | null
+  created_by: string | null
+  name: string
+  status: string // text, default 'ACTIVE'
+  created_at: string
+  updated_at: string
+}
+
+export interface DesignCanvas {
+  id: string
+  org_id: string
+  opp_id: string | null
+  name: string
+  status: string // design_canvas_status_enum
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DesignArea {
+  id: string
+  design_id: string
+  org_id: string | null
+  canvas_id: string | null
+  name: string
+  canvas_type: string // canvas_area_type enum
+  floor_plan_image_ref: string | null
+  floor_plan_url_legacy: string | null
+  scale_calibration: number | null
+  infrastructure_observations: Record<string, unknown> | null
+  satellite_lat: number | null
+  satellite_lng: number | null
+  satellite_zoom: number
+  sort_order: number | null
+  created_at: string
+}
+
+export interface DesignFloorPlan {
+  id: string
+  design_id: string
+  area_id: string
+  canvas_id: string | null
+  file_url: string | null
+  width: number | null
+  height: number | null
+  opacity: number
+  created_at: string
+}
+
+export interface DesignDevice {
+  id: string
+  org_id: string
+  design_id: string
+  area_id: string | null
+  canvas_id: string | null
+  device_library_item_id: string | null
+  category: string // device_category enum
+  label: string
+  position_x: number
+  position_y: number
+  status: string // device_status enum
+  condition: string | null // condition_type enum
+  mount_type: string | null
+  color_hex: string | null
+  rotation: number
+  properties: Record<string, unknown> | null
+  asset_type: string
+  billing_type: string
+  recurring_cost: number
+  zone_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DesignCable {
+  id: string
+  design_id: string
+  area_id: string | null
+  canvas_id: string | null
+  org_id: string | null
+  cable_type: string // cable_type enum
+  label: string | null
+  waypoints: Array<{ x: number; y: number }>
+  length_ft: number
+  slack_pct: number
+  total_length_ft: number
+  service_loop_ft: number
+  from_device_id: string | null
+  to_device_id: string | null
+  mdf_idf_id: string | null
+  color_hex: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DesignMdfIdf {
+  id: string
+  design_id: string
+  area_id: string | null
+  canvas_id: string | null
+  org_id: string | null
+  name: string
+  position_x: number
+  position_y: number
+  color_hex: string | null
+  service_loop_ft: number
+  location_description: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DesignZone {
+  id: string
+  design_id: string
+  org_id: string | null
+  name: string
+  color: string
+  x: number
+  y: number
+  width: number
+  height: number
+  created_at: string
+  updated_at: string
+}
+
+export interface DesignRackSlots {
+  id: string
+  org_id: string
+  design_id: string
+  area_id: string | null
+  rack_name: string
+  rack_color_hex: string | null
+  rack_location: string | null
+  mdf_idf_id: string | null
+  total_u: number
+  slots: Array<{
+    u_position: number
+    device_id: string | null
+    device_name: string | null
+    ru_height: number
+    poe_draw_w: number
+    power_draw_w: number
+    is_blank: boolean
+    is_patch_panel: boolean
+  }>
+  created_at: string
+  updated_at: string
+}
+
+export interface DesignVlanSubnet {
+  id: string
+  org_id: string
+  design_id: string
+  vlan_id: number
+  vlan_name: string | null
+  subnet: string | null
+  gateway: string | null
+  dhcp_range_start: string | null
+  dhcp_range_end: string | null
+  notes: string | null
+  canvas_type: string
+  created_at: string
+  updated_at: string
+}
+
+export interface DesignAvoipDevice {
+  id: string
+  org_id: string
+  design_id: string
+  device_id: string | null
+  device_name: string | null
+  protocol: string // avoip_protocol enum
+  ip_address: string | null
+  subnet: string | null
+  vlan_id: string | null
+  nic_type: string // avoip_nic_type enum
+  latency_setting: number | null
+  multicast: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DesignTopologyNode {
+  id: string
+  org_id: string
+  design_id: string
+  node_type: string // topology_node_type enum
+  label: string
+  position_x: number
+  position_y: number
+  layer: string // topology_layer enum
+  properties: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface DesignTopologyLink {
+  id: string
+  org_id: string
+  design_id: string
+  from_node_id: string
+  to_node_id: string
+  cable_type: string | null
+  speed: string | null // topology_speed enum
+  vlan_tags: string[]
+  is_trunk: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DoorConfig {
+  id: string
+  org_id: string
+  design_id: string
+  area_id: string | null
+  canvas_id: string | null
+  device_id: string | null
+  label: string | null
+  door_type: string
+  lock_type: string
+  reader_in_type: string
+  reader_out_type: string
+  has_rex: boolean
+  has_door_contact: boolean
+  has_auto_operator: boolean
+  controller_device_id: string | null
+  x: number | null
+  y: number | null
+  notes: string | null
+  properties: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface CalculatorResult {
+  id: string
+  org_id: string
+  opp_id: string | null
+  design_id: string | null
+  type: string // calculator_type enum
+  input_data: Record<string, unknown>
+  result_data: Record<string, unknown>
+  created_by: string | null
+  created_at: string
+}
+
+export interface VaultArtifact {
+  id: string
+  org_id: string
+  design_id: string
+  artifact_type: string | null
+  file_name: string | null
+  storage_path: string | null
+  file_size_bytes: number | null
+  created_by: string | null
+  created_at: string
+}

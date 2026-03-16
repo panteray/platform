@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Settings, Users, Sliders, PanelLeftClose, PanelLeft, LogOut, Briefcase, Building2, Wrench, Factory, Truck, Cpu } from 'lucide-react'
+import { LayoutDashboard, Settings, Users, Sliders, PanelLeftClose, PanelLeft, LogOut, Briefcase, Building2, Wrench, Factory, Truck, Cpu, PenTool } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { canManageUsers, canManageCRM } from '@/lib/roles'
@@ -26,6 +26,7 @@ const crmNav = [
 ]
 
 const toolsNav = [
+  { href: '/org/designs', label: 'Designs', icon: PenTool, exact: false },
   { href: '/org/tools/device-library', label: 'Device Library', icon: Cpu, exact: false },
 ]
 

@@ -406,3 +406,161 @@ export const IMPORT_ACCEPTED_MIME_TYPES = [
   'text/csv',
 ] as const
 export const IMPORT_MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB
+
+// ---- Design Canvas (Phase 7) ----
+
+export enum CanvasAreaType {
+  FLOOR_PLAN = 'FLOOR_PLAN',
+  SATELLITE = 'SATELLITE',
+  GRID = 'GRID',
+  BLANK = 'BLANK',
+}
+
+export enum DesignCanvasStatus {
+  DRAFT = 'draft',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+}
+
+export enum DeviceStatus {
+  NEW = 'new',
+  EXISTING_KEEP = 'existing_keep',
+  EXISTING_REMOVE = 'existing_remove',
+  RELOCATE = 'relocate',
+}
+
+export enum ConditionType {
+  GOOD = 'good',
+  FAIR = 'fair',
+  POOR = 'poor',
+  UNKNOWN = 'unknown',
+}
+
+export enum CableType {
+  CAT5E = 'cat5e',
+  CAT6 = 'cat6',
+  FIBER_OM3 = 'fiber_om3',
+  FIBER_OM4 = 'fiber_om4',
+  FIBER_SM = 'fiber_sm',
+  WIRE_18_2 = '18_2',
+  WIRE_22_4 = '22_4',
+  WIRE_22_6 = '22_6',
+  WIRE_14_2 = '14_2',
+  SPEAKER_WIRE = 'speaker_wire',
+  OTHER = 'other',
+}
+
+export enum TopologyNodeType {
+  FIREWALL = 'FIREWALL',
+  CORE_SWITCH = 'CORE_SWITCH',
+  DIST_SWITCH = 'DIST_SWITCH',
+  ACCESS_SWITCH = 'ACCESS_SWITCH',
+  ROUTER = 'ROUTER',
+  WIRELESS_CONTROLLER = 'WIRELESS_CONTROLLER',
+  AP = 'AP',
+  SERVER = 'SERVER',
+  NVR_VMS = 'NVR_VMS',
+  CLOUD_ISP = 'CLOUD_ISP',
+  CLIENT = 'CLIENT',
+}
+
+export enum TopologyLayer {
+  L1 = 'L1',
+  L2 = 'L2',
+  L3 = 'L3',
+}
+
+export enum TopologySpeed {
+  G1 = '1G',
+  G10 = '10G',
+  G25 = '25G',
+  G40 = '40G',
+  G100 = '100G',
+  FIBER = 'FIBER',
+}
+
+export enum AvoipProtocol {
+  DANTE = 'DANTE',
+  AES67 = 'AES67',
+  NDI = 'NDI',
+  CONTROL = 'CONTROL',
+}
+
+export enum AvoipNicType {
+  PRIMARY = 'PRIMARY',
+  SECONDARY = 'SECONDARY',
+}
+
+export const CANVAS_AREA_TYPES = [
+  { value: 'FLOOR_PLAN', label: 'Floor Plan' },
+  { value: 'SATELLITE', label: 'Satellite' },
+  { value: 'GRID', label: 'Grid' },
+  { value: 'BLANK', label: 'Blank' },
+] as const
+
+export const DEVICE_STATUS_OPTIONS = [
+  { value: 'new', label: 'New' },
+  { value: 'existing_keep', label: 'Existing Keep' },
+  { value: 'existing_remove', label: 'Existing Remove' },
+  { value: 'relocate', label: 'Relocate' },
+] as const
+
+export const CONDITION_OPTIONS = [
+  { value: 'good', label: 'Good' },
+  { value: 'fair', label: 'Fair' },
+  { value: 'poor', label: 'Poor' },
+  { value: 'unknown', label: 'Unknown' },
+] as const
+
+export const CABLE_TYPE_OPTIONS = [
+  { value: 'cat5e', label: 'Cat5e' },
+  { value: 'cat6', label: 'Cat6' },
+  { value: 'fiber_om3', label: 'Fiber OM3' },
+  { value: 'fiber_om4', label: 'Fiber OM4' },
+  { value: 'fiber_sm', label: 'Fiber SM' },
+  { value: '18_2', label: '18/2' },
+  { value: '22_4', label: '22/4' },
+  { value: '22_6', label: '22/6' },
+  { value: '14_2', label: '14/2' },
+  { value: 'speaker_wire', label: 'Speaker Wire' },
+  { value: 'other', label: 'Other' },
+] as const
+
+export const MOUNT_TYPES = ['ceiling', 'wall', 'pole', 'pendant'] as const
+
+export const TOPOLOGY_NODE_TYPE_OPTIONS = [
+  { value: 'FIREWALL', label: 'Firewall' },
+  { value: 'CORE_SWITCH', label: 'Core Switch' },
+  { value: 'DIST_SWITCH', label: 'Distribution Switch' },
+  { value: 'ACCESS_SWITCH', label: 'Access Switch' },
+  { value: 'ROUTER', label: 'Router' },
+  { value: 'WIRELESS_CONTROLLER', label: 'Wireless Controller' },
+  { value: 'AP', label: 'Access Point' },
+  { value: 'SERVER', label: 'Server' },
+  { value: 'NVR_VMS', label: 'NVR / VMS' },
+  { value: 'CLOUD_ISP', label: 'Cloud / ISP' },
+  { value: 'CLIENT', label: 'Client' },
+] as const
+
+export const TOPOLOGY_SPEED_OPTIONS = [
+  { value: '1G', label: '1G' },
+  { value: '10G', label: '10G' },
+  { value: '25G', label: '25G' },
+  { value: '40G', label: '40G' },
+  { value: '100G', label: '100G' },
+  { value: 'FIBER', label: 'Fiber' },
+] as const
+
+/** Roles with access to design canvas */
+export const DESIGN_ACCESS_ROLES = [
+  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
+  'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP', 'LEAD', 'MANAGER', 'OPERATIONS',
+] as const
+
+/** 16-color palette for design canvas (from CASDEX) */
+export const CANVAS_COLORS_16 = [
+  '#3b82f6', '#8b5cf6', '#ec4899', '#ef4444',
+  '#f97316', '#eab308', '#22c55e', '#14b8a6',
+  '#06b6d4', '#6366f1', '#a855f7', '#f43f5e',
+  '#fb923c', '#84cc16', '#10b981', '#0ea5e9',
+] as const
