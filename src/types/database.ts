@@ -886,3 +886,101 @@ export interface OppMaterialTracking {
   created_at: string
   updated_at: string
 }
+
+// ============================================================
+// DEVICE LIBRARY (Phase 6 — Section 11.9)
+// ============================================================
+
+export interface DeviceLibraryItem {
+  id: string
+  org_id: string | null // NULL = global platform item
+  vendor: string
+  model: string
+  partnumber: string | null
+  category: string // device_category enum
+  subcategory: string | null
+  resolution: string | null
+  fps: string | null
+  poe_standard: string | null
+  wattage: number | null
+  ndaa_compliant: boolean
+  specs: Record<string, unknown> // JSONB — category-specific fields
+  manufacturer_id: string | null // FK → device_library_manufacturers
+  created_at: string
+  updated_at: string
+}
+
+export interface DeviceLibraryManufacturer {
+  id: string
+  org_id: string | null // NULL = global
+  name: string
+  ndaa_status: string // ndaa_status enum: compliant | non_compliant | mixed | unverified
+  ndaa_notes: string | null
+  website: string | null
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DeviceLibraryContribution {
+  id: string
+  org_id: string
+  submitted_by: string | null
+  device_item_id: string // FK → device_library_items
+  status: string // contribution_status enum
+  reviewed_by: string | null
+  reviewed_at: string | null
+  review_notes: string | null
+  merged_into_id: string | null // FK → device_library_items
+  created_at: string
+}
+
+export interface DeviceImportBatch {
+  id: string
+  org_id: string
+  vendor: string | null
+  file_name: string | null
+  file_type: string | null // pdf | xlsx | csv
+  status: string // import_batch_status enum
+  total_rows: number | null
+  approved_rows: number | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DeviceImportRow {
+  id: string
+  batch_id: string // FK → device_import_batches
+  raw_line: string | null
+  partnumber: string | null
+  vendor: string | null
+  model: string | null
+  category: string | null // device_category enum
+  subcategory: string | null
+  resolution: string | null
+  fps: string | null
+  poe_standard: string | null
+  wattage: number | null
+  ndaa_compliant: boolean
+  confidence: number // 0–1
+  status: string // import_row_status enum
+  created_at: string
+}
+
+/** Shape returned by device library search API */
+export interface DeviceSearchResult {
+  id: string
+  category: string
+  subcategory: string | null
+  vendor: string
+  model: string
+  partnumber: string | null
+  resolution: string | null
+  ndaa_compliant: boolean | null
+  specs: Record<string, unknown> | null
+  wattage: number | null
+  poe_standard: string | null
+  manufacturer_id: string | null
+}

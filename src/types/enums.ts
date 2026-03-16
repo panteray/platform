@@ -353,3 +353,56 @@ export const COMPLEXITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical'] as const
 // ---- Huddle Role Constants ----
 export const HUDDLE_VISIBLE_ROLES = ['GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER', 'MANAGER', 'OPERATIONS', 'SALES_ISR', 'SALES_OSR', 'PRESALES', 'PROJECT_MANAGER'] as const
 export const HUDDLE_ADMIN_ROLES = ['GLOBAL_ADMIN', 'ORG_ADMIN', 'ORG_MANAGER'] as const
+
+// ---- Device Library (Phase 6) ----
+
+export enum DeviceCategory {
+  CCTV = 'cctv',
+  ACCESS_CONTROL = 'access_control',
+  NETWORK = 'network',
+  AV = 'av',
+  VAPE_ENVIRONMENTAL = 'vape_environmental',
+  OTHER = 'other',
+}
+
+export type NdaaStatus = 'compliant' | 'non_compliant' | 'mixed' | 'unverified'
+
+export type ContributionStatus = 'pending_review' | 'approved' | 'rejected' | 'merged'
+
+export type ImportBatchStatus = 'uploaded' | 'processing' | 'parsed' | 'committed' | 'failed'
+
+export type ImportRowStatus = 'pending' | 'approved' | 'rejected' | 'committed'
+
+export type ImportFileType = 'pdf' | 'xlsx' | 'csv'
+
+export const DEVICE_CATEGORIES = [
+  { value: 'cctv', label: 'CCTV' },
+  { value: 'access_control', label: 'Access Control' },
+  { value: 'network', label: 'Network' },
+  { value: 'av', label: 'AV' },
+  { value: 'vape_environmental', label: 'Vape / Environmental' },
+  { value: 'other', label: 'Other' },
+] as const
+
+export const NDAA_STATUS_OPTIONS = [
+  { value: 'compliant', label: 'Compliant' },
+  { value: 'non_compliant', label: 'Non-Compliant' },
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'unverified', label: 'Unverified' },
+] as const
+
+/** Roles with access to Device Library (browse, import, contribute) */
+export const DEVICE_LIBRARY_ROLES = [
+  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
+  'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP', 'LEAD',
+] as const
+
+/** Accepted file extensions for device import */
+export const IMPORT_ACCEPTED_EXTENSIONS = ['.pdf', '.xlsx', '.xls', '.csv'] as const
+export const IMPORT_ACCEPTED_MIME_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'text/csv',
+] as const
+export const IMPORT_MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB

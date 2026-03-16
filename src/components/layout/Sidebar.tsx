@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Building2, PanelLeftClose, PanelLeft, LogOut } from 'lucide-react'
+import { LayoutDashboard, Building2, Cpu, PanelLeftClose, PanelLeft, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useSidebarState } from '@/hooks/useSidebarState'
@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 const adminNav = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, match: '/admin' },
   { href: '/admin/organizations', label: 'Organizations', icon: Building2, match: '/admin/organizations' },
+  { href: '/admin/device-library', label: 'Device Library', icon: Cpu, match: '/admin/device-library' },
 ]
 
 export function Sidebar() {

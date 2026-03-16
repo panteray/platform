@@ -11,6 +11,11 @@ const CRM_ALLOWED_ROLES = [
   'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP',
 ]
 
+const DEVICE_LIBRARY_ALLOWED_ROLES = [
+  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
+  'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP', 'LEAD',
+]
+
 /** Verify caller is GLOBAL_ADMIN or GLOBAL_MANAGER. Returns auth user or null. */
 export async function verifyGlobalAdmin() {
   const supabase = await createClient()
@@ -51,5 +56,21 @@ export async function verifyOrgCRM() {
     .single()
   if (!dbUser || !dbUser.org_id) return null
   if (!CRM_ALLOWED_ROLES.includes(dbUser.role)) return null
+  return dbUser
+}
+
+/** Verify caller has Device Library access and has an org. Returns dbUser {id, role, org_id, is_global_admin} or null. */
+export async function verifyDeviceLibraryAccess() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const admin = createAdminClient()
+  const { data: dbUser } = await admin
+    .from('users')
+    .select('id, role, org_id, is_global_admin')
+    .eq('auth_id', user.id)
+    .single()
+  if (!dbUser || !dbUser.org_id) return null
+  if (!DEVICE_LIBRARY_ALLOWED_ROLES.includes(dbUser.role)) return null
   return dbUser
 }

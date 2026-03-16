@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Settings, Users, Sliders, PanelLeftClose, PanelLeft, LogOut, Briefcase, Building2, Wrench, Factory, Truck } from 'lucide-react'
+import { LayoutDashboard, Settings, Users, Sliders, PanelLeftClose, PanelLeft, LogOut, Briefcase, Building2, Wrench, Factory, Truck, Cpu } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { canManageUsers, canManageCRM } from '@/lib/roles'
+import { DEVICE_LIBRARY_ROLES } from '@/types/enums'
 import { useSidebarState } from '@/hooks/useSidebarState'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -24,6 +25,10 @@ const crmNav = [
   { href: '/org/distributors', label: 'Distributors', icon: Truck, exact: false },
 ]
 
+const toolsNav = [
+  { href: '/org/tools/device-library', label: 'Device Library', icon: Cpu, exact: false },
+]
+
 const bottomNav = [
   { href: '/org/profile', label: 'Settings', icon: Settings, exact: false },
 ]
@@ -36,6 +41,7 @@ export function OrgSidebar() {
 
   const canManage = userRole ? canManageUsers(userRole) : false
   const canCRM = userRole ? canManageCRM(userRole) : false
+  const canTools = userRole ? (DEVICE_LIBRARY_ROLES as readonly string[]).includes(userRole) : false
 
   const initials = user
     ? `${(user.first_name?.[0] ?? '').toUpperCase()}${(user.last_name?.[0] ?? '').toUpperCase()}`
@@ -130,6 +136,47 @@ export function OrgSidebar() {
               {!collapsed && <p className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">CRM</p>}
             </div>
             {crmNav.map((item) => {
+              const active = pathname.startsWith(item.href)
+
+              const link = (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex items-center rounded-md border-l-[3px] text-[13px] transition-colors',
+                    collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-4 py-2',
+                    active
+                      ? 'border-blue-500 bg-zinc-900 font-medium text-white'
+                      : 'border-transparent text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
+                  )}
+                >
+                  <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
+                  {!collapsed && item.label}
+                </Link>
+              )
+
+              if (collapsed) {
+                return (
+                  <Tooltip key={item.href} delayDuration={0}>
+                    <TooltipTrigger asChild>{link}</TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs">{item.label}</TooltipContent>
+                  </Tooltip>
+                )
+              }
+
+              return link
+            })}
+          </>
+        )}
+
+        {/* Tools Section */}
+        {canTools && (
+          <>
+            <div className={cn('pt-2 pb-1', collapsed ? 'px-2' : 'px-4')}>
+              <div className="border-t border-zinc-800" />
+              {!collapsed && <p className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Tools</p>}
+            </div>
+            {toolsNav.map((item) => {
               const active = pathname.startsWith(item.href)
 
               const link = (
