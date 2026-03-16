@@ -24,6 +24,8 @@ export default function OrgSettingsPage() {
     description: '',
     brand_color: '',
   })
+  const [territories, setTerritories] = useState<string[]>([])
+  const [newTerritory, setNewTerritory] = useState('')
 
   useEffect(() => {
     if (!orgId) return
@@ -44,12 +46,40 @@ export default function OrgSettingsPage() {
           description: orgData.description ?? '',
           brand_color: orgData.brand_color ?? '',
         })
+        const settings = orgData.settings as Record<string, unknown> | null
+        if (settings?.territories && Array.isArray(settings.territories)) {
+          setTerritories(settings.territories as string[])
+        }
       }
       setLoading(false)
     }
 
     load()
   }, [orgId])
+
+  async function saveTerrritories(updated: string[]) {
+    if (!orgId || !org) return
+    const supabase = createClient()
+    const currentSettings = (org.settings as Record<string, unknown>) ?? {}
+    const newSettings = { ...currentSettings, territories: updated }
+    const { error } = await supabase.from('organizations').update({ settings: newSettings }).eq('id', orgId)
+    if (!error) {
+      setTerritories(updated)
+      setOrg((prev) => prev ? { ...prev, settings: newSettings } : null)
+    }
+  }
+
+  function addTerritory() {
+    const val = newTerritory.trim()
+    if (!val || territories.includes(val)) return
+    const updated = [...territories, val]
+    setNewTerritory('')
+    saveTerrritories(updated)
+  }
+
+  function removeTerritory(t: string) {
+    saveTerrritories(territories.filter((x) => x !== t))
+  }
 
   async function handleSave() {
     if (!orgId || !org) return
@@ -160,6 +190,37 @@ export default function OrgSettingsPage() {
           <p className="text-xs text-muted-foreground">
             Legal name, plan, and other org details are managed by your admin.
           </p>
+        </div>
+      </div>
+
+      {/* Territories Config */}
+      <div className="mb-6 rounded-lg border border-border bg-card p-5 space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Territories
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Define territories available for opportunity assignment. These appear as dropdown options on OPP create and detail pages.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {territories.map((t) => (
+            <span key={t} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2.5 py-1 text-xs font-medium text-foreground">
+              {t}
+              <button type="button" onClick={() => removeTerritory(t)} className="text-muted-foreground hover:text-red-500 transition-colors">&times;</button>
+            </span>
+          ))}
+          {territories.length === 0 && <span className="text-xs text-muted-foreground">No territories configured yet.</span>}
+        </div>
+        <div className="flex gap-2">
+          <Input
+            value={newTerritory}
+            onChange={(e) => setNewTerritory(e.target.value)}
+            placeholder="Add territory (e.g. Northeast, Gulf South)"
+            className="max-w-xs text-sm"
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTerritory() } }}
+          />
+          <Button size="sm" variant="outline" onClick={addTerritory} disabled={!newTerritory.trim()}>
+            Add
+          </Button>
         </div>
       </div>
 
