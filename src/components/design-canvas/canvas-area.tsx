@@ -500,7 +500,15 @@ export function CanvasArea({
     async function loadFloorPlanImage() {
       try {
         const fm = await import('fabric')
-        const img = await fm.FabricImage.fromURL(url, { crossOrigin: 'anonymous' })
+        // Try with crossOrigin first (needed for canvas export)
+        // If CORS fails, retry without it (signed URLs may not have CORS headers)
+        let img: import('fabric').FabricImage
+        try {
+          img = await fm.FabricImage.fromURL(url, { crossOrigin: 'anonymous' })
+        } catch {
+          // Fallback: load without CORS (canvas becomes tainted but image displays)
+          img = await fm.FabricImage.fromURL(url)
+        }
         img.set({ opacity, selectable: false, evented: false })
         canvas.backgroundImage = img
         canvas.requestRenderAll()
