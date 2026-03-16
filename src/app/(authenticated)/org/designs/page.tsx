@@ -12,7 +12,7 @@ import type { Opportunity } from '@/types/database'
 export default function DesignsPage() {
   const router = useRouter()
   const { userRole, loading: userLoading } = useUser()
-  const { designs, loading, error, createDesign, archiveDesign } = useDesigns()
+  const { designs, loading, error, createDesign, archiveDesign, refresh } = useDesigns()
   const [archiving, setArchiving] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
@@ -20,23 +20,25 @@ export default function DesignsPage() {
   const [designName, setDesignName] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [assignDesignId, setAssignDesignId] = useState<string | null>(null)
+  const [assignOppId, setAssignOppId] = useState('')
+  const [assigning, setAssigning] = useState(false)
 
   const hasAccess = userRole && (DESIGN_ACCESS_ROLES as readonly string[]).includes(userRole)
 
   // Fetch opportunities when modal opens
   useEffect(() => {
-    if (!showCreate) return
+    if (!showCreate && !assignDesignId) return
     fetch('/api/org/opportunities')
       .then((r) => r.ok ? r.json() : [])
       .then((json) => setOpportunities(Array.isArray(json) ? json : json.data ?? []))
       .catch(() => {})
-  }, [showCreate])
+  }, [showCreate, assignDesignId])
 
   async function handleCreate() {
-    if (!selectedOppId) { setCreateError('Select an opportunity'); return }
     setCreating(true)
     setCreateError(null)
-    const design = await createDesign(selectedOppId, designName || undefined)
+    const design = await createDesign(selectedOppId || null, designName || undefined)
     if (design) {
       router.push(`/org/designs/${design.id}`)
     } else {
@@ -49,6 +51,23 @@ export default function DesignsPage() {
     setArchiving(id)
     await archiveDesign(id)
     setArchiving(null)
+  }
+
+  async function handleAssignOpp() {
+    if (!assignDesignId || !assignOppId) return
+    setAssigning(true)
+    try {
+      const res = await fetch(`/api/org/designs/${assignDesignId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opp_id: assignOppId }),
+      })
+      if (res.ok) {
+        setAssignDesignId(null)
+        refresh()
+      }
+    } catch { /* silent */ }
+    setAssigning(false)
   }
 
   if (userLoading) {
@@ -132,10 +151,23 @@ export default function DesignsPage() {
                     </td>
                     <td className="px-4 py-3 text-zinc-400">
                       {opp ? (
-                        <span className="font-mono text-xs">{opp.opp_number}</span>
-                      ) : '-'}
-                      {opp?.project_name && (
-                        <span className="text-zinc-500 ml-2">{opp.project_name}</span>
+                        <>
+                          <span className="font-mono text-xs">{opp.opp_number}</span>
+                          {opp.project_name && (
+                            <span className="text-zinc-500 ml-2">{opp.project_name}</span>
+                          )}
+                        </>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setAssignDesignId(d.id)
+                            setAssignOppId('')
+                          }}
+                          className="text-[11px] text-primary hover:underline"
+                        >
+                          Assign OPP
+                        </button>
                       )}
                     </td>
                     <td className="px-4 py-3 text-zinc-400">{opp?.customer_name ?? '-'}</td>
@@ -191,7 +223,7 @@ export default function DesignsPage() {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-[11px] font-medium text-zinc-500 mb-1">Link to Opportunity</label>
+                <label className="block text-[11px] font-medium text-zinc-500 mb-1">Link to Opportunity <span className="text-zinc-700">(optional)</span></label>
                 <select
                   value={selectedOppId}
                   onChange={(e) => {
@@ -227,12 +259,53 @@ export default function DesignsPage() {
             <div className="flex gap-3 mt-5">
               <button
                 onClick={handleCreate}
-                disabled={creating || !selectedOppId}
+                disabled={creating}
                 className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {creating ? 'Creating...' : 'Create Design'}
               </button>
               <button onClick={() => setShowCreate(false)} className="h-9 rounded-md border border-zinc-800 px-4 text-sm text-zinc-400 hover:bg-zinc-900">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign OPP Modal */}
+      {assignDesignId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAssignDesignId(null)}>
+          <div className="w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-950 p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">Assign Opportunity</h2>
+              <button onClick={() => setAssignDesignId(null)} className="text-zinc-500 hover:text-white"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-zinc-500 mb-1">Select Opportunity</label>
+              <select
+                value={assignOppId}
+                onChange={(e) => setAssignOppId(e.target.value)}
+                className="h-9 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">Select opportunity...</option>
+                {(Array.isArray(opportunities) ? opportunities : []).map((o: Opportunity) => (
+                  <option key={o.id} value={o.id}>
+                    {o.opp_number} {o.project_name ? `— ${o.project_name}` : ''} {o.customer_name ? `(${o.customer_name})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={handleAssignOpp}
+                disabled={assigning || !assignOppId}
+                className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {assigning ? 'Assigning...' : 'Assign'}
+              </button>
+              <button onClick={() => setAssignDesignId(null)} className="h-9 rounded-md border border-zinc-800 px-4 text-sm text-zinc-400 hover:bg-zinc-900">
                 Cancel
               </button>
             </div>

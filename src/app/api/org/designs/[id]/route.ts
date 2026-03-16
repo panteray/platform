@@ -79,7 +79,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const allowed = ['name', 'status']
+  const allowed = ['name', 'status', 'opp_id']
   const updates: Record<string, unknown> = {}
   for (const key of allowed) {
     if (key in body) {

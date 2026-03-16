@@ -40,12 +40,15 @@ export function useDesigns() {
     void fetchDesigns()
   }, [fetchDesigns])
 
-  const createDesign = useCallback(async (oppId: string, name?: string): Promise<Design | null> => {
+  const createDesign = useCallback(async (oppId?: string | null, name?: string): Promise<Design | null> => {
     try {
+      const body: Record<string, unknown> = {}
+      if (oppId) body.opp_id = oppId
+      if (name) body.name = name
       const res = await fetch('/api/org/designs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ opp_id: oppId, name }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const json = await res.json()

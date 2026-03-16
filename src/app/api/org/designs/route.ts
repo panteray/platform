@@ -61,24 +61,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const oppId = body.opp_id as string
+  const oppId = (body.opp_id as string) || null
   const name = (body.name as string)?.trim() || 'Untitled Design'
-
-  if (!oppId) {
-    return NextResponse.json({ error: 'opp_id is required' }, { status: 400 })
-  }
 
   const admin = createAdminClient()
 
-  // Verify OPP belongs to org
-  const { data: opp } = await admin
-    .from('opportunities')
-    .select('id, org_id')
-    .eq('id', oppId)
-    .single()
+  // If opp_id provided, verify it belongs to org
+  if (oppId) {
+    const { data: opp } = await admin
+      .from('opportunities')
+      .select('id, org_id')
+      .eq('id', oppId)
+      .single()
 
-  if (!opp || opp.org_id !== dbUser.org_id) {
-    return NextResponse.json({ error: 'Opportunity not found' }, { status: 404 })
+    if (!opp || opp.org_id !== dbUser.org_id) {
+      return NextResponse.json({ error: 'Opportunity not found' }, { status: 404 })
+    }
   }
 
   // Create design
