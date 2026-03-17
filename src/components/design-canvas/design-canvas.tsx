@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo } from 'react'
-import { Upload, Save, FileDown, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X } from 'lucide-react'
+import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { C, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
 import { LABEL_PREFIX } from './icons'
 import { CanvasArea, type DeviceFovData } from './canvas-area'
@@ -50,8 +51,10 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     addRack, updateRack, deleteRack,
     addVlan, updateVlan, deleteVlan,
     addAvoipDevice, updateAvoipDevice, deleteAvoipDevice,
+    refetch,
   } = state
 
+  const router = useRouter()
   const [showGrid, setShowGrid] = useState(true)
   const [activeTool, setActiveTool] = useState<CanvasTool>('select')
   const [activeIcon, setActiveIcon] = useState<IconTabId>('layers')
@@ -67,6 +70,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const placingRef = useRef(false)
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
   const [pendingDevice, setPendingDevice] = useState<DeviceSearchResult | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ label: string; action: () => void } | null>(null)
 
   const activeArea = areas.find((a) => a.id === activeAreaId) ?? null
   const activeFloorPlan: DesignFloorPlan | null = floorPlans.find((fp) => fp.area_id === activeAreaId) ?? null
@@ -229,6 +233,22 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     setEditingAreaId(null)
   }
 
+  async function handleDeleteDesign() {
+    try {
+      const res = await fetch(`/api/org/designs/${designId}`, { method: 'DELETE' })
+      if (res.ok) router.push('/org/designs')
+    } catch { /* handled by toast in hook */ }
+  }
+
+  async function handleDeleteFloorPlan() {
+    const fp = floorPlans.find((f) => f.area_id === activeAreaId)
+    if (!fp) return
+    try {
+      const res = await fetch(`/api/org/designs/${designId}/floor-plans?plan_id=${fp.id}`, { method: 'DELETE' })
+      if (res.ok) await refetch()
+    } catch { /* handled by toast */ }
+  }
+
   const selectedDevice = selectedDeviceId ? devices.find((d) => d.id === selectedDeviceId) ?? null : null
   const selectedZone = selectedZoneId ? zones.find((z) => z.id === selectedZoneId) ?? null : null
 
@@ -344,25 +364,31 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
         <button onClick={() => setShowFovCones(!showFovCones)} style={toolBtn(showFovCones)}>
           {showFovCones ? <Eye size={12} /> : <EyeOff size={12} />} <span>FOV</span>
         </button>
-        <button onClick={() => { setActiveTool('scale'); }} style={toolBtn(activeTool === 'scale', C.yellow)}>
+        <button onClick={() => { setActiveTool('scale'); }} style={toolBtn(activeTool === 'scale', C.red)}>
           <Ruler size={12} /> <span>Scale</span>
         </button>
         <button onClick={() => setShowGrid(!showGrid)} style={toolBtn(showGrid)}>
           <Grid3X3 size={12} />
         </button>
-        <button onClick={() => fileInputRef.current?.click()} style={toolBtn(false)}>
-          <Upload size={12} />
+
+        {/* Floor plan controls */}
+        <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
+        <button onClick={() => fileInputRef.current?.click()} style={toolBtn(false)} title={activeFloorPlan ? 'Replace floor plan' : 'Upload floor plan'}>
+          <Upload size={12} /> <span style={{ fontSize: 9 }}>{activeFloorPlan ? 'Replace' : 'Upload'}</span>
         </button>
         <input ref={fileInputRef} type="file" accept=".svg,.pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
-        <button style={toolBtn(false)}>
-          <FileDown size={12} />
-        </button>
-        <button style={{
-          display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px',
-          fontSize: 10, fontWeight: 600, fontFamily: 'inherit', borderRadius: 5,
-          background: C.accent, color: '#fff', border: 'none', cursor: 'pointer',
-        }}>
-          <Save size={12} />
+        {activeFloorPlan && (
+          <button onClick={() => setConfirmAction({ label: 'Delete floor plan?', action: handleDeleteFloorPlan })}
+            style={toolBtn(false)} title="Remove floor plan">
+            <ImageOff size={12} />
+          </button>
+        )}
+
+        {/* Design actions */}
+        <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
+        <button onClick={() => setConfirmAction({ label: 'Delete this entire design?', action: handleDeleteDesign })}
+          style={{ ...toolBtn(false), color: C.red, borderColor: 'transparent' }} title="Delete design">
+          <Trash2 size={12} />
         </button>
 
         {/* Separator */}
@@ -450,6 +476,28 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
         {activeView === 'av' && <AvSignalFlow designId={designId} avoipDevices={avoipDevices} onAddDevice={addAvoipDevice} onUpdateDevice={updateAvoipDevice} onDeleteDevice={deleteAvoipDevice} />}
         {activeView === 'msp' && <MspCanvas designId={designId} />}
       </div>
+
+      {/* Confirm dialog */}
+      {confirmAction && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+          onClick={() => setConfirmAction(null)}>
+          <div style={{ background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 8, padding: '20px 24px', minWidth: 280, boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 12 }}>{confirmAction.label}</div>
+            <div style={{ fontSize: 11, color: C.textDim, marginBottom: 16 }}>This action cannot be undone.</div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setConfirmAction(null)}
+                style={{ padding: '5px 14px', fontSize: 11, borderRadius: 4, background: C.bgActive, color: C.text, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={() => { confirmAction.action(); setConfirmAction(null) }}
+                style={{ padding: '5px 14px', fontSize: 11, borderRadius: 4, background: C.red, color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

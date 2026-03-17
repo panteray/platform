@@ -126,3 +126,33 @@ export async function POST(
     floorPlan: { ...fp, file_url: signedData?.signedUrl ?? null },
   }, { status: 201 })
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const dbUser = await verifyDesignAccess()
+  if (!dbUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id: designId } = await params
+  const planId = req.nextUrl.searchParams.get('plan_id')
+  if (!planId) return NextResponse.json({ error: 'plan_id required' }, { status: 400 })
+
+  const admin = createAdminClient()
+
+  // Get the floor plan to find storage path
+  const { data: fp } = await admin.from('design_floor_plans').select('*').eq('id', planId).eq('design_id', designId).single()
+  if (!fp) return NextResponse.json({ error: 'Floor plan not found' }, { status: 404 })
+
+  // Delete storage file
+  const storagePath = extractStoragePath(fp.file_url ?? '')
+  if (storagePath) {
+    await admin.storage.from('org-assets').remove([storagePath])
+  }
+
+  // Delete DB record
+  const { error } = await admin.from('design_floor_plans').delete().eq('id', planId).eq('design_id', designId)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ deleted: true })
+}

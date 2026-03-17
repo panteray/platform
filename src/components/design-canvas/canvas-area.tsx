@@ -115,6 +115,8 @@ export function CanvasArea({
   const [scaleInput, setScaleInput] = useState<{ visible: boolean; distPx: number }>({ visible: false, distPx: 0 })
   const [zoneDraw, setZoneDraw] = useState<{ isDrawing: boolean; startX: number; startY: number }>({ isDrawing: false, startX: 0, startY: 0 })
   const zonePreviewRef = useRef<FabricObject | null>(null)
+  const activeToolRef = useRef(activeTool)
+  useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
 
   // ---- Initialize Fabric.js ----
   useEffect(() => {
@@ -183,7 +185,7 @@ export function CanvasArea({
       canvas.on('mouse:down', (opt) => {
         const evt = opt.e as MouseEvent
         setContextMenu({ visible: false, x: 0, y: 0, deviceId: null })
-        if (evt.button === 1 || spaceHeld) {
+        if (evt.button === 1 || spaceHeld || activeToolRef.current === 'pan') {
           isPanning = true; lastPanX = evt.clientX; lastPanY = evt.clientY
           canvas.selection = false
           if (container) container.style.cursor = 'grabbing'
@@ -207,7 +209,7 @@ export function CanvasArea({
       canvas.on('mouse:up', () => {
         if (isPanning) {
           isPanning = false; canvas.selection = true
-          if (container) container.style.cursor = spaceHeld ? 'grab' : 'default'
+          if (container) container.style.cursor = activeToolRef.current === 'pan' ? 'grab' : spaceHeld ? 'grab' : 'default'
         }
       })
 
@@ -328,13 +330,13 @@ export function CanvasArea({
           // Draw dot at each click point
           import('fabric').then((fm) => {
             if (!fabricRef.current) return
-            const dot = new fm.Circle({ left: x, top: y, radius: 4, fill: C.yellow, originX: 'center', originY: 'center', selectable: false, evented: false })
+            const dot = new fm.Circle({ left: x, top: y, radius: 4, fill: C.red, originX: 'center', originY: 'center', selectable: false, evented: false })
             fabricRef.current.add(dot)
             scaleObjectsRef.current.push(dot)
             if (pts.length >= 2) {
               // Draw line between the two points
               const line = new fm.Line([pts[0].x, pts[0].y, pts[1].x, pts[1].y], {
-                stroke: C.yellow, strokeWidth: 1.5, strokeDashArray: [4, 2], selectable: false, evented: false,
+                stroke: C.red, strokeWidth: 1.5, strokeDashArray: [4, 2], selectable: false, evented: false,
               })
               fabricRef.current.add(line)
               scaleObjectsRef.current.push(line)
@@ -424,7 +426,7 @@ export function CanvasArea({
   // Cursor
   useEffect(() => {
     if (!containerRef.current) return
-    const cursors: Record<string, string> = { place: 'crosshair', cable: 'crosshair', measure: 'crosshair', scale: 'crosshair', zone: 'crosshair', select: 'default' }
+    const cursors: Record<string, string> = { place: 'crosshair', cable: 'crosshair', measure: 'crosshair', scale: 'crosshair', zone: 'crosshair', select: 'default', pan: 'grab' }
     containerRef.current.style.cursor = cursors[activeTool] || 'default'
   }, [activeTool])
 
@@ -796,6 +798,7 @@ export function CanvasArea({
   // ---- Tool items for floating toolbar ----
   const toolItems: ({ icon: React.JSX.Element; label: string; id: string } | null)[] = [
     { icon: ToolbarIcons.select, label: 'Select', id: 'select' },
+    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v6M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" /><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 16" /></svg>, label: 'Pan', id: 'pan' },
     { icon: ToolbarIcons.measure, label: 'Measure', id: 'measure' },
     { icon: ToolbarIcons.cable, label: 'Cable', id: 'cable' },
     { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="4 2" /></svg>, label: 'Zone', id: 'zone' },
@@ -810,11 +813,12 @@ export function CanvasArea({
     if (toolId === 'zoomOut') { if (fabricRef.current) { const z = Math.max(ZOOM_MIN, zoomLevel / 1.2); fabricRef.current.setZoom(z); setZoomLevel(z) } return }
     if (toolId === 'fitView') { if (fabricRef.current) { fabricRef.current.setViewportTransform([1, 0, 0, 1, 0, 0]); setZoomLevel(1) } return }
     onToolChange?.(toolId as CanvasTool)
+    if (toolId === 'pan' && fabricRef.current) { fabricRef.current.selection = false }
+    if (toolId !== 'pan' && fabricRef.current) { fabricRef.current.selection = true }
     if (toolId === 'cable') setCableDraw({ phase: 'pick_source', sourceDeviceId: null, waypoints: [] })
     if (toolId !== 'cable') setCableDraw({ phase: 'idle', sourceDeviceId: null, waypoints: [] })
     if (toolId !== 'measure') {
       setMeasureState({ points: [] })
-      // Clear measure visuals from canvas
       if (fabricRef.current) {
         for (const obj of measureObjectsRef.current) fabricRef.current.remove(obj)
         measureObjectsRef.current = []
@@ -861,16 +865,23 @@ export function CanvasArea({
         </div>
       )}
 
+      {/* Pan mode hint */}
+      {activeTool === 'pan' && (
+        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.green}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.green, zIndex: 20 }}>
+          Click and drag to pan — scroll to zoom
+        </div>
+      )}
+
       {/* Scale calibration hint */}
       {activeTool === 'scale' && !scaleInput.visible && (
-        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.yellow}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.yellow, zIndex: 20 }}>
+        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.red}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.red, zIndex: 20 }}>
           {scaleCal.points.length === 0 ? 'Click first point of known distance' : 'Click second point'}
         </div>
       )}
 
       {/* Scale input overlay */}
       {scaleInput.visible && (
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: C.bgPanel, border: `1px solid ${C.yellow}`, borderRadius: 8, padding: '16px 20px', zIndex: 30, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 220 }}>
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: C.bgPanel, border: `1px solid ${C.red}`, borderRadius: 8, padding: '16px 20px', zIndex: 30, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 220 }}>
           <div style={{ fontSize: 12, color: C.text, fontFamily: 'IBM Plex Sans, sans-serif' }}>Enter real-world distance (ft)</div>
           <input autoFocus type="number" min="0.1" step="0.1" placeholder="e.g. 10"
             style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4, padding: '6px 10px', fontSize: 13, color: C.text, outline: 'none', fontFamily: "'IBM Plex Mono'" }}
@@ -958,7 +969,7 @@ export function CanvasArea({
             <div style={{ position: 'absolute', left: 0, top: -3, width: 1, height: 8, background: C.textDim }} />
             <div style={{ position: 'absolute', right: 0, top: -3, width: 1, height: 8, background: C.textDim }} />
           </div>
-          <span>{scalePxPerFt > 0 ? `${Math.round(60 / scalePxPerFt)} ft` : 'No scale'}</span>
+          <span>{scalePxPerFt > 0 ? `1\u2033 = ${(96 / scalePxPerFt).toFixed(1)} ft` : 'No scale'}</span>
         </div>
       </div>
 
