@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyDesignAccess } from '@/lib/auth'
 
+// Extract storage path from a public URL or return as-is if already a path
+function extractStoragePath(fileUrl: string): string {
+  // Already a storage path (no http)
+  if (!fileUrl.startsWith('http')) return fileUrl
+  // Public URL format: {supabase_url}/storage/v1/object/public/{bucket}/{path}
+  const publicMatch = fileUrl.match(/\/storage\/v1\/object\/public\/org-assets\/(.+)/)
+  if (publicMatch) return publicMatch[1]
+  // Signed URL format: {supabase_url}/storage/v1/object/sign/org-assets/{path}?token=...
+  const signedMatch = fileUrl.match(/\/storage\/v1\/object\/sign\/org-assets\/([^?]+)/)
+  if (signedMatch) return signedMatch[1]
+  // Can't parse — return empty
+  return ''
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -23,13 +37,12 @@ export async function GET(
   // Generate signed URLs for each floor plan
   const floorPlans = await Promise.all(
     (data ?? []).map(async (fp) => {
-      const storagePath = fp.file_url as string | null
+      const raw = fp.file_url as string | null
+      if (!raw) return { ...fp, file_url: null }
+
+      const storagePath = extractStoragePath(raw)
       if (!storagePath) return { ...fp, file_url: null }
 
-      // If it's already an https URL (legacy), pass through
-      if (storagePath.startsWith('http')) return fp
-
-      // Generate signed URL (1 hour expiry — refreshed on each page load)
       const { data: signedData, error: signedErr } = await admin.storage
         .from('org-assets')
         .createSignedUrl(storagePath, 3600)
@@ -63,7 +76,6 @@ export async function POST(
     return NextResponse.json({ error: 'file and area_id required' }, { status: 400 })
   }
 
-  // Validate file type
   const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
   const allowedExts = ['png', 'jpg', 'jpeg', 'svg', 'pdf']
   if (!allowedExts.includes(ext)) {
@@ -75,7 +87,6 @@ export async function POST(
     svg: 'image/svg+xml', pdf: 'application/pdf',
   }
 
-  // Upload to Supabase Storage
   const storagePath = `designs/${designId}/${areaId}/floor-plan-${Date.now()}.${ext}`
   const buffer = Buffer.from(await file.arrayBuffer())
 
@@ -90,7 +101,7 @@ export async function POST(
     return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 400 })
   }
 
-  // Store the STORAGE PATH (not a URL) — signed URL generated on GET
+  // Store the STORAGE PATH — signed URL generated on GET
   const { data: fp, error: fpError } = await admin
     .from('design_floor_plans')
     .insert({
@@ -106,7 +117,7 @@ export async function POST(
     return NextResponse.json({ error: fpError.message }, { status: 400 })
   }
 
-  // Return with signed URL for immediate use
+  // Return with signed URL for immediate rendering
   const { data: signedData } = await admin.storage
     .from('org-assets')
     .createSignedUrl(storagePath, 3600)
