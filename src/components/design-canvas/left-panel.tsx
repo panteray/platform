@@ -15,6 +15,7 @@ export function LeftPanel({ devices, selectedId, onSelectDevice, onChangeModel }
     <div
       style={{
         width: 200,
+        height: '100%',
         background: C.bgPanel,
         borderRight: `1px solid ${C.border}`,
         display: 'flex',

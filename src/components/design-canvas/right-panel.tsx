@@ -62,7 +62,7 @@ export function RightPanel({
 }: RightPanelProps) {
   if (!device) {
     return (
-      <div style={{ width: 300, background: C.bgPanel, borderLeft: `1px solid ${C.border}`, padding: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 300, height: '100%', background: C.bgPanel, borderLeft: `1px solid ${C.border}`, padding: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span style={{ fontSize: 11, color: C.textDim }}>Select a device on the canvas to view its properties.</span>
       </div>
     )
@@ -109,7 +109,7 @@ export function RightPanel({
 
   return (
     <div style={{
-      width: 300, background: C.bgPanel, borderLeft: `1px solid ${C.border}`,
+      width: 300, height: '100%', background: C.bgPanel, borderLeft: `1px solid ${C.border}`,
       display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden',
     }}>
       {/* Header */}

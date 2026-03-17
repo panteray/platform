@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo } from 'react'
-import { Upload, Save, FileDown, Grid3X3, Ruler, Eye, EyeOff } from 'lucide-react'
+import { Upload, Save, FileDown, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X } from 'lucide-react'
+import Link from 'next/link'
 import { C, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
 import { LABEL_PREFIX } from './icons'
-import { AreaTabs } from './area-tabs'
 import { CanvasArea, type DeviceFovData } from './canvas-area'
 import { IconSidebar } from './icon-sidebar'
 import { LeftPanel } from './left-panel'
@@ -22,6 +22,15 @@ import type { DesignFloorPlan } from '@/types/database'
 const TAB_TO_SUBTYPE: Record<string, string> = { camera: 'dome', door: 'door', network: 'switch', av: 'speaker', sensors: 'junction_box', other: 'junction_box' }
 
 type DesignView = 'physical' | 'topology' | 'rack' | 'vlan' | 'av' | 'msp'
+
+const VIEWS: { id: DesignView; label: string }[] = [
+  { id: 'physical', label: 'Physical' },
+  { id: 'topology', label: 'Topology' },
+  { id: 'rack', label: 'Rack' },
+  { id: 'vlan', label: 'VLAN' },
+  { id: 'av', label: 'AV Flow' },
+  { id: 'msp', label: 'MSP/CYB' },
+]
 
 interface DesignCanvasProps { designId: string }
 
@@ -49,6 +58,9 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [showFovCones, setShowFovCones] = useState(false)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
   const [floorPlanError, setFloorPlanError] = useState<string | null>(null)
+  const [showRequirements, setShowRequirements] = useState(false)
+  const [editingAreaId, setEditingAreaId] = useState<string | null>(null)
+  const [editAreaValue, setEditAreaValue] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const activeArea = areas.find((a) => a.id === activeAreaId) ?? null
@@ -76,7 +88,6 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
       const tiltAngle = Number(props.tilt_angle) || 15
 
       if (!focalLength || !sensorW || !resW) {
-        // Fallback: show a generic cone if no lens data
         map.set(d.id, {
           hFov: 90, rotation: d.rotation || 0,
           tiers: [
@@ -112,7 +123,6 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     const doorCount = areaDevices.filter((d) => d.category === 'access_control' || d.category === 'door').length
     const netCount = areaDevices.filter((d) => networkTypes.includes(d.category)).length
     const cableCount = areaCables.length
-    const totalCableFt = areaCables.reduce((sum, c) => sum + (c.total_length_ft ?? 0), 0)
     return [
       { label: 'Cameras', value: camCount, unit: '', status: 'normal' as RequirementStatus },
       { label: 'Doors', value: doorCount, unit: '', status: 'normal' as RequirementStatus },
@@ -134,6 +144,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     if (!result) setFloorPlanError('Upload failed — check file type and try again.')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
+
   function handleIconChange(tabId: IconTabId) {
     setActiveIcon(tabId)
     if (tabId === 'layers') { setShowLeftPanel(true); setActiveTool('select') }
@@ -157,70 +168,191 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     await addCable({ area_id: activeAreaId, from_device_id: cable.from_device_id, to_device_id: cable.to_device_id, waypoints: cable.waypoints, length_ft: cable.length_ft, cable_type: 'cat6' })
   }, [addCable, activeAreaId])
 
-  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 500, background: C.bg, borderRadius: 8, color: C.textMuted, fontSize: 13 }}>Loading design...</div>
-  if (error || !design) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 500, background: C.bg, borderRadius: 8, color: C.red, fontSize: 13 }}>{error ?? 'Design not found'}</div>
+  // Area rename handlers
+  function handleAreaDoubleClick(areaId: string, name: string) {
+    setEditingAreaId(areaId)
+    setEditAreaValue(name)
+  }
+  function handleAreaRenameBlur(id: string) {
+    if (editAreaValue.trim() && editAreaValue.trim() !== areas.find(a => a.id === id)?.name) {
+      updateArea(id, { name: editAreaValue.trim() })
+    }
+    setEditingAreaId(null)
+  }
+
+  const selectedDevice = selectedDeviceId ? devices.find((d) => d.id === selectedDeviceId) ?? null : null
+
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.textMuted, fontSize: 13 }}>Loading design...</div>
+  if (error || !design) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.red, fontSize: 13 }}>{error ?? 'Design not found'}</div>
+
+  // --- Toolbar button style helper ---
+  const toolBtn = (active: boolean, activeColor?: string) => ({
+    display: 'flex' as const, alignItems: 'center' as const, gap: 3,
+    padding: '3px 8px', fontSize: 10, fontWeight: 500 as const, fontFamily: 'inherit' as const,
+    borderRadius: 5, cursor: 'pointer' as const,
+    border: `0.5px solid ${active ? (activeColor || C.accent) : C.border}`,
+    background: active ? `${activeColor || C.accent}18` : 'transparent',
+    color: active ? (activeColor || C.accent) : C.textMuted,
+  })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)', background: C.bg, borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.border}` }}>
-      {/* Top bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', background: C.bgSurface, borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-        <div>
-          <div style={{ fontSize: 11, color: C.textMuted }}>{projectName}</div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{design.name}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.bg, overflow: 'hidden' }}>
+      {/* ========== SINGLE CONSOLIDATED TOP BAR — 40px ========== */}
+      <div style={{
+        display: 'flex', alignItems: 'center', height: 40, minHeight: 40,
+        padding: '0 10px', gap: 6,
+        background: C.bgSurface, borderBottom: `1px solid ${C.border}`, flexShrink: 0,
+      }}>
+        {/* LEFT: Back + Project Name */}
+        <Link href="/org/designs" style={{ display: 'flex', alignItems: 'center', color: C.textMuted, textDecoration: 'none' }}>
+          <ArrowLeft size={14} />
+        </Link>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginRight: 8, minWidth: 0 }}>
+          <div style={{ fontSize: 9, color: C.textDim, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>{projectName}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.text, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>{design.name}</div>
         </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {activeTool !== 'select' && activeTool !== 'place' && (
-            <span style={{ fontSize: 10, color: C.green, background: 'rgba(34,197,94,0.12)', padding: '2px 8px', borderRadius: 4, fontWeight: 600, textTransform: 'uppercase' }}>{activeTool} MODE</span>
-          )}
-          <button onClick={() => setShowFovCones(!showFovCones)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, borderRadius: 6, border: `0.5px solid ${showFovCones ? C.accent : C.border}`, background: showFovCones ? C.accentSubtle : 'transparent', color: showFovCones ? C.accent : C.textMuted, cursor: 'pointer' }}>
-            {showFovCones ? <Eye size={14} /> : <EyeOff size={14} />} FOV
-          </button>
-          <button onClick={() => { setActiveTool('scale'); onToolChangeLocal('scale') }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, borderRadius: 6, border: `0.5px solid ${activeTool === 'scale' ? C.yellow : C.border}`, background: activeTool === 'scale' ? 'rgba(234,179,8,0.1)' : 'transparent', color: activeTool === 'scale' ? C.yellow : C.textMuted, cursor: 'pointer' }}>
-            <Ruler size={14} /> Scale
-          </button>
-          <button onClick={() => setShowGrid(!showGrid)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, borderRadius: 6, border: `0.5px solid ${showGrid ? C.accent : C.border}`, background: showGrid ? C.accentSubtle : 'transparent', color: showGrid ? C.accent : C.textMuted, cursor: 'pointer' }}><Grid3X3 size={14} /> Grid</button>
-          <button onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, borderRadius: 6, border: `0.5px solid ${C.border}`, background: 'transparent', color: C.textMuted, cursor: 'pointer' }}><Upload size={14} /> Floor plan</button>
-          <input ref={fileInputRef} type="file" accept=".svg,.pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
-          <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, borderRadius: 6, border: `0.5px solid ${C.border}`, background: 'transparent', color: C.textMuted, cursor: 'pointer' }}><FileDown size={14} /> Export</button>
-          <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, borderRadius: 6, background: C.text, color: C.bg, cursor: 'pointer', border: 'none', fontWeight: 500 }}><Save size={14} /> Save</button>
+
+        {/* Separator */}
+        <div style={{ width: 1, height: 20, background: C.border, flexShrink: 0 }} />
+
+        {/* CENTER: View Tabs */}
+        <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+          {VIEWS.map((v) => (
+            <button key={v.id} onClick={() => setActiveView(v.id)}
+              style={{
+                padding: '4px 8px', fontSize: 10, fontWeight: activeView === v.id ? 600 : 400,
+                color: activeView === v.id ? C.accent : C.textMuted,
+                background: activeView === v.id ? C.accentSubtle : 'transparent',
+                border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit',
+                transition: 'all 0.12s',
+              }}>
+              {v.label}
+            </button>
+          ))}
         </div>
+
+        {/* Separator — only in physical view when areas exist */}
+        {activeView === 'physical' && areas.length > 0 && (
+          <div style={{ width: 1, height: 20, background: C.border, flexShrink: 0 }} />
+        )}
+
+        {/* AREA TABS — compact inline pills, physical view only */}
+        {activeView === 'physical' && (
+          <div style={{ display: 'flex', gap: 2, alignItems: 'center', overflow: 'hidden', flexShrink: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', gap: 2, overflow: 'auto', alignItems: 'center' }}>
+              {areas.map((area) => {
+                const isActive = activeAreaId === area.id
+                const isEditing = editingAreaId === area.id
+                return (
+                  <div key={area.id}
+                    onClick={() => { setActiveAreaId(area.id); setActiveTool('select'); setActiveIcon('layers') }}
+                    onDoubleClick={() => handleAreaDoubleClick(area.id, area.name)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 3,
+                      padding: '2px 8px', height: 24, fontSize: 10, fontWeight: isActive ? 600 : 400,
+                      color: isActive ? C.text : C.textMuted,
+                      background: isActive ? C.bgActive : 'transparent',
+                      border: isActive ? `1px solid ${C.border}` : '1px solid transparent',
+                      borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}>
+                    {isEditing ? (
+                      <input value={editAreaValue} onChange={(e) => setEditAreaValue(e.target.value)}
+                        onBlur={() => handleAreaRenameBlur(area.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAreaRenameBlur(area.id); if (e.key === 'Escape') setEditingAreaId(null) }}
+                        autoFocus
+                        style={{ background: 'transparent', border: 'none', color: C.text, fontSize: 10, width: 60, outline: 'none', fontFamily: 'inherit' }}
+                      />
+                    ) : (
+                      <span>{area.name}</span>
+                    )}
+                    {isActive && areas.length > 1 && (
+                      <button onClick={(e) => { e.stopPropagation(); deleteArea(area.id) }}
+                        style={{ background: 'transparent', border: 'none', color: C.textDim, cursor: 'pointer', padding: 0, display: 'flex', lineHeight: 1 }}>
+                        <X size={10} />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <button onClick={() => addArea(`Area ${String.fromCharCode(65 + areas.length)}`, 'FLOOR_PLAN')}
+              style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: `1px dashed ${C.border}`, borderRadius: 4, color: C.textDim, cursor: 'pointer', flexShrink: 0 }}>
+              <Plus size={11} />
+            </button>
+          </div>
+        )}
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Mode indicator */}
+        {activeTool !== 'select' && activeTool !== 'place' && (
+          <span style={{ fontSize: 9, color: C.green, background: 'rgba(34,197,94,0.12)', padding: '2px 7px', borderRadius: 3, fontWeight: 600, textTransform: 'uppercase' }}>{activeTool}</span>
+        )}
+
+        {/* RIGHT: Tool buttons */}
+        <button onClick={() => setShowFovCones(!showFovCones)} style={toolBtn(showFovCones)}>
+          {showFovCones ? <Eye size={12} /> : <EyeOff size={12} />} <span>FOV</span>
+        </button>
+        <button onClick={() => { setActiveTool('scale'); }} style={toolBtn(activeTool === 'scale', C.yellow)}>
+          <Ruler size={12} /> <span>Scale</span>
+        </button>
+        <button onClick={() => setShowGrid(!showGrid)} style={toolBtn(showGrid)}>
+          <Grid3X3 size={12} />
+        </button>
+        <button onClick={() => fileInputRef.current?.click()} style={toolBtn(false)}>
+          <Upload size={12} />
+        </button>
+        <input ref={fileInputRef} type="file" accept=".svg,.pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
+        <button style={toolBtn(false)}>
+          <FileDown size={12} />
+        </button>
+        <button style={{
+          display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px',
+          fontSize: 10, fontWeight: 600, fontFamily: 'inherit', borderRadius: 5,
+          background: C.accent, color: '#fff', border: 'none', cursor: 'pointer',
+        }}>
+          <Save size={12} />
+        </button>
+
+        {/* Separator */}
+        <div style={{ width: 1, height: 20, background: C.border, flexShrink: 0 }} />
+
+        {/* Requirements toggle */}
+        <button onClick={() => setShowRequirements(!showRequirements)} style={toolBtn(showRequirements)}
+          title="Toggle requirements bar">
+          <BarChart3 size={12} />
+        </button>
       </div>
 
-      <RequirementsBar requirements={requirements} cableEstimate={cableEstimate} />
+      {/* ========== COLLAPSIBLE REQUIREMENTS BAR ========== */}
+      {showRequirements && <RequirementsBar requirements={requirements} cableEstimate={cableEstimate} />}
 
+      {/* Floor plan error banner */}
       {floorPlanError && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 16px', background: 'rgba(239,68,68,0.1)', borderBottom: `1px solid rgba(239,68,68,0.3)`, fontSize: 12, color: '#ef4444', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 12px', background: 'rgba(239,68,68,0.1)', borderBottom: '1px solid rgba(239,68,68,0.3)', fontSize: 11, color: '#ef4444', flexShrink: 0 }}>
           <span>{floorPlanError}</span>
-          <button onClick={() => setFloorPlanError(null)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>x</button>
+          <button onClick={() => setFloorPlanError(null)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>x</button>
         </div>
       )}
 
-      {/* View switcher */}
-      <div style={{ display: 'flex', gap: 0, background: C.bgSurface, borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-        {([
-          { id: 'physical', label: 'Physical' }, { id: 'topology', label: 'Topology' },
-          { id: 'rack', label: 'Rack Elevation' }, { id: 'vlan', label: 'VLAN / Subnets' },
-          { id: 'av', label: 'AV Signal Flow' }, { id: 'msp', label: 'MSP / CYB' },
-        ] as const).map((v) => (
-          <button key={v.id} onClick={() => setActiveView(v.id)}
-            style={{ padding: '6px 14px', fontSize: 10, fontWeight: activeView === v.id ? 600 : 400, color: activeView === v.id ? C.accent : C.textMuted, background: activeView === v.id ? C.accentSubtle : 'transparent', border: 'none', borderBottom: activeView === v.id ? `2px solid ${C.accent}` : '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
-            {v.label}
-          </button>
-        ))}
-      </div>
-
-      {activeView === 'physical' && (
-        <AreaTabs areas={areas} activeAreaId={activeAreaId}
-          onAreaChange={(id) => { setActiveAreaId(id); setActiveTool('select'); setActiveIcon('layers') }}
-          onAddArea={(name, type) => addArea(name, type)} onDeleteArea={deleteArea}
-          onRenameArea={(id, name) => updateArea(id, { name })} />
-      )}
-
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {/* ========== MAIN CONTENT — CANVAS + OVERLAY PANELS ========== */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
         {activeView === 'physical' && (
           <>
             <IconSidebar activeIcon={activeIcon} onIconChange={handleIconChange} />
-            {showLeftPanel && <LeftPanel devices={areaDevices} selectedId={selectedDeviceId} onSelectDevice={(id) => { setSelectedDeviceId(id); setActiveTool('select') }} />}
+
+            {/* Left panel — OVERLAY, does not push canvas */}
+            {showLeftPanel && (
+              <div style={{
+                position: 'absolute', left: 52, top: 0, bottom: 0, zIndex: 10,
+                boxShadow: '4px 0 12px rgba(0,0,0,0.3)',
+              }}>
+                <LeftPanel devices={areaDevices} selectedId={selectedDeviceId}
+                  onSelectDevice={(id) => { setSelectedDeviceId(id); setActiveTool('select') }} />
+              </div>
+            )}
+
             <CanvasArea designId={designId} areaId={activeAreaId} floorPlan={activeFloorPlan}
               devices={areaDevices} cables={areaCables} showGrid={showGrid} activeTool={activeTool}
               selectedDeviceId={selectedDeviceId} showFovCones={showFovCones} fovData={fovData}
@@ -232,9 +364,18 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               onToolChange={(t) => setActiveTool(t)}
               onScaleCalibrated={(px) => setScalePxPerFt(px)}
               onFloorPlanError={(msg) => setFloorPlanError(msg)} />
-            <RightPanel device={selectedDeviceId ? devices.find((dev) => dev.id === selectedDeviceId) ?? null : null}
-              onClose={() => setSelectedDeviceId(null)} onDuplicate={handleDeviceCopy} onDelete={handleDeviceDelete}
-              onUpdateDevice={(id, updates) => updateDevice(id, updates as Record<string, unknown>)} />
+
+            {/* Right panel — OVERLAY, only when device selected */}
+            {selectedDevice && (
+              <div style={{
+                position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 10,
+                boxShadow: '-4px 0 12px rgba(0,0,0,0.3)',
+              }}>
+                <RightPanel device={selectedDevice}
+                  onClose={() => setSelectedDeviceId(null)} onDuplicate={handleDeviceCopy} onDelete={handleDeviceDelete}
+                  onUpdateDevice={(id, updates) => updateDevice(id, updates as Record<string, unknown>)} />
+              </div>
+            )}
           </>
         )}
         {activeView === 'topology' && <TopologyView designId={designId} nodes={topologyNodes} links={topologyLinks} onAddNode={addTopologyNode} onUpdateNode={updateTopologyNode} onDeleteNode={deleteTopologyNode} onAddLink={addTopologyLink} onDeleteLink={deleteTopologyLink} />}
@@ -245,6 +386,4 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
       </div>
     </div>
   )
-
-  function onToolChangeLocal(t: CanvasTool) { setActiveTool(t) }
 }
