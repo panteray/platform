@@ -17,7 +17,7 @@ import { AvSignalFlow } from './av-signal-flow'
 import { MspCanvas } from './msp-canvas'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { calculateFovDori, getFovConeTiers } from '@/lib/calculators'
-import type { DesignFloorPlan } from '@/types/database'
+import type { DesignFloorPlan, DeviceSearchResult } from '@/types/database'
 
 const TAB_TO_SUBTYPE: Record<string, string> = { camera: 'dome', door: 'door', network: 'switch', av: 'speaker', sensors: 'junction_box', other: 'junction_box' }
 const TAB_TO_CATEGORY: Record<string, string> = { camera: 'cctv', door: 'access_control', network: 'network', av: 'av', sensors: 'vape_environmental', other: 'other' }
@@ -66,6 +66,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const placingRef = useRef(false)
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
+  const [pendingDevice, setPendingDevice] = useState<DeviceSearchResult | null>(null)
 
   const activeArea = areas.find((a) => a.id === activeAreaId) ?? null
   const activeFloorPlan: DesignFloorPlan | null = floorPlans.find((fp) => fp.area_id === activeAreaId) ?? null
@@ -151,22 +152,49 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
 
   function handleIconChange(tabId: IconTabId) {
     setActiveIcon(tabId)
+    setPendingDevice(null)
     if (tabId === 'layers') { setShowLeftPanel(true); setActiveTool('select') }
-    else { setShowLeftPanel(true); setActiveTool('place') }
+    else { setShowLeftPanel(true); setActiveTool('select') }
   }
+  const handleDeviceSelected = useCallback((device: DeviceSearchResult) => {
+    setPendingDevice(device)
+    setActiveTool('place')
+  }, [])
+  const handleChangeModel = useCallback((deviceId: string) => {
+    setSelectedDeviceId(deviceId)
+    setSelectedZoneId(null)
+  }, [setSelectedDeviceId])
   const handleCanvasClick = useCallback(async (x: number, y: number) => {
     if (activeTool !== 'place' || !activeAreaId || activeIcon === 'layers') return
+    if (!pendingDevice) return  // Must select a device from library first
     if (placingRef.current) return
     placingRef.current = true
     try {
-      const category = TAB_TO_CATEGORY[activeIcon] || 'other'
-      const subType = TAB_TO_SUBTYPE[activeIcon] || 'junction_box'
-      const prefix = LABEL_PREFIX[subType] || 'DEV'
-      await addDevice({ area_id: activeAreaId, category, position_x: x, position_y: y, color_hex: C.accent, label_prefix: prefix, properties: { sub_type: subType } })
+      const category = pendingDevice.category || TAB_TO_CATEGORY[activeIcon] || 'other'
+      const subType = pendingDevice.subcategory || TAB_TO_SUBTYPE[activeIcon] || 'junction_box'
+      const prefix = LABEL_PREFIX[subType] || LABEL_PREFIX[category] || 'DEV'
+      const props: Record<string, unknown> = {
+        sub_type: subType,
+        manufacturer: pendingDevice.vendor,
+        model: pendingDevice.model,
+        part_number: pendingDevice.partnumber,
+        ndaa_compliant: pendingDevice.ndaa_compliant,
+        ...(pendingDevice.specs ?? {}),
+      }
+      if (pendingDevice.resolution) props.resolution = pendingDevice.resolution
+      if (pendingDevice.wattage) props.poe_watts = pendingDevice.wattage
+      if (pendingDevice.poe_standard) props.poe_standard = pendingDevice.poe_standard
+
+      await addDevice({
+        area_id: activeAreaId, category, position_x: x, position_y: y,
+        color_hex: C.accent, label_prefix: prefix,
+        device_library_item_id: pendingDevice.id,
+        properties: props,
+      })
     } finally {
       placingRef.current = false
     }
-  }, [activeTool, activeAreaId, activeIcon, addDevice])
+  }, [activeTool, activeAreaId, activeIcon, addDevice, pendingDevice])
   const handleDeviceMoved = useCallback(async (id: string, x: number, y: number) => { await updateDevice(id, { position_x: x, position_y: y }) }, [updateDevice])
   const handleDeviceRotated = useCallback(async (id: string, angle: number) => { await updateDevice(id, { rotation: angle }) }, [updateDevice])
   const handleDeviceCopy = useCallback(async (id: string) => {
@@ -372,9 +400,13 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               }}>
                 <LeftPanel devices={areaDevices} selectedId={selectedDeviceId}
                   onSelectDevice={(id) => { handleSelectDevice(id); setActiveTool('select') }}
+                  onChangeModel={handleChangeModel}
                   zones={zones} selectedZoneId={selectedZoneId}
                   onSelectZone={(id) => { handleSelectZone(id); setActiveTool('select') }}
-                  onDeleteZone={handleDeleteZone} />
+                  onDeleteZone={handleDeleteZone}
+                  activeCategory={activeIcon !== 'layers' ? (TAB_TO_CATEGORY[activeIcon] || activeIcon) : null}
+                  onDeviceSelected={handleDeviceSelected}
+                  pendingDevice={pendingDevice} />
               </div>
             )}
 
