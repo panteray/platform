@@ -46,6 +46,7 @@ export interface DesignCanvasState {
   updateTopologyNode: (id: string, data: Record<string, unknown>) => Promise<unknown>
   deleteTopologyNode: (id: string) => Promise<boolean>
   addTopologyLink: (data: Record<string, unknown>) => Promise<DesignTopologyLink | null>
+  updateTopologyLink: (id: string, data: Record<string, unknown>) => Promise<unknown>
   deleteTopologyLink: (id: string) => Promise<boolean>
   addRack: (data: Record<string, unknown>) => Promise<DesignRackSlots | null>
   updateRack: (id: string, data: Record<string, unknown>) => Promise<unknown>
@@ -286,7 +287,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     addInfrastructure: infraCrud.add,
     addZone: zoneCrud.add, updateZone: zoneCrud.update as (id: string, data: Record<string, unknown>) => Promise<boolean>, deleteZone: zoneCrud.remove,
     addTopologyNode: topoNodeCrud.add, updateTopologyNode: topoNodeCrud.update, deleteTopologyNode: topoNodeCrud.remove,
-    addTopologyLink: topoLinkCrud.add, deleteTopologyLink: topoLinkCrud.remove,
+    addTopologyLink: topoLinkCrud.add, updateTopologyLink: topoLinkCrud.update, deleteTopologyLink: topoLinkCrud.remove,
     addRack: rackCrud.add, updateRack: rackCrud.update, deleteRack: rackCrud.remove,
     addVlan: vlanCrud.add, updateVlan: vlanCrud.update, deleteVlan: vlanCrud.remove,
     addAvoipDevice: avoipCrud.add, updateAvoipDevice: avoipCrud.update, deleteAvoipDevice: avoipCrud.remove,

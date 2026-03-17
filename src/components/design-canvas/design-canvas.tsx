@@ -46,7 +46,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     addCable,
     addZone, updateZone, deleteZone,
     addTopologyNode, updateTopologyNode, deleteTopologyNode,
-    addTopologyLink, deleteTopologyLink,
+    addTopologyLink, updateTopologyLink, deleteTopologyLink,
     addRack, updateRack, deleteRack,
     addVlan, updateVlan, deleteVlan,
     addAvoipDevice, updateAvoipDevice, deleteAvoipDevice,
@@ -410,7 +410,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
             )}
           </>
         )}
-        {activeView === 'topology' && <TopologyView designId={designId} nodes={topologyNodes} links={topologyLinks} onAddNode={addTopologyNode} onUpdateNode={updateTopologyNode} onDeleteNode={deleteTopologyNode} onAddLink={addTopologyLink} onDeleteLink={deleteTopologyLink} />}
+        {activeView === 'topology' && <TopologyView designId={designId} nodes={topologyNodes} links={topologyLinks} onAddNode={addTopologyNode} onUpdateNode={updateTopologyNode} onDeleteNode={deleteTopologyNode} onAddLink={addTopologyLink} onUpdateLink={updateTopologyLink} onDeleteLink={deleteTopologyLink} />}
         {activeView === 'rack' && <RackElevationView designId={designId} racks={racks} infrastructure={mdfIdfs} onAddRack={addRack} onUpdateRack={updateRack} onDeleteRack={deleteRack} />}
         {activeView === 'vlan' && <VlanPlanner designId={designId} vlans={vlans} onAddVlan={addVlan} onUpdateVlan={updateVlan} onDeleteVlan={deleteVlan} />}
         {activeView === 'av' && <AvSignalFlow designId={designId} avoipDevices={avoipDevices} onAddDevice={addAvoipDevice} onUpdateDevice={updateAvoipDevice} onDeleteDevice={deleteAvoipDevice} />}
