@@ -84,6 +84,7 @@ interface CanvasAreaProps {
   onZoneMoved?: (id: string, x: number, y: number) => void
   onZoneResized?: (id: string, width: number, height: number) => void
   onSelectZone?: (id: string | null) => void
+  pendingDeviceName?: string
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
@@ -97,6 +98,7 @@ export function CanvasArea({
   onZoomChange, onSelectDevice, onDeviceMoved, onDeviceRotated, onCanvasClick,
   onDeviceCopy, onDeviceDelete, onCableCreated, onToolChange, onScaleCalibrated, onFloorPlanError,
   zones = [], selectedZoneId, onZoneCreated, onZoneMoved, onZoneResized, onSelectZone,
+  pendingDeviceName,
 }: CanvasAreaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
@@ -824,6 +826,18 @@ export function CanvasArea({
   return (
     <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}>
       <canvas ref={canvasRef} />
+
+      {/* Placement hint */}
+      {activeTool === 'place' && pendingDeviceName && (
+        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.accent}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.accent, zIndex: 20, whiteSpace: 'nowrap' }}>
+          Click to place <span style={{ fontWeight: 600 }}>{pendingDeviceName}</span>
+        </div>
+      )}
+      {activeTool === 'place' && !pendingDeviceName && (
+        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.textDim}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.textDim, zIndex: 20 }}>
+          Search and select a device from the left panel first
+        </div>
+      )}
 
       {/* Cable draw status */}
       {activeTool === 'cable' && cableDraw.phase !== 'idle' && (

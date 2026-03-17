@@ -16,6 +16,7 @@ interface RightPanelProps {
   onUpdateZone?: (id: string, updates: Record<string, unknown>) => void
   onDeleteZone?: (id: string) => void
   onCloseZone?: () => void
+  zones?: DesignZone[]
 }
 
 /** Extract typed property from device.properties JSONB */
@@ -67,6 +68,7 @@ export function RightPanel({
   onUpdateZone,
   onDeleteZone,
   onCloseZone,
+  zones = [],
 }: RightPanelProps) {
   // ---- Zone Editor (takes priority when zone selected) ----
   if (selectedZone && !device) {
@@ -286,6 +288,27 @@ export function RightPanel({
               fontSize: 10, color: C.yellow, fontWeight: 600,
             }}>
               {channels}-Sensor Multi-Lens
+            </div>
+          )}
+
+          {/* Zone assignment */}
+          {zones.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 9, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Zone</div>
+              <select
+                value={d.zone_id ?? ''}
+                onChange={(e) => saveField('zone_id', e.target.value || null)}
+                style={{
+                  width: '100%', background: C.bgActive, border: `1px solid ${C.border}`,
+                  borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11,
+                  fontFamily: 'inherit', outline: 'none', appearance: 'auto' as never,
+                }}
+              >
+                <option value="">No Zone</option>
+                {zones.map((z) => (
+                  <option key={z.id} value={z.id}>{z.name}</option>
+                ))}
+              </select>
             </div>
           )}
         </div>

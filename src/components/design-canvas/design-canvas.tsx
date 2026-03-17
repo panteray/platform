@@ -423,7 +423,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               onCableCreated={handleCableCreated}
               onToolChange={(t) => setActiveTool(t)}
               onScaleCalibrated={(px) => setScalePxPerFt(px)}
-              onFloorPlanError={(msg) => setFloorPlanError(msg)} />
+              onFloorPlanError={(msg) => setFloorPlanError(msg)}
+              pendingDeviceName={pendingDevice ? `${pendingDevice.vendor} ${pendingDevice.model}` : undefined} />
 
             {/* Right panel — OVERLAY, when device or zone selected */}
             {(selectedDevice || selectedZone) && (
@@ -437,7 +438,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
                   selectedZone={selectedZone}
                   onUpdateZone={(id, updates) => updateZone(id, updates)}
                   onDeleteZone={handleDeleteZone}
-                  onCloseZone={() => setSelectedZoneId(null)} />
+                  onCloseZone={() => setSelectedZoneId(null)}
+                  zones={zones} />
               </div>
             )}
           </>
