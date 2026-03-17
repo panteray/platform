@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import type {
   Design, DesignArea, DesignDevice, DesignCable, DesignMdfIdf,
   DesignFloorPlan, DesignZone, DesignRackSlots, DesignVlanSubnet,
@@ -64,6 +65,7 @@ function useCrud<T extends { id: string }>(
   endpoint: string,
   key: string,
   setState: React.Dispatch<React.SetStateAction<T[]>>,
+  label: string,
   selectedId?: string | null,
   setSelectedId?: (id: string | null) => void,
 ) {
@@ -74,19 +76,17 @@ function useCrud<T extends { id: string }>(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      if (!res.ok) return null
+      if (!res.ok) { toast.error(`Failed to add ${label}`); return null }
       const json = await res.json()
       const item = json[key] as T
       setState((prev) => [...prev, item])
       return item
-    } catch { return null }
-  }, [designId, endpoint, key, setState])
+    } catch { toast.error(`Failed to add ${label}`); return null }
+  }, [designId, endpoint, key, setState, label])
 
   const update = useCallback(async (id: string, data: Record<string, unknown>): Promise<unknown> => {
     try {
       setState((prev) => prev.map((item) => item.id === id ? { ...item, ...data } as T : item))
-      const singularEndpoint = endpoint.replace(/s$/, '')
-      const paramName = singularEndpoint.replace(/-/g, '') + 'Id'
       // Build URL based on the actual route param name
       const url = endpoint === 'topology' ? `/api/org/designs/${designId}/topology/${id}`
         : endpoint === 'topology-links' ? `/api/org/designs/${designId}/topology-links/${id}`
@@ -102,10 +102,10 @@ function useCrud<T extends { id: string }>(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      if (!res.ok) return null
+      if (!res.ok) { toast.error(`Failed to update ${label}`); return null }
       return await res.json()
-    } catch { return null }
-  }, [designId, endpoint, setState])
+    } catch { toast.error(`Failed to update ${label}`); return null }
+  }, [designId, endpoint, setState, label])
 
   const remove = useCallback(async (id: string): Promise<boolean> => {
     try {
@@ -119,9 +119,10 @@ function useCrud<T extends { id: string }>(
       }
       const paramName = paramMap[endpoint] || 'id'
       const res = await fetch(`/api/org/designs/${designId}/${endpoint}?${paramName}=${id}`, { method: 'DELETE' })
-      return res.ok
-    } catch { return false }
-  }, [designId, endpoint, setState, selectedId, setSelectedId])
+      if (!res.ok) { toast.error(`Failed to delete ${label}`); return false }
+      return true
+    } catch { toast.error(`Failed to delete ${label}`); return false }
+  }, [designId, endpoint, setState, selectedId, setSelectedId, label])
 
   return { add, update, remove }
 }
@@ -150,7 +151,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     setError(null)
     try {
       const designRes = await fetch(`/api/org/designs/${designId}`)
-      if (!designRes.ok) { setError('Failed to load design'); return }
+      if (!designRes.ok) { setError('Failed to load design'); toast.error('Failed to load design'); return }
       const designJson = await designRes.json()
       setDesign(designJson.design)
       setAreas(designJson.areas ?? [])
@@ -182,6 +183,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
       if (avRes.ok) setAvoipDevices((await avRes.json()).avoipDevices ?? [])
     } catch {
       setError('Network error')
+      toast.error('Network error loading design')
     } finally {
       setLoading(false)
     }
@@ -193,30 +195,30 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
   const addArea = useCallback(async (name: string, canvasType: string): Promise<DesignArea | null> => {
     try {
       const res = await fetch(`/api/org/designs/${designId}/areas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, canvas_type: canvasType }) })
-      if (!res.ok) return null
+      if (!res.ok) { toast.error('Failed to create area'); return null }
       const json = await res.json()
       await fetchDesign()
       return json.area
-    } catch { return null }
+    } catch { toast.error('Failed to create area'); return null }
   }, [designId, fetchDesign])
 
   const updateArea = useCallback(async (areaId: string, data: Record<string, unknown>): Promise<boolean> => {
     try {
       const res = await fetch(`/api/org/designs/${designId}/areas/${areaId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (!res.ok) return false
+      if (!res.ok) { toast.error('Failed to update area'); return false }
       await fetchDesign()
       return true
-    } catch { return false }
+    } catch { toast.error('Failed to update area'); return false }
   }, [designId, fetchDesign])
 
   const deleteArea = useCallback(async (areaId: string): Promise<boolean> => {
     try {
       const res = await fetch(`/api/org/designs/${designId}/areas/${areaId}`, { method: 'DELETE' })
-      if (!res.ok) return false
+      if (!res.ok) { toast.error('Failed to delete area'); return false }
       if (activeAreaId === areaId) setActiveAreaId(areas.find((a) => a.id !== areaId)?.id ?? null)
       await fetchDesign()
       return true
-    } catch { return false }
+    } catch { toast.error('Failed to delete area'); return false }
   }, [designId, activeAreaId, areas, fetchDesign])
 
   const uploadFloorPlan = useCallback(async (areaId: string, file: File): Promise<DesignFloorPlan | null> => {
@@ -225,31 +227,32 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
       formData.append('file', file)
       formData.append('area_id', areaId)
       const res = await fetch(`/api/org/designs/${designId}/floor-plans`, { method: 'POST', body: formData })
-      if (!res.ok) return null
+      if (!res.ok) { toast.error('Floor plan upload failed'); return null }
       const json = await res.json()
       await fetchDesign()
+      toast.success('Floor plan uploaded')
       return json.floorPlan
-    } catch { return null }
+    } catch { toast.error('Floor plan upload failed'); return null }
   }, [designId, fetchDesign])
 
   // Device CRUD (special — optimistic)
   const addDevice = useCallback(async (data: Record<string, unknown>): Promise<DesignDevice | null> => {
     try {
       const res = await fetch(`/api/org/designs/${designId}/devices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (!res.ok) return null
+      if (!res.ok) { toast.error('Failed to place device'); return null }
       const json = await res.json()
       setDevices((prev) => [...prev, json.device as DesignDevice])
       return json.device
-    } catch { return null }
+    } catch { toast.error('Failed to place device'); return null }
   }, [designId])
 
   const updateDevice = useCallback(async (deviceId: string, data: Record<string, unknown>): Promise<DesignDevice | null> => {
     try {
       setDevices((prev) => prev.map((d) => d.id === deviceId ? { ...d, ...data, updated_at: new Date().toISOString() } as DesignDevice : d))
       const res = await fetch(`/api/org/designs/${designId}/devices/${deviceId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (!res.ok) { await fetchDesign(); return null }
+      if (!res.ok) { toast.error('Failed to save device changes'); await fetchDesign(); return null }
       return (await res.json()).device
-    } catch { await fetchDesign(); return null }
+    } catch { toast.error('Failed to save device changes'); await fetchDesign(); return null }
   }, [designId, fetchDesign])
 
   const deleteDevice = useCallback(async (deviceId: string): Promise<boolean> => {
@@ -257,19 +260,20 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
       setDevices((prev) => prev.filter((d) => d.id !== deviceId))
       if (selectedDeviceId === deviceId) setSelectedDeviceId(null)
       const res = await fetch(`/api/org/designs/${designId}/devices?device_id=${deviceId}`, { method: 'DELETE' })
-      return res.ok
-    } catch { await fetchDesign(); return false }
+      if (!res.ok) { toast.error('Failed to delete device'); await fetchDesign(); return false }
+      return true
+    } catch { toast.error('Failed to delete device'); await fetchDesign(); return false }
   }, [designId, selectedDeviceId, fetchDesign])
 
   // Generic CRUD for remaining entities
-  const cableCrud = useCrud<DesignCable>(designId, 'cables', 'cable', setCables, selectedCableId, setSelectedCableId)
-  const infraCrud = useCrud<DesignMdfIdf>(designId, 'infrastructure', 'node', setMdfIdfs)
-  const zoneCrud = useCrud<DesignZone>(designId, 'zones', 'zone', setZones)
-  const topoNodeCrud = useCrud<DesignTopologyNode>(designId, 'topology', 'node', setTopologyNodes)
-  const topoLinkCrud = useCrud<DesignTopologyLink>(designId, 'topology-links', 'link', setTopologyLinks)
-  const rackCrud = useCrud<DesignRackSlots>(designId, 'racks', 'rack', setRacks)
-  const vlanCrud = useCrud<DesignVlanSubnet>(designId, 'vlans', 'vlan', setVlans)
-  const avoipCrud = useCrud<DesignAvoipDevice>(designId, 'avoip', 'avoipDevice', setAvoipDevices)
+  const cableCrud = useCrud<DesignCable>(designId, 'cables', 'cable', setCables, 'cable', selectedCableId, setSelectedCableId)
+  const infraCrud = useCrud<DesignMdfIdf>(designId, 'infrastructure', 'node', setMdfIdfs, 'MDF/IDF node')
+  const zoneCrud = useCrud<DesignZone>(designId, 'zones', 'zone', setZones, 'zone')
+  const topoNodeCrud = useCrud<DesignTopologyNode>(designId, 'topology', 'node', setTopologyNodes, 'topology node')
+  const topoLinkCrud = useCrud<DesignTopologyLink>(designId, 'topology-links', 'link', setTopologyLinks, 'topology link')
+  const rackCrud = useCrud<DesignRackSlots>(designId, 'racks', 'rack', setRacks, 'rack')
+  const vlanCrud = useCrud<DesignVlanSubnet>(designId, 'vlans', 'vlan', setVlans, 'VLAN')
+  const avoipCrud = useCrud<DesignAvoipDevice>(designId, 'avoip', 'avoipDevice', setAvoipDevices, 'AV device')
 
   return {
     design, areas, devices, cables, mdfIdfs, floorPlans, zones, racks, vlans, topologyNodes, topologyLinks, avoipDevices,

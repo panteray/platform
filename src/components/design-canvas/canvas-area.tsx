@@ -446,13 +446,29 @@ export function CanvasArea({
     const canvas = fabricRef.current
     if (!floorPlan?.file_url) { canvas.backgroundImage = undefined; canvas.requestRenderAll(); return }
 
-    const url = floorPlan.file_url
-    const ext = url.split('.').pop()?.split('?')[0]?.toLowerCase() ?? ''
+    let currentUrl = floorPlan.file_url
+    const ext = currentUrl.split('.').pop()?.split('?')[0]?.toLowerCase() ?? ''
     const opacity = floorPlan.opacity ?? 0.5
+
+    // Signed URL refresh: if initial fetch fails 400/403, get fresh URL from API
+    async function refreshUrl(): Promise<string | null> {
+      try {
+        const res = await fetch(`/api/org/designs/${designId}/floor-plans`)
+        if (!res.ok) return null
+        const json = await res.json()
+        const plans = (json.floorPlans ?? []) as Array<{ id: string; file_url?: string }>
+        const match = plans.find((p) => p.id === floorPlan?.id)
+        return match?.file_url ?? null
+      } catch { return null }
+    }
 
     async function loadFloorPlanSVG() {
       try {
-        const response = await fetch(url, { mode: 'cors' })
+        let response = await fetch(currentUrl, { mode: 'cors' })
+        if ((response.status === 400 || response.status === 403) && floorPlan?.id) {
+          const freshUrl = await refreshUrl()
+          if (freshUrl) { currentUrl = freshUrl; response = await fetch(currentUrl, { mode: 'cors' }) }
+        }
         if (!response.ok) throw new Error(`Fetch failed: ${response.status}`)
         const svgText = await response.text()
         const fm = await import('fabric')
@@ -472,9 +488,15 @@ export function CanvasArea({
 
     async function loadFloorPlanPDF() {
       try {
+        // Check signed URL freshness first
+        const testRes = await fetch(currentUrl, { method: 'HEAD', mode: 'cors' }).catch(() => null)
+        if (testRes && (testRes.status === 400 || testRes.status === 403) && floorPlan?.id) {
+          const freshUrl = await refreshUrl()
+          if (freshUrl) currentUrl = freshUrl
+        }
         const pdfjsLib = await import('pdfjs-dist')
         pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
-        const loadingTask = pdfjsLib.getDocument({ url, disableAutoFetch: true, disableStream: true })
+        const loadingTask = pdfjsLib.getDocument({ url: currentUrl, disableAutoFetch: true, disableStream: true })
         const pdf = await loadingTask.promise
         const page = await pdf.getPage(1)
         const viewport = page.getViewport({ scale: 2 })
@@ -500,14 +522,20 @@ export function CanvasArea({
     async function loadFloorPlanImage() {
       try {
         const fm = await import('fabric')
-        // Try with crossOrigin first (needed for canvas export)
-        // If CORS fails, retry without it (signed URLs may not have CORS headers)
         let img: import('fabric').FabricImage
         try {
-          img = await fm.FabricImage.fromURL(url, { crossOrigin: 'anonymous' })
+          img = await fm.FabricImage.fromURL(currentUrl, { crossOrigin: 'anonymous' })
         } catch {
-          // Fallback: load without CORS (canvas becomes tainted but image displays)
-          img = await fm.FabricImage.fromURL(url)
+          // CORS failed — try refreshing signed URL first
+          if (floorPlan?.id) {
+            const freshUrl = await refreshUrl()
+            if (freshUrl) currentUrl = freshUrl
+          }
+          try {
+            img = await fm.FabricImage.fromURL(currentUrl, { crossOrigin: 'anonymous' })
+          } catch {
+            img = await fm.FabricImage.fromURL(currentUrl)
+          }
         }
         img.set({ opacity, selectable: false, evented: false })
         canvas.backgroundImage = img
@@ -521,7 +549,7 @@ export function CanvasArea({
     if (ext === 'svg') { void loadFloorPlanSVG() }
     else if (ext === 'pdf') { void loadFloorPlanPDF() }
     else { void loadFloorPlanImage() }
-  }, [floorPlan, fabricReady, onFloorPlanError])
+  }, [floorPlan, fabricReady, onFloorPlanError, designId])
 
   // Grid
   const drawGrid = useCallback(() => {

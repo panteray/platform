@@ -63,6 +63,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [editingAreaId, setEditingAreaId] = useState<string | null>(null)
   const [editAreaValue, setEditAreaValue] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const placingRef = useRef(false)
 
   const activeArea = areas.find((a) => a.id === activeAreaId) ?? null
   const activeFloorPlan: DesignFloorPlan | null = floorPlans.find((fp) => fp.area_id === activeAreaId) ?? null
@@ -153,10 +154,16 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   }
   const handleCanvasClick = useCallback(async (x: number, y: number) => {
     if (activeTool !== 'place' || !activeAreaId || activeIcon === 'layers') return
-    const category = TAB_TO_CATEGORY[activeIcon] || 'other'
-    const subType = TAB_TO_SUBTYPE[activeIcon] || 'junction_box'
-    const prefix = LABEL_PREFIX[subType] || 'DEV'
-    await addDevice({ area_id: activeAreaId, category, position_x: x, position_y: y, color_hex: C.accent, label_prefix: prefix, properties: { sub_type: subType } })
+    if (placingRef.current) return
+    placingRef.current = true
+    try {
+      const category = TAB_TO_CATEGORY[activeIcon] || 'other'
+      const subType = TAB_TO_SUBTYPE[activeIcon] || 'junction_box'
+      const prefix = LABEL_PREFIX[subType] || 'DEV'
+      await addDevice({ area_id: activeAreaId, category, position_x: x, position_y: y, color_hex: C.accent, label_prefix: prefix, properties: { sub_type: subType } })
+    } finally {
+      placingRef.current = false
+    }
   }, [activeTool, activeAreaId, activeIcon, addDevice])
   const handleDeviceMoved = useCallback(async (id: string, x: number, y: number) => { await updateDevice(id, { position_x: x, position_y: y }) }, [updateDevice])
   const handleDeviceRotated = useCallback(async (id: string, angle: number) => { await updateDevice(id, { rotation: angle }) }, [updateDevice])
