@@ -44,6 +44,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     addArea, updateArea, deleteArea, uploadFloorPlan,
     addDevice, updateDevice, deleteDevice,
     addCable,
+    addZone, updateZone, deleteZone,
     addTopologyNode, updateTopologyNode, deleteTopologyNode,
     addTopologyLink, deleteTopologyLink,
     addRack, updateRack, deleteRack,
@@ -64,6 +65,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [editAreaValue, setEditAreaValue] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const placingRef = useRef(false)
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
 
   const activeArea = areas.find((a) => a.id === activeAreaId) ?? null
   const activeFloorPlan: DesignFloorPlan | null = floorPlans.find((fp) => fp.area_id === activeAreaId) ?? null
@@ -177,6 +179,16 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     await addCable({ area_id: activeAreaId, from_device_id: cable.from_device_id, to_device_id: cable.to_device_id, waypoints: cable.waypoints, length_ft: cable.length_ft, cable_type: 'cat6' })
   }, [addCable, activeAreaId])
 
+  // Zone handlers
+  const handleZoneCreated = useCallback(async (zone: { name: string; color: string; x: number; y: number; width: number; height: number }) => {
+    await addZone(zone)
+  }, [addZone])
+  const handleZoneMoved = useCallback(async (id: string, x: number, y: number) => { await updateZone(id, { x, y }) }, [updateZone])
+  const handleZoneResized = useCallback(async (id: string, width: number, height: number) => { await updateZone(id, { width, height }) }, [updateZone])
+  const handleSelectZone = useCallback((id: string | null) => { setSelectedZoneId(id); if (id) setSelectedDeviceId(null) }, [setSelectedDeviceId])
+  const handleSelectDevice = useCallback((id: string | null) => { setSelectedDeviceId(id); if (id) setSelectedZoneId(null) }, [setSelectedDeviceId])
+  const handleDeleteZone = useCallback(async (id: string) => { await deleteZone(id); if (selectedZoneId === id) setSelectedZoneId(null) }, [deleteZone, selectedZoneId])
+
   // Area rename handlers
   function handleAreaDoubleClick(areaId: string, name: string) {
     setEditingAreaId(areaId)
@@ -190,6 +202,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   }
 
   const selectedDevice = selectedDeviceId ? devices.find((d) => d.id === selectedDeviceId) ?? null : null
+  const selectedZone = selectedZoneId ? zones.find((z) => z.id === selectedZoneId) ?? null : null
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.textMuted, fontSize: 13 }}>Loading design...</div>
   if (error || !design) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.red, fontSize: 13 }}>{error ?? 'Design not found'}</div>
@@ -358,7 +371,10 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
                 boxShadow: '4px 0 12px rgba(0,0,0,0.3)',
               }}>
                 <LeftPanel devices={areaDevices} selectedId={selectedDeviceId}
-                  onSelectDevice={(id) => { setSelectedDeviceId(id); setActiveTool('select') }} />
+                  onSelectDevice={(id) => { handleSelectDevice(id); setActiveTool('select') }}
+                  zones={zones} selectedZoneId={selectedZoneId}
+                  onSelectZone={(id) => { handleSelectZone(id); setActiveTool('select') }}
+                  onDeleteZone={handleDeleteZone} />
               </div>
             )}
 
@@ -366,7 +382,10 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               devices={areaDevices} cables={areaCables} showGrid={showGrid} activeTool={activeTool}
               selectedDeviceId={selectedDeviceId} showFovCones={showFovCones} fovData={fovData}
               scalePxPerFt={scalePxPerFt}
-              onZoomChange={() => {}} onSelectDevice={setSelectedDeviceId}
+              zones={zones} selectedZoneId={selectedZoneId}
+              onZoneCreated={handleZoneCreated} onZoneMoved={handleZoneMoved}
+              onZoneResized={handleZoneResized} onSelectZone={handleSelectZone}
+              onZoomChange={() => {}} onSelectDevice={handleSelectDevice}
               onDeviceMoved={handleDeviceMoved} onDeviceRotated={handleDeviceRotated}
               onCanvasClick={handleCanvasClick} onDeviceCopy={handleDeviceCopy} onDeviceDelete={handleDeviceDelete}
               onCableCreated={handleCableCreated}
@@ -374,15 +393,19 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               onScaleCalibrated={(px) => setScalePxPerFt(px)}
               onFloorPlanError={(msg) => setFloorPlanError(msg)} />
 
-            {/* Right panel — OVERLAY, only when device selected */}
-            {selectedDevice && (
+            {/* Right panel — OVERLAY, when device or zone selected */}
+            {(selectedDevice || selectedZone) && (
               <div style={{
                 position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 10,
                 boxShadow: '-4px 0 12px rgba(0,0,0,0.3)',
               }}>
                 <RightPanel device={selectedDevice}
                   onClose={() => setSelectedDeviceId(null)} onDuplicate={handleDeviceCopy} onDelete={handleDeviceDelete}
-                  onUpdateDevice={(id, updates) => updateDevice(id, updates as Record<string, unknown>)} />
+                  onUpdateDevice={(id, updates) => updateDevice(id, updates as Record<string, unknown>)}
+                  selectedZone={selectedZone}
+                  onUpdateZone={(id, updates) => updateZone(id, updates)}
+                  onDeleteZone={handleDeleteZone}
+                  onCloseZone={() => setSelectedZoneId(null)} />
               </div>
             )}
           </>

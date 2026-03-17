@@ -1,16 +1,20 @@
 'use client'
 
 import { C } from './constants'
-import type { DesignDevice } from '@/types/database'
+import type { DesignDevice, DesignZone } from '@/types/database'
 
 interface LeftPanelProps {
   devices: DesignDevice[]
   selectedId: string | null
   onSelectDevice: (id: string) => void
   onChangeModel?: (deviceId: string) => void
+  zones?: DesignZone[]
+  selectedZoneId?: string | null
+  onSelectZone?: (id: string) => void
+  onDeleteZone?: (id: string) => void
 }
 
-export function LeftPanel({ devices, selectedId, onSelectDevice, onChangeModel }: LeftPanelProps) {
+export function LeftPanel({ devices, selectedId, onSelectDevice, onChangeModel, zones = [], selectedZoneId, onSelectZone, onDeleteZone }: LeftPanelProps) {
   return (
     <div
       style={{
@@ -138,6 +142,87 @@ export function LeftPanel({ devices, selectedId, onSelectDevice, onChangeModel }
             </div>
           )
         })}
+
+        {/* ---- Zones Section ---- */}
+        {zones.length > 0 && (
+          <>
+            <div
+              style={{
+                padding: '10px 12px 6px',
+                borderTop: `1px solid ${C.border}`,
+                fontSize: 11,
+                fontWeight: 600,
+                color: C.textMuted,
+                textTransform: 'uppercase',
+                letterSpacing: 0.8,
+                marginTop: 4,
+              }}
+            >
+              Zones ({zones.length})
+            </div>
+            {zones.map((z) => {
+              const isSelected = selectedZoneId === z.id
+              return (
+                <div
+                  key={z.id}
+                  onClick={() => onSelectZone?.(z.id)}
+                  style={{
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    borderBottom: `1px solid ${C.borderSubtle}`,
+                    background: isSelected ? `${z.color}15` : 'transparent',
+                    borderLeft: isSelected
+                      ? `2px solid ${z.color}`
+                      : '2px solid transparent',
+                    transition: 'background 0.12s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) e.currentTarget.style.background = C.bgHover
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 2,
+                        background: z.color,
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: C.text }}>{z.name}</span>
+                  </div>
+                  {onDeleteZone && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDeleteZone(z.id) }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: C.textDim,
+                        cursor: 'pointer',
+                        padding: '0 2px',
+                        fontSize: 12,
+                        lineHeight: 1,
+                        opacity: 0.6,
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.opacity = '1' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = C.textDim; e.currentTarget.style.opacity = '0.6' }}
+                    >
+                      x
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </>
+        )}
       </div>
     </div>
   )

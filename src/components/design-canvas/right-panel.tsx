@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { C, COLORS_16, PPF_CHART } from './constants'
 import { Section, Field, SliderField, SubLabel } from './section'
 import { ActionIcons } from './icons'
-import type { DesignDevice } from '@/types/database'
+import type { DesignDevice, DesignZone } from '@/types/database'
 
 interface RightPanelProps {
   device: DesignDevice | null
@@ -12,6 +12,10 @@ interface RightPanelProps {
   onDuplicate?: (id: string) => void
   onDelete?: (id: string) => void
   onUpdateDevice?: (id: string, updates: Partial<DesignDevice>) => void
+  selectedZone?: DesignZone | null
+  onUpdateZone?: (id: string, updates: Record<string, unknown>) => void
+  onDeleteZone?: (id: string) => void
+  onCloseZone?: () => void
 }
 
 /** Extract typed property from device.properties JSONB */
@@ -59,7 +63,114 @@ export function RightPanel({
   onDuplicate,
   onDelete,
   onUpdateDevice,
+  selectedZone,
+  onUpdateZone,
+  onDeleteZone,
+  onCloseZone,
 }: RightPanelProps) {
+  // ---- Zone Editor (takes priority when zone selected) ----
+  if (selectedZone && !device) {
+    const z = selectedZone
+    return (
+      <div style={{
+        width: 300, height: '100%', background: C.bgPanel, borderLeft: `1px solid ${C.border}`,
+        display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '8px 12px', borderBottom: `1px solid ${C.border}`,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 10, color: z.color }}>Zone Properties</span>
+          <button onClick={() => onCloseZone?.()} style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 2 }}>
+            {ActionIcons.close}
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {/* Name */}
+          <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}` }}>
+            <input
+              defaultValue={z.name}
+              key={z.id + '-zname'}
+              onBlur={(e) => {
+                if (e.target.value !== z.name) onUpdateZone?.(z.id, { name: e.target.value })
+              }}
+              style={{
+                width: '100%', background: C.bgActive, border: `1px solid ${C.border}`,
+                borderRadius: 4, padding: '5px 8px', color: C.text, fontSize: 13,
+                fontWeight: 600, fontFamily: 'inherit', outline: 'none',
+              }}
+            />
+
+            {/* Color picker */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+              {COLORS_16.map((c) => (
+                <div
+                  key={c}
+                  onClick={() => onUpdateZone?.(z.id, { color: c })}
+                  style={{
+                    width: 18, height: 18, borderRadius: 4, background: c, cursor: 'pointer',
+                    border: z.color === c ? '2px solid white' : '2px solid transparent',
+                    transition: 'all 0.1s',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Position & Size */}
+          <Section title="Position & Size" defaultOpen={true}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <div>
+                <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>X</div>
+                <input type="number" defaultValue={z.x} key={z.id + '-zx'}
+                  onBlur={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v !== z.x) onUpdateZone?.(z.id, { x: v }) }}
+                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none' }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Y</div>
+                <input type="number" defaultValue={z.y} key={z.id + '-zy'}
+                  onBlur={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v !== z.y) onUpdateZone?.(z.id, { y: v }) }}
+                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none' }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Width</div>
+                <input type="number" defaultValue={z.width} key={z.id + '-zw'}
+                  onBlur={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v > 0 && v !== z.width) onUpdateZone?.(z.id, { width: v }) }}
+                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none' }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Height</div>
+                <input type="number" defaultValue={z.height} key={z.id + '-zh'}
+                  onBlur={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v > 0 && v !== z.height) onUpdateZone?.(z.id, { height: v }) }}
+                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none' }}
+                />
+              </div>
+            </div>
+          </Section>
+        </div>
+
+        {/* Actions footer */}
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 8 }}>
+          <button onClick={() => onDeleteZone?.(z.id)}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+              padding: '6px 0', fontSize: 11, fontWeight: 500, fontFamily: 'inherit',
+              color: C.red, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+              borderRadius: 4, cursor: 'pointer',
+            }}
+          >
+            {ActionIcons.trash} <span>Delete Zone</span>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (!device) {
     return (
       <div style={{ width: 300, height: '100%', background: C.bgPanel, borderLeft: `1px solid ${C.border}`, padding: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

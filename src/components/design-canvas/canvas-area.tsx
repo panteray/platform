@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON, ToolbarIcons } from './icons'
-import type { DesignDevice, DesignCable, DesignFloorPlan } from '@/types/database'
+import type { DesignDevice, DesignCable, DesignFloorPlan, DesignZone } from '@/types/database'
 
 type FabricCanvas = import('fabric').Canvas
 type FabricObject = import('fabric').FabricObject
@@ -48,6 +48,13 @@ interface MeasureState {
   points: Array<{ x: number; y: number }>
 }
 
+// ---- Zone Draw State ----
+interface ZoneDrawState {
+  phase: 'idle' | 'drawing'
+  startX: number
+  startY: number
+}
+
 interface CanvasAreaProps {
   designId: string
   areaId: string | null
@@ -71,17 +78,25 @@ interface CanvasAreaProps {
   onToolChange?: (tool: CanvasTool) => void
   onScaleCalibrated?: (pxPerFt: number) => void
   onFloorPlanError?: (msg: string) => void
+  zones?: DesignZone[]
+  selectedZoneId?: string | null
+  onZoneCreated?: (zone: { name: string; color: string; x: number; y: number; width: number; height: number }) => void
+  onZoneMoved?: (id: string, x: number, y: number) => void
+  onZoneResized?: (id: string, width: number, height: number) => void
+  onSelectZone?: (id: string | null) => void
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
 const fovObjectMap = new Map<string, FabricObject[]>()
 const cableObjectMap = new Map<string, FabricObject>()
+const zoneObjectMap = new Map<string, FabricObject[]>()
 
 export function CanvasArea({
   designId, areaId, floorPlan, devices, cables, showGrid, activeTool, selectedDeviceId,
   showFovCones, fovData, scalePxPerFt,
   onZoomChange, onSelectDevice, onDeviceMoved, onDeviceRotated, onCanvasClick,
   onDeviceCopy, onDeviceDelete, onCableCreated, onToolChange, onScaleCalibrated, onFloorPlanError,
+  zones = [], selectedZoneId, onZoneCreated, onZoneMoved, onZoneResized, onSelectZone,
 }: CanvasAreaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
@@ -96,6 +111,8 @@ export function CanvasArea({
   const cablePreviewRef = useRef<FabricObject | null>(null)
   const scaleObjectsRef = useRef<FabricObject[]>([])
   const [scaleInput, setScaleInput] = useState<{ visible: boolean; distPx: number }>({ visible: false, distPx: 0 })
+  const [zoneDraw, setZoneDraw] = useState<{ isDrawing: boolean; startX: number; startY: number }>({ isDrawing: false, startX: 0, startY: 0 })
+  const zonePreviewRef = useRef<FabricObject | null>(null)
 
   // ---- Initialize Fabric.js ----
   useEffect(() => {
@@ -296,6 +313,12 @@ export function CanvasArea({
         return
       }
 
+      // Zone draw start
+      if (activeTool === 'zone' && !opt.target) {
+        setZoneDraw({ isDrawing: true, startX: x, startY: y })
+        return
+      }
+
       // Scale calibration
       if (activeTool === 'scale') {
         setScaleCal((prev) => {
@@ -399,7 +422,7 @@ export function CanvasArea({
   // Cursor
   useEffect(() => {
     if (!containerRef.current) return
-    const cursors: Record<string, string> = { place: 'crosshair', cable: 'crosshair', measure: 'crosshair', scale: 'crosshair', select: 'default' }
+    const cursors: Record<string, string> = { place: 'crosshair', cable: 'crosshair', measure: 'crosshair', scale: 'crosshair', zone: 'crosshair', select: 'default' }
     containerRef.current.style.cursor = cursors[activeTool] || 'default'
   }, [activeTool])
 
@@ -494,6 +517,139 @@ export function CanvasArea({
     }
     void addCables()
   }, [cables, fabricReady])
+
+  // ---- Zone Rendering ----
+  useEffect(() => {
+    if (!fabricReady || !fabricRef.current) return
+    const canvas = fabricRef.current
+    zoneObjectMap.forEach((objs) => objs.forEach((o) => canvas.remove(o))); zoneObjectMap.clear()
+    canvas.getObjects().filter((o) => (o as unknown as Record<string, unknown>).__isZoneLabel === true).forEach((o) => canvas.remove(o))
+
+    async function addZones() {
+      const fabric = await import('fabric')
+      for (const zone of zones) {
+        const objects: FabricObject[] = []
+        const rect = new fabric.Rect({
+          left: zone.x, top: zone.y, width: zone.width, height: zone.height,
+          fill: `${zone.color}20`, stroke: zone.color, strokeWidth: 1.5,
+          strokeDashArray: [6, 3], selectable: true, evented: true,
+          hasControls: true, hasBorders: true,
+          cornerColor: zone.color, cornerSize: 6, transparentCorners: false,
+          lockRotation: true,
+        })
+        ;(rect as unknown as Record<string, unknown>).zoneId = zone.id
+        canvas.add(rect); canvas.sendObjectToBack(rect); objects.push(rect)
+
+        const label = new fabric.FabricText(zone.name, {
+          left: zone.x + 4, top: zone.y + 2, fontSize: 10, fill: zone.color,
+          fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: '600',
+          selectable: false, evented: false, opacity: 0.8,
+        })
+        ;(label as unknown as Record<string, unknown>).__isZoneLabel = true
+        canvas.add(label); objects.push(label)
+
+        zoneObjectMap.set(zone.id, objects)
+      }
+      canvas.renderAll()
+    }
+    void addZones()
+  }, [zones, fabricReady])
+
+  // ---- Zone Draw (click-drag) ----
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady) return
+    if (activeTool !== 'zone' || !zoneDraw.isDrawing) {
+      if (zonePreviewRef.current && fabricRef.current) {
+        fabricRef.current.remove(zonePreviewRef.current); zonePreviewRef.current = null; fabricRef.current.renderAll()
+      }
+      return
+    }
+    const canvas = fabricRef.current
+    const moveHandler = (opt: { e: Event }) => {
+      const evt = opt.e as MouseEvent
+      const point = canvas.getScenePoint(evt)
+      const rx = Math.min(zoneDraw.startX, point.x)
+      const ry = Math.min(zoneDraw.startY, point.y)
+      const rw = Math.abs(point.x - zoneDraw.startX)
+      const rh = Math.abs(point.y - zoneDraw.startY)
+      if (zonePreviewRef.current) canvas.remove(zonePreviewRef.current)
+      import('fabric').then((fm) => {
+        if (!fabricRef.current) return
+        const rect = new fm.Rect({
+          left: rx, top: ry, width: rw, height: rh,
+          fill: 'rgba(59,130,246,0.15)', stroke: C.accent, strokeWidth: 1.5,
+          strokeDashArray: [4, 2], selectable: false, evented: false,
+        })
+        zonePreviewRef.current = rect
+        fabricRef.current.add(rect); fabricRef.current.renderAll()
+      })
+    }
+    const upHandler = (opt: { e: Event }) => {
+      const evt = opt.e as MouseEvent
+      const point = canvas.getScenePoint(evt)
+      const rx = Math.min(zoneDraw.startX, point.x)
+      const ry = Math.min(zoneDraw.startY, point.y)
+      const rw = Math.abs(point.x - zoneDraw.startX)
+      const rh = Math.abs(point.y - zoneDraw.startY)
+      if (zonePreviewRef.current && fabricRef.current) { fabricRef.current.remove(zonePreviewRef.current); zonePreviewRef.current = null }
+      setZoneDraw({ isDrawing: false, startX: 0, startY: 0 })
+      if (rw > 10 && rh > 10) {
+        onZoneCreated?.({ name: `Zone ${zones.length + 1}`, color: '#3B82F6', x: Math.round(rx), y: Math.round(ry), width: Math.round(rw), height: Math.round(rh) })
+      }
+      canvas.renderAll()
+    }
+    canvas.on('mouse:move', moveHandler)
+    canvas.on('mouse:up', upHandler)
+    return () => {
+      canvas.off('mouse:move', moveHandler); canvas.off('mouse:up', upHandler)
+      if (zonePreviewRef.current && fabricRef.current) { fabricRef.current.remove(zonePreviewRef.current); zonePreviewRef.current = null }
+    }
+  }, [activeTool, zoneDraw, fabricReady, onZoneCreated, zones.length])
+
+  // ---- Zone Selection ----
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady) return
+    const canvas = fabricRef.current
+    const handler = (e: { selected?: FabricObject[] }) => {
+      const zid = (e.selected?.[0] as unknown as Record<string, unknown>)?.zoneId as string
+      if (zid) onSelectZone?.(zid)
+    }
+    canvas.on('selection:created', handler)
+    canvas.on('selection:updated', handler)
+    return () => { canvas.off('selection:created', handler); canvas.off('selection:updated', handler) }
+  }, [fabricReady, onSelectZone])
+
+  // ---- Zone Move / Resize ----
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady) return
+    const canvas = fabricRef.current
+    const handler = (e: { target?: FabricObject }) => {
+      const obj = e.target; if (!obj) return
+      const zid = (obj as unknown as Record<string, unknown>).zoneId as string; if (!zid) return
+      const newW = Math.round((obj.width ?? 0) * (obj.scaleX ?? 1))
+      const newH = Math.round((obj.height ?? 0) * (obj.scaleY ?? 1))
+      obj.set({ scaleX: 1, scaleY: 1, width: newW, height: newH })
+      if (obj.left !== undefined && obj.top !== undefined) onZoneMoved?.(zid, Math.round(obj.left), Math.round(obj.top))
+      onZoneResized?.(zid, newW, newH)
+    }
+    canvas.on('object:modified', handler)
+    return () => { canvas.off('object:modified', handler) }
+  }, [fabricReady, onZoneMoved, onZoneResized])
+
+  // ---- Reset zone draw when tool changes ----
+  useEffect(() => {
+    if (activeTool !== 'zone') setZoneDraw({ isDrawing: false, startX: 0, startY: 0 })
+  }, [activeTool])
+
+  // Selected zone highlight
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady) return
+    if (selectedZoneId) {
+      const objs = zoneObjectMap.get(selectedZoneId)
+      const rect = objs?.[0]
+      if (rect) { fabricRef.current.setActiveObject(rect); fabricRef.current.renderAll() }
+    }
+  }, [selectedZoneId, fabricReady])
 
   // Selected device highlight
   useEffect(() => {
@@ -640,6 +796,7 @@ export function CanvasArea({
     { icon: ToolbarIcons.select, label: 'Select', id: 'select' },
     { icon: ToolbarIcons.measure, label: 'Measure', id: 'measure' },
     { icon: ToolbarIcons.cable, label: 'Cable', id: 'cable' },
+    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="4 2" /></svg>, label: 'Zone', id: 'zone' },
     null,
     { icon: ToolbarIcons.zoomIn, label: 'Zoom In', id: 'zoomIn' },
     { icon: ToolbarIcons.zoomOut, label: 'Zoom Out', id: 'zoomOut' },
@@ -680,6 +837,13 @@ export function CanvasArea({
       {activeTool === 'measure' && measureState.points.length === 1 && (
         <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.green}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.green, zIndex: 20 }}>
           Click second point to measure distance
+        </div>
+      )}
+
+      {/* Zone draw hint */}
+      {activeTool === 'zone' && !zoneDraw.isDrawing && (
+        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.accent}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.accent, zIndex: 20 }}>
+          Click and drag to draw a zone
         </div>
       )}
 
