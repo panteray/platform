@@ -20,6 +20,7 @@ import { calculateFovDori, getFovConeTiers } from '@/lib/calculators'
 import type { DesignFloorPlan } from '@/types/database'
 
 const TAB_TO_SUBTYPE: Record<string, string> = { camera: 'dome', door: 'door', network: 'switch', av: 'speaker', sensors: 'junction_box', other: 'junction_box' }
+const TAB_TO_CATEGORY: Record<string, string> = { camera: 'cctv', door: 'access_control', network: 'network', av: 'av', sensors: 'vape_environmental', other: 'other' }
 
 type DesignView = 'physical' | 'topology' | 'rack' | 'vlan' | 'av' | 'msp'
 
@@ -152,9 +153,10 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   }
   const handleCanvasClick = useCallback(async (x: number, y: number) => {
     if (activeTool !== 'place' || !activeAreaId || activeIcon === 'layers') return
+    const category = TAB_TO_CATEGORY[activeIcon] || 'other'
     const subType = TAB_TO_SUBTYPE[activeIcon] || 'junction_box'
     const prefix = LABEL_PREFIX[subType] || 'DEV'
-    await addDevice({ area_id: activeAreaId, category: subType, position_x: x, position_y: y, color_hex: C.accent, label_prefix: prefix, properties: { sub_type: subType } })
+    await addDevice({ area_id: activeAreaId, category, position_x: x, position_y: y, color_hex: C.accent, label_prefix: prefix, properties: { sub_type: subType } })
   }, [activeTool, activeAreaId, activeIcon, addDevice])
   const handleDeviceMoved = useCallback(async (id: string, x: number, y: number) => { await updateDevice(id, { position_x: x, position_y: y }) }, [updateDevice])
   const handleDeviceRotated = useCallback(async (id: string, angle: number) => { await updateDevice(id, { rotation: angle }) }, [updateDevice])
