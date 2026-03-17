@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { C } from './constants'
 import type { DesignDevice, DesignZone, DeviceSearchResult } from '@/types/database'
 
@@ -18,91 +18,181 @@ interface LeftPanelProps {
   pendingDevice?: DeviceSearchResult | null
 }
 
-/* Inline device library search — matches canvas dark theme */
-function DeviceSearch({ category, onSelect }: { category?: string; onSelect: (d: DeviceSearchResult) => void }) {
+/* Resolution bucket for filter chips */
+function resBucket(res: string | null): string | null {
+  if (!res) return null
+  const mp = parseInt(res)
+  if (isNaN(mp)) return null
+  if (mp <= 2) return '2MP'
+  if (mp <= 4) return '4MP'
+  if (mp <= 5) return '5MP'
+  if (mp <= 8) return '8MP'
+  return '12MP+'
+}
+
+const chipStyle = (active: boolean): React.CSSProperties => ({
+  padding: '2px 7px', fontSize: 9, fontWeight: 600, borderRadius: 3, cursor: 'pointer',
+  fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 0.12s', border: 'none',
+  background: active ? C.accentSubtle : C.bgActive,
+  color: active ? C.accent : C.textDim,
+  outline: active ? `1px solid ${C.accent}` : `1px solid transparent`,
+})
+
+/* =========== DEVICE CATALOG — IPVM-style browsable grid =========== */
+function DeviceCatalog({ category, onSelect, selectedId }: { category: string; onSelect: (d: DeviceSearchResult) => void; selectedId?: string | null }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<DeviceSearchResult[]>([])
-  const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [activeIdx, setActiveIdx] = useState(0)
+  const [filterVendor, setFilterVendor] = useState<string | null>(null)
+  const [filterRes, setFilterRes] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const wrapperRef = useRef<HTMLDivElement>(null)
+  const hasMounted = useRef(false)
 
-  const doSearch = useCallback(async (q: string) => {
-    if (!q.trim()) { setResults([]); setOpen(false); return }
+  const doFetch = useCallback(async (q: string) => {
     setLoading(true)
-    const params = new URLSearchParams({ q, limit: '12' })
+    const params = new URLSearchParams({ limit: '30' })
     if (category) params.set('category', category)
+    if (q.trim()) params.set('q', q.trim())
     try {
       const res = await fetch(`/api/org/device-library/search?${params}`)
-      if (res.ok) { const json = await res.json(); setResults(json.results ?? []); setOpen(true); setActiveIdx(0) }
+      if (res.ok) { const json = await res.json(); setResults(json.results ?? []) }
     } finally { setLoading(false) }
   }, [category])
 
-  function handleChange(val: string) {
+  /* Auto-load on mount / category change */
+  useEffect(() => {
+    setQuery('')
+    setFilterVendor(null)
+    setFilterRes(null)
+    setResults([])
+    doFetch('')
+    hasMounted.current = true
+  }, [category, doFetch])
+
+  function handleSearch(val: string) {
     setQuery(val)
     if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => doSearch(val), 300)
-  }
-  function handleSelect(d: DeviceSearchResult) {
-    setQuery(`${d.vendor} ${d.model}`)
-    setOpen(false)
-    onSelect(d)
-  }
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (!open || results.length === 0) return
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx((i) => Math.min(i + 1, results.length - 1)) }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx((i) => Math.max(i - 1, 0)) }
-    else if (e.key === 'Enter') { e.preventDefault(); handleSelect(results[activeIdx]) }
-    else if (e.key === 'Escape') { setOpen(false) }
+    timerRef.current = setTimeout(() => doFetch(val), 300)
   }
 
-  useEffect(() => {
-    function onClick(e: MouseEvent) { if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false) }
-    document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [])
+  /* Derive filter options from results */
+  const vendors = [...new Set(results.map((r) => r.vendor).filter(Boolean))].sort()
+  const resolutions = [...new Set(results.map((r) => resBucket(r.resolution)).filter(Boolean) as string[])].sort()
+
+  /* Apply client-side filters */
+  const filtered = results.filter((r) => {
+    if (filterVendor && r.vendor !== filterVendor) return false
+    if (filterRes && resBucket(r.resolution) !== filterRes) return false
+    return true
+  })
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', padding: '8px 10px' }}>
-      <input value={query} onChange={(e) => handleChange(e.target.value)} onKeyDown={handleKeyDown}
-        onFocus={() => { if (results.length > 0) setOpen(true) }}
-        placeholder="Search device library..."
-        style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '5px 8px', fontSize: 11, color: C.text, outline: 'none', fontFamily: 'inherit' }} />
-      {loading && <div style={{ position: 'absolute', right: 16, top: 14, width: 12, height: 12, border: `2px solid ${C.textDim}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />}
-      {open && results.length > 0 && (
-        <div style={{ position: 'absolute', zIndex: 30, left: 10, right: 10, top: '100%', maxHeight: 240, overflowY: 'auto', background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 4, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
-          {results.map((item, idx) => (
-            <div key={item.id} onClick={() => handleSelect(item)}
-              style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 10, borderBottom: `1px solid ${C.borderSubtle}`, background: idx === activeIdx ? C.bgHover : 'transparent', display: 'flex', flexDirection: 'column', gap: 1 }}
-              onMouseEnter={() => setActiveIdx(idx)}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                {item.ndaa_compliant === true && <span style={{ fontSize: 8, color: C.green, fontWeight: 700 }}>NDAA</span>}
-                {item.ndaa_compliant === false && <span style={{ fontSize: 8, color: C.red, fontWeight: 700 }}>!NDAA</span>}
-                <span style={{ fontWeight: 600, color: C.text }}>{item.vendor}</span>
-                <span style={{ color: C.textMuted }}>{item.model}</span>
-              </div>
-              {(item.partnumber || item.resolution) && (
-                <div style={{ fontSize: 9, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace" }}>
-                  {item.partnumber}{item.partnumber && item.resolution ? ' · ' : ''}{item.resolution}
-                </div>
-              )}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* Search input */}
+      <div style={{ padding: '8px 8px 4px', flexShrink: 0 }}>
+        <input value={query} onChange={(e) => handleSearch(e.target.value)}
+          placeholder="Search manufacturer, model..."
+          style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '5px 8px', fontSize: 11, color: C.text, outline: 'none', fontFamily: 'inherit' }} />
+      </div>
+
+      {/* Filter chips */}
+      {(vendors.length > 1 || resolutions.length > 1) && (
+        <div style={{ padding: '2px 8px 4px', display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0 }}>
+          {/* Manufacturer chips */}
+          {vendors.length > 1 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              <button onClick={() => setFilterVendor(null)} style={chipStyle(!filterVendor)}>All</button>
+              {vendors.slice(0, 8).map((v) => (
+                <button key={v} onClick={() => setFilterVendor(filterVendor === v ? null : v)} style={chipStyle(filterVendor === v)}>{v}</button>
+              ))}
             </div>
-          ))}
+          )}
+          {/* Resolution chips */}
+          {resolutions.length > 1 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              {resolutions.map((r) => (
+                <button key={r} onClick={() => setFilterRes(filterRes === r ? null : r)} style={chipStyle(filterRes === r)}>{r}</button>
+              ))}
+            </div>
+          )}
         </div>
       )}
-      {open && results.length === 0 && query.trim() && !loading && (
-        <div style={{ position: 'absolute', zIndex: 30, left: 10, right: 10, top: '100%', padding: 12, background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 10, color: C.textDim }}>No devices found</div>
-      )}
+
+      {/* Results count */}
+      <div style={{ padding: '2px 8px 4px', fontSize: 9, color: C.textDim, flexShrink: 0 }}>
+        {loading ? 'Loading...' : `${filtered.length} device${filtered.length !== 1 ? 's' : ''}`}
+      </div>
+
+      {/* Device cards — scrollable */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '0 6px 6px' }}>
+        {filtered.map((item) => {
+          const isSel = selectedId === item.id
+          const specs = (item.specs ?? {}) as Record<string, unknown>
+          const focalLen = specs.focal_length as string | undefined
+          return (
+            <div key={item.id} onClick={() => onSelect(item)}
+              style={{
+                padding: '7px 8px', marginBottom: 3, borderRadius: 4, cursor: 'pointer',
+                background: isSel ? 'rgba(59,130,246,0.1)' : C.bgActive,
+                border: isSel ? `1px solid ${C.accent}` : `1px solid ${C.borderSubtle}`,
+                transition: 'all 0.12s',
+              }}
+              onMouseEnter={(e) => { if (!isSel) { e.currentTarget.style.background = C.bgHover; e.currentTarget.style.borderColor = C.border } }}
+              onMouseLeave={(e) => { if (!isSel) { e.currentTarget.style.background = C.bgActive; e.currentTarget.style.borderColor = C.borderSubtle } }}>
+              {/* Row 1: Vendor + Model */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.text }}>{item.vendor}</span>
+                <span style={{ fontSize: 10, color: C.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.model}</span>
+              </div>
+              {/* Row 2: Part number */}
+              {item.partnumber && (
+                <div style={{ fontSize: 9, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace", marginBottom: 3 }}>{item.partnumber}</div>
+              )}
+              {/* Row 3: Spec badges */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                {item.resolution && (
+                  <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(59,130,246,0.1)', color: C.accent }}>{item.resolution}</span>
+                )}
+                {item.wattage != null && item.wattage > 0 && (
+                  <span style={{ fontSize: 8, fontWeight: 600, padding: '1px 5px', borderRadius: 3, background: 'rgba(34,197,94,0.1)', color: C.green }}>
+                    {item.wattage}W{item.poe_standard ? ` ${item.poe_standard}` : ''}
+                  </span>
+                )}
+                {focalLen && (
+                  <span style={{ fontSize: 8, fontWeight: 600, padding: '1px 5px', borderRadius: 3, background: 'rgba(139,92,246,0.1)', color: '#a78bfa' }}>{focalLen}mm</span>
+                )}
+                {item.ndaa_compliant === true && (
+                  <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(34,197,94,0.08)', color: C.green }}>NDAA</span>
+                )}
+                {item.ndaa_compliant === false && (
+                  <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: 'rgba(239,68,68,0.08)', color: C.red }}>!NDAA</span>
+                )}
+              </div>
+              {/* Selected indicator */}
+              {isSel && (
+                <div style={{ marginTop: 4, fontSize: 9, color: C.accent, fontWeight: 600 }}>Click canvas to place</div>
+              )}
+            </div>
+          )
+        })}
+        {!loading && filtered.length === 0 && results.length > 0 && (
+          <div style={{ padding: 12, textAlign: 'center', fontSize: 10, color: C.textDim }}>No matches for current filters</div>
+        )}
+        {!loading && results.length === 0 && hasMounted.current && (
+          <div style={{ padding: 12, textAlign: 'center', fontSize: 10, color: C.textDim }}>No devices in library for this category</div>
+        )}
+      </div>
     </div>
   )
 }
 
+/* =========== MAIN LEFT PANEL =========== */
 export function LeftPanel({ devices, selectedId, onSelectDevice, onChangeModel, zones = [], selectedZoneId, onSelectZone, onDeleteZone, activeCategory, onDeviceSelected, pendingDevice }: LeftPanelProps) {
+  const showCatalog = activeCategory && activeCategory !== 'layers' && onDeviceSelected
   return (
     <div
       style={{
-        width: 200,
+        width: showCatalog ? 280 : 200,
         height: '100%',
         background: C.bgPanel,
         borderRight: `1px solid ${C.border}`,
@@ -110,179 +200,61 @@ export function LeftPanel({ devices, selectedId, onSelectDevice, onChangeModel, 
         flexDirection: 'column',
         flexShrink: 0,
         overflow: 'hidden',
+        transition: 'width 0.15s',
       }}
     >
-      <div
-        style={{
-          padding: '10px 12px',
-          borderBottom: `1px solid ${C.border}`,
-          fontSize: 11,
-          fontWeight: 600,
-          color: C.textMuted,
-          textTransform: 'uppercase',
-          letterSpacing: 0.8,
-        }}
-      >
-        On Map ({devices.length})
-      </div>
-
-      {/* Device library search — shown when a category tab is active */}
-      {activeCategory && activeCategory !== 'layers' && onDeviceSelected && (
-        <div style={{ borderBottom: `1px solid ${C.border}` }}>
-          <DeviceSearch category={activeCategory} onSelect={onDeviceSelected} />
-          {pendingDevice && (
-            <div style={{ padding: '6px 10px', background: 'rgba(59,130,246,0.08)', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ fontSize: 9, color: C.accent, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Ready to place</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.text }}>{pendingDevice.vendor} {pendingDevice.model}</div>
-              {pendingDevice.partnumber && <div style={{ fontSize: 9, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace" }}>{pendingDevice.partnumber}</div>}
-              <div style={{ fontSize: 9, color: C.textMuted }}>Click on canvas to place</div>
-            </div>
-          )}
-          {!pendingDevice && (
-            <div style={{ padding: '4px 10px 8px', fontSize: 9, color: C.textDim }}>
-              Search to select a device, then click canvas to place
-            </div>
-          )}
-        </div>
-      )}
-
-      <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
-        {devices.length === 0 && (
+      {/* Catalog mode — full panel is the device browser */}
+      {showCatalog ? (
+        <DeviceCatalog category={activeCategory} onSelect={onDeviceSelected} selectedId={pendingDevice?.id} />
+      ) : (
+        <>
           <div
             style={{
-              padding: '20px 12px',
-              textAlign: 'center',
+              padding: '10px 12px',
+              borderBottom: `1px solid ${C.border}`,
               fontSize: 11,
-              color: C.textDim,
+              fontWeight: 600,
+              color: C.textMuted,
+              textTransform: 'uppercase',
+              letterSpacing: 0.8,
             }}
           >
-            No devices placed
+            On Map ({devices.length})
           </div>
-        )}
-        {devices.map((d) => {
-          const props = (d.properties ?? {}) as Record<string, unknown>
-          const channels = (props.channels as number) || 1
-          const manufacturer = (props.manufacturer as string) || ''
-          const model = (props.model as string) || d.label || 'Unknown'
-          const isSelected = selectedId === d.id
 
-          return (
-            <div
-              key={d.id}
-              onClick={() => onSelectDevice(d.id)}
-              style={{
-                padding: '8px 12px',
-                cursor: 'pointer',
-                borderBottom: `1px solid ${C.borderSubtle}`,
-                background: isSelected ? C.accentSubtle : 'transparent',
-                borderLeft: isSelected
-                  ? `2px solid ${C.accent}`
-                  : '2px solid transparent',
-                transition: 'background 0.12s',
-              }}
-              onMouseEnter={(e) => {
-                if (!isSelected) e.currentTarget.style.background = C.bgHover
-              }}
-              onMouseLeave={(e) => {
-                if (!isSelected) e.currentTarget.style.background = 'transparent'
-              }}
-            >
+          <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
+            {devices.length === 0 && (
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
+                  padding: '20px 12px',
+                  textAlign: 'center',
+                  fontSize: 11,
+                  color: C.textDim,
                 }}
               >
-                <span style={{ fontSize: 11, fontWeight: 600, color: C.text }}>
-                  {manufacturer || d.category}
-                </span>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {channels > 1 && (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        color: C.yellow,
-                        background: 'rgba(234,179,8,0.12)',
-                        padding: '1px 5px',
-                        borderRadius: 4,
-                      }}
-                    >
-                      {channels}ch
-                    </span>
-                  )}
-                  {d.color_hex && (
-                    <div
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 2,
-                        background: d.color_hex,
-                      }}
-                    />
-                  )}
-                </div>
+                No devices placed
               </div>
-              <div style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>
-                {model}
-              </div>
-              {onChangeModel && (
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onChangeModel(d.id)
-                  }}
-                  style={{
-                    fontSize: 9,
-                    color: C.accent,
-                    marginTop: 3,
-                    opacity: 0.8,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Change Model
-                </div>
-              )}
-            </div>
-          )
-        })}
+            )}
+            {devices.map((d) => {
+              const props = (d.properties ?? {}) as Record<string, unknown>
+              const channels = (props.channels as number) || 1
+              const manufacturer = (props.manufacturer as string) || ''
+              const model = (props.model as string) || d.label || 'Unknown'
+              const isSelected = selectedId === d.id
 
-        {/* ---- Zones Section ---- */}
-        {zones.length > 0 && (
-          <>
-            <div
-              style={{
-                padding: '10px 12px 6px',
-                borderTop: `1px solid ${C.border}`,
-                fontSize: 11,
-                fontWeight: 600,
-                color: C.textMuted,
-                textTransform: 'uppercase',
-                letterSpacing: 0.8,
-                marginTop: 4,
-              }}
-            >
-              Zones ({zones.length})
-            </div>
-            {zones.map((z) => {
-              const isSelected = selectedZoneId === z.id
               return (
                 <div
-                  key={z.id}
-                  onClick={() => onSelectZone?.(z.id)}
+                  key={d.id}
+                  onClick={() => onSelectDevice(d.id)}
                   style={{
                     padding: '8px 12px',
                     cursor: 'pointer',
                     borderBottom: `1px solid ${C.borderSubtle}`,
-                    background: isSelected ? `${z.color}15` : 'transparent',
+                    background: isSelected ? C.accentSubtle : 'transparent',
                     borderLeft: isSelected
-                      ? `2px solid ${z.color}`
+                      ? `2px solid ${C.accent}`
                       : '2px solid transparent',
                     transition: 'background 0.12s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
                   }}
                   onMouseEnter={(e) => {
                     if (!isSelected) e.currentTarget.style.background = C.bgHover
@@ -291,44 +263,150 @@ export function LeftPanel({ devices, selectedId, onSelectDevice, onChangeModel, 
                     if (!isSelected) e.currentTarget.style.background = 'transparent'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: 2,
-                        background: z.color,
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span style={{ fontSize: 11, fontWeight: 600, color: C.text }}>{z.name}</span>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span style={{ fontSize: 11, fontWeight: 600, color: C.text }}>
+                      {manufacturer || d.category}
+                    </span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {channels > 1 && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            color: C.yellow,
+                            background: 'rgba(234,179,8,0.12)',
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                          }}
+                        >
+                          {channels}ch
+                        </span>
+                      )}
+                      {d.color_hex && (
+                        <div
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 2,
+                            background: d.color_hex,
+                          }}
+                        />
+                      )}
+                    </div>
                   </div>
-                  {onDeleteZone && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onDeleteZone(z.id) }}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: C.textDim,
-                        cursor: 'pointer',
-                        padding: '0 2px',
-                        fontSize: 12,
-                        lineHeight: 1,
-                        opacity: 0.6,
+                  <div style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>
+                    {model}
+                  </div>
+                  {onChangeModel && (
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onChangeModel(d.id)
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.opacity = '1' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = C.textDim; e.currentTarget.style.opacity = '0.6' }}
+                      style={{
+                        fontSize: 9,
+                        color: C.accent,
+                        marginTop: 3,
+                        opacity: 0.8,
+                        cursor: 'pointer',
+                      }}
                     >
-                      x
-                    </button>
+                      Change Model
+                    </div>
                   )}
                 </div>
               )
             })}
-          </>
-        )}
-      </div>
+
+            {/* ---- Zones Section ---- */}
+            {zones.length > 0 && (
+              <>
+                <div
+                  style={{
+                    padding: '10px 12px 6px',
+                    borderTop: `1px solid ${C.border}`,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: C.textMuted,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.8,
+                    marginTop: 4,
+                  }}
+                >
+                  Zones ({zones.length})
+                </div>
+                {zones.map((z) => {
+                  const isSelected = selectedZoneId === z.id
+                  return (
+                    <div
+                      key={z.id}
+                      onClick={() => onSelectZone?.(z.id)}
+                      style={{
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        borderBottom: `1px solid ${C.borderSubtle}`,
+                        background: isSelected ? `${z.color}15` : 'transparent',
+                        borderLeft: isSelected
+                          ? `2px solid ${z.color}`
+                          : '2px solid transparent',
+                        transition: 'background 0.12s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) e.currentTarget.style.background = C.bgHover
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) e.currentTarget.style.background = 'transparent'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div
+                          style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: 2,
+                            background: z.color,
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: C.text }}>{z.name}</span>
+                      </div>
+                      {onDeleteZone && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDeleteZone(z.id) }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: C.textDim,
+                            cursor: 'pointer',
+                            padding: '0 2px',
+                            fontSize: 12,
+                            lineHeight: 1,
+                            opacity: 0.6,
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.opacity = '1' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = C.textDim; e.currentTarget.style.opacity = '0.6' }}
+                        >
+                          x
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
