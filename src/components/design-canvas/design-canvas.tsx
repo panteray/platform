@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive, Server } from 'lucide-react'
+import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive, Server, Download } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { C, GRID_SIZE, UNDO_STACK_DEPTH, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
@@ -19,6 +19,7 @@ import { AvSignalFlow } from './av-signal-flow'
 import { MspCanvas } from './msp-canvas'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { calculateFovDori, getFovConeTiers, calculateSystemStorage, canvasDevicesToCameraSpecs } from '@/lib/calculators'
+import { exportBom, exportMaterialList, exportHardwareSchedule, exportCableSchedule, exportCanvasSnapshot } from '@/lib/export-helpers'
 import type { DesignFloorPlan, DeviceSearchResult } from '@/types/database'
 
 const TAB_TO_SUBTYPE: Record<string, string> = { camera: 'dome', door: 'door', network: 'switch', av: 'speaker', sensors: 'junction_box', other: 'junction_box' }
@@ -83,6 +84,10 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [undoStack, setUndoStack] = useState<Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>>([])
   const [redoStack, setRedoStack] = useState<Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>>([])
   const layerMenuRef = useRef<HTMLDivElement>(null)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
+  const snapshotRef = useRef<(() => string | null) | null>(null)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -447,6 +452,40 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showLayerMenu])
 
+  // Close export menu on outside click
+  useEffect(() => {
+    if (!showExportMenu) return
+    function handleClickOutside(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setShowExportMenu(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showExportMenu])
+
+  // Export handler
+  const handleExport = useCallback(async (type: 'bom' | 'material-list' | 'hardware-schedule' | 'cable-schedule' | 'snapshot') => {
+    setExporting(true)
+    setShowExportMenu(false)
+    try {
+      if (type === 'snapshot') {
+        const dataUrl = snapshotRef.current?.() ?? null
+        exportCanvasSnapshot(dataUrl, design?.name ?? 'Design')
+      } else if (type === 'bom') {
+        await exportBom(designId)
+      } else if (type === 'material-list') {
+        await exportMaterialList(designId)
+      } else if (type === 'hardware-schedule') {
+        await exportHardwareSchedule(designId)
+      } else if (type === 'cable-schedule') {
+        await exportCableSchedule(designId)
+      }
+    } catch (err) {
+      console.error('Export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }, [designId, design?.name])
+
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.textMuted, fontSize: 13 }}>Loading design...</div>
   if (error || !design) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.red, fontSize: 13 }}>{error ?? 'Design not found'}</div>
 
@@ -685,6 +724,41 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
           <Trash2 size={12} />
         </button>
 
+        {/* Export dropdown */}
+        <div style={{ position: 'relative' }} ref={exportMenuRef}>
+          <button onClick={() => setShowExportMenu(!showExportMenu)}
+            style={{ ...toolBtn(showExportMenu), opacity: exporting ? 0.5 : 1 }}
+            title="Export design" disabled={exporting}>
+            <Download size={12} /> <span>{exporting ? '...' : 'Export'}</span>
+          </button>
+          {showExportMenu && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
+              background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
+              padding: '6px 0', minWidth: 180, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            }}>
+              {([
+                { key: 'bom', label: 'Bill of Materials (XLSX)' },
+                { key: 'material-list', label: 'Material List (XLSX)' },
+                { key: 'hardware-schedule', label: 'Hardware Schedule (XLSX)' },
+                { key: 'cable-schedule', label: 'Cable Schedule (XLSX)' },
+                { key: 'snapshot', label: 'Canvas Snapshot (PNG)' },
+              ] as const).map((item) => (
+                <div key={item.key}
+                  onClick={() => handleExport(item.key)}
+                  style={{
+                    padding: '6px 14px', cursor: 'pointer', fontSize: 11, color: C.text,
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+                  {item.label}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Separator */}
         <div style={{ width: 1, height: 20, background: C.border, flexShrink: 0 }} />
 
@@ -763,7 +837,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               onPpfTierClick={setHighlightedPpfTier}
               mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
               onMdfIdfPlaced={handleMdfIdfPlaced}
-              onMdfIdfMoved={handleMdfIdfMoved} />
+              onMdfIdfMoved={handleMdfIdfMoved}
+              snapshotRef={snapshotRef} />
 
             {/* Right panel — OVERLAY, when device or zone selected */}
             {(selectedDevice || selectedZone) && (

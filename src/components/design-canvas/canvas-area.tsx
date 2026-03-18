@@ -104,6 +104,7 @@ interface CanvasAreaProps {
   mdfIdfs?: DesignMdfIdf[]
   onMdfIdfPlaced?: (x: number, y: number) => void
   onMdfIdfMoved?: (id: string, x: number, y: number) => void
+  snapshotRef?: React.MutableRefObject<(() => string | null) | null>
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
@@ -121,6 +122,7 @@ export function CanvasArea({
   onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
   onFovHandleDragged, fovDisplayMode = 'ppf', highlightedPpfTier, onPpfTierClick,
   mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved,
+  snapshotRef,
 }: CanvasAreaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
@@ -278,6 +280,19 @@ export function CanvasArea({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Expose canvas snapshot function to parent via ref
+  useEffect(() => {
+    if (!snapshotRef) return
+    snapshotRef.current = () => {
+      const fc = fabricRef.current
+      if (!fc) return null
+      try {
+        return fc.toDataURL({ format: 'png', multiplier: 2 })
+      } catch { return null }
+    }
+    return () => { if (snapshotRef) snapshotRef.current = null }
+  }, [fabricReady, snapshotRef])
 
   // Resize
   useEffect(() => {
