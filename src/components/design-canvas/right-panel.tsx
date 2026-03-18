@@ -60,6 +60,30 @@ function isNetwork(cat: string): boolean {
   return ['network', 'switch', 'access_switch', 'rack', 'nvr', 'router', 'firewall', 'wireless_ap', 'bridge', 'server', 'monitor', 'patch_panel'].includes(cat)
 }
 
+/** Check if category is Vape/Environmental-type */
+function isVapeEnv(cat: string): boolean {
+  return ['vape_environmental', 'vape_detector', 'environmental_detector', 'sensors'].includes(cat)
+}
+
+/** Detection capability keys for Vape/Environmental devices */
+const VAPE_DETECTION_CAPS = [
+  { key: 'det_vape_thc', label: 'Vape / THC' },
+  { key: 'det_smoke_particulate', label: 'Smoke / Particulate' },
+  { key: 'det_sound_aggression', label: 'Sound Level / Aggression' },
+  { key: 'det_co2', label: 'Air Quality (CO2)' },
+  { key: 'det_voc', label: 'Air Quality (VOC)' },
+  { key: 'det_pm25', label: 'Air Quality (PM2.5)' },
+  { key: 'det_temperature', label: 'Temperature' },
+  { key: 'det_humidity', label: 'Humidity' },
+  { key: 'det_tamper', label: 'Tamper' },
+  { key: 'det_gunshot', label: 'Gunshot' },
+  { key: 'det_cellphone', label: 'Cellphone Detection' },
+  { key: 'det_keywords_voice', label: 'Keywords / Voice' },
+  { key: 'det_motion', label: 'Motion' },
+  { key: 'det_people_counting', label: 'People Counting / Occupancy / Loitering' },
+  { key: 'det_light_level', label: 'Light Level' },
+] as const
+
 export function RightPanel({
   device,
   onClose,
@@ -676,6 +700,107 @@ export function RightPanel({
           </Section>
         ) : null}
 
+        {/* ---- VAPE/ENV: Detection Capabilities ---- */}
+        {isVapeEnv(cat) && (
+          <Section title="Detection Capabilities" defaultOpen={true}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {VAPE_DETECTION_CAPS.map((cap) => {
+                const checked = !!prop(d, cap.key, false)
+                return (
+                  <label key={cap.key} style={{
+                    display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                    fontSize: 11, color: checked ? C.text : C.textMuted,
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => saveProp(cap.key, e.target.checked)}
+                      style={{ accentColor: C.accent, width: 14, height: 14, cursor: 'pointer' }}
+                    />
+                    {cap.label}
+                  </label>
+                )
+              })}
+            </div>
+          </Section>
+        )}
+
+        {/* ---- VAPE/ENV: Alerts & Integration ---- */}
+        {isVapeEnv(cat) && (
+          <Section title="Alerts & Integration" defaultOpen={true}>
+            <div style={{ marginBottom: 6 }}>
+              <SubLabel text="Alert Destination" />
+              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                {['VMS', 'ACS', 'BMS', 'Email', 'SMS', 'Cloud Portal', 'Other'].map((dest) => {
+                  const key = `alert_${dest.toLowerCase().replace(/\s/g, '_')}`
+                  const isActive = !!prop(d, key, false)
+                  return (
+                    <button key={dest} onClick={() => saveProp(key, !isActive)}
+                      style={{
+                        padding: '3px 6px', fontSize: 8, fontWeight: 600, fontFamily: 'inherit',
+                        background: isActive ? C.accentSubtle : C.bgActive,
+                        color: isActive ? C.accent : C.textDim,
+                        border: isActive ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
+                        borderRadius: 3, cursor: 'pointer',
+                      }}
+                    >
+                      {dest}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 6 }}>
+              <SubLabel text="Integration Method" />
+              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                {['Relay', 'API', 'MQTT', 'SNMP', 'Cloud', 'Other'].map((method) => {
+                  const key = `integration_${method.toLowerCase()}`
+                  const isActive = !!prop(d, key, false)
+                  return (
+                    <button key={method} onClick={() => saveProp(key, !isActive)}
+                      style={{
+                        padding: '3px 6px', fontSize: 8, fontWeight: 600, fontFamily: 'inherit',
+                        background: isActive ? C.accentSubtle : C.bgActive,
+                        color: isActive ? C.accent : C.textDim,
+                        border: isActive ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
+                        borderRadius: 3, cursor: 'pointer',
+                      }}
+                    >
+                      {method}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <Field label="Relay Output" value={prop(d, 'relay_output', '')} editable fieldKey="relay_output" onBlurSave={saveFieldFromBlur} />
+
+            <div style={{ marginTop: 6 }}>
+              <SubLabel text="Power" />
+              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                {['PoE', '12VDC', '24VDC', 'USB', 'Other'].map((pw) => {
+                  const current = prop(d, 'power_source', '')
+                  const isActive = current === pw
+                  return (
+                    <button key={pw} onClick={() => saveProp('power_source', pw)}
+                      style={{
+                        padding: '3px 6px', fontSize: 8, fontWeight: 600, fontFamily: 'inherit',
+                        background: isActive ? C.accentSubtle : C.bgActive,
+                        color: isActive ? C.accent : C.textDim,
+                        border: isActive ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
+                        borderRadius: 3, cursor: 'pointer',
+                      }}
+                    >
+                      {pw}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </Section>
+        )}
+
         {/* ---- WIRING (all categories) ---- */}
         <Section title="Wiring" defaultOpen={true}>
           <Field label="MDF/IDF" value={prop(d, 'mdf_idf', '\u2014')} editable fieldKey="mdf_idf" onBlurSave={saveFieldFromBlur} />
@@ -683,6 +808,30 @@ export function RightPanel({
           <Field label="Port" value={prop(d, 'port_number', '\u2014')} editable fieldKey="port_number" onBlurSave={saveFieldFromBlur} />
           <Field label="Cable Type" value={prop(d, 'cable_type', 'Cat6')} editable fieldKey="cable_type" onBlurSave={saveFieldFromBlur} />
           <Field label="Cable Length" value={prop(d, 'cable_length', '\u2014')} editable fieldKey="cable_length" onBlurSave={saveFieldFromBlur} />
+          {isVapeEnv(cat) && (
+            <div style={{ marginTop: 4 }}>
+              <SubLabel text="Run Type" />
+              <div style={{ display: 'flex', gap: 3 }}>
+                {['Home Run', 'Daisy Chain'].map((rt) => {
+                  const rtKey = rt.toLowerCase().replace(/\s/g, '_')
+                  const isActive = prop(d, 'run_type', 'home_run') === rtKey
+                  return (
+                    <button key={rt} onClick={() => saveProp('run_type', rtKey)}
+                      style={{
+                        flex: 1, padding: '3px 0', fontSize: 8, fontWeight: 600, fontFamily: 'inherit',
+                        background: isActive ? C.accentSubtle : C.bgActive,
+                        color: isActive ? C.accent : C.textDim,
+                        border: isActive ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
+                        borderRadius: 3, cursor: 'pointer',
+                      }}
+                    >
+                      {rt}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </Section>
 
         {/* ---- BILLING & ASSET (all categories) ---- */}
