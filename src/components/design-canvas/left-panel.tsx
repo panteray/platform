@@ -130,9 +130,15 @@ function DeviceCatalog({ category, onSelect, selectedId }: { category: string; o
           const specs = (item.specs ?? {}) as Record<string, unknown>
           const focalLen = specs.focal_length as string | undefined
           return (
-            <div key={item.id} onClick={() => onSelect(item)}
+            <div key={item.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('application/panteray-device', JSON.stringify(item))
+                e.dataTransfer.effectAllowed = 'copy'
+              }}
+              onClick={() => onSelect(item)}
               style={{
-                padding: '7px 8px', marginBottom: 3, borderRadius: 4, cursor: 'pointer',
+                padding: '7px 8px', marginBottom: 3, borderRadius: 4, cursor: 'grab',
                 background: isSel ? 'rgba(59,130,246,0.1)' : C.bgActive,
                 border: isSel ? `1px solid ${C.accent}` : `1px solid ${C.borderSubtle}`,
                 transition: 'all 0.12s',

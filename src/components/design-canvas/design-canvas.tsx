@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useRef, useCallback, useMemo } from 'react'
-import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff } from 'lucide-react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
+import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { C, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
+import { C, GRID_SIZE, UNDO_STACK_DEPTH, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
 import { LABEL_PREFIX } from './icons'
 import { CanvasArea, type DeviceFovData } from './canvas-area'
 import { IconSidebar } from './icon-sidebar'
@@ -71,6 +71,13 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
   const [pendingDevice, setPendingDevice] = useState<DeviceSearchResult | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ label: string; action: () => void } | null>(null)
+  const [floorPlanOpacity, setFloorPlanOpacity] = useState(0.5)
+  const [snapToGrid, setSnapToGrid] = useState(false)
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
+  const [showLayerMenu, setShowLayerMenu] = useState(false)
+  const [undoStack, setUndoStack] = useState<Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>>([])
+  const [redoStack, setRedoStack] = useState<Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>>([])
+  const layerMenuRef = useRef<HTMLDivElement>(null)
 
   const activeArea = areas.find((a) => a.id === activeAreaId) ?? null
   const activeFloorPlan: DesignFloorPlan | null = floorPlans.find((fp) => fp.area_id === activeAreaId) ?? null
@@ -189,8 +196,11 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
       if (pendingDevice.wattage) props.poe_watts = pendingDevice.wattage
       if (pendingDevice.poe_standard) props.poe_standard = pendingDevice.poe_standard
 
+      let px = x, py = y
+      if (snapToGrid) { px = Math.round(px / GRID_SIZE) * GRID_SIZE; py = Math.round(py / GRID_SIZE) * GRID_SIZE }
+
       await addDevice({
-        area_id: activeAreaId, category, position_x: x, position_y: y,
+        area_id: activeAreaId, category, position_x: px, position_y: py,
         color_hex: C.accent, label_prefix: prefix,
         device_library_item_id: pendingDevice.id,
         properties: props,
@@ -198,9 +208,25 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     } finally {
       placingRef.current = false
     }
-  }, [activeTool, activeAreaId, activeIcon, addDevice, pendingDevice])
-  const handleDeviceMoved = useCallback(async (id: string, x: number, y: number) => { await updateDevice(id, { position_x: x, position_y: y }) }, [updateDevice])
-  const handleDeviceRotated = useCallback(async (id: string, angle: number) => { await updateDevice(id, { rotation: angle }) }, [updateDevice])
+  }, [activeTool, activeAreaId, activeIcon, addDevice, pendingDevice, snapToGrid])
+  const handleDeviceMoved = useCallback(async (id: string, x: number, y: number) => {
+    const device = devices.find(d => d.id === id)
+    const prevX = device?.position_x ?? x, prevY = device?.position_y ?? y
+    await updateDevice(id, { position_x: x, position_y: y })
+    pushUndo({
+      undo: () => updateDevice(id, { position_x: prevX, position_y: prevY }),
+      redo: () => updateDevice(id, { position_x: x, position_y: y }),
+    })
+  }, [devices, updateDevice, pushUndo])
+  const handleDeviceRotated = useCallback(async (id: string, angle: number) => {
+    const device = devices.find(d => d.id === id)
+    const prevAngle = device?.rotation ?? 0
+    await updateDevice(id, { rotation: angle })
+    pushUndo({
+      undo: () => updateDevice(id, { rotation: prevAngle }),
+      redo: () => updateDevice(id, { rotation: angle }),
+    })
+  }, [devices, updateDevice, pushUndo])
   const handleDeviceCopy = useCallback(async (id: string) => {
     const src = devices.find((d) => d.id === id); if (!src) return
     const prefix = LABEL_PREFIX[src.category] || 'DEV'
@@ -249,8 +275,64 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     } catch { /* handled by toast */ }
   }
 
+  // ---- Undo / Redo ----
+  const pushUndo = useCallback((action: { undo: () => Promise<void>; redo: () => Promise<void> }) => {
+    setUndoStack(prev => [...prev.slice(-(UNDO_STACK_DEPTH - 1)), action])
+    setRedoStack([])
+  }, [])
+  const handleUndo = useCallback(async () => {
+    const action = undoStack[undoStack.length - 1]
+    if (!action) return
+    await action.undo()
+    setUndoStack(prev => prev.slice(0, -1))
+    setRedoStack(prev => [...prev, action])
+  }, [undoStack])
+  const handleRedo = useCallback(async () => {
+    const action = redoStack[redoStack.length - 1]
+    if (!action) return
+    await action.redo()
+    setRedoStack(prev => prev.slice(0, -1))
+    setUndoStack(prev => [...prev, action])
+  }, [redoStack])
+
+  // ---- Drag & Drop from catalog to canvas ----
+  const handleDeviceDrop = useCallback(async (x: number, y: number, deviceData: string) => {
+    if (!activeAreaId) return
+    try {
+      const item = JSON.parse(deviceData) as DeviceSearchResult
+      const category = item.category || TAB_TO_CATEGORY[activeIcon] || 'other'
+      const subType = item.subcategory || TAB_TO_SUBTYPE[activeIcon] || 'junction_box'
+      const prefix = LABEL_PREFIX[subType] || LABEL_PREFIX[category] || 'DEV'
+      let px = x, py = y
+      if (snapToGrid) { px = Math.round(px / GRID_SIZE) * GRID_SIZE; py = Math.round(py / GRID_SIZE) * GRID_SIZE }
+      const props: Record<string, unknown> = {
+        sub_type: subType, manufacturer: item.vendor, model: item.model,
+        part_number: item.partnumber, ndaa_compliant: item.ndaa_compliant,
+        ...(item.specs ?? {}),
+      }
+      if (item.resolution) props.resolution = item.resolution
+      if (item.wattage) props.poe_watts = item.wattage
+      if (item.poe_standard) props.poe_standard = item.poe_standard
+      await addDevice({
+        area_id: activeAreaId, category, position_x: px, position_y: py,
+        color_hex: C.accent, label_prefix: prefix,
+        device_library_item_id: item.id, properties: props,
+      })
+    } catch (err) { console.error('Drop failed:', err) }
+  }, [activeAreaId, activeIcon, addDevice, snapToGrid])
+
   const selectedDevice = selectedDeviceId ? devices.find((d) => d.id === selectedDeviceId) ?? null : null
   const selectedZone = selectedZoneId ? zones.find((z) => z.id === selectedZoneId) ?? null : null
+
+  // Close layer menu on outside click
+  useEffect(() => {
+    if (!showLayerMenu) return
+    function handleClickOutside(e: MouseEvent) {
+      if (layerMenuRef.current && !layerMenuRef.current.contains(e.target as Node)) setShowLayerMenu(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showLayerMenu])
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.textMuted, fontSize: 13 }}>Loading design...</div>
   if (error || !design) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.red, fontSize: 13 }}>{error ?? 'Design not found'}</div>
@@ -361,6 +443,73 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
         )}
 
         {/* RIGHT: Tool buttons */}
+
+        {/* Undo / Redo */}
+        <button onClick={handleUndo} disabled={undoStack.length === 0}
+          style={{ ...toolBtn(false), opacity: undoStack.length === 0 ? 0.3 : 1 }} title="Undo (Ctrl+Z)">
+          <Undo2 size={12} />
+        </button>
+        <button onClick={handleRedo} disabled={redoStack.length === 0}
+          style={{ ...toolBtn(false), opacity: redoStack.length === 0 ? 0.3 : 1 }} title="Redo (Ctrl+Y)">
+          <Redo2 size={12} />
+        </button>
+
+        <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
+
+        {/* Snap to grid */}
+        <button onClick={() => setSnapToGrid(!snapToGrid)} style={toolBtn(snapToGrid, C.green)} title="Snap to Grid">
+          <Magnet size={12} /> <span>Snap</span>
+        </button>
+
+        {/* Layer visibility */}
+        <div style={{ position: 'relative' }} ref={layerMenuRef}>
+          <button onClick={() => setShowLayerMenu(!showLayerMenu)} style={toolBtn(showLayerMenu)} title="Layer Visibility">
+            <Layers size={12} /> <span>Layers</span>
+          </button>
+          {showLayerMenu && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
+              background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
+              padding: '6px 0', minWidth: 160, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            }}>
+              {[
+                { key: 'cctv', label: 'Cameras', aliases: ['dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'] },
+                { key: 'access_control', label: 'Access Control', aliases: ['door', 'door_controller', 'card_reader', 'electric_strike', 'maglock', 'intercom'] },
+                { key: 'network', label: 'Network', aliases: ['switch', 'access_switch', 'rack', 'nvr', 'router', 'firewall', 'wireless_ap', 'bridge', 'server', 'monitor', 'patch_panel'] },
+                { key: 'av', label: 'AV', aliases: ['speaker'] },
+                { key: 'vape_environmental', label: 'Sensors', aliases: [] },
+                { key: 'other', label: 'Other', aliases: [] },
+              ].map((layer) => {
+                const allKeys = [layer.key, ...layer.aliases]
+                const isHidden = allKeys.some(k => hiddenCategories.has(k))
+                return (
+                  <div key={layer.key}
+                    onClick={() => allKeys.forEach(k => {
+                      setHiddenCategories(prev => {
+                        const next = new Set(prev)
+                        if (isHidden) allKeys.forEach(a => next.delete(a))
+                        else allKeys.forEach(a => next.add(a))
+                        return next
+                      })
+                    })}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px',
+                      cursor: 'pointer', fontSize: 11, color: isHidden ? C.textDim : C.text,
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+                    {isHidden ? <EyeOff size={12} /> : <Eye size={12} />}
+                    <span>{layer.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
+
         <button onClick={() => setShowFovCones(!showFovCones)} style={toolBtn(showFovCones)}>
           {showFovCones ? <Eye size={12} /> : <EyeOff size={12} />} <span>FOV</span>
         </button>
@@ -378,10 +527,20 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
         </button>
         <input ref={fileInputRef} type="file" accept=".svg,.pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
         {activeFloorPlan && (
-          <button onClick={() => setConfirmAction({ label: 'Delete floor plan?', action: handleDeleteFloorPlan })}
-            style={toolBtn(false)} title="Remove floor plan">
-            <ImageOff size={12} />
-          </button>
+          <>
+            <button onClick={() => setConfirmAction({ label: 'Delete floor plan?', action: handleDeleteFloorPlan })}
+              style={toolBtn(false)} title="Remove floor plan">
+              <ImageOff size={12} />
+            </button>
+            {/* Floor plan opacity slider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} title="Floor plan opacity">
+              <span style={{ fontSize: 8, color: C.textDim }}>Opacity</span>
+              <input type="range" min="0" max="100" value={Math.round(floorPlanOpacity * 100)}
+                onChange={(e) => setFloorPlanOpacity(parseInt(e.target.value) / 100)}
+                style={{ width: 50, height: 3, accentColor: C.accent, cursor: 'pointer' }} />
+              <span style={{ fontSize: 8, color: C.textDim, fontFamily: "'IBM Plex Mono'", minWidth: 22 }}>{Math.round(floorPlanOpacity * 100)}%</span>
+            </div>
+          </>
         )}
 
         {/* Design actions */}
@@ -450,7 +609,13 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               onToolChange={(t) => setActiveTool(t)}
               onScaleCalibrated={(px) => setScalePxPerFt(px)}
               onFloorPlanError={(msg) => setFloorPlanError(msg)}
-              pendingDeviceName={pendingDevice ? `${pendingDevice.vendor} ${pendingDevice.model}` : undefined} />
+              pendingDeviceName={pendingDevice ? `${pendingDevice.vendor} ${pendingDevice.model}` : undefined}
+              onDeviceDrop={handleDeviceDrop}
+              snapToGrid={snapToGrid}
+              hiddenCategories={hiddenCategories}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              floorPlanOpacity={floorPlanOpacity} />
 
             {/* Right panel — OVERLAY, when device or zone selected */}
             {(selectedDevice || selectedZone) && (

@@ -85,6 +85,12 @@ interface CanvasAreaProps {
   onZoneResized?: (id: string, width: number, height: number) => void
   onSelectZone?: (id: string | null) => void
   pendingDeviceName?: string
+  onDeviceDrop?: (x: number, y: number, deviceData: string) => void
+  snapToGrid?: boolean
+  hiddenCategories?: Set<string>
+  onUndo?: () => void
+  onRedo?: () => void
+  floorPlanOpacity?: number
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
@@ -99,6 +105,7 @@ export function CanvasArea({
   onDeviceCopy, onDeviceDelete, onCableCreated, onToolChange, onScaleCalibrated, onFloorPlanError,
   zones = [], selectedZoneId, onZoneCreated, onZoneMoved, onZoneResized, onSelectZone,
   pendingDeviceName,
+  onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
 }: CanvasAreaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
@@ -117,6 +124,8 @@ export function CanvasArea({
   const zonePreviewRef = useRef<FabricObject | null>(null)
   const activeToolRef = useRef(activeTool)
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
+  const snapRef = useRef(snapToGrid)
+  useEffect(() => { snapRef.current = snapToGrid }, [snapToGrid])
 
   // ---- Initialize Fabric.js ----
   useEffect(() => {
@@ -222,7 +231,16 @@ export function CanvasArea({
       canvas.on('object:modified', (e) => {
         const obj = e.target; if (!obj) return
         const did = (obj as unknown as Record<string, unknown>).deviceId as string; if (!did) return
-        if (obj.left !== undefined && obj.top !== undefined) onDeviceMoved?.(did, Math.round(obj.left), Math.round(obj.top))
+        if (obj.left !== undefined && obj.top !== undefined) {
+          let x = Math.round(obj.left), y = Math.round(obj.top)
+          if (snapRef.current) {
+            x = Math.round(x / GRID_SIZE) * GRID_SIZE
+            y = Math.round(y / GRID_SIZE) * GRID_SIZE
+            obj.set({ left: x, top: y })
+            canvas.renderAll()
+          }
+          onDeviceMoved?.(did, x, y)
+        }
         if (obj.angle !== undefined) onDeviceRotated?.(did, Math.round(obj.angle))
       })
 
@@ -254,6 +272,44 @@ export function CanvasArea({
     observer.observe(containerRef.current)
     return () => observer.disconnect()
   }, [fabricReady])
+
+  // ---- Extended keyboard shortcuts ----
+  useEffect(() => {
+    function handleKeyboard(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedDeviceId) {
+        e.preventDefault(); onDeviceDelete?.(selectedDeviceId)
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault(); onUndo?.()
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault(); onRedo?.()
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
+        e.preventDefault(); onRedo?.()
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'd') && selectedDeviceId) {
+        e.preventDefault(); onDeviceCopy?.(selectedDeviceId)
+      }
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selectedDeviceId) {
+        e.preventDefault()
+        const nudge = e.shiftKey ? 10 : 1
+        const obj = deviceObjectMap.get(selectedDeviceId)
+        if (obj && fabricRef.current) {
+          const dx = e.key === 'ArrowRight' ? nudge : e.key === 'ArrowLeft' ? -nudge : 0
+          const dy = e.key === 'ArrowDown' ? nudge : e.key === 'ArrowUp' ? -nudge : 0
+          obj.set({ left: (obj.left ?? 0) + dx, top: (obj.top ?? 0) + dy })
+          fabricRef.current.renderAll()
+          onDeviceMoved?.(selectedDeviceId, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyboard)
+    return () => document.removeEventListener('keydown', handleKeyboard)
+  }, [selectedDeviceId, onDeviceDelete, onDeviceCopy, onUndo, onRedo, onDeviceMoved])
 
   // ---- Canvas click: Place / Cable / Measure / Scale ----
   useEffect(() => {
@@ -440,6 +496,7 @@ export function CanvasArea({
     async function addDevices() {
       const fabric = await import('fabric')
       for (const device of devices) {
+        if (hiddenCategories?.has(device.category)) continue
         const iconKey = CATEGORY_TO_ICON[device.category] || 'dome_camera'
         const svgString = DEVICE_SVG_STRINGS[iconKey]
         if (!svgString) continue
@@ -458,7 +515,7 @@ export function CanvasArea({
       canvas.renderAll()
     }
     void addDevices()
-  }, [devices, fabricReady])
+  }, [devices, fabricReady, hiddenCategories])
 
   // ---- FOV Cone Rendering ----
   useEffect(() => {
@@ -672,7 +729,7 @@ export function CanvasArea({
 
     let currentUrl = floorPlan.file_url
     const ext = currentUrl.split('.').pop()?.split('?')[0]?.toLowerCase() ?? ''
-    const opacity = floorPlan.opacity ?? 0.5
+    const opacity = floorPlanOpacity ?? floorPlan.opacity ?? 0.5
 
     // Signed URL refresh: if initial fetch fails 400/403, get fresh URL from API
     async function refreshUrl(): Promise<string | null> {
@@ -773,23 +830,23 @@ export function CanvasArea({
     if (ext === 'svg') { void loadFloorPlanSVG() }
     else if (ext === 'pdf') { void loadFloorPlanPDF() }
     else { void loadFloorPlanImage() }
-  }, [floorPlan, fabricReady, onFloorPlanError, designId])
+  }, [floorPlan, fabricReady, onFloorPlanError, designId, floorPlanOpacity])
 
-  // Grid
+  // Grid (single pattern rect — replaces per-dot rendering for performance)
   const drawGrid = useCallback(() => {
     if (!fabricRef.current || !fabricReady) return
     const canvas = fabricRef.current
     canvas.getObjects().filter((o) => (o as unknown as Record<string, unknown>).__isGrid === true).forEach((o) => canvas.remove(o))
     if (!showGrid) { canvas.requestRenderAll(); return }
     import('fabric').then((fm) => {
-      const zoom = canvas.getZoom(); const spacing = GRID_SIZE
-      const w = (canvas.width ?? 800) / zoom + spacing * 2
-      const h = (canvas.height ?? 600) / zoom + spacing * 2
-      for (let x = 0; x < w; x += spacing) for (let y = 0; y < h; y += spacing) {
-        const dot = new fm.Circle({ left: x, top: y, radius: 1, fill: 'rgba(255,255,255,0.06)', selectable: false, evented: false })
-        ;(dot as unknown as Record<string, unknown>).__isGrid = true
-        canvas.add(dot); canvas.sendObjectToBack(dot)
-      }
+      const tile = document.createElement('canvas')
+      tile.width = GRID_SIZE; tile.height = GRID_SIZE
+      const ctx = tile.getContext('2d')
+      if (ctx) { ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.beginPath(); ctx.arc(GRID_SIZE / 2, GRID_SIZE / 2, 1, 0, Math.PI * 2); ctx.fill() }
+      const pattern = new fm.Pattern({ source: tile, repeat: 'repeat' })
+      const gridRect = new fm.Rect({ left: -10000, top: -10000, width: 20000, height: 20000, fill: pattern as unknown as string, selectable: false, evented: false })
+      ;(gridRect as unknown as Record<string, unknown>).__isGrid = true
+      canvas.add(gridRect); canvas.sendObjectToBack(gridRect)
       canvas.requestRenderAll()
     })
   }, [showGrid, fabricReady])
@@ -811,7 +868,30 @@ export function CanvasArea({
   const handleToolbarClick = useCallback((toolId: string) => {
     if (toolId === 'zoomIn') { if (fabricRef.current) { const z = Math.min(ZOOM_MAX, zoomLevel * 1.2); fabricRef.current.setZoom(z); setZoomLevel(z) } return }
     if (toolId === 'zoomOut') { if (fabricRef.current) { const z = Math.max(ZOOM_MIN, zoomLevel / 1.2); fabricRef.current.setZoom(z); setZoomLevel(z) } return }
-    if (toolId === 'fitView') { if (fabricRef.current) { fabricRef.current.setViewportTransform([1, 0, 0, 1, 0, 0]); setZoomLevel(1) } return }
+    if (toolId === 'fitView') {
+      const canvas = fabricRef.current
+      if (canvas) {
+        const objs = canvas.getObjects().filter((o) => !(o as unknown as Record<string, unknown>).__isGrid)
+        if (objs.length === 0) { canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); setZoomLevel(1) }
+        else {
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+          for (const obj of objs) {
+            const l = obj.left ?? 0, t = obj.top ?? 0
+            const w = (obj.width ?? 0) * (obj.scaleX ?? 1), h = (obj.height ?? 0) * (obj.scaleY ?? 1)
+            minX = Math.min(minX, l - w / 2); minY = Math.min(minY, t - h / 2)
+            maxX = Math.max(maxX, l + w / 2); maxY = Math.max(maxY, t + h / 2)
+          }
+          const pad = 60, bw = maxX - minX + pad * 2, bh = maxY - minY + pad * 2
+          const cw = canvas.width ?? 800, ch = canvas.height ?? 600
+          const z = Math.max(ZOOM_MIN, Math.min(cw / bw, ch / bh, ZOOM_MAX))
+          const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
+          canvas.setViewportTransform([z, 0, 0, z, cw / 2 - cx * z, ch / 2 - cy * z])
+          setZoomLevel(z)
+        }
+        canvas.requestRenderAll()
+      }
+      return
+    }
     onToolChange?.(toolId as CanvasTool)
     if (toolId === 'pan' && fabricRef.current) { fabricRef.current.selection = false }
     if (toolId !== 'pan' && fabricRef.current) { fabricRef.current.selection = true }
@@ -828,7 +908,16 @@ export function CanvasArea({
   }, [zoomLevel, onToolChange])
 
   return (
-    <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}>
+    <div ref={containerRef}
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
+      onDrop={(e) => {
+        e.preventDefault()
+        const data = e.dataTransfer.getData('application/panteray-device')
+        if (!data || !fabricRef.current) return
+        const point = fabricRef.current.getScenePoint(e.nativeEvent as unknown as MouseEvent)
+        onDeviceDrop?.(Math.round(point.x), Math.round(point.y), data)
+      }}
+      style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}>
       <canvas ref={canvasRef} />
 
       {/* Placement hint */}

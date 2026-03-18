@@ -78,6 +78,9 @@ export const GRID_SIZE = 24
 export const ZOOM_MIN = 0.25
 export const ZOOM_MAX = 4.0
 
+/** Snap grid size (same as visual grid) */
+export const SNAP_SIZE = GRID_SIZE
+
 /** Undo stack depth */
 export const UNDO_STACK_DEPTH = 50
 
