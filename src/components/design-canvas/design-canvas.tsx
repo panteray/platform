@@ -62,6 +62,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [showLeftPanel, setShowLeftPanel] = useState(false)
   const [activeView, setActiveView] = useState<DesignView>('physical')
   const [showFovCones, setShowFovCones] = useState(false)
+  const [fovDisplayMode, setFovDisplayMode] = useState<'ppf' | 'dori'>('ppf')
+  const [highlightedPpfTier, setHighlightedPpfTier] = useState<string | null>(null)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
   const [floorPlanError, setFloorPlanError] = useState<string | null>(null)
   const [showRequirements, setShowRequirements] = useState(false)
@@ -601,6 +603,12 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
         <button onClick={() => setShowFovCones(!showFovCones)} style={toolBtn(showFovCones)}>
           {showFovCones ? <Eye size={12} /> : <EyeOff size={12} />} <span>FOV</span>
         </button>
+        {showFovCones && (
+          <button onClick={() => setFovDisplayMode(fovDisplayMode === 'ppf' ? 'dori' : 'ppf')}
+            style={toolBtn(fovDisplayMode === 'dori', C.green)} title="Toggle PPF / DORI labels">
+            <span style={{ fontSize: 9, fontWeight: 600 }}>{fovDisplayMode === 'dori' ? 'DORI' : 'PPF'}</span>
+          </button>
+        )}
         <button onClick={() => { setActiveTool('scale'); }} style={toolBtn(activeTool === 'scale', C.red)}>
           <Ruler size={12} /> <span>Scale</span>
         </button>
@@ -710,7 +718,10 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               onUndo={handleUndo}
               onRedo={handleRedo}
               floorPlanOpacity={floorPlanOpacity}
-              onFovHandleDragged={handleFovDragged} />
+              onFovHandleDragged={handleFovDragged}
+              fovDisplayMode={fovDisplayMode}
+              highlightedPpfTier={highlightedPpfTier}
+              onPpfTierClick={setHighlightedPpfTier} />
 
             {/* Right panel — OVERLAY, when device or zone selected */}
             {(selectedDevice || selectedZone) && (

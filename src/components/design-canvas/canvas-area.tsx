@@ -98,6 +98,9 @@ interface CanvasAreaProps {
   onRedo?: () => void
   floorPlanOpacity?: number
   onFovHandleDragged?: (deviceId: string, targetDistanceFt: number) => void
+  fovDisplayMode?: 'ppf' | 'dori'
+  highlightedPpfTier?: string | null
+  onPpfTierClick?: (tier: string | null) => void
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
@@ -113,7 +116,7 @@ export function CanvasArea({
   zones = [], selectedZoneId, onZoneCreated, onZoneMoved, onZoneResized, onSelectZone,
   pendingDeviceName,
   onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
-  onFovHandleDragged,
+  onFovHandleDragged, fovDisplayMode = 'ppf', highlightedPpfTier, onPpfTierClick,
 }: CanvasAreaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
@@ -542,7 +545,10 @@ export function CanvasArea({
     void addDevices()
   }, [devices, fabricReady, hiddenCategories])
 
-  // ---- FOV Cone Rendering + Drag Handles ----
+  // ---- DORI tier labels for display ----
+  const TIER_LABELS: Record<string, string> = { '#22c55e': 'ID', '#eab308': 'REC', '#f97316': 'OBS', '#ef4444': 'DET' }
+
+  // ---- FOV Cone Rendering + Drag Handles + DORI Labels ----
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
@@ -571,10 +577,35 @@ export function CanvasArea({
           const absEndY = cy + Math.sin(rotRad + halfAngle) * r
           const largeArc = data.hFov > 180 ? 1 : 0
           const pathStr = `M ${cx} ${cy} L ${absStartX} ${absStartY} A ${r} ${r} 0 ${largeArc} 1 ${absEndX} ${absEndY} Z`
+
+          // Compute opacity — boost matching tier, dim others when highlighted
+          let opacity = tier.opacity
+          if (highlightedPpfTier) {
+            opacity = tier.color === highlightedPpfTier ? Math.min(tier.opacity * 3, 0.5) : tier.opacity * 0.2
+          }
+
           const path = new fabric.Path(pathStr, {
-            fill: tier.color, opacity: tier.opacity, selectable: false, evented: false,
+            fill: tier.color, opacity, selectable: false, evented: false,
           })
           canvas.add(path); canvas.sendObjectToBack(path); objects.push(path)
+
+          // DORI mode: add tier label at arc midpoint along rotation center line
+          if (fovDisplayMode === 'dori' && r > 20) {
+            const labelR = r * 0.92
+            const lx = cx + Math.cos(rotRad) * labelR
+            const ly = cy + Math.sin(rotRad) * labelR
+            const label = TIER_LABELS[tier.color] || ''
+            if (label) {
+              const text = new fabric.FabricText(label, {
+                left: lx, top: ly, fontSize: 9, fontWeight: '700',
+                fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
+                originX: 'center', originY: 'center', selectable: false, evented: false,
+                opacity: highlightedPpfTier && tier.color !== highlightedPpfTier ? 0.2 : 0.9,
+              })
+              ;(text as unknown as Record<string, unknown>).__isDoriLabel = true
+              canvas.add(text); objects.push(text)
+            }
+          }
         }
         fovObjectMap.set(deviceId, objects)
 
@@ -598,7 +629,7 @@ export function CanvasArea({
       canvas.renderAll()
     }
     void addFovCones()
-  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged])
+  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier])
 
   // ---- FOV Handle Drag → update target distance ----
   useEffect(() => {
@@ -1232,20 +1263,37 @@ export function CanvasArea({
         )}
       </div>
 
-      {/* Bottom bar: PPF Legend + Scale */}
+      {/* Bottom bar: PPF/DORI Legend + Scale */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', background: 'linear-gradient(transparent, rgba(15,17,23,0.95))', zIndex: 10 }}>
         <div style={{ fontSize: 10, color: C.textDim, fontFamily: "'IBM Plex Mono'" }}>{Math.round(zoomLevel * 100)}%</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 9, fontFamily: "'IBM Plex Mono'" }}>
           {[
-            { color: C.green, label: '100+' }, { color: C.yellow, label: '50-99' },
-            { color: C.orange, label: '10-49' }, { color: C.red, label: '<10' },
-          ].map((ppf) => (
-            <div key={ppf.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: ppf.color, opacity: 0.7 }} />
-              <span style={{ color: C.textDim }}>{ppf.label}</span>
-            </div>
-          ))}
-          <span style={{ color: C.textMuted, marginLeft: 2 }}>PPF</span>
+            { color: C.green, ppfLabel: '100+', doriLabel: 'ID' },
+            { color: C.yellow, ppfLabel: '50-99', doriLabel: 'REC' },
+            { color: C.orange, ppfLabel: '10-49', doriLabel: 'OBS' },
+            { color: C.red, ppfLabel: '<10', doriLabel: 'DET' },
+          ].map((tier) => {
+            const isActive = highlightedPpfTier === tier.color
+            return (
+              <div key={tier.color}
+                onClick={() => onPpfTierClick?.(isActive ? null : tier.color)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 3, cursor: showFovCones ? 'pointer' : 'default',
+                  padding: '2px 4px', borderRadius: 3,
+                  background: isActive ? `${tier.color}25` : 'transparent',
+                  border: isActive ? `1px solid ${tier.color}50` : '1px solid transparent',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => { if (showFovCones && !isActive) e.currentTarget.style.background = `${tier.color}15` }}
+                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent' }}>
+                <div style={{ width: 10, height: 10, borderRadius: 2, background: tier.color, opacity: isActive ? 1 : 0.7 }} />
+                <span style={{ color: isActive ? tier.color : C.textDim }}>
+                  {fovDisplayMode === 'dori' ? tier.doriLabel : tier.ppfLabel}
+                </span>
+              </div>
+            )
+          })}
+          <span style={{ color: C.textMuted, marginLeft: 2 }}>{fovDisplayMode === 'dori' ? 'DORI' : 'PPF'}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: C.textDim, fontFamily: "'IBM Plex Mono'" }}>
           <div style={{ width: 60, height: 2, background: C.textDim, position: 'relative' }}>
