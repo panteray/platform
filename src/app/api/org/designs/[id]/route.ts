@@ -31,7 +31,7 @@ export async function GET(
   if (design.opp_id) {
     const { data: opp } = await admin
       .from('opportunities')
-      .select('id, opp_number, project_name, customer_name, install_address, state')
+      .select('id, opp_number, project_name, customer_name, install_address, state, poc_name, poc_phone, poc_email, disciplines')
       .eq('id', design.opp_id)
       .single()
     opportunities = opp
