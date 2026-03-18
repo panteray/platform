@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON, ToolbarIcons } from './icons'
+import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
+import type { DoriClassification } from '@/lib/calculators'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignZone } from '@/types/database'
 
 type FabricCanvas = import('fabric').Canvas
@@ -20,6 +22,10 @@ export interface DeviceFovData {
   rotation: number
   tiers: FovTier[]
   sensorAngles?: number[]
+  // Camera specs for PPF-at-cursor computation
+  resolutionW?: number
+  sensorW?: number
+  focalLength?: number
 }
 
 // ---- Cable Draw State Machine ----
@@ -91,6 +97,7 @@ interface CanvasAreaProps {
   onUndo?: () => void
   onRedo?: () => void
   floorPlanOpacity?: number
+  onFovHandleDragged?: (deviceId: string, targetDistanceFt: number) => void
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
@@ -106,6 +113,7 @@ export function CanvasArea({
   zones = [], selectedZoneId, onZoneCreated, onZoneMoved, onZoneResized, onSelectZone,
   pendingDeviceName,
   onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
+  onFovHandleDragged,
 }: CanvasAreaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
@@ -126,6 +134,8 @@ export function CanvasArea({
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
   const snapRef = useRef(snapToGrid)
   useEffect(() => { snapRef.current = snapToGrid }, [snapToGrid])
+  const [ppfTooltip, setPpfTooltip] = useState<{ visible: boolean; x: number; y: number; ppf: number; dori: string; distFt: number } | null>(null)
+  const fovHandleMap = useRef(new Map<string, FabricObject>())
 
   // ---- Initialize Fabric.js ----
   useEffect(() => {
@@ -532,11 +542,12 @@ export function CanvasArea({
     void addDevices()
   }, [devices, fabricReady, hiddenCategories])
 
-  // ---- FOV Cone Rendering ----
+  // ---- FOV Cone Rendering + Drag Handles ----
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
     fovObjectMap.forEach((objs) => objs.forEach((o) => canvas.remove(o))); fovObjectMap.clear()
+    fovHandleMap.current.forEach((o) => canvas.remove(o)); fovHandleMap.current.clear()
     if (!showFovCones) { canvas.renderAll(); return }
 
     async function addFovCones() {
@@ -548,8 +559,10 @@ export function CanvasArea({
         const halfAngle = (data.hFov / 2) * (Math.PI / 180)
         const rotRad = (data.rotation || 0) * (Math.PI / 180)
 
+        let outerR = 0
         for (const tier of data.tiers) {
           const r = tier.distanceFt * (scalePxPerFt || 10)
+          if (r > outerR) outerR = r
           const cx = device.position_x
           const cy = device.position_y
           const absStartX = cx + Math.cos(rotRad - halfAngle) * r
@@ -564,11 +577,108 @@ export function CanvasArea({
           canvas.add(path); canvas.sendObjectToBack(path); objects.push(path)
         }
         fovObjectMap.set(deviceId, objects)
+
+        // Drag handle at outermost cone edge along rotation center line
+        if (outerR > 0 && onFovHandleDragged) {
+          const hx = device.position_x + Math.cos(rotRad) * outerR
+          const hy = device.position_y + Math.sin(rotRad) * outerR
+          const handle = new fabric.Circle({
+            left: hx, top: hy, radius: 5, fill: 'rgba(59,130,246,0.9)', stroke: '#fff', strokeWidth: 1.5,
+            originX: 'center', originY: 'center', selectable: true, evented: true,
+            hasControls: false, hasBorders: false, hoverCursor: 'grab', moveCursor: 'grabbing',
+          })
+          ;(handle as unknown as Record<string, unknown>).__fovHandle = true
+          ;(handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId
+          ;(handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x
+          ;(handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y
+          canvas.add(handle)
+          fovHandleMap.current.set(deviceId, handle)
+        }
       }
       canvas.renderAll()
     }
     void addFovCones()
-  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady])
+  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged])
+
+  // ---- FOV Handle Drag → update target distance ----
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady || !onFovHandleDragged) return
+    const canvas = fabricRef.current
+    const handler = (e: { target?: FabricObject }) => {
+      const obj = e.target; if (!obj) return
+      const rec = obj as unknown as Record<string, unknown>
+      if (!rec.__fovHandle) return
+      const deviceId = rec.__fovDeviceId as string
+      const cx = rec.__fovDeviceCx as number
+      const cy = rec.__fovDeviceCy as number
+      const dx = (obj.left ?? 0) - cx
+      const dy = (obj.top ?? 0) - cy
+      const distPx = Math.sqrt(dx * dx + dy * dy)
+      const distFt = distPx / (scalePxPerFt || 10)
+      if (distFt > 1) onFovHandleDragged(deviceId, Math.round(distFt))
+    }
+    canvas.on('object:modified', handler)
+    return () => { canvas.off('object:modified', handler) }
+  }, [fabricReady, onFovHandleDragged, scalePxPerFt])
+
+  // ---- PPF at Cursor Tooltip ----
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady || !showFovCones) {
+      setPpfTooltip(null)
+      return
+    }
+    const canvas = fabricRef.current
+    const handler = (opt: { e: Event }) => {
+      const evt = opt.e as MouseEvent
+      const point = canvas.getScenePoint(evt)
+      const px = point.x, py = point.y
+
+      // Check if cursor is inside any FOV cone
+      for (const [deviceId, data] of fovData.entries()) {
+        const device = devices.find((d) => d.id === deviceId)
+        if (!device || !data.resolutionW || !data.sensorW || !data.focalLength) continue
+
+        const dx = px - device.position_x
+        const dy = py - device.position_y
+        const distPx = Math.sqrt(dx * dx + dy * dy)
+        if (distPx < 3) continue // too close to center
+
+        // Check angle: is cursor within the FOV cone?
+        const cursorAngle = Math.atan2(dy, dx) // radians
+        const rotRad = (data.rotation || 0) * (Math.PI / 180)
+        let angleDiff = cursorAngle - rotRad
+        // Normalize to [-PI, PI]
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
+        const halfAngle = (data.hFov / 2) * (Math.PI / 180)
+        if (Math.abs(angleDiff) > halfAngle) continue
+
+        // Check distance: within outermost tier?
+        const maxTierDist = Math.max(...data.tiers.map(t => t.distanceFt))
+        const distFt = distPx / (scalePxPerFt || 10)
+        if (distFt > maxTierDist) continue
+
+        // Cursor is inside this cone — compute PPF
+        const ppf = calculatePpfAtDistance(data.resolutionW, data.sensorW, data.focalLength, distFt)
+        const dori = classifyDori(ppf)
+        const doriLabel: Record<DoriClassification, string> = { identification: 'Identification', recognition: 'Recognition', observation: 'Observation', detection: 'Detection', none: 'Monitor Only' }
+
+        setPpfTooltip({
+          visible: true,
+          x: evt.clientX + 14,
+          y: evt.clientY - 8,
+          ppf: Math.round(ppf),
+          dori: doriLabel[dori],
+          distFt: Math.round(distFt * 10) / 10,
+        })
+        return
+      }
+      // Not inside any cone
+      setPpfTooltip(null)
+    }
+    canvas.on('mouse:move', handler)
+    return () => { canvas.off('mouse:move', handler); setPpfTooltip(null) }
+  }, [fabricReady, showFovCones, fovData, devices, scalePxPerFt])
 
   // ---- Cable Rendering ----
   useEffect(() => {
@@ -1079,6 +1189,25 @@ export function CanvasArea({
             </div>
             )
           )}
+        </div>
+      )}
+
+      {/* PPF at Cursor Tooltip */}
+      {ppfTooltip?.visible && (
+        <div style={{
+          position: 'fixed', left: ppfTooltip.x, top: ppfTooltip.y,
+          background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
+          padding: '5px 10px', zIndex: 1001, pointerEvents: 'none',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+          fontFamily: "'IBM Plex Mono', monospace",
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, whiteSpace: 'nowrap' }}>
+            <span style={{ fontWeight: 700, color: ppfTooltip.ppf >= 76 ? C.green : ppfTooltip.ppf >= 38 ? C.yellow : ppfTooltip.ppf >= 8 ? C.orange : C.red }}>
+              {ppfTooltip.ppf} PPF
+            </span>
+            <span style={{ color: C.textMuted, fontSize: 9 }}>{ppfTooltip.dori}</span>
+            <span style={{ color: C.textDim, fontSize: 9 }}>{ppfTooltip.distFt} ft</span>
+          </div>
         </div>
       )}
 

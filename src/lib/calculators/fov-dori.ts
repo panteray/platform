@@ -329,14 +329,31 @@ export function validateFovInput(partial: FovDoriInputPartial): FovValidation {
   return { valid: missingFields.length === 0, missingFields };
 }
 
-// ---- Internal helpers ----
+// ---- Public helpers ----
 
-function classifyDori(ppf: number): DoriClassification {
+export function classifyDori(ppf: number): DoriClassification {
   if (ppf >= DORI_THRESHOLDS.identification) return 'identification';
   if (ppf >= DORI_THRESHOLDS.recognition) return 'recognition';
   if (ppf >= DORI_THRESHOLDS.observation) return 'observation';
   if (ppf >= DORI_THRESHOLDS.detection) return 'detection';
   return 'none';
+}
+
+/**
+ * Calculate PPF at an arbitrary distance from camera.
+ * Used for PPF-at-cursor on canvas.
+ */
+export function calculatePpfAtDistance(
+  resolutionW: number,
+  sensorW: number,
+  focalLength: number,
+  distanceFt: number,
+): number {
+  if (distanceFt <= 0 || sensorW <= 0 || focalLength <= 0) return 0;
+  const distMm = distanceFt * MM_PER_FT;
+  const sceneWidthMm = 2 * distMm * Math.tan(Math.atan(sensorW / (2 * focalLength)));
+  const sceneWidthFt = sceneWidthMm / MM_PER_FT;
+  return sceneWidthFt > 0 ? round(resolutionW / sceneWidthFt) : 0;
 }
 
 function calculateMaxDistance(

@@ -140,6 +140,9 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
           hFov: result.hFov,
           rotation: d.rotation || 0,
           tiers: tiers.map((t) => ({ distanceFt: t.distanceFt, color: t.color, opacity: t.opacity })),
+          resolutionW: resW,
+          sensorW,
+          focalLength,
         })
       } catch {
         // Engine didn't run — skip
@@ -313,6 +316,10 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
       redo: async () => { await updateDevice(id, { rotation: angle }) },
     })
   }, [devices, updateDevice, pushUndo, markSaving])
+  const handleFovDragged = useCallback(async (deviceId: string, targetDistanceFt: number) => {
+    markSaving()
+    await updateDevice(deviceId, { properties: { ...((devices.find(d => d.id === deviceId)?.properties ?? {}) as Record<string, unknown>), target_distance: targetDistanceFt } })
+  }, [devices, updateDevice, markSaving])
   const handleDeviceCopy = useCallback(async (id: string) => {
     const src = devices.find((d) => d.id === id); if (!src) return
     const prefix = LABEL_PREFIX[src.category] || 'DEV'
@@ -702,7 +709,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               hiddenCategories={hiddenCategories}
               onUndo={handleUndo}
               onRedo={handleRedo}
-              floorPlanOpacity={floorPlanOpacity} />
+              floorPlanOpacity={floorPlanOpacity}
+              onFovHandleDragged={handleFovDragged} />
 
             {/* Right panel — OVERLAY, when device or zone selected */}
             {(selectedDevice || selectedZone) && (

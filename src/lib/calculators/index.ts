@@ -9,7 +9,7 @@
  * No hardcoded fallbacks for any equipment parameter.
  */
 
-export { calculateFovDori, getFovConeTiers, getFovConeParams, canvasDeviceToFovInput, validateFovInput, COMMON_SENSORS } from './fov-dori'
+export { calculateFovDori, getFovConeTiers, getFovConeParams, canvasDeviceToFovInput, validateFovInput, classifyDori, calculatePpfAtDistance, COMMON_SENSORS } from './fov-dori'
 export type { FovDoriInput, FovDoriOutput, FovDoriInputPartial, FovValidation, CanvasFovDevice, DoriClassification } from './fov-dori'
 
 export { calculateLpr, canvasDeviceToLprInput, canvasDevicesToLprInputs, validateLprInput } from './lpr'
