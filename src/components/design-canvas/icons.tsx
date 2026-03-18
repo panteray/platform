@@ -143,29 +143,40 @@ export const ActionIcons: Record<string, React.JSX.Element> = {
   chevRight: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 6 15 12 9 18" /></svg>,
 }
 
-// ---- Auto-label prefix by category ----
-export const LABEL_PREFIX: Record<string, string> = {
+// ---- Per-device-type label codes (spec-compliant) ----
+// Produces labels like CAM-D-001, ACS-DC-001, PTZ-001, etc.
+export const LABEL_CODES: Record<string, string> = {
+  // Category-level fallbacks
   cctv: 'CAM',
-  access_control: 'DOOR',
-  network: 'SW',
+  access_control: 'ACS',
+  network: 'NET',
   av: 'AV',
   vape_environmental: 'ENV',
   other: 'DEV',
-  // Sub-types
-  dome: 'CAM',
-  bullet: 'CAM',
-  turret: 'CAM',
+  // CCTV sub-types
+  dome: 'CAM-D',
+  bullet: 'CAM-B',
+  turret: 'CAM-T',
   ptz: 'PTZ',
-  fisheye: 'CAM',
-  multisensor_quad: 'MCAM',
-  multisensor_dual: 'MCAM',
-  door: 'DOOR',
-  door_controller: 'CTRL',
-  card_reader: 'RDR',
-  electric_strike: 'STRK',
-  maglock: 'MAG',
+  fisheye: 'CAM-F',
+  multisensor_quad: 'MCAM-Q',
+  multisensor_dual: 'MCAM-D',
+  // Access control sub-types
+  door: 'ACS-DR',
+  door_controller: 'ACS-DC',
+  card_reader: 'ACS-CR',
+  electric_strike: 'ACS-ES',
+  maglock: 'ACS-ML',
+  rim_strike: 'ACS-RS',
+  mortise_lock: 'ACS-MR',
+  elr: 'ACS-ELR',
+  intercom: 'ICOM',
+  video_intercom: 'ICOM-V',
+  audio_intercom: 'ICOM-A',
+  // Network sub-types
   switch: 'SW',
-  access_switch: 'ASW',
+  access_switch: 'SW',
+  poe_switch: 'PSW',
   rack: 'RACK',
   nvr: 'NVR',
   router: 'RTR',
@@ -173,10 +184,17 @@ export const LABEL_PREFIX: Record<string, string> = {
   wireless_ap: 'WAP',
   bridge: 'PTP',
   server: 'SRV',
-  monitor: 'MON',
   patch_panel: 'PP',
+  // AV sub-types
+  monitor: 'MON',
   speaker: 'SPK',
-  intercom: 'ICOM',
+  // Vape / Environmental
+  vape_detector: 'VAPE',
+  environmental_detector: 'ENV',
+  // Misc
   junction_box: 'JB',
   mount_ring: 'MNT',
 }
+
+/** @deprecated Use LABEL_CODES instead */
+export const LABEL_PREFIX = LABEL_CODES

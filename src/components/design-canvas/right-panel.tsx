@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { C, COLORS_16, PPF_CHART } from './constants'
+import { C, COLORS_16, COLORS_48, PPF_CHART } from './constants'
 import { Section, Field, SliderField, SubLabel } from './section'
 import { ActionIcons } from './icons'
 import { calculateMountRequirements, type MountCalcOutput } from '@/lib/calculators'
@@ -256,16 +256,17 @@ export function RightPanel({
             }}
           />
 
-          {/* 16-color picker */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-            {COLORS_16.map((c) => (
+          {/* Color picker — 48 swatches, 8 per row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 3, marginTop: 8 }}>
+            {COLORS_48.map((c) => (
               <div
                 key={c}
                 onClick={() => saveField('color_hex', c)}
                 style={{
-                  width: 18, height: 18, borderRadius: 4, background: c, cursor: 'pointer',
+                  width: '100%', aspectRatio: '1', borderRadius: 4, background: c, cursor: 'pointer',
                   border: d.color_hex === c ? '2px solid white' : '2px solid transparent',
                   transition: 'all 0.1s',
+                  boxSizing: 'border-box',
                 }}
               />
             ))}

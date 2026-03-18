@@ -5,7 +5,7 @@ import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Tra
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { C, GRID_SIZE, UNDO_STACK_DEPTH, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
-import { LABEL_PREFIX } from './icons'
+import { LABEL_CODES } from './icons'
 import { CanvasArea, type DeviceFovData } from './canvas-area'
 import { IconSidebar } from './icon-sidebar'
 import { LeftPanel } from './left-panel'
@@ -272,7 +272,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     try {
       const category = pendingDevice.category || TAB_TO_CATEGORY[activeIcon] || 'other'
       const subType = pendingDevice.subcategory || TAB_TO_SUBTYPE[activeIcon] || 'junction_box'
-      const prefix = LABEL_PREFIX[subType] || LABEL_PREFIX[category] || 'DEV'
+      const prefix = LABEL_CODES[subType] || LABEL_CODES[category] || 'DEV'
       const props: Record<string, unknown> = {
         sub_type: subType,
         manufacturer: pendingDevice.vendor,
@@ -346,7 +346,9 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   }, [devices, updateDevice, markSaving])
   const handleDeviceCopy = useCallback(async (id: string) => {
     const src = devices.find((d) => d.id === id); if (!src) return
-    const prefix = LABEL_PREFIX[src.category] || 'DEV'
+    const srcProps = (src.properties ?? {}) as Record<string, unknown>
+    const subType = (srcProps.sub_type as string) || ''
+    const prefix = LABEL_CODES[subType] || LABEL_CODES[src.category] || 'DEV'
     await addDevice({ area_id: src.area_id, category: src.category, position_x: src.position_x + 40, position_y: src.position_y + 40, color_hex: src.color_hex, rotation: src.rotation, label_prefix: prefix, properties: src.properties, device_library_item_id: src.device_library_item_id, mount_type: src.mount_type, status: src.status })
     markSaving()
   }, [devices, addDevice, markSaving])
@@ -420,7 +422,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
       const item = JSON.parse(deviceData) as DeviceSearchResult
       const category = item.category || TAB_TO_CATEGORY[activeIcon] || 'other'
       const subType = item.subcategory || TAB_TO_SUBTYPE[activeIcon] || 'junction_box'
-      const prefix = LABEL_PREFIX[subType] || LABEL_PREFIX[category] || 'DEV'
+      const prefix = LABEL_CODES[subType] || LABEL_CODES[category] || 'DEV'
       let px = x, py = y
       if (snapToGrid) { px = Math.round(px / GRID_SIZE) * GRID_SIZE; py = Math.round(py / GRID_SIZE) * GRID_SIZE }
       const props: Record<string, unknown> = {
