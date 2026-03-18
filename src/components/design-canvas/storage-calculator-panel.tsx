@@ -1,139 +1,188 @@
 "use client";
 import React from "react";
+import { X } from "lucide-react";
 import {
   calculateSystemStorage,
   canvasDevicesToCameraSpecs,
-  type CameraSpec,
   type SystemStorageOutput,
 } from "@/lib/calculators/system-storage";
+import { C } from "./constants";
 import type { DesignDevice } from "@/types/database";
 
 export interface StorageCalculatorPanelProps {
-  /** Placed CCTV devices from canvas — used to build camera specs */
+  /** Placed devices from canvas */
   devices?: DesignDevice[];
-  /** Fallback: total cameras if devices not provided */
-  cameraCount?: number;
-  /** Retention days — user must set at project level */
+  /** Pre-computed output from design-canvas (avoids duplicate calc) */
+  storageOutput?: SystemStorageOutput | null;
+  /** Retention days — defaults to 30 */
   retentionDays?: number;
+  /** Close handler */
+  onClose?: () => void;
 }
+
+const CAMERA_TYPES = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'];
 
 export function StorageCalculatorPanel({
   devices,
-  cameraCount,
+  storageOutput: externalOutput,
   retentionDays = 30,
+  onClose,
 }: StorageCalculatorPanelProps) {
-  const cameraSpecs: CameraSpec[] = devices
-    ? canvasDevicesToCameraSpecs(
-        devices.map((d) => ({
-          id: d.id,
-          label: d.label || "",
-          category: d.category || "other",
-          properties: (d.properties ?? {}) as Record<string, unknown>,
-        }))
-      )
-    : [];
+  // Use pre-computed output if available, otherwise compute internally
+  const output: SystemStorageOutput | null = externalOutput !== undefined ? externalOutput : (() => {
+    if (!devices || devices.length === 0) return null;
+    const camDevices = devices
+      .filter((d) => CAMERA_TYPES.includes(d.category))
+      .map((d) => ({
+        id: d.id,
+        label: d.label || "",
+        category: "cctv" as const,
+        properties: (d.properties ?? {}) as Record<string, unknown>,
+      }));
+    if (camDevices.length === 0) return null;
+    const specs = canvasDevicesToCameraSpecs(camDevices);
+    if (specs.length === 0) return null;
+    try {
+      return calculateSystemStorage({ cameras: specs, retentionDays, raidLevel: 6, driveSizeTB: 10 });
+    } catch { return null; }
+  })();
 
-  const totalCameras = cameraSpecs.length || cameraCount || 0;
+  const totalCameras = output?.totalCameras ?? 0;
 
-  const output: SystemStorageOutput | null =
-    cameraSpecs.length > 0
-      ? calculateSystemStorage({ cameras: cameraSpecs, retentionDays, raidLevel: 6, driveSizeTB: 10 })
-      : null;
+  const metricBox = { padding: '10px 12px', background: C.bgSurface, borderRadius: 6, border: `1px solid ${C.border}` } as const;
+  const metricLabel = { fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, color: C.textDim, letterSpacing: 0.5 };
+  const metricValue = { fontSize: 20, fontWeight: 700, color: C.text, lineHeight: 1.3 };
+  const metricSmall = { fontSize: 11, color: C.textMuted };
+  const sectionTitle = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, color: C.textDim, letterSpacing: 0.5, marginBottom: 8 };
 
   return (
-    <div className="w-80 bg-card border-l border-border flex flex-col h-full overflow-y-auto">
-      <div className="p-4 border-b border-border bg-muted/30">
-        <h2 className="text-lg font-bold text-foreground">Storage &amp; System</h2>
-        <p className="text-xs text-muted-foreground mt-1">
-          Based on {totalCameras} camera{totalCameras !== 1 ? "s" : ""} on canvas
-        </p>
+    <div style={{ width: 300, background: C.bgPanel, borderLeft: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* Header */}
+      <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, background: C.bgSurface, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Storage &amp; System</div>
+          <div style={{ fontSize: 10, color: C.textDim, marginTop: 2 }}>
+            Based on {totalCameras} camera{totalCameras !== 1 ? "s" : ""} on canvas
+          </div>
+        </div>
+        {onClose && (
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 4, display: 'flex' }}>
+            <X size={14} />
+          </button>
+        )}
       </div>
-      {totalCameras === 0 ? (
-        <div className="p-6 text-center text-muted-foreground text-sm">
-          Add cameras to see storage and bandwidth estimates.
-        </div>
-      ) : !output ? (
-        <div className="p-6 text-center text-muted-foreground text-sm">
-          Place devices on the canvas to calculate storage from actual specs.
-        </div>
-      ) : (
-        <div className="p-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 bg-muted/30 rounded border border-border">
-              <p className="text-xs font-bold uppercase text-muted-foreground">
-                Bandwidth
-              </p>
-              <p className="text-xl font-bold text-foreground">
-                {Math.round(output.totalBandwidthMbps)} Mbps
-              </p>
-            </div>
-            <div className="p-3 bg-muted/30 rounded border border-border">
-              <p className="text-xs font-bold uppercase text-muted-foreground">
-                Storage ({retentionDays}d)
-              </p>
-              <p className="text-xl font-bold text-foreground">
-                {output.totalStorageTB.toFixed(1)} TB
-              </p>
-            </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+        {totalCameras === 0 ? (
+          <div style={{ textAlign: 'center', color: C.textMuted, fontSize: 12, padding: '32px 16px' }}>
+            Place cameras on the canvas to see storage, bandwidth, and PoE estimates.
           </div>
-          <div>
-            <h4 className="text-xs font-bold uppercase text-muted-foreground mb-2">
-              PoE budget
-            </h4>
-            <p className="text-lg font-bold text-foreground">
-              {output.poeBudget.totalWatts} W
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Switch capacity: {output.poeBudget.recommendedSwitchWatts} W
-            </p>
+        ) : !output ? (
+          <div style={{ textAlign: 'center', color: C.textMuted, fontSize: 12, padding: '32px 16px' }}>
+            Camera specs incomplete — add resolution and compression data in device properties.
           </div>
-          <div>
-            <h4 className="text-xs font-bold uppercase text-muted-foreground mb-2">
-              RAID {output.raidAnalysis.raidLevel}
-            </h4>
-            <div className="p-2 bg-muted/30 rounded border border-border text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Usable</span>
-                <span className="font-bold text-foreground">{output.raidAnalysis.usableStorageTB.toFixed(1)} TB</span>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Bandwidth + Storage */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={metricBox}>
+                <div style={metricLabel}>Bandwidth</div>
+                <div style={metricValue}>{Math.round(output.totalBandwidthMbps)}<span style={{ fontSize: 12, fontWeight: 500, color: C.textMuted, marginLeft: 3 }}>Mbps</span></div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Drives</span>
-                <span className="font-bold text-foreground">{output.raidAnalysis.driveCount}x {output.raidAnalysis.driveSizeTB} TB</span>
+              <div style={metricBox}>
+                <div style={metricLabel}>Storage ({retentionDays}d)</div>
+                <div style={metricValue}>{output.totalStorageTB.toFixed(1)}<span style={{ fontSize: 12, fontWeight: 500, color: C.textMuted, marginLeft: 3 }}>TB</span></div>
               </div>
             </div>
-          </div>
-          {output.tco ? (
-            <div className="pt-2 border-t border-border">
-              <p className="text-xs font-bold uppercase text-muted-foreground">
-                5-year TCO
-              </p>
-              <div className="flex gap-4 mt-1">
-                <div>
-                  <p className="text-xs text-muted-foreground">Local NVR</p>
-                  <p className="text-sm font-bold text-foreground">
-                    ${output.tco.localNvrCost.toLocaleString()}
-                  </p>
+
+            {/* PoE Budget */}
+            <div>
+              <div style={sectionTitle}>PoE Budget</div>
+              <div style={metricBox}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <div style={metricValue}>{output.poeBudget.totalWatts}<span style={{ fontSize: 12, fontWeight: 500, color: C.textMuted, marginLeft: 3 }}>W</span></div>
+                  <div style={{ fontSize: 10, color: C.accent, fontWeight: 600 }}>{output.poeBudget.cameraCount} devices</div>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Cloud (5yr)</p>
-                  <p className="text-sm font-bold text-foreground">
-                    ${output.tco.cloud5YearCost.toLocaleString()}
-                  </p>
+                <div style={{ ...metricSmall, marginTop: 6 }}>
+                  Recommended switch: <span style={{ fontWeight: 600, color: C.text }}>{output.poeBudget.recommendedSwitchWatts} W</span>
+                </div>
+                {output.poeBudget.byStandard.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {output.poeBudget.byStandard.filter(s => s.standard !== 'none').map((s) => (
+                      <div key={s.standard} style={{ fontSize: 9, color: C.textDim, background: C.bgActive, padding: '2px 6px', borderRadius: 3 }}>
+                        802.3{s.standard}: {s.count}x ({s.watts}W)
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* RAID Analysis */}
+            <div>
+              <div style={sectionTitle}>RAID {output.raidAnalysis.raidLevel}</div>
+              <div style={metricBox}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={metricSmall}>Usable</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{output.raidAnalysis.usableStorageTB.toFixed(1)} TB</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={metricSmall}>Raw</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.textMuted }}>{output.raidAnalysis.rawStorageTB.toFixed(1)} TB</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={metricSmall}>Drives</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{output.raidAnalysis.driveCount}x {output.raidAnalysis.driveSizeTB} TB</span>
+                  </div>
+                  {/* Utilization bar */}
+                  <div style={{ marginTop: 4 }}>
+                    <div style={{ height: 4, background: C.bgActive, borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', borderRadius: 2,
+                        width: `${Math.min(100, (output.totalStorageTB / output.raidAnalysis.usableStorageTB) * 100)}%`,
+                        background: (output.totalStorageTB / output.raidAnalysis.usableStorageTB) > 0.85 ? C.red : C.green,
+                        transition: 'width 0.3s',
+                      }} />
+                    </div>
+                    <div style={{ fontSize: 9, color: C.textDim, marginTop: 2, textAlign: 'right' }}>
+                      {((output.totalStorageTB / output.raidAnalysis.usableStorageTB) * 100).toFixed(0)}% utilized
+                    </div>
+                  </div>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {output.tco.recommendation}
-              </p>
             </div>
-          ) : (
-            <div className="pt-2 border-t border-border">
-              <p className="text-xs text-muted-foreground">
-                Provide cloud and local storage pricing to see TCO comparison.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+
+            {/* TCO */}
+            {output.tco ? (
+              <div>
+                <div style={sectionTitle}>5-Year TCO</div>
+                <div style={metricBox}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.textDim, textTransform: 'uppercase' }}>Local NVR</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>${output.tco.localNvrCost.toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.textDim, textTransform: 'uppercase' }}>Cloud (5yr)</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>${output.tco.cloud5YearCost.toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <div style={{ ...metricSmall, marginTop: 8 }}>{output.tco.recommendation}</div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={sectionTitle}>5-Year TCO</div>
+                <div style={{ fontSize: 11, color: C.textDim, padding: '8px 0' }}>
+                  Provide cloud and local storage pricing to see TCO comparison.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

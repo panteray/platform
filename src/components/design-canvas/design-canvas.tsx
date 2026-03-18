@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet } from 'lucide-react'
+import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { C, GRID_SIZE, UNDO_STACK_DEPTH, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
@@ -11,13 +11,14 @@ import { IconSidebar } from './icon-sidebar'
 import { LeftPanel } from './left-panel'
 import { RightPanel } from './right-panel'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
+import { StorageCalculatorPanel } from './storage-calculator-panel'
 import { TopologyView } from './topology-view'
 import { RackElevationView } from './rack-elevation-view'
 import { VlanPlanner } from './vlan-planner'
 import { AvSignalFlow } from './av-signal-flow'
 import { MspCanvas } from './msp-canvas'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
-import { calculateFovDori, getFovConeTiers } from '@/lib/calculators'
+import { calculateFovDori, getFovConeTiers, calculateSystemStorage, canvasDevicesToCameraSpecs } from '@/lib/calculators'
 import type { DesignFloorPlan, DeviceSearchResult } from '@/types/database'
 
 const TAB_TO_SUBTYPE: Record<string, string> = { camera: 'dome', door: 'door', network: 'switch', av: 'speaker', sensors: 'junction_box', other: 'junction_box' }
@@ -64,6 +65,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
   const [floorPlanError, setFloorPlanError] = useState<string | null>(null)
   const [showRequirements, setShowRequirements] = useState(false)
+  const [showStoragePanel, setShowStoragePanel] = useState(false)
   const [editingAreaId, setEditingAreaId] = useState<string | null>(null)
   const [editAreaValue, setEditAreaValue] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -146,22 +148,52 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     return map
   }, [areaDevices])
 
-  // ---- Requirements ----
+  // ---- Computed engineering metrics from calculator engine ----
   const cameraTypes = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual']
   const networkTypes = ['network', 'switch', 'access_switch', 'rack', 'nvr', 'router', 'firewall', 'wireless_ap', 'bridge', 'server']
+  const storageOutput = useMemo(() => {
+    const camDevices = areaDevices
+      .filter((d) => cameraTypes.includes(d.category))
+      .map((d) => ({
+        id: d.id,
+        label: d.label || '',
+        category: 'cctv' as const, // normalize for engine filter
+        properties: (d.properties ?? {}) as Record<string, unknown>,
+      }))
+    if (camDevices.length === 0) return null
+    const specs = canvasDevicesToCameraSpecs(camDevices)
+    if (specs.length === 0) return null
+    try {
+      return calculateSystemStorage({ cameras: specs, retentionDays: 30, raidLevel: 6, driveSizeTB: 10 })
+    } catch { return null }
+  }, [areaDevices])
+
   const requirements: RequirementItem[] = useMemo(() => {
     const camCount = areaDevices.filter((d) => cameraTypes.includes(d.category)).length
     const doorCount = areaDevices.filter((d) => d.category === 'access_control' || d.category === 'door').length
     const netCount = areaDevices.filter((d) => networkTypes.includes(d.category)).length
-    const cableCount = areaCables.length
-    return [
+    const avCount = areaDevices.filter((d) => d.category === 'av' || d.category === 'speaker').length
+
+    const items: RequirementItem[] = [
       { label: 'Cameras', value: camCount, unit: '', status: 'normal' as RequirementStatus },
       { label: 'Doors', value: doorCount, unit: '', status: 'normal' as RequirementStatus },
       { label: 'Network', value: netCount, unit: '', status: 'normal' as RequirementStatus },
-      { label: 'Cables', value: cableCount, unit: '', status: 'normal' as RequirementStatus },
+      { label: 'AV', value: avCount, unit: '', status: 'normal' as RequirementStatus },
       { label: 'Total', value: areaDevices.length, unit: 'devices', status: 'normal' as RequirementStatus },
     ]
-  }, [areaDevices, areaCables])
+
+    // Engineering metrics — live from calculator engine
+    if (storageOutput) {
+      items.push(
+        { label: 'Bandwidth', value: storageOutput.totalBandwidthMbps.toFixed(1), unit: 'Mbps', status: 'normal' as RequirementStatus, separator: true },
+        { label: 'Storage', value: storageOutput.totalStorageTB.toFixed(1), unit: 'TB (30d)', status: storageOutput.totalStorageTB > 100 ? 'deficient' as RequirementStatus : 'normal' as RequirementStatus },
+        { label: 'PoE', value: storageOutput.poeBudget.totalWatts, unit: 'W', status: 'normal' as RequirementStatus },
+        { label: 'Switch', value: storageOutput.poeBudget.recommendedSwitchWatts, unit: 'W', status: 'normal' as RequirementStatus },
+      )
+    }
+
+    return items
+  }, [areaDevices, storageOutput])
   const cableEstimate = useMemo(() => {
     const total = areaCables.reduce((sum, c) => sum + (c.total_length_ft ?? 0), 0)
     return total > 0 ? `${total.toLocaleString()} ft` : undefined
@@ -267,8 +299,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     markSaving()
     await updateDevice(id, { position_x: x, position_y: y })
     pushUndo({
-      undo: () => updateDevice(id, { position_x: prevX, position_y: prevY }),
-      redo: () => updateDevice(id, { position_x: x, position_y: y }),
+      undo: async () => { await updateDevice(id, { position_x: prevX, position_y: prevY }) },
+      redo: async () => { await updateDevice(id, { position_x: x, position_y: y }) },
     })
   }, [devices, updateDevice, pushUndo, markSaving])
   const handleDeviceRotated = useCallback(async (id: string, angle: number) => {
@@ -277,8 +309,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     markSaving()
     await updateDevice(id, { rotation: angle })
     pushUndo({
-      undo: () => updateDevice(id, { rotation: prevAngle }),
-      redo: () => updateDevice(id, { rotation: angle }),
+      undo: async () => { await updateDevice(id, { rotation: prevAngle }) },
+      redo: async () => { await updateDevice(id, { rotation: angle }) },
     })
   }, [devices, updateDevice, pushUndo, markSaving])
   const handleDeviceCopy = useCallback(async (id: string) => {
@@ -607,6 +639,12 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
           title="Toggle requirements bar">
           <BarChart3 size={12} />
         </button>
+
+        {/* Storage panel toggle */}
+        <button onClick={() => setShowStoragePanel(!showStoragePanel)} style={toolBtn(showStoragePanel)}
+          title="Toggle storage panel">
+          <HardDrive size={12} />
+        </button>
       </div>
 
       {/* ========== COLLAPSIBLE REQUIREMENTS BAR ========== */}
@@ -681,6 +719,16 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
                   onDeleteZone={handleDeleteZone}
                   onCloseZone={() => setSelectedZoneId(null)}
                   zones={zones} />
+              </div>
+            )}
+
+            {/* Storage panel — OVERLAY, right side */}
+            {showStoragePanel && !selectedDevice && !selectedZone && (
+              <div style={{
+                position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 9,
+                boxShadow: '-4px 0 12px rgba(0,0,0,0.3)',
+              }}>
+                <StorageCalculatorPanel devices={areaDevices} storageOutput={storageOutput} onClose={() => setShowStoragePanel(false)} />
               </div>
             )}
           </>
