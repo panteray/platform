@@ -507,6 +507,21 @@ export function CanvasArea({
           group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: 0.5, scaleY: 0.5, originX: 'center', originY: 'center', hasControls: true, hasBorders: true, lockScalingX: true, lockScalingY: true })
           ;(group as unknown as Record<string, unknown>).deviceId = device.id
           canvas.add(group); deviceObjectMap.set(device.id, group)
+
+          // Status indicator ring
+          const statusColors: Record<string, string> = { new: C.green, existing_keep: C.accent, existing_remove: C.red, relocate: C.yellow }
+          const statusColor = statusColors[device.status || 'new'] || C.green
+          if (device.status && device.status !== 'new') {
+            const ring = new fabric.Circle({
+              left: device.position_x, top: device.position_y,
+              radius: 16, fill: 'transparent', stroke: statusColor, strokeWidth: 1.5,
+              strokeDashArray: device.status === 'existing_remove' ? [3, 2] : undefined,
+              originX: 'center', originY: 'center', selectable: false, evented: false, opacity: 0.7,
+            })
+            ;(ring as unknown as Record<string, unknown>).__isLabel = true
+            canvas.add(ring)
+          }
+
           const labelText = new fabric.FabricText(device.label, { left: device.position_x, top: device.position_y + 22, fontSize: 10, fill: C.textMuted, fontFamily: 'IBM Plex Sans, sans-serif', originX: 'center', originY: 'top', selectable: false, evented: false })
           ;(labelText as unknown as Record<string, unknown>).__isLabel = true
           canvas.add(labelText)
@@ -560,6 +575,7 @@ export function CanvasArea({
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
     cableObjectMap.forEach((obj) => canvas.remove(obj)); cableObjectMap.clear()
+    canvas.getObjects().filter((o) => (o as unknown as Record<string, unknown>).__isCableLabel === true).forEach((o) => canvas.remove(o))
 
     async function addCables() {
       const fabric = await import('fabric')
@@ -573,6 +589,21 @@ export function CanvasArea({
         })
         ;(polyline as unknown as Record<string, unknown>).cableId = cable.id
         canvas.add(polyline); canvas.sendObjectToBack(polyline); cableObjectMap.set(cable.id, polyline)
+
+        // Cable label (type + length) at midpoint
+        if (wps.length >= 2) {
+          const midIdx = Math.floor(wps.length / 2)
+          const midPt = wps[midIdx]
+          const cableType = (cable.cable_type || 'Cat6').toUpperCase()
+          const lengthStr = cable.total_length_ft ? `${cable.total_length_ft}ft` : cable.length_ft ? `${cable.length_ft}ft` : ''
+          const cableLabel = new fabric.FabricText(`${cableType}${lengthStr ? ' · ' + lengthStr : ''}`, {
+            left: midPt.x, top: midPt.y - 10, fontSize: 8, fill: cable.color_hex || C.accent,
+            fontFamily: "'IBM Plex Mono', monospace", fontWeight: '600',
+            originX: 'center', selectable: false, evented: false, opacity: 0.7,
+          })
+          ;(cableLabel as unknown as Record<string, unknown>).__isCableLabel = true
+          canvas.add(cableLabel)
+        }
       }
       canvas.renderAll()
     }
@@ -758,6 +789,13 @@ export function CanvasArea({
         if (objs.length === 0) throw new Error('SVG parse returned no objects')
         const group = fm.util.groupSVGElements(objs, result.options)
         group.set({ opacity, selectable: false, evented: false, originX: 'left', originY: 'top' })
+        // Auto-size to fit canvas viewport
+        const cw = canvas.width ?? 800, ch = canvas.height ?? 600
+        const gw = (group.width ?? cw) * (group.scaleX ?? 1), gh = (group.height ?? ch) * (group.scaleY ?? 1)
+        if (gw > 0 && gh > 0) {
+          const s = Math.min((cw * 0.9) / gw, (ch * 0.9) / gh, 1)
+          group.set({ scaleX: s, scaleY: s })
+        }
         canvas.backgroundImage = group as unknown as import('fabric').FabricImage
         canvas.requestRenderAll()
       } catch (err) {
@@ -791,6 +829,9 @@ export function CanvasArea({
         const fm = await import('fabric')
         const img = await fm.FabricImage.fromURL(dataUrl)
         img.set({ opacity, selectable: false, evented: false })
+        const cw = canvas.width ?? 800, ch = canvas.height ?? 600
+        const iw = (img.width ?? cw) * (img.scaleX ?? 1), ih = (img.height ?? ch) * (img.scaleY ?? 1)
+        if (iw > 0 && ih > 0) { const s = Math.min((cw * 0.9) / iw, (ch * 0.9) / ih, 1); img.set({ scaleX: s, scaleY: s }) }
         canvas.backgroundImage = img
         canvas.requestRenderAll()
         pdf.destroy()
@@ -819,6 +860,9 @@ export function CanvasArea({
           }
         }
         img.set({ opacity, selectable: false, evented: false })
+        const cw = canvas.width ?? 800, ch = canvas.height ?? 600
+        const iw = (img.width ?? cw) * (img.scaleX ?? 1), ih = (img.height ?? ch) * (img.scaleY ?? 1)
+        if (iw > 0 && ih > 0) { const s = Math.min((cw * 0.9) / iw, (ch * 0.9) / ih, 1); img.set({ scaleX: s, scaleY: s }) }
         canvas.backgroundImage = img
         canvas.requestRenderAll()
       } catch (err) {
@@ -1002,18 +1046,39 @@ export function CanvasArea({
 
       {/* Context menu */}
       {contextMenu.visible && contextMenu.deviceId && (
-        <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 0', minWidth: 120, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
+        <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 0', minWidth: 140, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
           {[
-            { label: 'Copy', action: () => onDeviceCopy?.(contextMenu.deviceId!) },
+            { label: 'Rotate 90°', action: () => {
+              const obj = deviceObjectMap.get(contextMenu.deviceId!)
+              if (obj && fabricRef.current) {
+                const newAngle = ((obj.angle ?? 0) + 90) % 360
+                obj.set({ angle: newAngle }); fabricRef.current.renderAll()
+                onDeviceRotated?.(contextMenu.deviceId!, newAngle)
+              }
+            }},
+            { label: 'Bring to Front', action: () => {
+              const obj = deviceObjectMap.get(contextMenu.deviceId!)
+              if (obj && fabricRef.current) { fabricRef.current.bringObjectToFront(obj); fabricRef.current.renderAll() }
+            }},
+            { label: 'Send to Back', action: () => {
+              const obj = deviceObjectMap.get(contextMenu.deviceId!)
+              if (obj && fabricRef.current) { fabricRef.current.sendObjectToBack(obj); fabricRef.current.renderAll() }
+            }},
+            null,
+            { label: 'Duplicate', action: () => onDeviceCopy?.(contextMenu.deviceId!) },
             { label: 'Delete', action: () => onDeviceDelete?.(contextMenu.deviceId!) },
-          ].map((item) => (
+          ].map((item, i) =>
+            item === null ? (
+              <div key={`sep-${i}`} style={{ height: 1, background: C.border, margin: '3px 8px' }} />
+            ) : (
             <div key={item.label} onClick={() => { item.action(); setContextMenu({ visible: false, x: 0, y: 0, deviceId: null }) }}
               style={{ padding: '6px 14px', fontSize: 12, color: item.label === 'Delete' ? C.red : C.text, cursor: 'pointer' }}
               onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
               {item.label}
             </div>
-          ))}
+            )
+          )}
         </div>
       )}
 

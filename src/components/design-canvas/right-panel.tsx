@@ -12,6 +12,7 @@ interface RightPanelProps {
   onDuplicate?: (id: string) => void
   onDelete?: (id: string) => void
   onUpdateDevice?: (id: string, updates: Partial<DesignDevice>) => void
+  onChangeModel?: (deviceId: string, category: string) => void
   selectedZone?: DesignZone | null
   onUpdateZone?: (id: string, updates: Record<string, unknown>) => void
   onDeleteZone?: (id: string) => void
@@ -64,6 +65,7 @@ export function RightPanel({
   onDuplicate,
   onDelete,
   onUpdateDevice,
+  onChangeModel,
   selectedZone,
   onUpdateZone,
   onDeleteZone,
@@ -277,7 +279,7 @@ export function RightPanel({
             <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginTop: 2 }}>
               {manufacturer ? `${manufacturer} ${model}` : model}
             </div>
-            <div style={{ fontSize: 9, color: C.accent, marginTop: 4, cursor: 'pointer' }}>Change Model</div>
+            <div onClick={() => onChangeModel?.(d.id, d.category)} style={{ fontSize: 9, color: C.accent, marginTop: 4, cursor: 'pointer' }}>Change Model</div>
           </div>
 
           {/* Multi-sensor badge */}

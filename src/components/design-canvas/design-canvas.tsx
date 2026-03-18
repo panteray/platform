@@ -78,6 +78,21 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [undoStack, setUndoStack] = useState<Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>>([])
   const [redoStack, setRedoStack] = useState<Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>>([])
   const layerMenuRef = useRef<HTMLDivElement>(null)
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Auto-save indicator: flash "saving..." then "saved" on any mutation
+  const markSaving = useCallback(() => {
+    setSaveStatus('saving')
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => setSaveStatus('saved'), 800)
+  }, [])
+
+  // Background sync every 30s
+  useEffect(() => {
+    const interval = setInterval(() => { refetch() }, 30000)
+    return () => clearInterval(interval)
+  }, [refetch])
 
   const activeArea = areas.find((a) => a.id === activeAreaId) ?? null
   const activeFloorPlan: DesignFloorPlan | null = floorPlans.find((fp) => fp.area_id === activeAreaId) ?? null
@@ -175,6 +190,21 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     setSelectedDeviceId(deviceId)
     setSelectedZoneId(null)
   }, [setSelectedDeviceId])
+
+  // Change Model from right panel — opens catalog filtered to same category
+  const CATEGORY_TO_TAB: Record<string, IconTabId> = {
+    cctv: 'camera', dome: 'camera', bullet: 'camera', turret: 'camera', ptz: 'camera', fisheye: 'camera', multisensor_quad: 'camera', multisensor_dual: 'camera',
+    access_control: 'door', door: 'door', door_controller: 'door', card_reader: 'door', electric_strike: 'door', maglock: 'door', intercom: 'door',
+    network: 'network', switch: 'network', access_switch: 'network', rack: 'network', nvr: 'network', router: 'network', firewall: 'network', wireless_ap: 'network', bridge: 'network', server: 'network',
+    av: 'av', speaker: 'av', vape_environmental: 'sensors', other: 'other',
+  }
+  const handleChangeModelFromPanel = useCallback((deviceId: string, category: string) => {
+    const tab = CATEGORY_TO_TAB[category] || 'camera'
+    setActiveIcon(tab)
+    setShowLeftPanel(true)
+    setPendingDevice(null)
+    // Keep the device selected so the right panel stays open
+  }, [])
   const handleCanvasClick = useCallback(async (x: number, y: number) => {
     if (activeTool !== 'place' || !activeAreaId || activeIcon === 'layers') return
     if (!pendingDevice) return  // Must select a device from library first
@@ -205,37 +235,63 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
         device_library_item_id: pendingDevice.id,
         properties: props,
       })
+      markSaving()
     } finally {
       placingRef.current = false
     }
-  }, [activeTool, activeAreaId, activeIcon, addDevice, pendingDevice, snapToGrid])
+  }, [activeTool, activeAreaId, activeIcon, addDevice, pendingDevice, snapToGrid, markSaving])
+
+  // ---- Undo / Redo ----
+  const pushUndo = useCallback((action: { undo: () => Promise<void>; redo: () => Promise<void> }) => {
+    setUndoStack(prev => [...prev.slice(-(UNDO_STACK_DEPTH - 1)), action])
+    setRedoStack([])
+  }, [])
+  const handleUndo = useCallback(async () => {
+    const action = undoStack[undoStack.length - 1]
+    if (!action) return
+    await action.undo()
+    setUndoStack(prev => prev.slice(0, -1))
+    setRedoStack(prev => [...prev, action])
+  }, [undoStack])
+  const handleRedo = useCallback(async () => {
+    const action = redoStack[redoStack.length - 1]
+    if (!action) return
+    await action.redo()
+    setRedoStack(prev => prev.slice(0, -1))
+    setUndoStack(prev => [...prev, action])
+  }, [redoStack])
+
   const handleDeviceMoved = useCallback(async (id: string, x: number, y: number) => {
     const device = devices.find(d => d.id === id)
     const prevX = device?.position_x ?? x, prevY = device?.position_y ?? y
+    markSaving()
     await updateDevice(id, { position_x: x, position_y: y })
     pushUndo({
       undo: () => updateDevice(id, { position_x: prevX, position_y: prevY }),
       redo: () => updateDevice(id, { position_x: x, position_y: y }),
     })
-  }, [devices, updateDevice, pushUndo])
+  }, [devices, updateDevice, pushUndo, markSaving])
   const handleDeviceRotated = useCallback(async (id: string, angle: number) => {
     const device = devices.find(d => d.id === id)
     const prevAngle = device?.rotation ?? 0
+    markSaving()
     await updateDevice(id, { rotation: angle })
     pushUndo({
       undo: () => updateDevice(id, { rotation: prevAngle }),
       redo: () => updateDevice(id, { rotation: angle }),
     })
-  }, [devices, updateDevice, pushUndo])
+  }, [devices, updateDevice, pushUndo, markSaving])
   const handleDeviceCopy = useCallback(async (id: string) => {
     const src = devices.find((d) => d.id === id); if (!src) return
     const prefix = LABEL_PREFIX[src.category] || 'DEV'
     await addDevice({ area_id: src.area_id, category: src.category, position_x: src.position_x + 40, position_y: src.position_y + 40, color_hex: src.color_hex, rotation: src.rotation, label_prefix: prefix, properties: src.properties, device_library_item_id: src.device_library_item_id, mount_type: src.mount_type, status: src.status })
-  }, [devices, addDevice])
-  const handleDeviceDelete = useCallback(async (id: string) => { await deleteDevice(id) }, [deleteDevice])
+    markSaving()
+  }, [devices, addDevice, markSaving])
+  const handleDeviceDelete = useCallback(async (id: string) => { await deleteDevice(id); markSaving() }, [deleteDevice, markSaving])
   const handleCableCreated = useCallback(async (cable: { from_device_id: string; to_device_id: string | null; waypoints: Array<{ x: number; y: number }>; length_ft: number }) => {
     await addCable({ area_id: activeAreaId, from_device_id: cable.from_device_id, to_device_id: cable.to_device_id, waypoints: cable.waypoints, length_ft: cable.length_ft, cable_type: 'cat6' })
-  }, [addCable, activeAreaId])
+    markSaving()
+  }, [addCable, activeAreaId, markSaving])
 
   // Zone handlers
   const handleZoneCreated = useCallback(async (zone: { name: string; color: string; x: number; y: number; width: number; height: number }) => {
@@ -275,26 +331,6 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     } catch { /* handled by toast */ }
   }
 
-  // ---- Undo / Redo ----
-  const pushUndo = useCallback((action: { undo: () => Promise<void>; redo: () => Promise<void> }) => {
-    setUndoStack(prev => [...prev.slice(-(UNDO_STACK_DEPTH - 1)), action])
-    setRedoStack([])
-  }, [])
-  const handleUndo = useCallback(async () => {
-    const action = undoStack[undoStack.length - 1]
-    if (!action) return
-    await action.undo()
-    setUndoStack(prev => prev.slice(0, -1))
-    setRedoStack(prev => [...prev, action])
-  }, [undoStack])
-  const handleRedo = useCallback(async () => {
-    const action = redoStack[redoStack.length - 1]
-    if (!action) return
-    await action.redo()
-    setRedoStack(prev => prev.slice(0, -1))
-    setUndoStack(prev => [...prev, action])
-  }, [redoStack])
-
   // ---- Drag & Drop from catalog to canvas ----
   const handleDeviceDrop = useCallback(async (x: number, y: number, deviceData: string) => {
     if (!activeAreaId) return
@@ -318,8 +354,9 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
         color_hex: C.accent, label_prefix: prefix,
         device_library_item_id: item.id, properties: props,
       })
+      markSaving()
     } catch (err) { console.error('Drop failed:', err) }
-  }, [activeAreaId, activeIcon, addDevice, snapToGrid])
+  }, [activeAreaId, activeIcon, addDevice, snapToGrid, markSaving])
 
   const selectedDevice = selectedDeviceId ? devices.find((d) => d.id === selectedDeviceId) ?? null : null
   const selectedZone = selectedZoneId ? zones.find((z) => z.id === selectedZoneId) ?? null : null
@@ -440,6 +477,18 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
         {/* Mode indicator */}
         {activeTool !== 'select' && activeTool !== 'place' && (
           <span style={{ fontSize: 9, color: C.green, background: 'rgba(34,197,94,0.12)', padding: '2px 7px', borderRadius: 3, fontWeight: 600, textTransform: 'uppercase' }}>{activeTool}</span>
+        )}
+
+        {/* Save status */}
+        {saveStatus !== 'idle' && (
+          <span style={{
+            fontSize: 9, fontWeight: 500, padding: '2px 7px', borderRadius: 3,
+            color: saveStatus === 'saving' ? C.yellow : C.green,
+            background: saveStatus === 'saving' ? 'rgba(234,179,8,0.1)' : 'rgba(34,197,94,0.1)',
+            transition: 'all 0.3s',
+          }}>
+            {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
+          </span>
         )}
 
         {/* RIGHT: Tool buttons */}
@@ -625,7 +674,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               }}>
                 <RightPanel device={selectedDevice}
                   onClose={() => setSelectedDeviceId(null)} onDuplicate={handleDeviceCopy} onDelete={handleDeviceDelete}
-                  onUpdateDevice={(id, updates) => updateDevice(id, updates as Record<string, unknown>)}
+                  onUpdateDevice={(id, updates) => { updateDevice(id, updates as Record<string, unknown>); markSaving() }}
+                  onChangeModel={handleChangeModelFromPanel}
                   selectedZone={selectedZone}
                   onUpdateZone={(id, updates) => updateZone(id, updates)}
                   onDeleteZone={handleDeleteZone}
