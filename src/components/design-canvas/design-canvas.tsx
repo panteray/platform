@@ -138,6 +138,20 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
         const input = { resolutionW: resW, resolutionH: resH || resW * 0.5625, sensorW, sensorH: sensorH || sensorW * 0.5625, focalLength, mountHeight, targetDistance: targetDist, tiltAngle }
         const result = calculateFovDori(input)
         const tiers = getFovConeTiers(input)
+
+        // Multi-sensor cameras: populate sensorAngles for per-imager rendering
+        let sensorAngles: number[] | undefined
+        if (d.category === 'multisensor_quad') {
+          const custom = props.sensor_angles as number[] | undefined
+          sensorAngles = Array.isArray(custom) && custom.length > 0 ? custom : [0, 90, 180, 270]
+        } else if (d.category === 'multisensor_dual') {
+          const custom = props.sensor_angles as number[] | undefined
+          sensorAngles = Array.isArray(custom) && custom.length > 0 ? custom : [-45, 45]
+        } else if (d.category === 'fisheye') {
+          // Fisheye: single 360° cone handled by hFov, no multi-imager
+          sensorAngles = undefined
+        }
+
         map.set(d.id, {
           hFov: result.hFov,
           rotation: d.rotation || 0,
@@ -145,6 +159,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
           resolutionW: resW,
           sensorW,
           focalLength,
+          sensorAngles,
         })
       } catch {
         // Engine didn't run — skip

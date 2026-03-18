@@ -563,56 +563,66 @@ export function CanvasArea({
         if (!device) continue
         const objects: FabricObject[] = []
         const halfAngle = (data.hFov / 2) * (Math.PI / 180)
-        const rotRad = (data.rotation || 0) * (Math.PI / 180)
+        const baseRotDeg = data.rotation || 0
+
+        // Multi-sensor: render one cone set per imager angle; single sensor: one cone set
+        const imagerAngles = data.sensorAngles && data.sensorAngles.length > 0
+          ? data.sensorAngles.map(a => a + baseRotDeg)
+          : [baseRotDeg]
 
         let outerR = 0
-        for (const tier of data.tiers) {
-          const r = tier.distanceFt * (scalePxPerFt || 10)
-          if (r > outerR) outerR = r
-          const cx = device.position_x
-          const cy = device.position_y
-          const absStartX = cx + Math.cos(rotRad - halfAngle) * r
-          const absStartY = cy + Math.sin(rotRad - halfAngle) * r
-          const absEndX = cx + Math.cos(rotRad + halfAngle) * r
-          const absEndY = cy + Math.sin(rotRad + halfAngle) * r
-          const largeArc = data.hFov > 180 ? 1 : 0
-          const pathStr = `M ${cx} ${cy} L ${absStartX} ${absStartY} A ${r} ${r} 0 ${largeArc} 1 ${absEndX} ${absEndY} Z`
+        for (const imagerDeg of imagerAngles) {
+          const rotRad = imagerDeg * (Math.PI / 180)
 
-          // Compute opacity — boost matching tier, dim others when highlighted
-          let opacity = tier.opacity
-          if (highlightedPpfTier) {
-            opacity = tier.color === highlightedPpfTier ? Math.min(tier.opacity * 3, 0.5) : tier.opacity * 0.2
-          }
+          for (const tier of data.tiers) {
+            const r = tier.distanceFt * (scalePxPerFt || 10)
+            if (r > outerR) outerR = r
+            const cx = device.position_x
+            const cy = device.position_y
+            const absStartX = cx + Math.cos(rotRad - halfAngle) * r
+            const absStartY = cy + Math.sin(rotRad - halfAngle) * r
+            const absEndX = cx + Math.cos(rotRad + halfAngle) * r
+            const absEndY = cy + Math.sin(rotRad + halfAngle) * r
+            const largeArc = data.hFov > 180 ? 1 : 0
+            const pathStr = `M ${cx} ${cy} L ${absStartX} ${absStartY} A ${r} ${r} 0 ${largeArc} 1 ${absEndX} ${absEndY} Z`
 
-          const path = new fabric.Path(pathStr, {
-            fill: tier.color, opacity, selectable: false, evented: false,
-          })
-          canvas.add(path); canvas.sendObjectToBack(path); objects.push(path)
+            // Compute opacity — boost matching tier, dim others when highlighted
+            let opacity = tier.opacity
+            if (highlightedPpfTier) {
+              opacity = tier.color === highlightedPpfTier ? Math.min(tier.opacity * 3, 0.5) : tier.opacity * 0.2
+            }
 
-          // DORI mode: add tier label at arc midpoint along rotation center line
-          if (fovDisplayMode === 'dori' && r > 20) {
-            const labelR = r * 0.92
-            const lx = cx + Math.cos(rotRad) * labelR
-            const ly = cy + Math.sin(rotRad) * labelR
-            const label = TIER_LABELS[tier.color] || ''
-            if (label) {
-              const text = new fabric.FabricText(label, {
-                left: lx, top: ly, fontSize: 9, fontWeight: '700',
-                fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
-                originX: 'center', originY: 'center', selectable: false, evented: false,
-                opacity: highlightedPpfTier && tier.color !== highlightedPpfTier ? 0.2 : 0.9,
-              })
-              ;(text as unknown as Record<string, unknown>).__isDoriLabel = true
-              canvas.add(text); objects.push(text)
+            const path = new fabric.Path(pathStr, {
+              fill: tier.color, opacity, selectable: false, evented: false,
+            })
+            canvas.add(path); canvas.sendObjectToBack(path); objects.push(path)
+
+            // DORI mode: add tier label at arc midpoint along imager center line
+            if (fovDisplayMode === 'dori' && r > 20) {
+              const labelR = r * 0.92
+              const lx = cx + Math.cos(rotRad) * labelR
+              const ly = cy + Math.sin(rotRad) * labelR
+              const label = TIER_LABELS[tier.color] || ''
+              if (label) {
+                const text = new fabric.FabricText(label, {
+                  left: lx, top: ly, fontSize: 9, fontWeight: '700',
+                  fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
+                  originX: 'center', originY: 'center', selectable: false, evented: false,
+                  opacity: highlightedPpfTier && tier.color !== highlightedPpfTier ? 0.2 : 0.9,
+                })
+                ;(text as unknown as Record<string, unknown>).__isDoriLabel = true
+                canvas.add(text); objects.push(text)
+              }
             }
           }
         }
         fovObjectMap.set(deviceId, objects)
 
-        // Drag handle at outermost cone edge along rotation center line
+        // Drag handle at outermost cone edge along primary imager direction
+        const primaryRotRad = imagerAngles[0] * (Math.PI / 180)
         if (outerR > 0 && onFovHandleDragged) {
-          const hx = device.position_x + Math.cos(rotRad) * outerR
-          const hy = device.position_y + Math.sin(rotRad) * outerR
+          const hx = device.position_x + Math.cos(primaryRotRad) * outerR
+          const hy = device.position_y + Math.sin(primaryRotRad) * outerR
           const handle = new fabric.Circle({
             left: hx, top: hy, radius: 5, fill: 'rgba(59,130,246,0.9)', stroke: '#fff', strokeWidth: 1.5,
             originX: 'center', originY: 'center', selectable: true, evented: true,
@@ -664,7 +674,7 @@ export function CanvasArea({
       const point = canvas.getScenePoint(evt)
       const px = point.x, py = point.y
 
-      // Check if cursor is inside any FOV cone
+      // Check if cursor is inside any FOV cone (including multi-sensor imagers)
       for (const [deviceId, data] of fovData.entries()) {
         const device = devices.find((d) => d.id === deviceId)
         if (!device || !data.resolutionW || !data.sensorW || !data.focalLength) continue
@@ -674,20 +684,27 @@ export function CanvasArea({
         const distPx = Math.sqrt(dx * dx + dy * dy)
         if (distPx < 3) continue // too close to center
 
-        // Check angle: is cursor within the FOV cone?
         const cursorAngle = Math.atan2(dy, dx) // radians
-        const rotRad = (data.rotation || 0) * (Math.PI / 180)
-        let angleDiff = cursorAngle - rotRad
-        // Normalize to [-PI, PI]
-        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI
-        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
         const halfAngle = (data.hFov / 2) * (Math.PI / 180)
-        if (Math.abs(angleDiff) > halfAngle) continue
-
-        // Check distance: within outermost tier?
         const maxTierDist = Math.max(...data.tiers.map(t => t.distanceFt))
         const distFt = distPx / (scalePxPerFt || 10)
         if (distFt > maxTierDist) continue
+
+        // Check all imager angles (multi-sensor has multiple, single sensor has one)
+        const baseRotDeg = data.rotation || 0
+        const imagerAngles = data.sensorAngles && data.sensorAngles.length > 0
+          ? data.sensorAngles.map(a => a + baseRotDeg)
+          : [baseRotDeg]
+
+        let insideCone = false
+        for (const imagerDeg of imagerAngles) {
+          const rotRad = imagerDeg * (Math.PI / 180)
+          let angleDiff = cursorAngle - rotRad
+          while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI
+          while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
+          if (Math.abs(angleDiff) <= halfAngle) { insideCone = true; break }
+        }
+        if (!insideCone) continue
 
         // Cursor is inside this cone — compute PPF
         const ppf = calculatePpfAtDistance(data.resolutionW, data.sensorW, data.focalLength, distFt)
