@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { C, COLORS_16, PPF_CHART } from './constants'
 import { Section, Field, SliderField, SubLabel } from './section'
 import { ActionIcons } from './icons'
+import { calculateMountRequirements, type MountCalcOutput } from '@/lib/calculators'
 import type { DesignDevice, DesignZone } from '@/types/database'
 
 interface RightPanelProps {
@@ -334,33 +335,204 @@ export function RightPanel({
               </button>
             ))}
           </div>
+
+          {/* Surface type selector */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 9, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Surface Type</div>
+            <select
+              value={prop(d, 'surface_type', '')}
+              onChange={(e) => saveProp('surface_type', e.target.value || null)}
+              style={{
+                width: '100%', background: C.bgActive, border: `1px solid ${C.border}`,
+                borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11,
+                fontFamily: 'inherit', outline: 'none', appearance: 'auto' as never,
+              }}
+            >
+              <option value="">Not specified</option>
+              {['concrete', 'drywall', 'wood', 'metal', 'brick', 'stucco', 't-bar_ceiling', 'plaster'].map((s) => (
+                <option key={s} value={s}>{s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</option>
+              ))}
+            </select>
+          </div>
+
           <SliderField label="Target Distance" value={prop(d, 'target_distance', 30)} unit="ft" min={0} max={200} fieldKey="target_distance" onChangeSave={saveSlider} />
           <SliderField label="Mount Height" value={prop(d, 'mount_height', 10)} unit="ft" min={0} max={40} warning={prop(d, 'mount_height', 10) > 12} fieldKey="mount_height" onChangeSave={saveSlider} />
           <SliderField label="Tilt" value={prop(d, 'tilt_angle', 15)} unit="deg" min={0} max={90} fieldKey="tilt_angle" onChangeSave={saveSlider} />
           <SliderField label="Rotation" value={d.rotation || 0} unit="deg" min={0} max={360} fieldKey="rotation" onChangeSave={saveSlider} />
 
-          {/* Side elevation mini diagram */}
-          <div style={{ marginTop: 8, background: C.bg, borderRadius: 6, padding: 8, border: `1px solid ${C.borderSubtle}` }}>
-            <svg width="100%" height="80" viewBox="0 0 260 80">
-              <line x1="10" y1="75" x2="250" y2="75" stroke={C.textDim} strokeWidth="1" />
-              <line x1="30" y1="75" x2="30" y2="15" stroke={C.textDim} strokeWidth="1" strokeDasharray="3" />
-              <rect x="26" y="12" width="8" height="8" rx="2" fill={d.color_hex || C.accent} />
-              <path
-                d={`M34 16 L${Math.min(30 + prop(d, 'target_distance', 30) * 2, 240)} 75 L${Math.min(30 + prop(d, 'target_distance', 30) * 2, 240)} 45`}
-                fill={d.color_hex || C.accent}
-                opacity="0.15"
-                stroke={d.color_hex || C.accent}
-                strokeWidth="0.5"
-              />
-              <text x="30" y="8" textAnchor="middle" fill={C.textDim} fontSize="7" fontFamily="IBM Plex Mono">
-                {prop(d, 'mount_height', 10)}ft
-              </text>
-              <text x={Math.min(30 + prop(d, 'target_distance', 30), 200)} y="72" textAnchor="middle" fill={C.textDim} fontSize="7" fontFamily="IBM Plex Mono">
-                {prop(d, 'target_distance', 30)}ft
-              </text>
-            </svg>
-          </div>
+          {/* Upgraded side elevation diagram */}
+          {(() => {
+            const mountH = prop(d, 'mount_height', 10)
+            const targetD = prop(d, 'target_distance', 30)
+            const tilt = prop(d, 'tilt_angle', 15)
+            const color = d.color_hex || C.accent
+            // Scale: fit 0..max into SVG coords (viewBox 0 0 260 110)
+            const maxDim = Math.max(mountH, targetD, 1)
+            const sX = (v: number) => 38 + (v / maxDim) * 195 // horizontal: distance
+            const sY = (v: number) => 100 - (v / maxDim) * 80 // vertical: height (inverted)
+            const camX = 38
+            const camY = sY(mountH)
+            const groundY = 100
+            const targetX = sX(targetD)
+            // Person silhouette at target (5'8" = 5.67ft)
+            const personH = 5.67
+            const personY = sY(personH)
+            // Tilt angle arc
+            const tiltRad = (tilt * Math.PI) / 180
+            const arcR = 18
+            const arcEndX = camX + arcR * Math.cos(Math.PI / 2 - tiltRad)
+            const arcEndY = camY + arcR * Math.sin(Math.PI / 2 - tiltRad)
+            // FOV cone end points (simplified ground intersection)
+            const coneEndY = groundY
+            const coneEndX = targetX
+            // Blind spot triangle (area directly below camera)
+            const blindX = camX + mountH * Math.tan(tiltRad) * (195 / maxDim) * 0.15
+
+            return (
+              <div style={{ marginTop: 8, background: C.bg, borderRadius: 6, padding: 8, border: `1px solid ${C.borderSubtle}` }}>
+                <svg width="100%" height="110" viewBox="0 0 260 110">
+                  {/* Ground line */}
+                  <line x1="10" y1={groundY} x2="250" y2={groundY} stroke={C.textDim} strokeWidth="1" />
+
+                  {/* Wall / mount line */}
+                  <line x1={camX} y1={groundY} x2={camX} y2={camY - 6} stroke={C.textDim} strokeWidth="1" strokeDasharray="3 2" />
+
+                  {/* Height tick marks (every ~5ft) */}
+                  {Array.from({ length: Math.floor(mountH / 5) + 1 }, (_, i) => i * 5).filter(h => h > 0 && h <= mountH).map((h) => (
+                    <g key={`tick-${h}`}>
+                      <line x1={camX - 4} y1={sY(h)} x2={camX + 4} y2={sY(h)} stroke={C.textDim} strokeWidth="0.5" />
+                      <text x={camX - 8} y={sY(h) + 3} textAnchor="end" fill={C.textDim} fontSize="6" fontFamily="IBM Plex Mono">{h}</text>
+                    </g>
+                  ))}
+
+                  {/* Blind spot (shaded area under camera) */}
+                  <polygon points={`${camX},${camY} ${camX},${groundY} ${blindX},${groundY}`} fill={C.red} opacity="0.06" />
+
+                  {/* FOV cone */}
+                  <polygon
+                    points={`${camX},${camY} ${coneEndX},${coneEndY} ${coneEndX},${sY(Math.min(personH, mountH * 0.6))}`}
+                    fill={color} opacity="0.12"
+                    stroke={color} strokeWidth="0.5" strokeOpacity="0.3"
+                  />
+
+                  {/* Tilt angle arc */}
+                  <line x1={camX} y1={camY} x2={camX} y2={camY + arcR} stroke={C.textDim} strokeWidth="0.5" strokeDasharray="2" />
+                  <path d={`M${camX},${camY + arcR} A${arcR},${arcR} 0 0,1 ${arcEndX},${arcEndY}`} fill="none" stroke={C.yellow} strokeWidth="0.7" />
+                  <text x={camX + 12} y={camY + arcR - 2} fill={C.yellow} fontSize="6" fontFamily="IBM Plex Mono">{tilt}°</text>
+
+                  {/* Camera body */}
+                  {d.mount_type === 'ceiling' ? (
+                    <g>
+                      <rect x={camX - 6} y={camY - 2} width="12" height="4" rx="1" fill={color} />
+                      <circle cx={camX} cy={camY + 5} r="4" fill={color} opacity="0.8" />
+                    </g>
+                  ) : (
+                    <g>
+                      <rect x={camX - 1} y={camY - 8} width="2" height="6" fill={C.textDim} />
+                      <rect x={camX - 5} y={camY - 3} width="10" height="6" rx="2" fill={color} />
+                    </g>
+                  )}
+
+                  {/* Person silhouette at target distance */}
+                  <g opacity="0.4">
+                    <ellipse cx={targetX} cy={personY - 2} rx="3" ry="3.5" fill={C.textMuted} />
+                    <line x1={targetX} y1={personY + 1} x2={targetX} y2={groundY - 8} stroke={C.textMuted} strokeWidth="1.5" strokeLinecap="round" />
+                    <line x1={targetX - 5} y1={personY + 12} x2={targetX + 5} y2={personY + 12} stroke={C.textMuted} strokeWidth="1.2" strokeLinecap="round" />
+                    <line x1={targetX} y1={groundY - 8} x2={targetX - 4} y2={groundY} stroke={C.textMuted} strokeWidth="1.2" strokeLinecap="round" />
+                    <line x1={targetX} y1={groundY - 8} x2={targetX + 4} y2={groundY} stroke={C.textMuted} strokeWidth="1.2" strokeLinecap="round" />
+                    <text x={targetX} y={groundY + 8} textAnchor="middle" fill={C.textDim} fontSize="5.5" fontFamily="IBM Plex Mono">5&apos;8&quot;</text>
+                  </g>
+
+                  {/* Labels */}
+                  <text x={camX} y={camY - 12} textAnchor="middle" fill={C.textDim} fontSize="7" fontFamily="IBM Plex Mono">{mountH}ft</text>
+                  <text x={(camX + targetX) / 2} y={groundY + 9} textAnchor="middle" fill={C.textDim} fontSize="7" fontFamily="IBM Plex Mono">{targetD}ft</text>
+
+                  {/* Distance markers */}
+                  <line x1={camX} y1={groundY + 3} x2={targetX} y2={groundY + 3} stroke={C.textDim} strokeWidth="0.5" />
+                  <line x1={camX} y1={groundY + 1} x2={camX} y2={groundY + 5} stroke={C.textDim} strokeWidth="0.5" />
+                  <line x1={targetX} y1={groundY + 1} x2={targetX} y2={groundY + 5} stroke={C.textDim} strokeWidth="0.5" />
+                </svg>
+              </div>
+            )
+          })()}
         </Section>
+
+        {/* ---- MOUNTING ACCESSORIES (all categories) ---- */}
+        {(() => {
+          const formFactor = prop(d, 'sub_type', d.category) as string
+          const mountType = (d.mount_type || 'wall') as 'ceiling' | 'wall' | 'pole' | 'pendant'
+          const environment = prop(d, 'environment', 'indoor') as 'indoor' | 'outdoor' | 'indoor_outdoor'
+          const ipRating = prop(d, 'ip_rating', '') as string
+          const weightKg = Number(prop(d, 'weight_kg', 0)) || undefined
+          const diameterMm = Number(prop(d, 'diameter_mm', 0)) || undefined
+          let mountResult: MountCalcOutput | null = null
+          try {
+            mountResult = calculateMountRequirements({ formFactor, mountType, environment, ipRating, weightKg, diameterMm })
+          } catch { /* engine didn't run */ }
+          if (!mountResult || mountResult.mounts.length === 0) return null
+
+          const surfaceType = prop(d, 'surface_type', '') as string
+          const SURFACE_NOTES: Record<string, string> = {
+            concrete: 'Use tapcon anchors or concrete wedge bolts',
+            drywall: 'Use toggle bolts or backing plate — no drywall screws for cameras',
+            wood: 'Use lag bolts or wood screws with pre-drill',
+            metal: 'Use self-tapping TEK screws or welded bracket',
+            brick: 'Use masonry anchors with hammer drill',
+            stucco: 'Drill through stucco to substrate — sleeve anchors recommended',
+            't-bar_ceiling': 'Use T-bar clip or bridge mount — do not cut tile',
+            plaster: 'Toggle bolt through plaster to framing',
+          }
+
+          return (
+            <Section title="Mounting Accessories" defaultOpen={true}>
+              {mountResult.mounts.filter(m => m.compatible).map((m, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '3px 0' }}>
+                  <div style={{
+                    width: 6, height: 6, borderRadius: '50%', marginTop: 3, flexShrink: 0,
+                    background: m.required ? C.green : C.textDim,
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: C.text }}>{m.label}</div>
+                    {m.notes && <div style={{ fontSize: 9, color: C.textDim, marginTop: 1 }}>{m.notes}</div>}
+                  </div>
+                  <span style={{ fontSize: 8, color: m.required ? C.green : C.textDim, fontWeight: 600, flexShrink: 0 }}>
+                    {m.required ? 'REQ' : 'OPT'}
+                  </span>
+                </div>
+              ))}
+
+              {/* Lift warning */}
+              {mountResult.liftRequired && (
+                <div style={{
+                  marginTop: 6, padding: '4px 8px', background: 'rgba(234,179,8,0.08)',
+                  border: '1px solid rgba(234,179,8,0.25)', borderRadius: 4,
+                  fontSize: 9, color: C.yellow,
+                }}>
+                  Lift / ladder required — mount height &gt; 12ft
+                </div>
+              )}
+
+              {/* Surface note */}
+              {surfaceType && SURFACE_NOTES[surfaceType] && (
+                <div style={{
+                  marginTop: 6, padding: '4px 8px', background: 'rgba(59,130,246,0.06)',
+                  border: `1px solid rgba(59,130,246,0.2)`, borderRadius: 4,
+                  fontSize: 9, color: C.accent,
+                }}>
+                  <span style={{ fontWeight: 600 }}>{surfaceType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}:</span>{' '}
+                  {SURFACE_NOTES[surfaceType]}
+                </div>
+              )}
+
+              {/* Missing fields */}
+              {mountResult.missingFields.length > 0 && (
+                <div style={{ marginTop: 6, fontSize: 9, color: C.textDim }}>
+                  Missing: {mountResult.missingFields.join(', ')}
+                </div>
+              )}
+            </Section>
+          )
+        })()}
 
         {/* ---- CCTV: Device Specs ---- */}
         {isCctv(cat) && (
