@@ -5,7 +5,7 @@ import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON, ToolbarIcons } from './icons'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import type { DoriClassification } from '@/lib/calculators'
-import type { DesignDevice, DesignCable, DesignFloorPlan, DesignZone } from '@/types/database'
+import type { DesignDevice, DesignCable, DesignFloorPlan, DesignZone, DesignMdfIdf } from '@/types/database'
 
 type FabricCanvas = import('fabric').Canvas
 type FabricObject = import('fabric').FabricObject
@@ -101,6 +101,9 @@ interface CanvasAreaProps {
   fovDisplayMode?: 'ppf' | 'dori'
   highlightedPpfTier?: string | null
   onPpfTierClick?: (tier: string | null) => void
+  mdfIdfs?: DesignMdfIdf[]
+  onMdfIdfPlaced?: (x: number, y: number) => void
+  onMdfIdfMoved?: (id: string, x: number, y: number) => void
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
@@ -117,6 +120,7 @@ export function CanvasArea({
   pendingDeviceName,
   onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
   onFovHandleDragged, fovDisplayMode = 'ppf', highlightedPpfTier, onPpfTierClick,
+  mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved,
 }: CanvasAreaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
@@ -139,6 +143,7 @@ export function CanvasArea({
   useEffect(() => { snapRef.current = snapToGrid }, [snapToGrid])
   const [ppfTooltip, setPpfTooltip] = useState<{ visible: boolean; x: number; y: number; ppf: number; dori: string; distFt: number } | null>(null)
   const fovHandleMap = useRef(new Map<string, FabricObject>())
+  const mdfIdfObjectMap = useRef(new Map<string, FabricObject[]>())
 
   // ---- Initialize Fabric.js ----
   useEffect(() => {
@@ -392,6 +397,12 @@ export function CanvasArea({
         return
       }
 
+      // MDF/IDF placement
+      if (activeTool === 'mdf_idf' && !opt.target) {
+        onMdfIdfPlaced?.(x, y)
+        return
+      }
+
       // Scale calibration
       if (activeTool === 'scale') {
         setScaleCal((prev) => {
@@ -425,7 +436,7 @@ export function CanvasArea({
     }
     canvas.on('mouse:down', handler)
     return () => { canvas.off('mouse:down', handler) }
-  }, [activeTool, fabricReady, cableDraw, devices, scalePxPerFt, onCanvasClick, onCableCreated, onScaleCalibrated])
+  }, [activeTool, fabricReady, cableDraw, devices, scalePxPerFt, onCanvasClick, onCableCreated, onScaleCalibrated, onMdfIdfPlaced])
 
   // ---- Cable preview line during routing ----
   useEffect(() => {
@@ -891,6 +902,100 @@ export function CanvasArea({
     if (activeTool !== 'zone') setZoneDraw({ isDrawing: false, startX: 0, startY: 0 })
   }, [activeTool])
 
+  // ---- MDF/IDF Node Rendering ----
+  useEffect(() => {
+    if (!fabricReady || !fabricRef.current) return
+    const canvas = fabricRef.current
+    mdfIdfObjectMap.current.forEach((objs) => objs.forEach((o) => canvas.remove(o)))
+    mdfIdfObjectMap.current.clear()
+
+    async function addMdfIdfs() {
+      const fabric = await import('fabric')
+      for (const node of mdfIdfs) {
+        const objects: FabricObject[] = []
+        // Diamond shape for network closet
+        const size = 18
+        const cx = node.position_x, cy = node.position_y
+        const diamond = new fabric.Polygon([
+          { x: cx, y: cy - size },
+          { x: cx + size, y: cy },
+          { x: cx, y: cy + size },
+          { x: cx - size, y: cy },
+        ], {
+          fill: `${node.color_hex || '#f97316'}30`,
+          stroke: node.color_hex || '#f97316',
+          strokeWidth: 2,
+          selectable: true, evented: true,
+          hasControls: false, hasBorders: true,
+          originX: 'center', originY: 'center',
+          left: cx, top: cy,
+        })
+        ;(diamond as unknown as Record<string, unknown>).__mdfIdfId = node.id
+        canvas.add(diamond); objects.push(diamond)
+
+        // Label
+        const label = new fabric.FabricText(node.name || 'MDF', {
+          left: cx, top: cy + size + 6, fontSize: 9, fontWeight: '700',
+          fill: node.color_hex || '#f97316',
+          fontFamily: "'IBM Plex Mono', monospace",
+          originX: 'center', originY: 'top',
+          selectable: false, evented: false,
+        })
+        ;(label as unknown as Record<string, unknown>).__isMdfIdfLabel = true
+        canvas.add(label); objects.push(label)
+
+        // Distance lines to each device
+        for (const device of devices) {
+          const dx = device.position_x - cx
+          const dy = device.position_y - cy
+          const distPx = Math.sqrt(dx * dx + dy * dy)
+          const distFt = scalePxPerFt > 0 ? distPx / scalePxPerFt : 0
+          // Only render distance line if within reasonable range (< 200ft)
+          if (distFt > 0 && distFt < 200) {
+            const line = new fabric.Line([cx, cy, device.position_x, device.position_y], {
+              stroke: node.color_hex || '#f97316', strokeWidth: 0.5,
+              strokeDashArray: [2, 4], selectable: false, evented: false, opacity: 0.25,
+            })
+            ;(line as unknown as Record<string, unknown>).__isMdfIdfLabel = true
+            canvas.add(line); canvas.sendObjectToBack(line); objects.push(line)
+
+            // Distance label at midpoint
+            const mx = (cx + device.position_x) / 2
+            const my = (cy + device.position_y) / 2
+            const distLabel = new fabric.FabricText(`${Math.round(distFt)}ft`, {
+              left: mx, top: my - 6, fontSize: 7,
+              fill: node.color_hex || '#f97316',
+              fontFamily: "'IBM Plex Mono', monospace",
+              originX: 'center', selectable: false, evented: false, opacity: 0.5,
+            })
+            ;(distLabel as unknown as Record<string, unknown>).__isMdfIdfLabel = true
+            canvas.add(distLabel); objects.push(distLabel)
+          }
+        }
+
+        mdfIdfObjectMap.current.set(node.id, objects)
+      }
+      canvas.renderAll()
+    }
+    void addMdfIdfs()
+  }, [mdfIdfs, devices, fabricReady, scalePxPerFt])
+
+  // ---- MDF/IDF Node Move ----
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady) return
+    const canvas = fabricRef.current
+    const handler = (e: { target?: FabricObject }) => {
+      const obj = e.target; if (!obj) return
+      const nodeId = (obj as unknown as Record<string, unknown>).__mdfIdfId as string
+      if (!nodeId) return
+      const x = Math.round(obj.left ?? 0)
+      const y = Math.round(obj.top ?? 0)
+      onMdfIdfMoved?.(nodeId, x, y)
+    }
+    canvas.on('object:modified', handler)
+    return () => { canvas.off('object:modified', handler) }
+  }, [fabricReady, onMdfIdfMoved])
+
   // Selected zone highlight
   useEffect(() => {
     if (!fabricRef.current || !fabricReady) return
@@ -1061,6 +1166,7 @@ export function CanvasArea({
     { icon: ToolbarIcons.measure, label: 'Measure', id: 'measure' },
     { icon: ToolbarIcons.cable, label: 'Cable', id: 'cable' },
     { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="4 2" /></svg>, label: 'Zone', id: 'zone' },
+    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="6" width="20" height="12" rx="2" /><line x1="6" y1="6" x2="6" y2="18" /><line x1="18" y1="6" x2="18" y2="18" /><line x1="10" y1="10" x2="14" y2="10" /><line x1="10" y1="14" x2="14" y2="14" /></svg>, label: 'MDF/IDF', id: 'mdf_idf' },
     null,
     { icon: ToolbarIcons.zoomIn, label: 'Zoom In', id: 'zoomIn' },
     { icon: ToolbarIcons.zoomOut, label: 'Zoom Out', id: 'zoomOut' },
@@ -1153,6 +1259,13 @@ export function CanvasArea({
       {activeTool === 'zone' && !zoneDraw.isDrawing && (
         <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.accent}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.accent, zIndex: 20 }}>
           Click and drag to draw a zone
+        </div>
+      )}
+
+      {/* MDF/IDF placement hint */}
+      {activeTool === 'mdf_idf' && (
+        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.orange}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.orange, zIndex: 20 }}>
+          Click to place MDF/IDF closet
         </div>
       )}
 

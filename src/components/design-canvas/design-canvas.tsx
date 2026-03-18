@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive } from 'lucide-react'
+import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive, Server } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { C, GRID_SIZE, UNDO_STACK_DEPTH, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
@@ -46,6 +46,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     addArea, updateArea, deleteArea, uploadFloorPlan,
     addDevice, updateDevice, deleteDevice,
     addCable,
+    addInfrastructure, updateInfrastructure,
     addZone, updateZone, deleteZone,
     addTopologyNode, updateTopologyNode, deleteTopologyNode,
     addTopologyLink, updateTopologyLink, deleteTopologyLink,
@@ -359,6 +360,25 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const handleSelectDevice = useCallback((id: string | null) => { setSelectedDeviceId(id); if (id) setSelectedZoneId(null) }, [setSelectedDeviceId])
   const handleDeleteZone = useCallback(async (id: string) => { await deleteZone(id); if (selectedZoneId === id) setSelectedZoneId(null) }, [deleteZone, selectedZoneId])
 
+  // MDF/IDF handlers
+  const handleMdfIdfPlaced = useCallback(async (x: number, y: number) => {
+    if (!activeAreaId) return
+    const count = mdfIdfs.filter(n => n.area_id === activeAreaId).length
+    await addInfrastructure({
+      area_id: activeAreaId,
+      name: count === 0 ? 'MDF' : `IDF-${count}`,
+      position_x: x,
+      position_y: y,
+      color_hex: '#f97316',
+      service_loop_ft: 10,
+    })
+    markSaving()
+  }, [activeAreaId, mdfIdfs, addInfrastructure, markSaving])
+  const handleMdfIdfMoved = useCallback(async (id: string, x: number, y: number) => {
+    markSaving()
+    await updateInfrastructure(id, { position_x: x, position_y: y })
+  }, [updateInfrastructure, markSaving])
+
   // Area rename handlers
   function handleAreaDoubleClick(areaId: string, name: string) {
     setEditingAreaId(areaId)
@@ -624,6 +644,10 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
             <span style={{ fontSize: 9, fontWeight: 600 }}>{fovDisplayMode === 'dori' ? 'DORI' : 'PPF'}</span>
           </button>
         )}
+        <button onClick={() => setActiveTool('mdf_idf')} style={toolBtn(activeTool === 'mdf_idf', C.orange)}
+          title="Place MDF/IDF closet">
+          <Server size={12} /> <span>MDF</span>
+        </button>
         <button onClick={() => { setActiveTool('scale'); }} style={toolBtn(activeTool === 'scale', C.red)}>
           <Ruler size={12} /> <span>Scale</span>
         </button>
@@ -736,7 +760,10 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               onFovHandleDragged={handleFovDragged}
               fovDisplayMode={fovDisplayMode}
               highlightedPpfTier={highlightedPpfTier}
-              onPpfTierClick={setHighlightedPpfTier} />
+              onPpfTierClick={setHighlightedPpfTier}
+              mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
+              onMdfIdfPlaced={handleMdfIdfPlaced}
+              onMdfIdfMoved={handleMdfIdfMoved} />
 
             {/* Right panel — OVERLAY, when device or zone selected */}
             {(selectedDevice || selectedZone) && (
