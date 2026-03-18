@@ -317,6 +317,34 @@ export function RightPanel({
           )}
         </div>
 
+        {/* ---- STANDARD INFO (all categories) ---- */}
+        <Section title="Standard Info" defaultOpen={true}>
+          {/* Status chips */}
+          <div style={{ display: 'flex', gap: 3, marginBottom: 8, flexWrap: 'wrap' }}>
+            {['new', 'existing_keep', 'existing_remove', 'relocate'].map((s) => {
+              const isActive = d.status === s
+              const label = s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+              return (
+                <button key={s} onClick={() => saveField('status', s)}
+                  style={{
+                    padding: '3px 6px', fontSize: 8, fontWeight: 600, fontFamily: 'inherit',
+                    background: isActive ? C.accentSubtle : C.bgActive,
+                    color: isActive ? C.accent : C.textDim,
+                    border: isActive ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
+                    borderRadius: 3, cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          <Field label="Manufacturer" value={prop(d, 'manufacturer', '')} editable fieldKey="manufacturer" onBlurSave={saveFieldFromBlur} />
+          <Field label="Part Number" value={prop(d, 'part_number', '')} editable fieldKey="part_number" onBlurSave={saveFieldFromBlur} />
+          <Field label="Model" value={prop(d, 'model', '')} editable fieldKey="model" onBlurSave={saveFieldFromBlur} />
+          <Field label="Location Description" value={prop(d, 'location_description', '')} editable fieldKey="location_description" onBlurSave={saveFieldFromBlur} />
+        </Section>
+
         {/* ---- PLACEMENT (all categories) ---- */}
         <Section title="Placement" defaultOpen={true}>
           <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
@@ -657,27 +685,8 @@ export function RightPanel({
           <Field label="Cable Length" value={prop(d, 'cable_length', '\u2014')} editable fieldKey="cable_length" onBlurSave={saveFieldFromBlur} />
         </Section>
 
-        {/* ---- STATUS (all categories) ---- */}
-        <Section title="Status" defaultOpen={false}>
-          <div style={{ display: 'flex', gap: 3, marginBottom: 6, flexWrap: 'wrap' }}>
-            {['new', 'existing_keep', 'existing_remove', 'relocate'].map((s) => {
-              const isActive = d.status === s
-              const label = s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-              return (
-                <button key={s} onClick={() => saveField('status', s)}
-                  style={{
-                    padding: '3px 6px', fontSize: 8, fontWeight: 600, fontFamily: 'inherit',
-                    background: isActive ? C.accentSubtle : C.bgActive,
-                    color: isActive ? C.accent : C.textDim,
-                    border: isActive ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
-                    borderRadius: 3, cursor: 'pointer',
-                  }}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
+        {/* ---- BILLING & ASSET (all categories) ---- */}
+        <Section title="Billing & Asset" defaultOpen={false}>
           <Field label="Condition" value={d.condition || '\u2014'} editable fieldKey="condition" onBlurSave={saveFieldFromBlur} />
           <Field label="Asset Type" value={d.asset_type || 'capital'} editable fieldKey="asset_type" onBlurSave={saveFieldFromBlur} />
           <Field label="Billing" value={d.billing_type || 'one_time'} editable fieldKey="billing_type" onBlurSave={saveFieldFromBlur} />
