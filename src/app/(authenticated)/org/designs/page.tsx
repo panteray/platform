@@ -1,13 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { PenTool, Plus, Archive, ExternalLink, X } from 'lucide-react'
+import { PenTool, Plus, Archive, ExternalLink, X, Search, LayoutGrid, List, Upload, Trash2, Calendar } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { useDesigns } from '@/hooks/useDesigns'
 import { DESIGN_ACCESS_ROLES } from '@/types/enums'
 import type { Opportunity } from '@/types/database'
+
+type ViewMode = 'grid' | 'list'
+type TabFilter = 'ongoing' | 'completed'
 
 export default function DesignsPage() {
   const router = useRouter()
@@ -24,6 +27,11 @@ export default function DesignsPage() {
   const [assignOppId, setAssignOppId] = useState('')
   const [assigning, setAssigning] = useState(false)
 
+  // Phase A state
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [activeTab, setActiveTab] = useState<TabFilter>('ongoing')
+  const [searchQuery, setSearchQuery] = useState('')
+
   const hasAccess = userRole && (DESIGN_ACCESS_ROLES as readonly string[]).includes(userRole)
 
   // Fetch opportunities when modal opens
@@ -34,6 +42,29 @@ export default function DesignsPage() {
       .then((json) => setOpportunities(Array.isArray(json) ? json : json.data ?? []))
       .catch(() => {})
   }, [showCreate, assignDesignId])
+
+  // Filter designs by tab + search
+  const filteredDesigns = useMemo(() => {
+    let list = designs
+    if (activeTab === 'ongoing') {
+      list = list.filter((d) => d.status === 'ACTIVE')
+    } else {
+      list = list.filter((d) => d.status !== 'ACTIVE')
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter((d) => {
+        const opp = d.opportunities
+        return (
+          d.name?.toLowerCase().includes(q) ||
+          opp?.opp_number?.toLowerCase().includes(q) ||
+          opp?.project_name?.toLowerCase().includes(q) ||
+          opp?.customer_name?.toLowerCase().includes(q)
+        )
+      })
+    }
+    return list
+  }, [designs, activeTab, searchQuery])
 
   async function handleCreate() {
     setCreating(true)
@@ -90,6 +121,7 @@ export default function DesignsPage() {
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">Designs</h1>
@@ -97,12 +129,79 @@ export default function DesignsPage() {
             Design workspaces linked to opportunities
           </p>
         </div>
-        <button
-          onClick={() => { setShowCreate(true); setSelectedOppId(''); setDesignName(''); setCreateError(null) }}
-          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" /> New Design
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-zinc-800 px-3 text-sm font-medium text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+            title="Import design"
+          >
+            <Upload className="h-4 w-4" /> Import
+          </button>
+          <button
+            onClick={() => { setShowCreate(true); setSelectedOppId(''); setDesignName(''); setCreateError(null) }}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" /> New Design
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs + Search + View Toggle */}
+      <div className="flex items-center justify-between gap-4">
+        {/* Tabs */}
+        <div className="flex items-center gap-0 rounded-lg border border-zinc-800 overflow-hidden">
+          <button
+            onClick={() => setActiveTab('ongoing')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'ongoing'
+                ? 'bg-zinc-800 text-white'
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'
+            }`}
+          >
+            Ongoing Designs
+          </button>
+          <button
+            onClick={() => setActiveTab('completed')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'completed'
+                ? 'bg-zinc-800 text-white'
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'
+            }`}
+          >
+            Completed / Archived
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-600" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search designs..."
+              className="h-9 w-60 rounded-md border border-zinc-800 bg-zinc-900 pl-8 pr-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          {/* View toggle */}
+          <div className="flex items-center gap-0 rounded-md border border-zinc-800 overflow-hidden">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-zinc-800 text-white' : 'text-zinc-600 hover:text-zinc-300'}`}
+              title="Grid view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-zinc-800 text-white' : 'text-zinc-600 hover:text-zinc-300'}`}
+              title="List view"
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -113,15 +212,90 @@ export default function DesignsPage() {
 
       {loading ? (
         <p className="text-sm text-zinc-500">Loading designs...</p>
-      ) : designs.length === 0 ? (
+      ) : filteredDesigns.length === 0 ? (
         <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-8 text-center">
           <PenTool className="mx-auto h-8 w-8 text-zinc-700 mb-2" />
-          <p className="text-sm font-medium text-zinc-400">No designs yet</p>
+          <p className="text-sm font-medium text-zinc-400">
+            {searchQuery ? 'No designs match your search' : activeTab === 'ongoing' ? 'No ongoing designs' : 'No completed designs'}
+          </p>
           <p className="text-xs text-zinc-600 mt-1">
-            Click "New Design" to get started, or create one from an opportunity.
+            {!searchQuery && activeTab === 'ongoing' && 'Click "New Design" to get started, or create one from an opportunity.'}
           </p>
         </div>
+      ) : viewMode === 'grid' ? (
+        /* ---- CARD GRID VIEW ---- */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredDesigns.map((d) => {
+            const opp = d.opportunities
+            return (
+              <div
+                key={d.id}
+                onClick={() => router.push(`/org/designs/${d.id}`)}
+                className="group rounded-lg border border-zinc-800 bg-zinc-950 p-4 cursor-pointer hover:border-zinc-700 hover:bg-zinc-900/40 transition-all"
+              >
+                {/* Card header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                      <PenTool className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-zinc-200 leading-tight truncate">{d.name}</p>
+                      {opp?.opp_number && (
+                        <p className="text-[10px] font-mono text-zinc-500 mt-0.5">{opp.opp_number}</p>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`shrink-0 ml-2 inline-flex rounded px-2 py-0.5 text-[10px] font-medium ${
+                    d.status === 'ACTIVE'
+                      ? 'bg-green-500/10 text-green-400'
+                      : 'bg-zinc-800 text-zinc-500'
+                  }`}>
+                    {d.status}
+                  </span>
+                </div>
+
+                {/* Customer */}
+                <p className="text-xs text-zinc-400 truncate">
+                  {opp?.customer_name || 'No customer assigned'}
+                </p>
+
+                {/* Project name */}
+                {opp?.project_name && (
+                  <p className="text-xs text-zinc-500 truncate mt-0.5">{opp.project_name}</p>
+                )}
+
+                {/* Footer */}
+                <div className="flex items-center justify-between mt-4 pt-3 border-t border-zinc-800/50">
+                  <div className="flex items-center gap-1.5 text-[10px] text-zinc-600">
+                    <Calendar className="h-3 w-3" />
+                    {new Date(d.created_at).toLocaleDateString()}
+                  </div>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                    {!opp && (
+                      <button
+                        onClick={() => { setAssignDesignId(d.id); setAssignOppId('') }}
+                        className="rounded px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        Assign OPP
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleArchive(d.id)}
+                      disabled={archiving === d.id}
+                      className="rounded p-1 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                      title="Archive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       ) : (
+        /* ---- LIST (TABLE) VIEW ---- */
         <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950">
           <table className="w-full text-sm">
             <thead>
@@ -135,7 +309,7 @@ export default function DesignsPage() {
               </tr>
             </thead>
             <tbody>
-              {designs.map((d) => {
+              {filteredDesigns.map((d) => {
                 const opp = d.opportunities
                 return (
                   <tr
@@ -228,7 +402,6 @@ export default function DesignsPage() {
                   value={selectedOppId}
                   onChange={(e) => {
                     setSelectedOppId(e.target.value)
-                    // Auto-fill name from OPP
                     const opp = (Array.isArray(opportunities) ? opportunities : []).find((o: Opportunity) => o.id === e.target.value)
                     if (opp) {
                       setDesignName(opp.project_name ? `${opp.opp_number} — ${opp.project_name}` : `${opp.opp_number} Design`)
