@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive, Server, Download, Map as MapIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { C, GRID_SIZE, UNDO_STACK_DEPTH, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
+import { C, GRID_SIZE, UNDO_STACK_DEPTH, isDoorType, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
 import { LABEL_CODES } from './icons'
 import { CanvasArea, type DeviceFovData } from './canvas-area'
 import { IconSidebar } from './icon-sidebar'
@@ -20,7 +20,7 @@ import { MspCanvas } from './msp-canvas'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { calculateFovDori, getFovConeTiers, calculateSystemStorage, canvasDevicesToCameraSpecs } from '@/lib/calculators'
 import { exportBom, exportMaterialList, exportHardwareSchedule, exportCableSchedule, exportCanvasSnapshot } from '@/lib/export-helpers'
-import type { DesignFloorPlan, DeviceSearchResult } from '@/types/database'
+import type { DesignDevice, DesignFloorPlan, DeviceSearchResult } from '@/types/database'
 
 const TAB_TO_SUBTYPE: Record<string, string> = { camera: 'dome', door: 'door', network: 'switch', av: 'speaker', sensors: 'junction_box', other: 'junction_box' }
 const TAB_TO_CATEGORY: Record<string, string> = { camera: 'cctv', door: 'access_control', network: 'network', av: 'av', sensors: 'vape_environmental', other: 'other' }
@@ -265,6 +265,41 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     setPendingDevice(null)
     // Keep the device selected so the right panel stays open
   }, [])
+  // Auto-cable: when door hardware is placed, auto-create cable to nearest door_controller
+  const autoCableDoorToController = useCallback(async (newDevice: DesignDevice) => {
+    const subType = String((newDevice.properties as Record<string, unknown>)?.sub_type || '')
+    // Only auto-cable door hardware — not controllers themselves
+    if (!isDoorType(subType) || subType === 'door_controller') return
+
+    // Find nearest door_controller in same area
+    const controllers = areaDevices.filter(d => {
+      const st = String((d.properties as Record<string, unknown>)?.sub_type || '')
+      return st === 'door_controller'
+    })
+    if (controllers.length === 0) return
+
+    let nearest = controllers[0]
+    let nearestDist = Infinity
+    for (const ctrl of controllers) {
+      const dx = ctrl.position_x - newDevice.position_x
+      const dy = ctrl.position_y - newDevice.position_y
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist < nearestDist) { nearestDist = dist; nearest = ctrl }
+    }
+
+    const lengthFt = scalePxPerFt > 0 ? Math.round(nearestDist / scalePxPerFt) : 0
+    await addCable({
+      area_id: newDevice.area_id,
+      from_device_id: newDevice.id,
+      to_device_id: nearest.id,
+      waypoints: [
+        { x: newDevice.position_x, y: newDevice.position_y },
+        { x: nearest.position_x, y: nearest.position_y },
+      ],
+      length_ft: lengthFt,
+      cable_type: '2_conductor',
+    })
+  }, [areaDevices, scalePxPerFt, addCable])
   const handleCanvasClick = useCallback(async (x: number, y: number) => {
     if (activeTool !== 'place' || !activeAreaId || activeIcon === 'layers') return
     if (!pendingDevice) return  // Must select a device from library first
@@ -289,17 +324,18 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
       let px = x, py = y
       if (snapToGrid) { px = Math.round(px / GRID_SIZE) * GRID_SIZE; py = Math.round(py / GRID_SIZE) * GRID_SIZE }
 
-      await addDevice({
+      const newDev = await addDevice({
         area_id: activeAreaId, category, position_x: px, position_y: py,
         color_hex: C.accent, label_prefix: prefix,
         device_library_item_id: pendingDevice.id,
         properties: props,
       })
       markSaving()
+      if (newDev) await autoCableDoorToController(newDev)
     } finally {
       placingRef.current = false
     }
-  }, [activeTool, activeAreaId, activeIcon, addDevice, pendingDevice, snapToGrid, markSaving])
+  }, [activeTool, activeAreaId, activeIcon, addDevice, pendingDevice, snapToGrid, markSaving, autoCableDoorToController])
 
   // ---- Undo / Redo ----
   const pushUndo = useCallback((action: { undo: () => Promise<void>; redo: () => Promise<void> }) => {
@@ -434,14 +470,15 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
       if (item.resolution) props.resolution = item.resolution
       if (item.wattage) props.poe_watts = item.wattage
       if (item.poe_standard) props.poe_standard = item.poe_standard
-      await addDevice({
+      const newDev = await addDevice({
         area_id: activeAreaId, category, position_x: px, position_y: py,
         color_hex: C.accent, label_prefix: prefix,
         device_library_item_id: item.id, properties: props,
       })
       markSaving()
+      if (newDev) await autoCableDoorToController(newDev)
     } catch (err) { console.error('Drop failed:', err) }
-  }, [activeAreaId, activeIcon, addDevice, snapToGrid, markSaving])
+  }, [activeAreaId, activeIcon, addDevice, snapToGrid, markSaving, autoCableDoorToController])
 
   const selectedDevice = selectedDeviceId ? devices.find((d) => d.id === selectedDeviceId) ?? null : null
   const selectedZone = selectedZoneId ? zones.find((z) => z.id === selectedZoneId) ?? null : null
