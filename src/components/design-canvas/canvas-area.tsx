@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
+import { Minimap, type MinimapDevice, type MinimapZone, type MinimapInfra, type MinimapViewport } from './minimap'
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON, ToolbarIcons } from './icons'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import type { DoriClassification } from '@/lib/calculators'
@@ -105,6 +106,7 @@ interface CanvasAreaProps {
   onMdfIdfPlaced?: (x: number, y: number) => void
   onMdfIdfMoved?: (id: string, x: number, y: number) => void
   snapshotRef?: React.MutableRefObject<(() => string | null) | null>
+  showMinimap?: boolean
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
@@ -123,12 +125,14 @@ export function CanvasArea({
   onFovHandleDragged, fovDisplayMode = 'ppf', highlightedPpfTier, onPpfTierClick,
   mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved,
   snapshotRef,
+  showMinimap = false,
 }: CanvasAreaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [fabricReady, setFabricReady] = useState(false)
   const [zoomLevel, setZoomLevel] = useState(1)
+  const [vpState, setVpState] = useState<MinimapViewport>({ worldX: 0, worldY: 0, worldW: 4000, worldH: 3000 })
   const [cableDraw, setCableDraw] = useState<CableDrawState>({ phase: 'idle', sourceDeviceId: null, waypoints: [] })
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, deviceId: null })
   const [measureState, setMeasureState] = useState<MeasureState>({ points: [] })
@@ -146,6 +150,24 @@ export function CanvasArea({
   const [ppfTooltip, setPpfTooltip] = useState<{ visible: boolean; x: number; y: number; ppf: number; dori: string; distFt: number } | null>(null)
   const fovHandleMap = useRef(new Map<string, FabricObject>())
   const mdfIdfObjectMap = useRef(new Map<string, FabricObject[]>())
+
+  // Sync viewport state for minimap
+  const syncViewport = useCallback(() => {
+    const fc = fabricRef.current
+    if (!fc) return
+    const vpt = fc.viewportTransform
+    const z = fc.getZoom()
+    const w = fc.getWidth()
+    const h = fc.getHeight()
+    if (vpt) {
+      setVpState({
+        worldX: -vpt[4] / z,
+        worldY: -vpt[5] / z,
+        worldW: w / z,
+        worldH: h / z,
+      })
+    }
+  }, [])
 
   // ---- Initialize Fabric.js ----
   useEffect(() => {
@@ -293,6 +315,24 @@ export function CanvasArea({
     }
     return () => { if (snapshotRef) snapshotRef.current = null }
   }, [fabricReady, snapshotRef])
+
+  // Viewport sync for minimap (throttled)
+  useEffect(() => {
+    if (!fabricReady || !showMinimap) return
+    const fc = fabricRef.current
+    if (!fc) return
+    let raf = 0
+    const handler = () => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        syncViewport()
+      })
+    }
+    fc.on('after:render', handler)
+    syncViewport() // initial
+    return () => { fc.off('after:render', handler); if (raf) cancelAnimationFrame(raf) }
+  }, [fabricReady, showMinimap, syncViewport])
 
   // Resize
   useEffect(() => {
@@ -1174,6 +1214,47 @@ export function CanvasArea({
   }, [showGrid, fabricReady])
   useEffect(() => { drawGrid() }, [drawGrid])
 
+  // ---- Minimap data ----
+  const CATEGORY_DOT_COLOR: Record<string, string> = {
+    cctv: C.accent, dome: C.accent, bullet: C.accent, turret: C.accent, ptz: C.accent,
+    fisheye: C.accent, multisensor_quad: C.accent, multisensor_dual: C.accent,
+    access_control: C.green, door: C.green, door_controller: C.green, card_reader: C.green,
+    network: '#a78bfa', switch: '#a78bfa', nvr: '#a78bfa', router: '#a78bfa', server: '#a78bfa',
+    av: C.yellow, speaker: C.yellow, other: C.textMuted,
+  }
+  const minimapDevices: MinimapDevice[] = devices.map(d => ({
+    id: d.id, x: d.position_x, y: d.position_y,
+    color: CATEGORY_DOT_COLOR[d.category] ?? C.textDim,
+  }))
+  const minimapZones: MinimapZone[] = (zones ?? []).map(z => ({
+    id: z.id, x: z.x, y: z.y, w: z.width, h: z.height, color: z.color,
+  }))
+  const minimapInfra: MinimapInfra[] = (mdfIdfs ?? []).map(n => ({
+    id: n.id, x: n.position_x, y: n.position_y,
+  }))
+  const minimapBounds = (() => {
+    const all = [...devices.map(d => ({ x: d.position_x, y: d.position_y })), ...(mdfIdfs ?? []).map(n => ({ x: n.position_x, y: n.position_y }))]
+    for (const z of (zones ?? [])) { all.push({ x: z.x, y: z.y }, { x: z.x + z.width, y: z.y + z.height }) }
+    if (all.length === 0) return { minX: 0, minY: 0, maxX: 4000, maxY: 3000 }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const p of all) { if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y; if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y }
+    const pad = 200
+    return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad }
+  })()
+  const handleMinimapNavigate = useCallback((worldX: number, worldY: number) => {
+    const fc = fabricRef.current
+    if (!fc) return
+    const z = fc.getZoom()
+    const w = fc.getWidth()
+    const h = fc.getHeight()
+    const vpt = fc.viewportTransform
+    if (!vpt) return
+    vpt[4] = -(worldX * z) + w / 2
+    vpt[5] = -(worldY * z) + h / 2
+    fc.setViewportTransform(vpt)
+    fc.requestRenderAll()
+  }, [])
+
   // ---- Tool items for floating toolbar ----
   const toolItems: ({ icon: React.JSX.Element; label: string; id: string } | null)[] = [
     { icon: ToolbarIcons.select, label: 'Select', id: 'select' },
@@ -1230,6 +1311,7 @@ export function CanvasArea({
     }
   }, [zoomLevel, onToolChange])
 
+  // ---- Minimap data ----
   return (
     <div ref={containerRef}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
@@ -1407,6 +1489,18 @@ export function CanvasArea({
           )
         )}
       </div>
+
+      {/* Minimap */}
+      {showMinimap && (
+        <Minimap
+          devices={minimapDevices}
+          zones={minimapZones}
+          infra={minimapInfra}
+          viewport={vpState}
+          bounds={minimapBounds}
+          onNavigate={handleMinimapNavigate}
+        />
+      )}
 
       {/* Bottom bar: PPF/DORI Legend + Scale */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', background: 'linear-gradient(transparent, rgba(15,17,23,0.95))', zIndex: 10 }}>

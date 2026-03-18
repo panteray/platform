@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive, Server, Download } from 'lucide-react'
+import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive, Server, Download, Map as MapIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { C, GRID_SIZE, UNDO_STACK_DEPTH, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
@@ -70,6 +70,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [floorPlanError, setFloorPlanError] = useState<string | null>(null)
   const [showRequirements, setShowRequirements] = useState(false)
   const [showStoragePanel, setShowStoragePanel] = useState(false)
+  const [showMinimap, setShowMinimap] = useState(false)
   const [editingAreaId, setEditingAreaId] = useState<string | null>(null)
   const [editAreaValue, setEditAreaValue] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -773,6 +774,12 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
           title="Toggle storage panel">
           <HardDrive size={12} />
         </button>
+
+        {/* Minimap toggle */}
+        <button onClick={() => setShowMinimap(!showMinimap)} style={toolBtn(showMinimap)}
+          title="Toggle minimap">
+          <MapIcon size={12} />
+        </button>
       </div>
 
       {/* ========== COLLAPSIBLE REQUIREMENTS BAR ========== */}
@@ -838,7 +845,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
               onMdfIdfPlaced={handleMdfIdfPlaced}
               onMdfIdfMoved={handleMdfIdfMoved}
-              snapshotRef={snapshotRef} />
+              snapshotRef={snapshotRef}
+              showMinimap={showMinimap} />
 
             {/* Right panel — OVERLAY, when device or zone selected */}
             {(selectedDevice || selectedZone) && (
