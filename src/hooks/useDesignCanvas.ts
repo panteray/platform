@@ -40,6 +40,7 @@ export interface DesignCanvasState {
   deleteCable: (cableId: string) => Promise<boolean>
   addInfrastructure: (data: Record<string, unknown>) => Promise<DesignMdfIdf | null>
   updateInfrastructure: (id: string, data: Record<string, unknown>) => Promise<unknown>
+  deleteInfrastructure: (id: string) => Promise<boolean>
   addZone: (data: Record<string, unknown>) => Promise<DesignZone | null>
   updateZone: (id: string, data: Record<string, unknown>) => Promise<boolean>
   deleteZone: (id: string) => Promise<boolean>
@@ -300,6 +301,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     addCable: cableCrud.add, deleteCable: cableCrud.remove,
     addInfrastructure: infraCrud.add,
     updateInfrastructure: infraCrud.update,
+    deleteInfrastructure: infraCrud.remove,
     addZone: zoneCrud.add, updateZone: zoneCrud.update as (id: string, data: Record<string, unknown>) => Promise<boolean>, deleteZone: zoneCrud.remove,
     addTopologyNode: topoNodeCrud.add, updateTopologyNode: topoNodeCrud.update, deleteTopologyNode: topoNodeCrud.remove,
     addTopologyLink: topoLinkCrud.add, updateTopologyLink: topoLinkCrud.update, deleteTopologyLink: topoLinkCrud.remove,
