@@ -48,6 +48,7 @@ interface ContextMenuState {
   x: number
   y: number
   deviceId: string | null
+  mdfIdfId?: string | null
 }
 
 // ---- Measure State ----
@@ -105,6 +106,7 @@ interface CanvasAreaProps {
   mdfIdfs?: DesignMdfIdf[]
   onMdfIdfPlaced?: (x: number, y: number) => void
   onMdfIdfMoved?: (id: string, x: number, y: number) => void
+  onMdfIdfDeleted?: (id: string) => void
   snapshotRef?: React.MutableRefObject<(() => string | null) | null>
   showMinimap?: boolean
   satelliteConfig?: { lat: number; lng: number; zoom: number; opacity?: number } | null
@@ -124,7 +126,7 @@ export function CanvasArea({
   pendingDeviceName,
   onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
   onFovHandleDragged, fovDisplayMode = 'ppf', highlightedPpfTier, onPpfTierClick,
-  mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved,
+  mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved, onMdfIdfDeleted,
   snapshotRef,
   showMinimap = false,
   satelliteConfig,
@@ -247,7 +249,9 @@ export function CanvasArea({
         }
         if (evt.button === 2 && opt.target) {
           const did = (opt.target as unknown as Record<string, unknown>).deviceId as string
-          if (did) setContextMenu({ visible: true, x: evt.clientX, y: evt.clientY, deviceId: did })
+          if (did) { setContextMenu({ visible: true, x: evt.clientX, y: evt.clientY, deviceId: did }); return }
+          const mid = (opt.target as unknown as Record<string, unknown>).__mdfIdfId as string
+          if (mid) { setContextMenu({ visible: true, x: evt.clientX, y: evt.clientY, deviceId: null, mdfIdfId: mid }); return }
           return
         }
         if (evt.button === 0 && opt.target) {
@@ -625,7 +629,7 @@ export function CanvasArea({
         try {
           const result = await fabric.loadSVGFromString(coloredSvg)
           const group = fabric.util.groupSVGElements(result.objects.filter(Boolean) as FabricObject[], result.options)
-          group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: 0.5, scaleY: 0.5, originX: 'center', originY: 'center', hasControls: true, hasBorders: true, lockScalingX: true, lockScalingY: true })
+          group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: 0.5, scaleY: 0.5, originX: 'center', originY: 'center', hasControls: true, hasBorders: true, lockScalingX: true, lockScalingY: true, lockRotation: false, cornerSize: 10, cornerColor: C.accent, transparentCorners: false, rotatingPointOffset: 25 })
           ;(group as unknown as Record<string, unknown>).deviceId = device.id
           canvas.add(group); deviceObjectMap.set(device.id, group)
         } catch { /* skip */ }
@@ -1164,7 +1168,13 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricRef.current || !fabricReady) return
     const canvas = fabricRef.current
-    if (!floorPlan?.file_url) { canvas.backgroundImage = undefined; canvas.requestRenderAll(); return }
+    if (!floorPlan?.file_url) {
+      // Only clear background if there's no satellite — satellite effect manages its own bg
+      if (!satelliteConfig?.lat) {
+        canvas.backgroundImage = undefined; canvas.requestRenderAll()
+      }
+      return
+    }
 
     let currentUrl = floorPlan.file_url
     const ext = currentUrl.split('.').pop()?.split('?')[0]?.toLowerCase() ?? ''
@@ -1282,7 +1292,8 @@ export function CanvasArea({
     if (ext === 'svg') { void loadFloorPlanSVG() }
     else if (ext === 'pdf') { void loadFloorPlanPDF() }
     else { void loadFloorPlanImage() }
-  }, [floorPlan, fabricReady, onFloorPlanError, designId, floorPlanOpacity])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floorPlan, fabricReady, onFloorPlanError, designId, floorPlanOpacity, satelliteConfig?.lat])
 
   // Satellite tile background — when area has lat/lng and no floor plan
   useEffect(() => {
@@ -1608,6 +1619,27 @@ export function CanvasArea({
             </div>
             )
           )}
+        </div>
+      )}
+
+      {/* MDF/IDF Context menu */}
+      {contextMenu.visible && contextMenu.mdfIdfId && !contextMenu.deviceId && (
+        <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 0', minWidth: 140, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
+          {[
+            { label: 'Rename', color: C.text, action: () => {
+              // TODO: inline rename
+            }},
+            { label: 'Delete MDF/IDF', color: C.red, action: () => {
+              onMdfIdfDeleted?.(contextMenu.mdfIdfId!)
+            }},
+          ].map((item) => (
+            <div key={item.label} onClick={() => { item.action(); setContextMenu({ visible: false, x: 0, y: 0, deviceId: null, mdfIdfId: null }) }}
+              style={{ padding: '6px 14px', fontSize: 12, color: item.color, cursor: 'pointer' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+              {item.label}
+            </div>
+          ))}
         </div>
       )}
 

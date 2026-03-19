@@ -40,7 +40,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     addArea, updateArea, deleteArea, uploadFloorPlan,
     addDevice, updateDevice, deleteDevice,
     addCable,
-    addInfrastructure, updateInfrastructure,
+    addInfrastructure, updateInfrastructure, deleteInfrastructure,
     addZone, updateZone, deleteZone,
     addTopologyNode, updateTopologyNode, deleteTopologyNode,
     addTopologyLink, updateTopologyLink, deleteTopologyLink,
@@ -278,8 +278,10 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   }, [])
   // Auto-cable: when door hardware is placed, auto-create cable to nearest door_controller
   const autoCableDoorToController = useCallback(async (newDevice: DesignDevice) => {
+    // Gate 1: only access_control category devices can auto-cable
+    if (newDevice.category !== 'access_control' && newDevice.category !== 'door') return
     const subType = String((newDevice.properties as Record<string, unknown>)?.sub_type || '')
-    // Only auto-cable door hardware — not controllers themselves
+    // Gate 2: only door hardware — not controllers themselves
     if (!isDoorType(subType) || subType === 'door_controller') return
 
     // Find nearest door_controller in same area
@@ -434,6 +436,10 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     markSaving()
     await updateInfrastructure(id, { position_x: x, position_y: y })
   }, [updateInfrastructure, markSaving])
+  const handleMdfIdfDeleted = useCallback(async (id: string) => {
+    markSaving()
+    await deleteInfrastructure(id)
+  }, [deleteInfrastructure, markSaving])
 
   // Area rename handlers
   function handleAreaDoubleClick(areaId: string, name: string) {
@@ -989,6 +995,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
               mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
               onMdfIdfPlaced={handleMdfIdfPlaced}
               onMdfIdfMoved={handleMdfIdfMoved}
+              onMdfIdfDeleted={handleMdfIdfDeleted}
               snapshotRef={snapshotRef}
               showMinimap={showMinimap}
               satelliteConfig={activeArea?.satellite_lat && activeArea?.satellite_lng ? {
