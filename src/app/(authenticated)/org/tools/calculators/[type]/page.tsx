@@ -15,36 +15,93 @@ import {
   generateWiringSchematic, type WiringInput,
 } from '@/lib/calculators'
 
-const ic = 'h-9 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500'
-const lc = 'block text-[11px] font-medium text-zinc-500 mb-1'
-const btnCls = 'h-9 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50'
+const C = {
+  bg: '#0f1117',
+  bgPanel: '#171a23',
+  bgInput: '#1c2030',
+  border: '#262b38',
+  text: '#e4e7ec',
+  textMuted: '#8b93a6',
+  textDim: '#555d72',
+  accent: '#3b82f6',
+  accentSubtle: 'rgba(59,130,246,0.08)',
+  green: '#22c55e',
+  red: '#ef4444',
+}
+
+const inputStyle: React.CSSProperties = {
+  height: 36, width: '100%', borderRadius: 6,
+  border: `1px solid ${C.border}`, background: C.bgInput,
+  padding: '0 10px', fontSize: 13, color: C.text,
+  outline: 'none', fontFamily: "'IBM Plex Mono', monospace",
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: 10, fontWeight: 500,
+  color: C.textDim, marginBottom: 4, textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+}
+
+const btnStyle: React.CSSProperties = {
+  height: 36, borderRadius: 6, background: C.accent,
+  padding: '0 16px', fontSize: 13, fontWeight: 600,
+  color: '#fff', border: 'none', cursor: 'pointer',
+  fontFamily: 'inherit',
+}
 
 function NumInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
     <div>
-      <label className={lc}>{label}</label>
-      <input type="number" className={ic} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+      <label style={labelStyle}>{label}</label>
+      <input type="number" style={inputStyle} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        onFocus={(e) => { e.currentTarget.style.borderColor = C.accent }}
+        onBlur={(e) => { e.currentTarget.style.borderColor = C.border }}
+      />
+    </div>
+  )
+}
+
+function SelectInput({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <select style={{ ...inputStyle, appearance: 'none' as const }} value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
     </div>
   )
 }
 
 function ResultBlock({ title, data }: { title: string; data: Record<string, unknown> }) {
+  const entries = Object.entries(data).filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object')
+  if (entries.length === 0) return null
+
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 mt-4">
-      <h3 className="text-sm font-semibold text-white mb-3">{title}</h3>
-      <div className="grid grid-cols-2 gap-2">
-        {Object.entries(data).map(([k, v]) => {
-          if (v === null || v === undefined || typeof v === 'object') return null
-          return (
-            <div key={k} className="flex justify-between py-1 border-b border-zinc-900">
-              <span className="text-xs text-zinc-500">{k.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1')}</span>
-              <span className="text-xs font-medium text-white font-mono">{String(v)}</span>
-            </div>
-          )
-        })}
+    <div style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: C.bgPanel, padding: 16, marginTop: 16 }}>
+      <h3 style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 0 }}>
+        {entries.map(([k, v], i) => (
+          <div key={k} style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '8px 0', borderBottom: i < entries.length - 2 ? `1px solid ${C.border}` : 'none',
+          }}>
+            <span style={{ fontSize: 11, color: C.textMuted }}>{formatKey(k)}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: C.text, fontFamily: "'IBM Plex Mono', monospace" }}>{formatValue(v)}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
+}
+
+function formatKey(k: string): string {
+  return k.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').replace(/^\w/, (c) => c.toUpperCase()).trim()
+}
+
+function formatValue(v: unknown): string {
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(2)
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No'
+  return String(v)
 }
 
 // ---- Calculator Forms ----
@@ -57,20 +114,20 @@ function FovDoriForm() {
     const v = validateFovInput(input); if (v.missingFields.length > 0) { alert(`Missing: ${v.missingFields.join(', ')}`); return }
     setResult(calculateFovDori(input) as unknown as Record<string, unknown>)
   }
-  return (<div className="space-y-3">
-    <div className="grid grid-cols-4 gap-3">
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
       <NumInput label="Resolution W (px)" value={f.resW} onChange={(v) => setF({ ...f, resW: v })} />
       <NumInput label="Resolution H (px)" value={f.resH} onChange={(v) => setF({ ...f, resH: v })} />
       <NumInput label="Sensor W (mm)" value={f.sensorW} onChange={(v) => setF({ ...f, sensorW: v })} />
       <NumInput label="Sensor H (mm)" value={f.sensorH} onChange={(v) => setF({ ...f, sensorH: v })} />
     </div>
-    <div className="grid grid-cols-4 gap-3">
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
       <NumInput label="Focal Length (mm)" value={f.focal} onChange={(v) => setF({ ...f, focal: v })} />
       <NumInput label="Mount Height (ft)" value={f.mountH} onChange={(v) => setF({ ...f, mountH: v })} />
       <NumInput label="Target Distance (ft)" value={f.targetDist} onChange={(v) => setF({ ...f, targetDist: v })} />
       <NumInput label="Tilt Angle (deg)" value={f.tilt} onChange={(v) => setF({ ...f, tilt: v })} />
     </div>
-    <button onClick={run} className={btnCls}>Calculate FOV / DORI</button>
+    <button onClick={run} style={btnStyle}>Calculate FOV / DORI</button>
     {result && <ResultBlock title="FOV / DORI Results" data={result} />}
   </div>)
 }
@@ -82,20 +139,20 @@ function LprForm() {
     const input: LprInput = { resolutionW: +f.resW, resolutionH: +f.resH, sensorW: +f.sensorW, focalLength: +f.focal, mountHeight: +f.mountH, targetDistance: +f.targetDist, vehicleSpeedMph: +f.speed, laneCount: +f.lanes }
     setResult(calculateLpr(input) as unknown as Record<string, unknown>)
   }
-  return (<div className="space-y-3">
-    <div className="grid grid-cols-4 gap-3">
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
       <NumInput label="Resolution W" value={f.resW} onChange={(v) => setF({ ...f, resW: v })} />
       <NumInput label="Resolution H" value={f.resH} onChange={(v) => setF({ ...f, resH: v })} />
       <NumInput label="Sensor W (mm)" value={f.sensorW} onChange={(v) => setF({ ...f, sensorW: v })} />
       <NumInput label="Focal Length (mm)" value={f.focal} onChange={(v) => setF({ ...f, focal: v })} />
     </div>
-    <div className="grid grid-cols-4 gap-3">
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
       <NumInput label="Mount Height (ft)" value={f.mountH} onChange={(v) => setF({ ...f, mountH: v })} />
       <NumInput label="Target Distance (ft)" value={f.targetDist} onChange={(v) => setF({ ...f, targetDist: v })} />
       <NumInput label="Vehicle Speed (mph)" value={f.speed} onChange={(v) => setF({ ...f, speed: v })} />
       <NumInput label="Lane Count" value={f.lanes} onChange={(v) => setF({ ...f, lanes: v })} />
     </div>
-    <button onClick={run} className={btnCls}>Calculate LPR</button>
+    <button onClick={run} style={btnStyle}>Calculate LPR</button>
     {result && <ResultBlock title="LPR Results" data={result} />}
   </div>)
 }
@@ -110,15 +167,15 @@ function StorageForm() {
     const input: SystemStorageInput = { cameras, retentionDays: +f.retention, raidLevel: +f.raidLevel as 5 | 6, driveSizeTB: +f.driveSize }
     setResult(calculateSystemStorage(input) as unknown as Record<string, unknown>)
   }
-  return (<div className="space-y-3">
-    <div className="grid grid-cols-5 gap-3">
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
       <NumInput label="Camera Count" value={f.cameras} onChange={(v) => setF({ ...f, cameras: v })} />
       <NumInput label="FPS" value={f.fps} onChange={(v) => setF({ ...f, fps: v })} />
       <NumInput label="Retention (days)" value={f.retention} onChange={(v) => setF({ ...f, retention: v })} />
       <NumInput label="RAID Level" value={f.raidLevel} onChange={(v) => setF({ ...f, raidLevel: v })} />
       <NumInput label="Drive Size (TB)" value={f.driveSize} onChange={(v) => setF({ ...f, driveSize: v })} />
     </div>
-    <button onClick={run} className={btnCls}>Calculate Storage</button>
+    <button onClick={run} style={btnStyle}>Calculate Storage</button>
     {result && <ResultBlock title="System / Storage Results" data={result} />}
   </div>)
 }
@@ -130,14 +187,14 @@ function SolarForm() {
     const input: SolarInput = { cameraWatts: +f.watts, systemVoltage: +f.voltage as 12 | 24, autonomyDays: +f.days, peakSunHours: +f.sunHours }
     setResult(calculateSolar(input) as unknown as Record<string, unknown>)
   }
-  return (<div className="space-y-3">
-    <div className="grid grid-cols-4 gap-3">
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
       <NumInput label="Camera Watts" value={f.watts} onChange={(v) => setF({ ...f, watts: v })} />
-      <NumInput label="System Voltage (12/24)" value={f.voltage} onChange={(v) => setF({ ...f, voltage: v })} />
+      <SelectInput label="System Voltage" value={f.voltage} onChange={(v) => setF({ ...f, voltage: v })} options={[{ value: '12', label: '12V' }, { value: '24', label: '24V' }]} />
       <NumInput label="Autonomy Days" value={f.days} onChange={(v) => setF({ ...f, days: v })} />
       <NumInput label="Peak Sun Hours" value={f.sunHours} onChange={(v) => setF({ ...f, sunHours: v })} />
     </div>
-    <button onClick={run} className={btnCls}>Calculate Solar</button>
+    <button onClick={run} style={btnStyle}>Calculate Solar</button>
     {result && <ResultBlock title="Solar Results" data={result} />}
   </div>)
 }
@@ -149,17 +206,17 @@ function WiringForm() {
     const input = { schematicType: f.schematicType, controllerBrand: f.controllerBrand, controllerModel: '', lockType: f.lockType, lockVendor: '', readerProtocol: f.readerProtocol, hasDps: true, hasRex: true, hasAda: false, operatorModel: '', sequencerModel: '', doorName: f.doorName, mdfIdfLocation: 'MDF' } as WiringInput
     setResult(generateWiringSchematic(input) as unknown as Record<string, unknown>)
   }
-  return (<div className="space-y-3">
-    <div className="grid grid-cols-3 gap-3">
-      <div><label className={lc}>Schematic Type</label><select className={ic} value={f.schematicType} onChange={(e) => setF({ ...f, schematicType: e.target.value })}><option value="standard_door">Standard</option><option value="ada_auto_operator">ADA Auto</option><option value="mantrap">Mantrap</option><option value="mantrap_ada">Mantrap ADA</option></select></div>
-      <div><label className={lc}>Controller Brand</label><select className={ic} value={f.controllerBrand} onChange={(e) => setF({ ...f, controllerBrand: e.target.value })}><option value="mercury">Mercury</option><option value="verkada">Verkada</option><option value="brivo">Brivo</option><option value="genetec">Genetec</option><option value="avigilon_alta">Avigilon Alta</option><option value="generic">Generic</option></select></div>
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <SelectInput label="Schematic Type" value={f.schematicType} onChange={(v) => setF({ ...f, schematicType: v })} options={[{ value: 'standard_door', label: 'Standard' }, { value: 'ada_auto_operator', label: 'ADA Auto' }, { value: 'mantrap', label: 'Mantrap' }, { value: 'mantrap_ada', label: 'Mantrap ADA' }]} />
+      <SelectInput label="Controller Brand" value={f.controllerBrand} onChange={(v) => setF({ ...f, controllerBrand: v })} options={[{ value: 'mercury', label: 'Mercury' }, { value: 'verkada', label: 'Verkada' }, { value: 'brivo', label: 'Brivo' }, { value: 'genetec', label: 'Genetec' }, { value: 'avigilon_alta', label: 'Avigilon Alta' }, { value: 'generic', label: 'Generic' }]} />
       <NumInput label="Door Name" value={f.doorName} onChange={(v) => setF({ ...f, doorName: v })} />
     </div>
-    <div className="grid grid-cols-2 gap-3">
-      <div><label className={lc}>Lock Type</label><select className={ic} value={f.lockType} onChange={(e) => setF({ ...f, lockType: e.target.value })}><option value="maglock">Maglock</option><option value="electric_strike">Electric Strike</option><option value="mortise">Mortise</option></select></div>
-      <div><label className={lc}>Reader Protocol</label><select className={ic} value={f.readerProtocol} onChange={(e) => setF({ ...f, readerProtocol: e.target.value })}><option value="osdp">OSDP</option><option value="wiegand">Wiegand</option></select></div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+      <SelectInput label="Lock Type" value={f.lockType} onChange={(v) => setF({ ...f, lockType: v })} options={[{ value: 'maglock', label: 'Maglock' }, { value: 'electric_strike', label: 'Electric Strike' }, { value: 'mortise', label: 'Mortise' }]} />
+      <SelectInput label="Reader Protocol" value={f.readerProtocol} onChange={(v) => setF({ ...f, readerProtocol: v })} options={[{ value: 'osdp', label: 'OSDP' }, { value: 'wiegand', label: 'Wiegand' }]} />
     </div>
-    <button onClick={run} className={btnCls}>Generate Wiring Schematic</button>
+    <button onClick={run} style={btnStyle}>Generate Wiring Schematic</button>
     {result && <ResultBlock title="Wiring Schematic" data={result} />}
   </div>)
 }
@@ -171,15 +228,15 @@ function CableForm() {
     const input: CableEstimatorInput = { runs: [{ cableType: f.cableType, horizontalDistanceFt: +f.horizontal, verticalDropFt: +f.vertical, slackPercent: +f.slack, runId: 'run-1', label: 'Run 1', fromDevice: 'Camera', toDevice: 'MDF', mdfIdf: 'MDF-1' }], serviceLoopFt: +f.serviceLoop }
     setResult(runCableEstimator(input) as unknown as Record<string, unknown>)
   }
-  return (<div className="space-y-3">
-    <div className="grid grid-cols-5 gap-3">
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
       <NumInput label="Horizontal (ft)" value={f.horizontal} onChange={(v) => setF({ ...f, horizontal: v })} />
       <NumInput label="Vertical (ft)" value={f.vertical} onChange={(v) => setF({ ...f, vertical: v })} />
       <NumInput label="Slack %" value={f.slack} onChange={(v) => setF({ ...f, slack: v })} />
       <NumInput label="Service Loop (ft)" value={f.serviceLoop} onChange={(v) => setF({ ...f, serviceLoop: v })} />
-      <div><label className={lc}>Cable Type</label><select className={ic} value={f.cableType} onChange={(e) => setF({ ...f, cableType: e.target.value })}><option value="cat6">Cat6</option><option value="cat5e">Cat5e</option><option value="fiber_sm">Fiber SM</option><option value="fiber_om3">Fiber OM3</option></select></div>
+      <SelectInput label="Cable Type" value={f.cableType} onChange={(v) => setF({ ...f, cableType: v })} options={[{ value: 'cat6', label: 'Cat6' }, { value: 'cat5e', label: 'Cat5e' }, { value: 'fiber_sm', label: 'Fiber SM' }, { value: 'fiber_om3', label: 'Fiber OM3' }]} />
     </div>
-    <button onClick={run} className={btnCls}>Estimate Cable</button>
+    <button onClick={run} style={btnStyle}>Estimate Cable</button>
     {result && <ResultBlock title="Cable Estimator Results" data={result} />}
   </div>)
 }
@@ -191,14 +248,14 @@ function MountForm() {
     const input: MountCalcInput = { formFactor: f.formFactor, mountType: f.mountType as 'ceiling' | 'wall' | 'pole' | 'pendant', environment: 'indoor', ipRating: 'IP66', weightKg: +f.weight, diameterMm: +f.diameter }
     setResult(calculateMountRequirements(input) as unknown as Record<string, unknown>)
   }
-  return (<div className="space-y-3">
-    <div className="grid grid-cols-4 gap-3">
-      <div><label className={lc}>Form Factor</label><select className={ic} value={f.formFactor} onChange={(e) => setF({ ...f, formFactor: e.target.value })}><option value="dome">Dome</option><option value="bullet">Bullet</option><option value="turret">Turret</option><option value="ptz">PTZ</option><option value="fisheye">Fisheye</option></select></div>
-      <div><label className={lc}>Mount Type</label><select className={ic} value={f.mountType} onChange={(e) => setF({ ...f, mountType: e.target.value })}><option value="ceiling">Ceiling</option><option value="wall">Wall</option><option value="pole">Pole</option><option value="pendant">Pendant</option></select></div>
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      <SelectInput label="Form Factor" value={f.formFactor} onChange={(v) => setF({ ...f, formFactor: v })} options={[{ value: 'dome', label: 'Dome' }, { value: 'bullet', label: 'Bullet' }, { value: 'turret', label: 'Turret' }, { value: 'ptz', label: 'PTZ' }, { value: 'fisheye', label: 'Fisheye' }]} />
+      <SelectInput label="Mount Type" value={f.mountType} onChange={(v) => setF({ ...f, mountType: v })} options={[{ value: 'ceiling', label: 'Ceiling' }, { value: 'wall', label: 'Wall' }, { value: 'pole', label: 'Pole' }, { value: 'pendant', label: 'Pendant' }]} />
       <NumInput label="Weight (kg)" value={f.weight} onChange={(v) => setF({ ...f, weight: v })} />
       <NumInput label="Diameter (mm)" value={f.diameter} onChange={(v) => setF({ ...f, diameter: v })} />
     </div>
-    <button onClick={run} className={btnCls}>Calculate Mounts</button>
+    <button onClick={run} style={btnStyle}>Calculate Mounts</button>
     {result && <ResultBlock title="Mount Calculator Results" data={result} />}
   </div>)
 }
@@ -210,23 +267,23 @@ function WirelessForm() {
     const input: WirelessPtpInput = { radioVendor: 'Ubiquiti', radioModel: 'airFiber 5X', mode: 'ptp', distanceMiles: +f.distance, frequencyGHz: +f.freq, txPowerDbm: +f.txPower, antennaGainDbi: +f.antennaGain, rxSensitivityDbm: +f.rxSens, antennaHeightAFt: +f.heightA, antennaHeightBFt: +f.heightB, rainRateMmHr: 25, camerasPerSite: +f.cameras, bandwidthPerCameraMbps: +f.bwPerCam, maxThroughputMbps: 450, windSpeedMph: 30, antennaSurfaceAreaSqFt: 0.15, poeWattsPerCamera: 13, radioWatts: 40 }
     setResult(calculateWirelessPtp(input) as unknown as Record<string, unknown>)
   }
-  return (<div className="space-y-3">
-    <div className="grid grid-cols-3 gap-3">
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
       <NumInput label="Distance (miles)" value={f.distance} onChange={(v) => setF({ ...f, distance: v })} />
       <NumInput label="Frequency (GHz)" value={f.freq} onChange={(v) => setF({ ...f, freq: v })} />
       <NumInput label="TX Power (dBm)" value={f.txPower} onChange={(v) => setF({ ...f, txPower: v })} />
     </div>
-    <div className="grid grid-cols-3 gap-3">
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
       <NumInput label="Antenna Gain (dBi)" value={f.antennaGain} onChange={(v) => setF({ ...f, antennaGain: v })} />
       <NumInput label="RX Sensitivity (dBm)" value={f.rxSens} onChange={(v) => setF({ ...f, rxSens: v })} />
       <NumInput label="Cameras/Site" value={f.cameras} onChange={(v) => setF({ ...f, cameras: v })} />
     </div>
-    <div className="grid grid-cols-3 gap-3">
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
       <NumInput label="Height A (ft)" value={f.heightA} onChange={(v) => setF({ ...f, heightA: v })} />
       <NumInput label="Height B (ft)" value={f.heightB} onChange={(v) => setF({ ...f, heightB: v })} />
       <NumInput label="BW/Camera (Mbps)" value={f.bwPerCam} onChange={(v) => setF({ ...f, bwPerCam: v })} />
     </div>
-    <button onClick={run} className={btnCls}>Calculate Link Budget</button>
+    <button onClick={run} style={btnStyle}>Calculate Link Budget</button>
     {result && <ResultBlock title="Wireless PtP Results" data={result} />}
   </div>)
 }
@@ -238,14 +295,14 @@ function AcsForm() {
     const input: AcsBuildInput = { doorType: f.doorType as AcsBuildInput['doorType'], lockType: f.lockType as AcsBuildInput['lockType'], controllerDrawAmps: +f.controllerAmps, lockDrawAmps: +f.lockAmps, hasAdo: false, isMantrap: f.doorType === 'mantrap' }
     setResult(runAcsEngine(input) as unknown as Record<string, unknown>)
   }
-  return (<div className="space-y-3">
-    <div className="grid grid-cols-4 gap-3">
-      <div><label className={lc}>Door Type</label><select className={ic} value={f.doorType} onChange={(e) => setF({ ...f, doorType: e.target.value })}><option value="single">Single</option><option value="double">Double</option><option value="mantrap">Mantrap</option></select></div>
-      <div><label className={lc}>Lock Type</label><select className={ic} value={f.lockType} onChange={(e) => setF({ ...f, lockType: e.target.value })}><option value="maglock">Maglock</option><option value="electric_strike">Electric Strike</option><option value="mortise">Mortise</option></select></div>
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      <SelectInput label="Door Type" value={f.doorType} onChange={(v) => setF({ ...f, doorType: v })} options={[{ value: 'single', label: 'Single' }, { value: 'double', label: 'Double' }, { value: 'mantrap', label: 'Mantrap' }]} />
+      <SelectInput label="Lock Type" value={f.lockType} onChange={(v) => setF({ ...f, lockType: v })} options={[{ value: 'maglock', label: 'Maglock' }, { value: 'electric_strike', label: 'Electric Strike' }, { value: 'mortise', label: 'Mortise' }]} />
       <NumInput label="Controller Amps" value={f.controllerAmps} onChange={(v) => setF({ ...f, controllerAmps: v })} />
       <NumInput label="Lock Amps" value={f.lockAmps} onChange={(v) => setF({ ...f, lockAmps: v })} />
     </div>
-    <button onClick={run} className={btnCls}>Run ACS Engine</button>
+    <button onClick={run} style={btnStyle}>Run ACS Engine</button>
     {result && <ResultBlock title="ACS Build Results" data={result} />}
   </div>)
 }
@@ -268,16 +325,30 @@ export default function CalculatorDetailPage() {
   const router = useRouter()
   const calcType = params.type as string
   const calc = CALC_MAP[calcType]
-  if (!calc) return <div style={{ padding: 24 }}><p className="text-sm text-zinc-500">Unknown calculator type: {calcType}</p></div>
+
+  if (!calc) return (
+    <div style={{ padding: 24 }}>
+      <p style={{ fontSize: 13, color: C.textMuted }}>Unknown calculator type: {calcType}</p>
+    </div>
+  )
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: 24, fontFamily: "'Inter', sans-serif", maxWidth: 960 }}>
       <button onClick={() => router.push('/org/tools/calculators')}
-        className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 mb-4">
-        <ArrowLeft size={16} /> Back to Calculators
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 12, color: C.accent, background: 'none', border: 'none',
+          cursor: 'pointer', marginBottom: 16, padding: 0, fontFamily: 'inherit',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.color = '#60a5fa' }}
+        onMouseLeave={(e) => { e.currentTarget.style.color = C.accent }}
+      >
+        <ArrowLeft size={14} /> Back to Calculators
       </button>
-      <h1 className="text-xl font-semibold text-white mb-1">{calc.name}</h1>
-      <p className="text-sm text-zinc-500 mb-6">Standalone mode — enter values manually. Same engine runs integrated from the design canvas.</p>
+      <h1 style={{ fontSize: 20, fontWeight: 700, color: C.text, marginBottom: 4 }}>{calc.name}</h1>
+      <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 24 }}>
+        Standalone mode — enter values manually. Same engine runs integrated from the design canvas.
+      </p>
       <calc.Form />
     </div>
   )
