@@ -1,3 +1,23 @@
+    // Import narrative generator
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { buildNarrative } = require('@/lib/calculators/wiring-schematic')
+    // Prepare input for narrative
+    const narrativeInput = {
+      schematicType: p.schematic_type || 'standard',
+      controllerBrand: p.controller_brand || '',
+      controllerModel: p.controller_model || '',
+      lockType: p.lock_type || '',
+      lockVendor: p.lock_manufacturer || '',
+      readerProtocol: p.reader_protocol || 'wiegand',
+      hasDps: !!p.has_dps,
+      hasRex: !!p.has_rex,
+      hasAda: !!p.has_ada,
+      operatorModel: p.operator_model || '',
+      sequencerModel: p.sequencer_model || '',
+      doorName: d.label || '',
+      mdfIdfLocation: p.mdf_idf || '',
+    }
+    const deviceNarrative = buildNarrative(narrativeInput)
 'use client'
 
 import { useState, useCallback } from 'react'
@@ -100,6 +120,24 @@ export function RightPanel({
   // ---- Zone Editor (takes priority when zone selected) ----
   if (selectedZone && !device) {
     const z = selectedZone
+    const [glow, setGlow] = useState({});
+    const [zoneErrors, setZoneErrors] = useState({});
+    // Helper to trigger glow for a field
+    const triggerGlow = (field) => {
+      setGlow((prev) => ({ ...prev, [field]: true }));
+      setTimeout(() => setGlow((prev) => ({ ...prev, [field]: false })), 1600);
+    };
+    // Cascading validation
+    const validateZone = (zone) => {
+      const errors = {};
+      if (zone.x < 0) errors.x = 'X must be >= 0';
+      if (zone.y < 0) errors.y = 'Y must be >= 0';
+      if (zone.width <= 10) errors.width = 'Width must be > 10';
+      if (zone.height <= 10) errors.height = 'Height must be > 10';
+      if (zone.width < zone.height) errors.width = 'Width should be >= Height';
+      setZoneErrors(errors);
+      return Object.keys(errors).length === 0;
+    };
     return (
       <div style={{
         width: 300, height: '100%', background: C.bgPanel, borderLeft: `1px solid ${C.border}`,
@@ -123,12 +161,17 @@ export function RightPanel({
               defaultValue={z.name}
               key={z.id + '-zname'}
               onBlur={(e) => {
-                if (e.target.value !== z.name) onUpdateZone?.(z.id, { name: e.target.value })
+                if (e.target.value !== z.name) {
+                  onUpdateZone?.(z.id, { name: e.target.value });
+                  triggerGlow('name');
+                }
               }}
               style={{
                 width: '100%', background: C.bgActive, border: `1px solid ${C.border}`,
                 borderRadius: 4, padding: '5px 8px', color: C.text, fontSize: 13,
                 fontWeight: 600, fontFamily: 'inherit', outline: 'none',
+                boxShadow: glow['name'] ? '0 0 8px #22c55e' : undefined,
+                transition: 'box-shadow 0.3s',
               }}
             />
 
@@ -154,29 +197,69 @@ export function RightPanel({
               <div>
                 <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>X</div>
                 <input type="number" defaultValue={z.x} key={z.id + '-zx'}
-                  onBlur={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v !== z.x) onUpdateZone?.(z.id, { x: v }) }}
-                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none' }}
+                  type="tel"
+                  onBlur={(e) => {
+                    const v = parseInt(e.target.value);
+                    if (!isNaN(v) && v !== z.x) {
+                      onUpdateZone?.(z.id, { x: v });
+                      triggerGlow('x');
+                      validateZone({ ...z, x: v });
+                    }
+                  }}
+                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['x'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
+                />
+                {zoneErrors.x && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.x}</div>}
                 />
               </div>
               <div>
                 <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Y</div>
                 <input type="number" defaultValue={z.y} key={z.id + '-zy'}
-                  onBlur={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v !== z.y) onUpdateZone?.(z.id, { y: v }) }}
-                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none' }}
+                  type="tel"
+                  onBlur={(e) => {
+                    const v = parseInt(e.target.value);
+                    if (!isNaN(v) && v !== z.y) {
+                      onUpdateZone?.(z.id, { y: v });
+                      triggerGlow('y');
+                      validateZone({ ...z, y: v });
+                    }
+                  }}
+                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['y'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
+                />
+                {zoneErrors.y && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.y}</div>}
                 />
               </div>
               <div>
                 <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Width</div>
                 <input type="number" defaultValue={z.width} key={z.id + '-zw'}
-                  onBlur={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v > 0 && v !== z.width) onUpdateZone?.(z.id, { width: v }) }}
-                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none' }}
+                  type="tel"
+                  onBlur={(e) => {
+                    const v = parseInt(e.target.value);
+                    if (!isNaN(v) && v > 0 && v !== z.width) {
+                      onUpdateZone?.(z.id, { width: v });
+                      triggerGlow('width');
+                      validateZone({ ...z, width: v });
+                    }
+                  }}
+                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['width'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
+                />
+                {zoneErrors.width && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.width}</div>}
                 />
               </div>
               <div>
                 <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Height</div>
                 <input type="number" defaultValue={z.height} key={z.id + '-zh'}
-                  onBlur={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v > 0 && v !== z.height) onUpdateZone?.(z.id, { height: v }) }}
-                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none' }}
+                  type="tel"
+                  onBlur={(e) => {
+                    const v = parseInt(e.target.value);
+                    if (!isNaN(v) && v > 0 && v !== z.height) {
+                      onUpdateZone?.(z.id, { height: v });
+                      triggerGlow('height');
+                      validateZone({ ...z, height: v });
+                    }
+                  }}
+                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['height'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
+                />
+                {zoneErrors.height && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.height}</div>}
                 />
               </div>
             </div>
@@ -665,6 +748,11 @@ export function RightPanel({
         {/* ---- ACS: Lock / Reader / Controller ---- */}
         {isAcs(cat) && (
           <Section title="Access Control" defaultOpen={true}>
+            {/* Auto-generated device narrative */}
+            <div style={{ marginBottom: 10, padding: '8px', background: 'rgba(59,130,246,0.08)', borderRadius: 6, border: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 10, color: C.accent, fontWeight: 600, marginBottom: 4 }}>Device Narrative</div>
+              <div style={{ fontSize: 11, color: C.text }}>{deviceNarrative}</div>
+            </div>
             <Field label="Lock Type" value={prop(d, 'lock_type', '\u2014')} editable fieldKey="lock_type" onBlurSave={saveFieldFromBlur} />
             <Field label="Lock Manufacturer" value={prop(d, 'lock_manufacturer', '\u2014')} editable fieldKey="lock_manufacturer" onBlurSave={saveFieldFromBlur} />
             <Field label="Reader Protocol" value={prop(d, 'reader_protocol', '\u2014')} editable fieldKey="reader_protocol" onBlurSave={saveFieldFromBlur} />

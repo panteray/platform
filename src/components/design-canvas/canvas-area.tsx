@@ -134,6 +134,7 @@ export function CanvasArea({
   const containerRef = useRef<HTMLDivElement>(null)
   const [fabricReady, setFabricReady] = useState(false)
   const [zoomLevel, setZoomLevel] = useState(1)
+  const [isDraggingDevice, setIsDraggingDevice] = useState(false)
   const [vpState, setVpState] = useState<MinimapViewport>({ worldX: 0, worldY: 0, worldW: 4000, worldH: 3000 })
   const [cableDraw, setCableDraw] = useState<CableDrawState>({ phase: 'idle', sourceDeviceId: null, waypoints: [] })
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, deviceId: null })
@@ -249,6 +250,11 @@ export function CanvasArea({
           if (did) setContextMenu({ visible: true, x: evt.clientX, y: evt.clientY, deviceId: did })
           return
         }
+        if (evt.button === 0 && opt.target) {
+          // Device drag start
+          const did = (opt.target as unknown as Record<string, unknown>).deviceId as string
+          if (did) setIsDraggingDevice(true)
+        }
         if (evt.button === 0 && !opt.target) onSelectDevice(null)
       })
       canvas.on('mouse:move', (opt) => {
@@ -259,11 +265,13 @@ export function CanvasArea({
         lastPanX = evt.clientX; lastPanY = evt.clientY
         canvas.requestRenderAll()
       })
-      canvas.on('mouse:up', () => {
+      canvas.on('mouse:up', (opt) => {
         if (isPanning) {
           isPanning = false; canvas.selection = true
           if (container) container.style.cursor = activeToolRef.current === 'pan' ? 'grab' : spaceHeld ? 'grab' : 'default'
         }
+        // Device drag end
+        if (isDraggingDevice) setIsDraggingDevice(false)
       })
 
       // Selection bridging
@@ -682,92 +690,91 @@ export function CanvasArea({
     const canvas = fabricRef.current
     fovObjectMap.forEach((objs) => objs.forEach((o) => canvas.remove(o))); fovObjectMap.clear()
     fovHandleMap.current.forEach((o) => canvas.remove(o)); fovHandleMap.current.clear()
-    if (!showFovCones) { canvas.renderAll(); return }
+    // Drag suppression: hide FOV cones if dragging device
+    if (!showFovCones || isDraggingDevice) { canvas.renderAll(); return }
 
-    async function addFovCones() {
-      const fabric = await import('fabric')
+    let animationFrame;
+    let prevParams = {};
+    async function animateFovCones() {
+      const fabric = await import('fabric');
       for (const [deviceId, data] of fovData.entries()) {
-        const device = devices.find((d) => d.id === deviceId)
-        if (!device) continue
-        const objects: FabricObject[] = []
-        const halfAngle = (data.hFov / 2) * (Math.PI / 180)
-        const baseRotDeg = data.rotation || 0
-
-        // Multi-sensor: render one cone set per imager angle; single sensor: one cone set
+        const device = devices.find((d) => d.id === deviceId);
+        if (!device) continue;
+        const objects = [];
+        const halfAngle = (data.hFov / 2) * (Math.PI / 180);
+        const baseRotDeg = data.rotation || 0;
         const imagerAngles = data.sensorAngles && data.sensorAngles.length > 0
           ? data.sensorAngles.map(a => a + baseRotDeg)
-          : [baseRotDeg]
-
-        let outerR = 0
+          : [baseRotDeg];
+        let outerR = 0;
         for (const imagerDeg of imagerAngles) {
-          const rotRad = imagerDeg * (Math.PI / 180)
-
+          const rotRad = imagerDeg * (Math.PI / 180);
           for (const tier of data.tiers) {
-            const r = tier.distanceFt * (scalePxPerFt || 10)
-            if (r > outerR) outerR = r
-            const cx = device.position_x
-            const cy = device.position_y
-            const absStartX = cx + Math.cos(rotRad - halfAngle) * r
-            const absStartY = cy + Math.sin(rotRad - halfAngle) * r
-            const absEndX = cx + Math.cos(rotRad + halfAngle) * r
-            const absEndY = cy + Math.sin(rotRad + halfAngle) * r
-            const largeArc = data.hFov > 180 ? 1 : 0
-            const pathStr = `M ${cx} ${cy} L ${absStartX} ${absStartY} A ${r} ${r} 0 ${largeArc} 1 ${absEndX} ${absEndY} Z`
-
-            // Compute opacity — boost matching tier, dim others when highlighted
-            let opacity = tier.opacity
+            // Animate radius and angle
+            const targetR = tier.distanceFt * (scalePxPerFt || 10);
+            const prevR = prevParams[deviceId]?.[tier.color]?.r || targetR;
+            const r = prevR + (targetR - prevR) * 0.2;
+            if (!prevParams[deviceId]) prevParams[deviceId] = {};
+            prevParams[deviceId][tier.color] = { r: r };
+            if (r > outerR) outerR = r;
+            const cx = device.position_x;
+            const cy = device.position_y;
+            const absStartX = cx + Math.cos(rotRad - halfAngle) * r;
+            const absStartY = cy + Math.sin(rotRad - halfAngle) * r;
+            const absEndX = cx + Math.cos(rotRad + halfAngle) * r;
+            const absEndY = cy + Math.sin(rotRad + halfAngle) * r;
+            const largeArc = data.hFov > 180 ? 1 : 0;
+            const pathStr = `M ${cx} ${cy} L ${absStartX} ${absStartY} A ${r} ${r} 0 ${largeArc} 1 ${absEndX} ${absEndY} Z`;
+            let opacity = tier.opacity;
             if (highlightedPpfTier) {
-              opacity = tier.color === highlightedPpfTier ? Math.min(tier.opacity * 3, 0.5) : tier.opacity * 0.2
+              opacity = tier.color === highlightedPpfTier ? Math.min(tier.opacity * 3, 0.5) : tier.opacity * 0.2;
             }
-
             const path = new fabric.Path(pathStr, {
               fill: tier.color, opacity, selectable: false, evented: false,
-            })
-            canvas.add(path); canvas.sendObjectToBack(path); objects.push(path)
-
-            // DORI mode: add tier label at arc midpoint along imager center line
+            });
+            canvas.add(path); canvas.sendObjectToBack(path); objects.push(path);
             if (fovDisplayMode === 'dori' && r > 20) {
-              const labelR = r * 0.92
-              const lx = cx + Math.cos(rotRad) * labelR
-              const ly = cy + Math.sin(rotRad) * labelR
-              const label = TIER_LABELS[tier.color] || ''
+              const labelR = r * 0.92;
+              const lx = cx + Math.cos(rotRad) * labelR;
+              const ly = cy + Math.sin(rotRad) * labelR;
+              const label = TIER_LABELS[tier.color] || '';
               if (label) {
                 const text = new fabric.FabricText(label, {
                   left: lx, top: ly, fontSize: 9, fontWeight: '700',
                   fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
                   originX: 'center', originY: 'center', selectable: false, evented: false,
                   opacity: highlightedPpfTier && tier.color !== highlightedPpfTier ? 0.2 : 0.9,
-                })
-                ;(text as unknown as Record<string, unknown>).__isDoriLabel = true
-                canvas.add(text); objects.push(text)
+                });
+                ;(text as unknown as Record<string, unknown>).__isDoriLabel = true;
+                canvas.add(text); objects.push(text);
               }
             }
           }
         }
-        fovObjectMap.set(deviceId, objects)
-
-        // Drag handle at outermost cone edge along primary imager direction
-        const primaryRotRad = imagerAngles[0] * (Math.PI / 180)
+        fovObjectMap.set(deviceId, objects);
+        const primaryRotRad = imagerAngles[0] * (Math.PI / 180);
         if (outerR > 0 && onFovHandleDragged) {
-          const hx = device.position_x + Math.cos(primaryRotRad) * outerR
-          const hy = device.position_y + Math.sin(primaryRotRad) * outerR
+          const hx = device.position_x + Math.cos(primaryRotRad) * outerR;
+          const hy = device.position_y + Math.sin(primaryRotRad) * outerR;
           const handle = new fabric.Circle({
             left: hx, top: hy, radius: 5, fill: 'rgba(59,130,246,0.9)', stroke: '#fff', strokeWidth: 1.5,
             originX: 'center', originY: 'center', selectable: true, evented: true,
             hasControls: false, hasBorders: false, hoverCursor: 'grab', moveCursor: 'grabbing',
-          })
-          ;(handle as unknown as Record<string, unknown>).__fovHandle = true
-          ;(handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId
-          ;(handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x
-          ;(handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y
-          canvas.add(handle)
-          fovHandleMap.current.set(deviceId, handle)
+          });
+          ;(handle as unknown as Record<string, unknown>).__fovHandle = true;
+          ;(handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
+          ;(handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
+          ;(handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
+          canvas.add(handle);
+          fovHandleMap.current.set(deviceId, handle);
         }
       }
-      canvas.renderAll()
+      canvas.renderAll();
+      animationFrame = requestAnimationFrame(animateFovCones);
     }
-    void addFovCones()
-  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier])
+    animateFovCones();
+    return () => { if (animationFrame) cancelAnimationFrame(animationFrame); };
+  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, isDraggingDevice])
 
   // ---- FOV Handle Drag → update target distance ----
   useEffect(() => {
@@ -925,6 +932,27 @@ export function CanvasArea({
         })
         ;(label as unknown as Record<string, unknown>).__isZoneLabel = true
         canvas.add(label); objects.push(label)
+
+        // Spatial error bubble for validation errors
+        if (zone.errors && Object.keys(zone.errors).length > 0) {
+          const errorMsg = Object.values(zone.errors).join('\n');
+          const errorBubble = new fabric.FabricText(errorMsg, {
+            left: zone.x + zone.width / 2,
+            top: zone.y - 18,
+            fontSize: 11,
+            fill: '#ef4444',
+            fontFamily: 'IBM Plex Sans, sans-serif',
+            fontWeight: 'bold',
+            opacity: 0.95,
+            backgroundColor: '#fff',
+            padding: 6,
+            borderRadius: 6,
+            selectable: false,
+            evented: false,
+          })
+          ;(errorBubble as unknown as Record<string, unknown>).__isZoneErrorBubble = true
+          canvas.add(errorBubble); objects.push(errorBubble)
+        }
 
         zoneObjectMap.set(zone.id, objects)
       }
@@ -1433,7 +1461,8 @@ export function CanvasArea({
 
   // ---- Minimap data ----
   return (
-    <div ref={containerRef}
+    <div
+      ref={containerRef}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
       onDrop={(e) => {
         e.preventDefault()
@@ -1442,8 +1471,20 @@ export function CanvasArea({
         const point = fabricRef.current.getScenePoint(e.nativeEvent as unknown as MouseEvent)
         onDeviceDrop?.(Math.round(point.x), Math.round(point.y), data)
       }}
-      style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}>
-      <canvas ref={canvasRef} />
+      aria-label="Design canvas area"
+      role="region"
+      style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}
+    >
+      <canvas
+        ref={canvasRef}
+        tabIndex={0}
+        aria-label="Device placement canvas"
+        style={{
+          width: '100%', height: '100%', outline: focusVisible ? '2px solid #3B82F6' : 'none', borderRadius: 8, background: C.bg,
+        }}
+        onFocus={() => setFocusVisible(true)}
+        onBlur={() => setFocusVisible(false)}
+      />
 
       {/* Placement hint */}
       {activeTool === 'place' && pendingDeviceName && (
