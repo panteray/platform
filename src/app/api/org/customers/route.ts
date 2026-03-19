@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
   // Retry up to 5 times if unique constraint fails
   while (attempt < 5) {
     customerNumber = await nextCustomerNumber(admin, caller.org_id)
-    ({ data, error } = await admin.from('customers').insert({
+    const result = await admin.from('customers').insert({
       org_id: caller.org_id,
       customer_number: customerNumber,
       name: body.name,
@@ -75,7 +75,9 @@ export async function POST(request: NextRequest) {
       payment_terms: body.payment_terms ?? null,
       notes: body.notes ?? null,
       created_by: caller.id,
-    }).select().single())
+    }).select().single();
+    data = result.data;
+    error = result.error;
     if (!error || !error.message.includes('unique_customer_number')) break;
     attempt++;
   }
