@@ -1,24 +1,29 @@
-    // Import narrative generator
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { buildNarrative } = require('@/lib/calculators/wiring-schematic')
-    // Prepare input for narrative
-    const narrativeInput = {
-      schematicType: p.schematic_type || 'standard',
-      controllerBrand: p.controller_brand || '',
-      controllerModel: p.controller_model || '',
-      lockType: p.lock_type || '',
-      lockVendor: p.lock_manufacturer || '',
-      readerProtocol: p.reader_protocol || 'wiegand',
-      hasDps: !!p.has_dps,
-      hasRex: !!p.has_rex,
-      hasAda: !!p.has_ada,
-      operatorModel: p.operator_model || '',
-      sequencerModel: p.sequencer_model || '',
-      doorName: d.label || '',
-      mdfIdfLocation: p.mdf_idf || '',
-    }
-    const deviceNarrative = buildNarrative(narrativeInput)
-'use client'
+/** Device narrative generator for ACS devices */
+function getDeviceNarrative(device: DesignDevice | null) {
+  if (!device) return '';
+  const p = device as any;
+  const d = device as any;
+  const narrativeInput = {
+    schematicType: p.schematic_type || 'standard',
+    controllerBrand: p.controller_brand || '',
+    controllerModel: p.controller_model || '',
+    lockType: p.lock_type || '',
+    lockVendor: p.lock_manufacturer || '',
+    readerProtocol: p.reader_protocol || 'wiegand',
+    hasDps: !!p.has_dps,
+    hasRex: !!p.has_rex,
+    hasAda: !!p.has_ada,
+    operatorModel: p.operator_model || '',
+    sequencerModel: p.sequencer_model || '',
+    doorName: d.label || '',
+    mdfIdfLocation: p.mdf_idf || '',
+  };
+  return buildNarrative(narrativeInput);
+}
+
+// Import narrative generator
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { buildNarrative } = require('@/lib/calculators/wiring-schematic')
 
 import { useState, useCallback } from 'react'
 import { C, COLORS_16, COLORS_48, PPF_CHART } from './constants'
@@ -120,16 +125,16 @@ export function RightPanel({
   // ---- Zone Editor (takes priority when zone selected) ----
   if (selectedZone && !device) {
     const z = selectedZone
-    const [glow, setGlow] = useState({});
-    const [zoneErrors, setZoneErrors] = useState({});
+    const [glow, setGlow] = useState<Record<string, boolean>>({});
+    const [zoneErrors, setZoneErrors] = useState<Record<string, string>>({});
     // Helper to trigger glow for a field
-    const triggerGlow = (field) => {
+    const triggerGlow = (field: string) => {
       setGlow((prev) => ({ ...prev, [field]: true }));
       setTimeout(() => setGlow((prev) => ({ ...prev, [field]: false })), 1600);
     };
     // Cascading validation
-    const validateZone = (zone) => {
-      const errors = {};
+    const validateZone = (zone: any) => {
+      const errors: Record<string, string> = {};
       if (zone.x < 0) errors.x = 'X must be >= 0';
       if (zone.y < 0) errors.y = 'Y must be >= 0';
       if (zone.width <= 10) errors.width = 'Width must be > 10';
@@ -197,7 +202,6 @@ export function RightPanel({
               <div>
                 <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>X</div>
                 <input type="number" defaultValue={z.x} key={z.id + '-zx'}
-                  type="tel"
                   onBlur={(e) => {
                     const v = parseInt(e.target.value);
                     if (!isNaN(v) && v !== z.x) {
@@ -209,12 +213,11 @@ export function RightPanel({
                   style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['x'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
                 />
                 {zoneErrors.x && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.x}</div>}
-                />
+                
               </div>
               <div>
                 <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Y</div>
                 <input type="number" defaultValue={z.y} key={z.id + '-zy'}
-                  type="tel"
                   onBlur={(e) => {
                     const v = parseInt(e.target.value);
                     if (!isNaN(v) && v !== z.y) {
@@ -226,12 +229,11 @@ export function RightPanel({
                   style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['y'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
                 />
                 {zoneErrors.y && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.y}</div>}
-                />
+                
               </div>
               <div>
                 <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Width</div>
                 <input type="number" defaultValue={z.width} key={z.id + '-zw'}
-                  type="tel"
                   onBlur={(e) => {
                     const v = parseInt(e.target.value);
                     if (!isNaN(v) && v > 0 && v !== z.width) {
@@ -243,12 +245,11 @@ export function RightPanel({
                   style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['width'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
                 />
                 {zoneErrors.width && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.width}</div>}
-                />
+                
               </div>
               <div>
                 <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Height</div>
                 <input type="number" defaultValue={z.height} key={z.id + '-zh'}
-                  type="tel"
                   onBlur={(e) => {
                     const v = parseInt(e.target.value);
                     if (!isNaN(v) && v > 0 && v !== z.height) {
@@ -260,7 +261,7 @@ export function RightPanel({
                   style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['height'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
                 />
                 {zoneErrors.height && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.height}</div>}
-                />
+                
               </div>
             </div>
           </Section>
@@ -751,7 +752,7 @@ export function RightPanel({
             {/* Auto-generated device narrative */}
             <div style={{ marginBottom: 10, padding: '8px', background: 'rgba(59,130,246,0.08)', borderRadius: 6, border: `1px solid ${C.borderSubtle}` }}>
               <div style={{ fontSize: 10, color: C.accent, fontWeight: 600, marginBottom: 4 }}>Device Narrative</div>
-              <div style={{ fontSize: 11, color: C.text }}>{deviceNarrative}</div>
+              <div style={{ fontSize: 11, color: C.text }}>{getDeviceNarrative(device)}</div>
             </div>
             <Field label="Lock Type" value={prop(d, 'lock_type', '\u2014')} editable fieldKey="lock_type" onBlurSave={saveFieldFromBlur} />
             <Field label="Lock Manufacturer" value={prop(d, 'lock_manufacturer', '\u2014')} editable fieldKey="lock_manufacturer" onBlurSave={saveFieldFromBlur} />

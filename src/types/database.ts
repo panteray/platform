@@ -1114,6 +1114,7 @@ export interface DesignZone {
   y: number
   width: number
   height: number
+  errors?: { [key: string]: string }
   created_at: string
   updated_at: string
 }

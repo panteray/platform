@@ -131,6 +131,8 @@ export function CanvasArea({
   showMinimap = false,
   satelliteConfig,
 }: CanvasAreaProps) {
+  // Focus visibility state for accessibility outline
+  const [focusVisible, setFocusVisible] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -697,8 +699,12 @@ export function CanvasArea({
     // Drag suppression: hide FOV cones if dragging device
     if (!showFovCones || isDraggingDevice) { canvas.renderAll(); return }
 
-    let animationFrame;
-    let prevParams = {};
+    let animationFrame: number | undefined;
+    let prevParams: {
+      [deviceId: string]: {
+        [tierColor: string]: { r: number }
+      }
+    } = {};
     async function animateFovCones() {
       const fabric = await import('fabric');
       for (const [deviceId, data] of fovData.entries()) {
