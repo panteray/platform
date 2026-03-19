@@ -558,15 +558,27 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.textMuted, fontSize: 13 }}>Loading design...</div>
   if (error || !design) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.red, fontSize: 13 }}>{error ?? 'Design not found'}</div>
 
-  // --- Toolbar button style helper ---
-  const toolBtn = (active: boolean, activeColor?: string) => ({
-    display: 'flex' as const, alignItems: 'center' as const, gap: 3,
-    padding: '3px 8px', fontSize: 10, fontWeight: 500 as const, fontFamily: 'inherit' as const,
-    borderRadius: 5, cursor: 'pointer' as const,
-    border: `0.5px solid ${active ? (activeColor || C.accent) : C.border}`,
-    background: active ? `${activeColor || C.accent}18` : 'transparent',
-    color: active ? (activeColor || C.accent) : C.textMuted,
+  // --- Floating palette style helpers ---
+  const palette = (extra?: React.CSSProperties): React.CSSProperties => ({
+    position: 'absolute', zIndex: 15,
+    background: 'rgba(22,25,34,0.92)',
+    backdropFilter: 'blur(12px)',
+    border: `1px solid ${C.border}`,
+    borderRadius: 6, padding: 3,
+    display: 'flex', gap: 2,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.45)',
+    ...extra,
   })
+  const palBtn = (active: boolean, activeColor?: string): React.CSSProperties => ({
+    width: 28, height: 28,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 4, cursor: 'pointer',
+    border: active ? `1.5px solid ${activeColor || C.accent}` : '1px solid transparent',
+    background: active ? `${activeColor || C.accent}15` : 'transparent',
+    color: active ? (activeColor || C.accent) : C.textMuted,
+    transition: 'all 0.12s', flexShrink: 0,
+  })
+  const palSep = (): React.CSSProperties => ({ width: '100%', height: 1, background: C.border, margin: '1px 0' })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.bg, overflow: 'hidden' }}>
@@ -675,182 +687,6 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
           </span>
         )}
 
-        {/* RIGHT: Tool buttons — canvas views only */}
-        {activeView !== 'network_topology' && (<>
-
-        {/* Undo / Redo */}
-        <button onClick={handleUndo} disabled={undoStack.length === 0}
-          style={{ ...toolBtn(false), opacity: undoStack.length === 0 ? 0.3 : 1 }} title="Undo (Ctrl+Z)">
-          <Undo2 size={12} />
-        </button>
-        <button onClick={handleRedo} disabled={redoStack.length === 0}
-          style={{ ...toolBtn(false), opacity: redoStack.length === 0 ? 0.3 : 1 }} title="Redo (Ctrl+Y)">
-          <Redo2 size={12} />
-        </button>
-
-        <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
-
-        {/* Snap to grid */}
-        <button onClick={() => setSnapToGrid(!snapToGrid)} style={toolBtn(snapToGrid, C.green)} title="Snap to Grid">
-          <Magnet size={12} /> <span>Snap</span>
-        </button>
-
-        {/* Layer visibility */}
-        <div style={{ position: 'relative' }} ref={layerMenuRef}>
-          <button onClick={() => setShowLayerMenu(!showLayerMenu)} style={toolBtn(showLayerMenu)} title="Layer Visibility">
-            <Layers size={12} /> <span>Layers</span>
-          </button>
-          {showLayerMenu && (
-            <div style={{
-              position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
-              background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
-              padding: '6px 0', minWidth: 160, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-            }}>
-              {[
-                { key: 'cctv', label: 'Cameras', aliases: ['dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'] },
-                { key: 'access_control', label: 'Access Control', aliases: ['door', 'door_controller', 'card_reader', 'electric_strike', 'maglock', 'intercom'] },
-                { key: 'network', label: 'Network', aliases: ['switch', 'access_switch', 'rack', 'nvr', 'router', 'firewall', 'wireless_ap', 'bridge', 'server', 'monitor', 'patch_panel'] },
-                { key: 'av', label: 'AV', aliases: ['speaker'] },
-                { key: 'vape_environmental', label: 'Sensors', aliases: [] },
-                { key: 'other', label: 'Other', aliases: [] },
-              ].map((layer) => {
-                const allKeys = [layer.key, ...layer.aliases]
-                const isHidden = allKeys.some(k => hiddenCategories.has(k))
-                return (
-                  <div key={layer.key}
-                    onClick={() => allKeys.forEach(k => {
-                      setHiddenCategories(prev => {
-                        const next = new Set(prev)
-                        if (isHidden) allKeys.forEach(a => next.delete(a))
-                        else allKeys.forEach(a => next.add(a))
-                        return next
-                      })
-                    })}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px',
-                      cursor: 'pointer', fontSize: 11, color: isHidden ? C.textDim : C.text,
-                      transition: 'background 0.1s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
-                    {isHidden ? <EyeOff size={12} /> : <Eye size={12} />}
-                    <span>{layer.label}</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
-
-        <button onClick={() => setShowFovCones(!showFovCones)} style={toolBtn(showFovCones)}>
-          {showFovCones ? <Eye size={12} /> : <EyeOff size={12} />} <span>FOV</span>
-        </button>
-        {showFovCones && (
-          <button onClick={() => setFovDisplayMode(fovDisplayMode === 'ppf' ? 'dori' : 'ppf')}
-            style={toolBtn(fovDisplayMode === 'dori', C.green)} title="Toggle PPF / DORI labels">
-            <span style={{ fontSize: 9, fontWeight: 600 }}>{fovDisplayMode === 'dori' ? 'DORI' : 'PPF'}</span>
-          </button>
-        )}
-        <button onClick={() => setActiveTool('mdf_idf')} style={toolBtn(activeTool === 'mdf_idf', C.orange)}
-          title="Place MDF/IDF closet">
-          <Server size={12} /> <span>MDF</span>
-        </button>
-        <button onClick={() => { setActiveTool('scale'); }} style={toolBtn(activeTool === 'scale', C.red)}>
-          <Ruler size={12} /> <span>Scale</span>
-        </button>
-        <button onClick={() => setShowGrid(!showGrid)} style={toolBtn(showGrid)}>
-          <Grid3X3 size={12} />
-        </button>
-
-        {/* Floor plan controls */}
-        <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
-        <button onClick={() => fileInputRef.current?.click()} style={toolBtn(false)} title={activeFloorPlan ? 'Replace floor plan' : 'Upload floor plan'}>
-          <Upload size={12} /> <span style={{ fontSize: 9 }}>{activeFloorPlan ? 'Replace' : 'Upload'}</span>
-        </button>
-        <input ref={fileInputRef} type="file" accept=".svg,.pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
-        {activeFloorPlan && (
-          <>
-            <button onClick={() => setConfirmAction({ label: 'Delete floor plan?', action: handleDeleteFloorPlan })}
-              style={toolBtn(false)} title="Remove floor plan">
-              <ImageOff size={12} />
-            </button>
-            {/* Floor plan opacity slider */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} title="Floor plan opacity">
-              <span style={{ fontSize: 8, color: C.textDim }}>Opacity</span>
-              <input type="range" min="0" max="100" value={Math.round(floorPlanOpacity * 100)}
-                onChange={(e) => setFloorPlanOpacity(parseInt(e.target.value) / 100)}
-                style={{ width: 50, height: 3, accentColor: C.accent, cursor: 'pointer' }} />
-              <span style={{ fontSize: 8, color: C.textDim, fontFamily: "'IBM Plex Mono'", minWidth: 22 }}>{Math.round(floorPlanOpacity * 100)}%</span>
-            </div>
-          </>
-        )}
-
-        {/* Design actions */}
-        <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
-        <button onClick={() => setConfirmAction({ label: 'Delete this entire design?', action: handleDeleteDesign })}
-          style={{ ...toolBtn(false), color: C.red, borderColor: 'transparent' }} title="Delete design">
-          <Trash2 size={12} />
-        </button>
-
-        {/* Export dropdown */}
-        <div style={{ position: 'relative' }} ref={exportMenuRef}>
-          <button onClick={() => setShowExportMenu(!showExportMenu)}
-            style={{ ...toolBtn(showExportMenu), opacity: exporting ? 0.5 : 1 }}
-            title="Export design" disabled={exporting}>
-            <Download size={12} /> <span>{exporting ? '...' : 'Export'}</span>
-          </button>
-          {showExportMenu && (
-            <div style={{
-              position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
-              background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
-              padding: '6px 0', minWidth: 180, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-            }}>
-              {([
-                { key: 'bom', label: 'Bill of Materials (XLSX)' },
-                { key: 'material-list', label: 'Material List (XLSX)' },
-                { key: 'hardware-schedule', label: 'Hardware Schedule (XLSX)' },
-                { key: 'cable-schedule', label: 'Cable Schedule (XLSX)' },
-                { key: 'snapshot', label: 'Canvas Snapshot (PNG)' },
-              ] as const).map((item) => (
-                <div key={item.key}
-                  onClick={() => handleExport(item.key)}
-                  style={{
-                    padding: '6px 14px', cursor: 'pointer', fontSize: 11, color: C.text,
-                    transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
-                  {item.label}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Separator */}
-        <div style={{ width: 1, height: 20, background: C.border, flexShrink: 0 }} />
-
-        {/* Requirements toggle */}
-        <button onClick={() => setShowRequirements(!showRequirements)} style={toolBtn(showRequirements)}
-          title="Toggle requirements bar">
-          <BarChart3 size={12} />
-        </button>
-
-        {/* Storage panel toggle */}
-        <button onClick={() => setShowStoragePanel(!showStoragePanel)} style={toolBtn(showStoragePanel)}
-          title="Toggle storage panel">
-          <HardDrive size={12} />
-        </button>
-
-        {/* Minimap toggle */}
-        <button onClick={() => setShowMinimap(!showMinimap)} style={toolBtn(showMinimap)}
-          title="Toggle minimap">
-          <MapIcon size={12} />
-        </button>
-
-        </>)}
       </div>
 
       {/* ========== COLLAPSIBLE REQUIREMENTS BAR ========== */}
@@ -869,6 +705,163 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
         {activeView !== 'network_topology' && (
           <>
             <IconSidebar activeIcon={activeIcon} onIconChange={handleIconChange} />
+
+            {/* ===== FLOATING PALETTE 1 — Canvas Tools (left, vertical) ===== */}
+            <div style={palette({ left: 60, top: 8, flexDirection: 'column' })}>
+              <button onClick={() => { setActiveTool('scale'); }} style={palBtn(activeTool === 'scale', C.red)} title="Scale Calibration">
+                <Ruler size={14} />
+              </button>
+              <button onClick={() => setActiveTool('mdf_idf')} style={palBtn(activeTool === 'mdf_idf', C.orange)} title="Place MDF/IDF">
+                <Server size={14} />
+              </button>
+              <div style={palSep()} />
+              <button onClick={() => setSnapToGrid(!snapToGrid)} style={palBtn(snapToGrid, C.green)} title="Snap to Grid">
+                <Magnet size={14} />
+              </button>
+              <button onClick={() => setShowGrid(!showGrid)} style={palBtn(showGrid)} title="Toggle Grid">
+                <Grid3X3 size={14} />
+              </button>
+            </div>
+
+            {/* ===== FLOATING PALETTE 2 — View Controls (left, below tools) ===== */}
+            <div style={palette({ left: 60, top: 160, flexDirection: 'column' })}>
+              <button onClick={() => setShowFovCones(!showFovCones)} style={palBtn(showFovCones)} title="Toggle FOV Cones">
+                {showFovCones ? <Eye size={14} /> : <EyeOff size={14} />}
+              </button>
+              {showFovCones && (
+                <button onClick={() => setFovDisplayMode(fovDisplayMode === 'ppf' ? 'dori' : 'ppf')}
+                  style={palBtn(fovDisplayMode === 'dori', C.green)} title="Toggle PPF / DORI">
+                  <span style={{ fontSize: 8, fontWeight: 700, lineHeight: 1 }}>{fovDisplayMode === 'dori' ? 'DORI' : 'PPF'}</span>
+                </button>
+              )}
+              <div style={palSep()} />
+              <div style={{ position: 'relative' }} ref={layerMenuRef}>
+                <button onClick={() => setShowLayerMenu(!showLayerMenu)} style={palBtn(showLayerMenu)} title="Layer Visibility">
+                  <Layers size={14} />
+                </button>
+                {showLayerMenu && (
+                  <div style={{
+                    position: 'absolute', left: '100%', top: 0, marginLeft: 6, zIndex: 50,
+                    background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
+                    padding: '6px 0', minWidth: 160, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  }}>
+                    {[
+                      { key: 'cctv', label: 'Cameras', aliases: ['dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'] },
+                      { key: 'access_control', label: 'Access Control', aliases: ['door', 'door_controller', 'card_reader', 'electric_strike', 'maglock', 'intercom'] },
+                      { key: 'network', label: 'Network', aliases: ['switch', 'access_switch', 'rack', 'nvr', 'router', 'firewall', 'wireless_ap', 'bridge', 'server', 'monitor', 'patch_panel'] },
+                      { key: 'av', label: 'AV', aliases: ['speaker'] },
+                      { key: 'vape_environmental', label: 'Sensors', aliases: [] },
+                      { key: 'other', label: 'Other', aliases: [] },
+                    ].map((layer) => {
+                      const allKeys = [layer.key, ...layer.aliases]
+                      const isHidden = allKeys.some(k => hiddenCategories.has(k))
+                      return (
+                        <div key={layer.key}
+                          onClick={() => allKeys.forEach(k => {
+                            setHiddenCategories(prev => {
+                              const next = new Set(prev)
+                              if (isHidden) allKeys.forEach(a => next.delete(a))
+                              else allKeys.forEach(a => next.add(a))
+                              return next
+                            })
+                          })}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px',
+                            cursor: 'pointer', fontSize: 11, color: isHidden ? C.textDim : C.text,
+                            transition: 'background 0.1s',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+                          {isHidden ? <EyeOff size={12} /> : <Eye size={12} />}
+                          <span>{layer.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setShowMinimap(!showMinimap)} style={palBtn(showMinimap)} title="Toggle Minimap">
+                <MapIcon size={14} />
+              </button>
+            </div>
+
+            {/* ===== FLOATING PALETTE 3 — Floor Plan (top-right, horizontal) ===== */}
+            <div style={palette({ right: 8, top: 8, flexDirection: 'row' })}>
+              <button onClick={() => fileInputRef.current?.click()} style={palBtn(false)} title={activeFloorPlan ? 'Replace floor plan' : 'Upload floor plan'}>
+                <Upload size={14} />
+              </button>
+              <input ref={fileInputRef} type="file" accept=".svg,.pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
+              {activeFloorPlan && (
+                <>
+                  <button onClick={() => setConfirmAction({ label: 'Delete floor plan?', action: handleDeleteFloorPlan })}
+                    style={palBtn(false)} title="Remove floor plan">
+                    <ImageOff size={14} />
+                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '0 4px' }} title="Floor plan opacity">
+                    <input type="range" min="0" max="100" value={Math.round(floorPlanOpacity * 100)}
+                      onChange={(e) => setFloorPlanOpacity(parseInt(e.target.value) / 100)}
+                      style={{ width: 48, height: 3, accentColor: C.accent, cursor: 'pointer' }} />
+                    <span style={{ fontSize: 8, color: C.textDim, fontFamily: "'IBM Plex Mono'", minWidth: 20 }}>{Math.round(floorPlanOpacity * 100)}%</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* ===== FLOATING PALETTE 4 — Actions (top-right, horizontal, below floor plan) ===== */}
+            <div style={palette({ right: 8, top: 46, flexDirection: 'row' })}>
+              <button onClick={handleUndo} disabled={undoStack.length === 0}
+                style={{ ...palBtn(false), opacity: undoStack.length === 0 ? 0.3 : 1 }} title="Undo (Ctrl+Z)">
+                <Undo2 size={14} />
+              </button>
+              <button onClick={handleRedo} disabled={redoStack.length === 0}
+                style={{ ...palBtn(false), opacity: redoStack.length === 0 ? 0.3 : 1 }} title="Redo (Ctrl+Y)">
+                <Redo2 size={14} />
+              </button>
+              <div style={{ width: 1, height: 20, background: C.border, margin: '0 1px' }} />
+              <button onClick={() => setShowRequirements(!showRequirements)} style={palBtn(showRequirements)} title="Requirements Bar">
+                <BarChart3 size={14} />
+              </button>
+              <button onClick={() => setShowStoragePanel(!showStoragePanel)} style={palBtn(showStoragePanel)} title="Storage Calculator">
+                <HardDrive size={14} />
+              </button>
+              <div style={{ width: 1, height: 20, background: C.border, margin: '0 1px' }} />
+              <div style={{ position: 'relative' }} ref={exportMenuRef}>
+                <button onClick={() => setShowExportMenu(!showExportMenu)}
+                  style={{ ...palBtn(showExportMenu), opacity: exporting ? 0.5 : 1 }} title="Export" disabled={exporting}>
+                  <Download size={14} />
+                </button>
+                {showExportMenu && (
+                  <div style={{
+                    position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 50,
+                    background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
+                    padding: '6px 0', minWidth: 180, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  }}>
+                    {([
+                      { key: 'bom', label: 'Bill of Materials (XLSX)' },
+                      { key: 'material-list', label: 'Material List (XLSX)' },
+                      { key: 'hardware-schedule', label: 'Hardware Schedule (XLSX)' },
+                      { key: 'cable-schedule', label: 'Cable Schedule (XLSX)' },
+                      { key: 'snapshot', label: 'Canvas Snapshot (PNG)' },
+                    ] as const).map((item) => (
+                      <div key={item.key}
+                        onClick={() => handleExport(item.key)}
+                        style={{
+                          padding: '6px 14px', cursor: 'pointer', fontSize: 11, color: C.text,
+                          transition: 'background 0.1s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+                        {item.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setConfirmAction({ label: 'Delete this entire design?', action: handleDeleteDesign })}
+                style={{ ...palBtn(false), color: C.red }} title="Delete Design">
+                <Trash2 size={14} />
+              </button>
+            </div>
 
             {/* Left panel — OVERLAY, does not push canvas */}
             {showLeftPanel && (
