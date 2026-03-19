@@ -567,17 +567,49 @@ export function CanvasArea({
     containerRef.current.style.cursor = cursors[activeTool] || 'default'
   }, [activeTool])
 
-  // ---- Sync devices ----
+  // ---- Sync devices (diff-based — only add/remove/update what changed) ----
+  const prevDeviceSnapRef = useRef<string>('')
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
-    deviceObjectMap.forEach((obj) => canvas.remove(obj)); deviceObjectMap.clear()
+
+    // Build a snapshot string of current device state for comparison
+    const visibleDevices = devices.filter((d) => !hiddenCategories?.has(d.category))
+    const snapshot = visibleDevices.map((d) =>
+      `${d.id}|${d.position_x}|${d.position_y}|${d.rotation || 0}|${d.color_hex || ''}|${d.label}|${d.status || 'new'}|${d.category}`
+    ).join(';')
+
+    // Skip if nothing changed
+    if (snapshot === prevDeviceSnapRef.current) return
+    prevDeviceSnapRef.current = snapshot
+
+    const currentIds = new Set(visibleDevices.map((d) => d.id))
+    const existingIds = new Set(deviceObjectMap.keys())
+
+    // Remove devices no longer present (or now hidden)
+    for (const id of existingIds) {
+      if (!currentIds.has(id)) {
+        const obj = deviceObjectMap.get(id)
+        if (obj) canvas.remove(obj)
+        deviceObjectMap.delete(id)
+      }
+    }
+    // Remove all labels (they don't have stable IDs — simpler to recreate)
     canvas.getObjects().filter((o) => (o as unknown as Record<string, unknown>).__isLabel === true).forEach((o) => canvas.remove(o))
 
-    async function addDevices() {
+    // Update existing device positions/rotation (no SVG reload needed)
+    for (const device of visibleDevices) {
+      const existing = deviceObjectMap.get(device.id)
+      if (existing) {
+        existing.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0 })
+      }
+    }
+
+    // Add new devices
+    const newDevices = visibleDevices.filter((d) => !existingIds.has(d.id))
+    async function addNewDevices() {
       const fabric = await import('fabric')
-      for (const device of devices) {
-        if (hiddenCategories?.has(device.category)) continue
+      for (const device of newDevices) {
         const iconKey = CATEGORY_TO_ICON[device.category] || 'dome_camera'
         const svgString = DEVICE_SVG_STRINGS[iconKey]
         if (!svgString) continue
@@ -588,8 +620,37 @@ export function CanvasArea({
           group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: 0.5, scaleY: 0.5, originX: 'center', originY: 'center', hasControls: true, hasBorders: true, lockScalingX: true, lockScalingY: true })
           ;(group as unknown as Record<string, unknown>).deviceId = device.id
           canvas.add(group); deviceObjectMap.set(device.id, group)
-
-          // Status indicator ring
+        } catch { /* skip */ }
+      }
+      // Re-add all labels for visible devices (lightweight text objects)
+      const fabric2 = fabric
+      for (const device of visibleDevices) {
+        const statusColors: Record<string, string> = { new: C.green, existing_keep: C.accent, existing_remove: C.red, relocate: C.yellow }
+        const statusColor = statusColors[device.status || 'new'] || C.green
+        if (device.status && device.status !== 'new') {
+          const ring = new fabric2.Circle({
+            left: device.position_x, top: device.position_y,
+            radius: 16, fill: 'transparent', stroke: statusColor, strokeWidth: 1.5,
+            strokeDashArray: device.status === 'existing_remove' ? [3, 2] : undefined,
+            originX: 'center', originY: 'center', selectable: false, evented: false, opacity: 0.7,
+          })
+          ;(ring as unknown as Record<string, unknown>).__isLabel = true
+          canvas.add(ring)
+        }
+        const labelText = new fabric2.FabricText(device.label, { left: device.position_x, top: device.position_y + 22, fontSize: 10, fill: C.textMuted, fontFamily: 'IBM Plex Sans, sans-serif', originX: 'center', originY: 'top', selectable: false, evented: false })
+        ;(labelText as unknown as Record<string, unknown>).__isLabel = true
+        canvas.add(labelText)
+      }
+      canvas.renderAll()
+    }
+    // Only run async SVG loading if there are actually new devices; otherwise just re-render for position updates + labels
+    if (newDevices.length > 0) {
+      void addNewDevices()
+    } else {
+      // Labels were already re-added synchronously above... need fabric import for them
+      async function readdLabels() {
+        const fabric = await import('fabric')
+        for (const device of visibleDevices) {
           const statusColors: Record<string, string> = { new: C.green, existing_keep: C.accent, existing_remove: C.red, relocate: C.yellow }
           const statusColor = statusColors[device.status || 'new'] || C.green
           if (device.status && device.status !== 'new') {
@@ -602,15 +663,14 @@ export function CanvasArea({
             ;(ring as unknown as Record<string, unknown>).__isLabel = true
             canvas.add(ring)
           }
-
           const labelText = new fabric.FabricText(device.label, { left: device.position_x, top: device.position_y + 22, fontSize: 10, fill: C.textMuted, fontFamily: 'IBM Plex Sans, sans-serif', originX: 'center', originY: 'top', selectable: false, evented: false })
           ;(labelText as unknown as Record<string, unknown>).__isLabel = true
           canvas.add(labelText)
-        } catch { /* skip */ }
+        }
+        canvas.renderAll()
       }
-      canvas.renderAll()
+      void readdLabels()
     }
-    void addDevices()
   }, [devices, fabricReady, hiddenCategories])
 
   // ---- DORI tier labels for display ----

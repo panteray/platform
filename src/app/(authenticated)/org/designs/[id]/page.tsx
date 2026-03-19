@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { useUser } from '@/hooks/useUser'
 import { DESIGN_ACCESS_ROLES } from '@/types/enums'
@@ -12,6 +12,7 @@ type DesignTab = 'dashboard' | 'canvas'
 const TAB_STYLE_BASE: React.CSSProperties = {
   padding: '6px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
   border: 'none', borderRadius: '6px 6px 0 0', transition: 'background 0.15s',
+  fontFamily: 'inherit',
 }
 
 export default function DesignDetailPage() {
@@ -20,6 +21,14 @@ export default function DesignDetailPage() {
   const [activeTab, setActiveTab] = useState<DesignTab>('dashboard')
 
   const hasAccess = userRole && (DESIGN_ACCESS_ROLES as readonly string[]).includes(userRole)
+
+  // When canvas is active, prevent body scroll
+  useEffect(() => {
+    if (activeTab === 'canvas') {
+      document.body.style.overflow = 'hidden'
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [activeTab])
 
   if (userLoading) {
     return (
@@ -37,6 +46,20 @@ export default function DesignDetailPage() {
     )
   }
 
+  // Canvas tab: full-viewport overlay — covers sidebar, topbar, everything
+  if (activeTab === 'canvas') {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        background: '#0f1117',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <DesignCanvas designId={id} onNavigateDashboard={() => setActiveTab('dashboard')} />
+      </div>
+    )
+  }
+
+  // Dashboard tab: normal app shell layout
   return (
     <div className="-m-6 h-[calc(100vh-48px)] flex flex-col" style={{ background: '#0f1117' }}>
       {/* Tab bar */}
@@ -48,9 +71,9 @@ export default function DesignDetailPage() {
           onClick={() => setActiveTab('dashboard')}
           style={{
             ...TAB_STYLE_BASE,
-            background: activeTab === 'dashboard' ? '#161922' : 'transparent',
-            color: activeTab === 'dashboard' ? '#e4e6eb' : '#5c6078',
-            borderBottom: activeTab === 'dashboard' ? '2px solid #3b82f6' : '2px solid transparent',
+            background: '#161922',
+            color: '#e4e6eb',
+            borderBottom: '2px solid #3b82f6',
           }}
         >
           Dashboard
@@ -59,23 +82,18 @@ export default function DesignDetailPage() {
           onClick={() => setActiveTab('canvas')}
           style={{
             ...TAB_STYLE_BASE,
-            background: activeTab === 'canvas' ? '#161922' : 'transparent',
-            color: activeTab === 'canvas' ? '#e4e6eb' : '#5c6078',
-            borderBottom: activeTab === 'canvas' ? '2px solid #3b82f6' : '2px solid transparent',
+            background: 'transparent',
+            color: '#5c6078',
+            borderBottom: '2px solid transparent',
           }}
         >
           Canvas
         </button>
       </div>
 
-      {/* Tab content */}
+      {/* Dashboard content */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        {activeTab === 'dashboard' && (
-          <DesignDashboard designId={id} onNavigateCanvas={() => setActiveTab('canvas')} />
-        )}
-        {activeTab === 'canvas' && (
-          <DesignCanvas designId={id} />
-        )}
+        <DesignDashboard designId={id} onNavigateCanvas={() => setActiveTab('canvas')} />
       </div>
     </div>
   )

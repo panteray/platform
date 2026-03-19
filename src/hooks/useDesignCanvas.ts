@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import type {
   Design, DesignArea, DesignDevice, DesignCable, DesignMdfIdf,
@@ -147,17 +147,23 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
   const [activeAreaId, setActiveAreaId] = useState<string | null>(null)
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
   const [selectedCableId, setSelectedCableId] = useState<string | null>(null)
+  const initialAreaSetRef = useRef(false)
+  const mountedRef = useRef(true)
 
-  const fetchDesign = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  const fetchDesign = useCallback(async (isInitial = false) => {
+    if (isInitial) { setLoading(true); setError(null) }
     try {
       const designRes = await fetch(`/api/org/designs/${designId}`)
+      if (!mountedRef.current) return
       if (!designRes.ok) { setError('Failed to load design'); toast.error('Failed to load design'); return }
       const designJson = await designRes.json()
+      if (!mountedRef.current) return
       setDesign(designJson.design)
       setAreas(designJson.areas ?? [])
-      if (designJson.areas?.length > 0 && !activeAreaId) setActiveAreaId(designJson.areas[0].id)
+      if (designJson.areas?.length > 0 && !initialAreaSetRef.current) {
+        initialAreaSetRef.current = true
+        setActiveAreaId(designJson.areas[0].id)
+      }
 
       // Parallel fetch all entities
       const [fpRes, devRes, cabRes, infRes, zoneRes, rackRes, vlanRes, topoRes, linkRes, avRes] = await Promise.all([
@@ -172,6 +178,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
         fetch(`/api/org/designs/${designId}/topology-links`),
         fetch(`/api/org/designs/${designId}/avoip`),
       ])
+      if (!mountedRef.current) return
 
       if (fpRes.ok) setFloorPlans((await fpRes.json()).floorPlans ?? [])
       if (devRes.ok) setDevices((await devRes.json()).devices ?? [])
@@ -184,14 +191,20 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
       if (linkRes.ok) setTopologyLinks((await linkRes.json()).links ?? [])
       if (avRes.ok) setAvoipDevices((await avRes.json()).avoipDevices ?? [])
     } catch {
+      if (!mountedRef.current) return
       setError('Network error')
       toast.error('Network error loading design')
     } finally {
-      setLoading(false)
+      if (mountedRef.current) setLoading(false)
     }
-  }, [designId, activeAreaId])
+  }, [designId])
 
-  useEffect(() => { void fetchDesign() }, [fetchDesign])
+  useEffect(() => {
+    mountedRef.current = true
+    initialAreaSetRef.current = false
+    void fetchDesign(true)
+    return () => { mountedRef.current = false }
+  }, [fetchDesign])
 
   // Area CRUD
   const addArea = useCallback(async (name: string, canvasType: string): Promise<DesignArea | null> => {

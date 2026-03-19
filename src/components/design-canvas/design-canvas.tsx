@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive, Server, Download, Map as MapIcon } from 'lucide-react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { C, GRID_SIZE, UNDO_STACK_DEPTH, isDoorType, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
 import { LABEL_CODES } from './icons'
@@ -30,9 +29,9 @@ const VIEWS: { id: DesignView; label: string }[] = [
   { id: 'all', label: 'All' },
 ]
 
-interface DesignCanvasProps { designId: string }
+interface DesignCanvasProps { designId: string; onNavigateDashboard?: () => void }
 
-export function DesignCanvas({ designId }: DesignCanvasProps) {
+export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProps) {
   const state = useDesignCanvas(designId)
   const {
     design, areas, devices, cables, mdfIdfs, floorPlans, zones, topologyNodes, topologyLinks,
@@ -92,11 +91,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     saveTimerRef.current = setTimeout(() => setSaveStatus('saved'), 800)
   }, [])
 
-  // Background sync every 30s
-  useEffect(() => {
-    const interval = setInterval(() => { refetch() }, 30000)
-    return () => clearInterval(interval)
-  }, [refetch])
+  // No background polling — mutations are optimistic and immediate.
+  // Polling caused full canvas rebuild every 30s (Bug 3).
 
   // Tab-driven category filter — preset hiddenCategories when switching view tabs
   const ALL_CATEGORIES = ['cctv', 'access_control', 'network', 'av', 'vape_environmental', 'other'] as const
@@ -113,8 +109,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
 
   const activeArea = areas.find((a) => a.id === activeAreaId) ?? null
   const activeFloorPlan: DesignFloorPlan | null = floorPlans.find((fp) => fp.area_id === activeAreaId) ?? null
-  const areaDevices = devices.filter((d) => d.area_id === activeAreaId)
-  const areaCables = cables.filter((c) => c.area_id === activeAreaId)
+  const areaDevices = useMemo(() => devices.filter((d) => d.area_id === activeAreaId), [devices, activeAreaId])
+  const areaCables = useMemo(() => cables.filter((c) => c.area_id === activeAreaId), [cables, activeAreaId])
 
   const opp = design?.opportunities as Record<string, unknown> | undefined
   const projectName = opp?.project_name ? `${opp.opp_number} / ${opp.project_name}` : design?.name ?? 'Design Canvas'
@@ -577,9 +573,9 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
         background: C.bgSurface, borderBottom: `1px solid ${C.border}`, flexShrink: 0,
       }}>
         {/* LEFT: Back + Project Name */}
-        <Link href="/org/designs" style={{ display: 'flex', alignItems: 'center', color: C.textMuted, textDecoration: 'none' }}>
+        <button onClick={() => onNavigateDashboard ? onNavigateDashboard() : router.push('/org/designs')} style={{ display: 'flex', alignItems: 'center', color: C.textMuted, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
           <ArrowLeft size={14} />
-        </Link>
+        </button>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginRight: 8, minWidth: 0 }}>
           <div style={{ fontSize: 9, color: C.textDim, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>{projectName}</div>
           <div style={{ fontSize: 11, fontWeight: 600, color: C.text, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>{design.name}</div>
