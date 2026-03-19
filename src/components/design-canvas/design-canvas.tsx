@@ -91,6 +91,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [exporting, setExporting] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
+  const [satelliteLoading, setSatelliteLoading] = useState(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Auto-save indicator: flash "saving..." then "saved" on any mutation
@@ -527,6 +528,29 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     }
   }, [designId, design?.name])
 
+  // Satellite auto-load: geocode OPP address → update area with lat/lng → dismiss welcome modal
+  const handleAddLocation = useCallback(async () => {
+    const address = (opp?.install_address as string)?.trim()
+    if (!address || !activeAreaId) return
+    setSatelliteLoading(true)
+    try {
+      const res = await fetch('/api/org/geocode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address }),
+      })
+      if (!res.ok) throw new Error('Geocode failed')
+      const { lat, lng } = await res.json()
+      await updateArea(activeAreaId, { satellite_lat: lat, satellite_lng: lng, satellite_zoom: 19 })
+      await refetch()
+      setWelcomeDismissed(true)
+    } catch (err) {
+      console.error('Add location failed:', err)
+    } finally {
+      setSatelliteLoading(false)
+    }
+  }, [opp, activeAreaId, updateArea, refetch])
+
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.textMuted, fontSize: 13 }}>Loading design...</div>
   if (error || !design) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.red, fontSize: 13 }}>{error ?? 'Design not found'}</div>
 
@@ -886,7 +910,12 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
               onMdfIdfPlaced={handleMdfIdfPlaced}
               onMdfIdfMoved={handleMdfIdfMoved}
               snapshotRef={snapshotRef}
-              showMinimap={showMinimap} />
+              showMinimap={showMinimap}
+              satelliteConfig={activeArea?.satellite_lat && activeArea?.satellite_lng ? {
+                lat: activeArea.satellite_lat,
+                lng: activeArea.satellite_lng,
+                zoom: activeArea.satellite_zoom ?? 19,
+              } : null} />
 
             {/* Right panel — OVERLAY, when device or zone selected */}
             {(selectedDevice || selectedZone) && (
@@ -948,17 +977,28 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
                       </div>
                     </button>
                     <button
-                      disabled
+                      disabled={!opp?.install_address || satelliteLoading}
+                      onClick={handleAddLocation}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px',
-                        background: C.bgActive, color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 8,
-                        fontSize: 13, fontWeight: 500, cursor: 'not-allowed', textAlign: 'left', opacity: 0.6,
+                        background: opp?.install_address ? C.bgActive : C.bgActive,
+                        color: opp?.install_address ? C.text : C.textDim,
+                        border: `1px solid ${C.border}`, borderRadius: 8,
+                        fontSize: 13, fontWeight: 500,
+                        cursor: opp?.install_address && !satelliteLoading ? 'pointer' : 'not-allowed',
+                        textAlign: 'left',
+                        opacity: opp?.install_address ? 1 : 0.6,
+                        transition: 'all 0.15s',
                       }}
                     >
                       <MapIcon size={16} />
                       <div>
-                        <div>Add Location</div>
-                        <div style={{ fontSize: 11, fontWeight: 400 }}>Satellite view — coming soon</div>
+                        <div>{satelliteLoading ? 'Loading satellite...' : 'Add Location'}</div>
+                        <div style={{ fontSize: 11, fontWeight: 400, color: C.textDim }}>
+                          {opp?.install_address
+                            ? `Satellite view from ${(opp.install_address as string).slice(0, 40)}${(opp.install_address as string).length > 40 ? '...' : ''}`
+                            : 'No address — link an Opportunity first'}
+                        </div>
                       </div>
                     </button>
                     <button

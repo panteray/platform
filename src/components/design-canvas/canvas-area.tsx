@@ -107,6 +107,7 @@ interface CanvasAreaProps {
   onMdfIdfMoved?: (id: string, x: number, y: number) => void
   snapshotRef?: React.MutableRefObject<(() => string | null) | null>
   showMinimap?: boolean
+  satelliteConfig?: { lat: number; lng: number; zoom: number } | null
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
@@ -126,6 +127,7 @@ export function CanvasArea({
   mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved,
   snapshotRef,
   showMinimap = false,
+  satelliteConfig,
 }: CanvasAreaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
@@ -1193,6 +1195,51 @@ export function CanvasArea({
     else if (ext === 'pdf') { void loadFloorPlanPDF() }
     else { void loadFloorPlanImage() }
   }, [floorPlan, fabricReady, onFloorPlanError, designId, floorPlanOpacity])
+
+  // Satellite tile background — when area has lat/lng and no floor plan
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady) return
+    const canvas = fabricRef.current
+    // Only load satellite if there's no floor plan and we have coordinates
+    if (floorPlan?.file_url || !satelliteConfig?.lat || !satelliteConfig?.lng) return
+
+    const { lat, lng, zoom } = satelliteConfig
+    const cw = canvas.width ?? 1280
+    const ch = canvas.height ?? 1280
+    // Request tile sized to canvas (clamped to 640 for Static Maps free tier, scale=2 gives 1280)
+    const tileW = Math.min(640, cw)
+    const tileH = Math.min(640, ch)
+
+    async function loadSatellite() {
+      try {
+        const params = new URLSearchParams({
+          lat: String(lat), lng: String(lng),
+          zoom: String(zoom), width: String(tileW), height: String(tileH),
+        })
+        const res = await fetch(`/api/org/satellite-tile?${params.toString()}`)
+        if (!res.ok) throw new Error(`Satellite tile error (${res.status})`)
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const fm = await import('fabric')
+        const img = await fm.FabricImage.fromURL(url)
+        img.set({ opacity: 0.6, selectable: false, evented: false, originX: 'left', originY: 'top' })
+        // Scale to fill canvas viewport
+        const iw = (img.width ?? cw) * (img.scaleX ?? 1)
+        const ih = (img.height ?? ch) * (img.scaleY ?? 1)
+        if (iw > 0 && ih > 0) {
+          const s = Math.min((cw * 0.95) / iw, (ch * 0.95) / ih, 1)
+          img.set({ scaleX: s, scaleY: s })
+        }
+        canvas.backgroundImage = img as unknown as import('fabric').FabricImage
+        canvas.requestRenderAll()
+        URL.revokeObjectURL(url)
+      } catch (err) {
+        console.error('Satellite tile load failed:', err)
+      }
+    }
+
+    void loadSatellite()
+  }, [satelliteConfig, floorPlan, fabricReady])
 
   // Grid (single pattern rect — replaces per-dot rendering for performance)
   const drawGrid = useCallback(() => {
