@@ -22,6 +22,8 @@ export function useNotifications(limit = 20) {
   useEffect(() => {
     const supabase = createClient()
 
+    // NOTE: getSession() reads from local storage and is not guaranteed to return a valid session.
+    // For server-side auth, prefer getUser(). Here, getSession() is acceptable for client initial reads.
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {

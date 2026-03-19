@@ -50,30 +50,35 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json()
   const admin = createAdminClient()
-  const customerNumber = await nextCustomerNumber(admin, caller.org_id)
-
-  const { data, error } = await admin.from('customers').insert({
-    org_id: caller.org_id,
-    customer_number: customerNumber,
-    name: body.name,
-    official_business_name: body.official_business_name ?? null,
-    customer_type: body.customer_type ?? null,
-    tier: body.tier ?? null,
-    contact_name: body.contact_name ?? null,
-    contact_email: body.contact_email ?? null,
-    contact_phone: body.contact_phone ?? null,
-    address: body.address ?? null,
-    state: body.state ?? null,
-    telephone: body.telephone ?? null,
-    primary_website: body.primary_website ?? null,
-    territory: body.territory ?? null,
-    region: body.region ?? null,
-    region_state: body.region_state ?? null,
-    payment_terms: body.payment_terms ?? null,
-    notes: body.notes ?? null,
-    created_by: caller.id,
-  }).select().single()
-
+  let attempt = 0;
+  let data, error, customerNumber;
+  // Retry up to 5 times if unique constraint fails
+  while (attempt < 5) {
+    customerNumber = await nextCustomerNumber(admin, caller.org_id)
+    ({ data, error } = await admin.from('customers').insert({
+      org_id: caller.org_id,
+      customer_number: customerNumber,
+      name: body.name,
+      official_business_name: body.official_business_name ?? null,
+      customer_type: body.customer_type ?? null,
+      tier: body.tier ?? null,
+      contact_name: body.contact_name ?? null,
+      contact_email: body.contact_email ?? null,
+      contact_phone: body.contact_phone ?? null,
+      address: body.address ?? null,
+      state: body.state ?? null,
+      telephone: body.telephone ?? null,
+      primary_website: body.primary_website ?? null,
+      territory: body.territory ?? null,
+      region: body.region ?? null,
+      region_state: body.region_state ?? null,
+      payment_terms: body.payment_terms ?? null,
+      notes: body.notes ?? null,
+      created_by: caller.id,
+    }).select().single())
+    if (!error || !error.message.includes('unique_customer_number')) break;
+    attempt++;
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   // Audit log

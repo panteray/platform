@@ -34,24 +34,29 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json()
   const admin = createAdminClient()
-  const subNumber = await nextSubNumber(admin, caller.org_id)
-
-  const { data, error } = await admin.from('subcontractors').insert({
-    org_id: caller.org_id,
-    sub_number: subNumber,
-    name: body.name,
-    official_business_name: body.official_business_name ?? null,
-    type: body.type ?? null,
-    contact_name: body.contact_name ?? null,
-    contact_email: body.contact_email ?? null,
-    contact_phone: body.contact_phone ?? null,
-    address: body.address ?? null,
-    state: body.state ?? null,
-    region_state: body.region_state ?? null,
-    notes: body.notes ?? null,
-    created_by: caller.id,
-  }).select().single()
-
+  let attempt = 0;
+  let data, error, subNumber;
+  // Retry up to 5 times if unique constraint fails
+  while (attempt < 5) {
+    subNumber = await nextSubNumber(admin, caller.org_id)
+    ({ data, error } = await admin.from('subcontractors').insert({
+      org_id: caller.org_id,
+      sub_number: subNumber,
+      name: body.name,
+      official_business_name: body.official_business_name ?? null,
+      type: body.type ?? null,
+      contact_name: body.contact_name ?? null,
+      contact_email: body.contact_email ?? null,
+      contact_phone: body.contact_phone ?? null,
+      address: body.address ?? null,
+      state: body.state ?? null,
+      region_state: body.region_state ?? null,
+      notes: body.notes ?? null,
+      created_by: caller.id,
+    }).select().single())
+    if (!error || !error.message.includes('unique_sub_number')) break;
+    attempt++;
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   await admin.from('audit_log').insert({

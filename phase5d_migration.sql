@@ -4,6 +4,12 @@
 -- Run in Supabase SQL Editor
 -- ============================================================
 
+-- Add unique constraints for customer_number and sub_number
+ALTER TABLE customers ADD CONSTRAINT unique_customer_number UNIQUE (customer_number);
+ALTER TABLE subcontractors ADD CONSTRAINT unique_sub_number UNIQUE (sub_number);
+-- If vendors table exists and has vendor_number, add:
+-- ALTER TABLE vendors ADD CONSTRAINT unique_vendor_number UNIQUE (vendor_number);
+
 -- ── RENAME VENDORS → MANUFACTURERS ──
 
 ALTER TABLE vendors RENAME TO manufacturers;
