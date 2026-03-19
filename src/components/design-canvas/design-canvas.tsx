@@ -13,10 +13,6 @@ import { RightPanel } from './right-panel'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { StorageCalculatorPanel } from './storage-calculator-panel'
 import { TopologyView } from './topology-view'
-import { RackElevationView } from './rack-elevation-view'
-import { VlanPlanner } from './vlan-planner'
-import { AvSignalFlow } from './av-signal-flow'
-import { MspCanvas } from './msp-canvas'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { calculateFovDori, getFovConeTiers, calculateSystemStorage, canvasDevicesToCameraSpecs } from '@/lib/calculators'
 import { exportBom, exportMaterialList, exportHardwareSchedule, exportCableSchedule, exportCanvasSnapshot } from '@/lib/export-helpers'
@@ -25,15 +21,13 @@ import type { DesignDevice, DesignFloorPlan, DeviceSearchResult } from '@/types/
 const TAB_TO_SUBTYPE: Record<string, string> = { camera: 'dome', door: 'door', network: 'switch', av: 'speaker', sensors: 'junction_box', other: 'junction_box' }
 const TAB_TO_CATEGORY: Record<string, string> = { camera: 'cctv', door: 'access_control', network: 'network', av: 'av', sensors: 'vape_environmental', other: 'other' }
 
-type DesignView = 'physical' | 'topology' | 'rack' | 'vlan' | 'av' | 'msp'
+type DesignView = 'cctv' | 'access_control' | 'network_topology' | 'all'
 
 const VIEWS: { id: DesignView; label: string }[] = [
-  { id: 'physical', label: 'Physical' },
-  { id: 'topology', label: 'Topology' },
-  { id: 'rack', label: 'Rack' },
-  { id: 'vlan', label: 'VLAN' },
-  { id: 'av', label: 'AV Flow' },
-  { id: 'msp', label: 'MSP/CYB' },
+  { id: 'cctv', label: 'CCTV' },
+  { id: 'access_control', label: 'Access Control' },
+  { id: 'network_topology', label: 'Network Topology' },
+  { id: 'all', label: 'All' },
 ]
 
 interface DesignCanvasProps { designId: string }
@@ -41,7 +35,7 @@ interface DesignCanvasProps { designId: string }
 export function DesignCanvas({ designId }: DesignCanvasProps) {
   const state = useDesignCanvas(designId)
   const {
-    design, areas, devices, cables, mdfIdfs, floorPlans, zones, racks, vlans, topologyNodes, topologyLinks, avoipDevices,
+    design, areas, devices, cables, mdfIdfs, floorPlans, zones, topologyNodes, topologyLinks,
     loading, error, activeAreaId, selectedDeviceId,
     setActiveAreaId, setSelectedDeviceId,
     addArea, updateArea, deleteArea, uploadFloorPlan,
@@ -51,9 +45,6 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     addZone, updateZone, deleteZone,
     addTopologyNode, updateTopologyNode, deleteTopologyNode,
     addTopologyLink, updateTopologyLink, deleteTopologyLink,
-    addRack, updateRack, deleteRack,
-    addVlan, updateVlan, deleteVlan,
-    addAvoipDevice, updateAvoipDevice, deleteAvoipDevice,
     refetch,
   } = state
 
@@ -62,7 +53,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
   const [activeTool, setActiveTool] = useState<CanvasTool>('select')
   const [activeIcon, setActiveIcon] = useState<IconTabId>('layers')
   const [showLeftPanel, setShowLeftPanel] = useState(false)
-  const [activeView, setActiveView] = useState<DesignView>('physical')
+  const [activeView, setActiveView] = useState<DesignView>('all')
   const [showFovCones, setShowFovCones] = useState(false)
   const [fovDisplayMode, setFovDisplayMode] = useState<'ppf' | 'dori'>('ppf')
   const [highlightedPpfTier, setHighlightedPpfTier] = useState<string | null>(null)
@@ -106,6 +97,19 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
     const interval = setInterval(() => { refetch() }, 30000)
     return () => clearInterval(interval)
   }, [refetch])
+
+  // Tab-driven category filter — preset hiddenCategories when switching view tabs
+  const ALL_CATEGORIES = ['cctv', 'access_control', 'network', 'av', 'vape_environmental', 'other'] as const
+  useEffect(() => {
+    if (activeView === 'cctv') {
+      setHiddenCategories(new Set(ALL_CATEGORIES.filter(c => c !== 'cctv')))
+    } else if (activeView === 'access_control') {
+      setHiddenCategories(new Set(ALL_CATEGORIES.filter(c => c !== 'access_control')))
+    } else if (activeView === 'all') {
+      setHiddenCategories(new Set())
+    }
+    // network_topology doesn't render canvas, no filtering needed
+  }, [activeView])
 
   const activeArea = areas.find((a) => a.id === activeAreaId) ?? null
   const activeFloorPlan: DesignFloorPlan | null = floorPlans.find((fp) => fp.area_id === activeAreaId) ?? null
@@ -600,13 +604,13 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
           ))}
         </div>
 
-        {/* Separator — only in physical view when areas exist */}
-        {activeView === 'physical' && areas.length > 0 && (
+        {/* Separator — only in canvas views when areas exist */}
+        {activeView !== 'network_topology' && areas.length > 0 && (
           <div style={{ width: 1, height: 20, background: C.border, flexShrink: 0 }} />
         )}
 
-        {/* AREA TABS — compact inline pills, physical view only */}
-        {activeView === 'physical' && (
+        {/* AREA TABS — compact inline pills, canvas views only */}
+        {activeView !== 'network_topology' && (
           <div style={{ display: 'flex', gap: 2, alignItems: 'center', overflow: 'hidden', flexShrink: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', gap: 2, overflow: 'auto', alignItems: 'center' }}>
               {areas.map((area) => {
@@ -671,7 +675,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
           </span>
         )}
 
-        {/* RIGHT: Tool buttons */}
+        {/* RIGHT: Tool buttons — canvas views only */}
+        {activeView !== 'network_topology' && (<>
 
         {/* Undo / Redo */}
         <button onClick={handleUndo} disabled={undoStack.length === 0}
@@ -844,6 +849,8 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
           title="Toggle minimap">
           <MapIcon size={12} />
         </button>
+
+        </>)}
       </div>
 
       {/* ========== COLLAPSIBLE REQUIREMENTS BAR ========== */}
@@ -859,7 +866,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
 
       {/* ========== MAIN CONTENT — CANVAS + OVERLAY PANELS ========== */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {activeView === 'physical' && (
+        {activeView !== 'network_topology' && (
           <>
             <IconSidebar activeIcon={activeIcon} onIconChange={handleIconChange} />
 
@@ -1017,11 +1024,7 @@ export function DesignCanvas({ designId }: DesignCanvasProps) {
             )}
           </>
         )}
-        {activeView === 'topology' && <TopologyView designId={designId} nodes={topologyNodes} links={topologyLinks} onAddNode={addTopologyNode} onUpdateNode={updateTopologyNode} onDeleteNode={deleteTopologyNode} onAddLink={addTopologyLink} onUpdateLink={updateTopologyLink} onDeleteLink={deleteTopologyLink} />}
-        {activeView === 'rack' && <RackElevationView designId={designId} racks={racks} infrastructure={mdfIdfs} onAddRack={addRack} onUpdateRack={updateRack} onDeleteRack={deleteRack} />}
-        {activeView === 'vlan' && <VlanPlanner designId={designId} vlans={vlans} onAddVlan={addVlan} onUpdateVlan={updateVlan} onDeleteVlan={deleteVlan} />}
-        {activeView === 'av' && <AvSignalFlow designId={designId} avoipDevices={avoipDevices} onAddDevice={addAvoipDevice} onUpdateDevice={updateAvoipDevice} onDeleteDevice={deleteAvoipDevice} />}
-        {activeView === 'msp' && <MspCanvas designId={designId} />}
+        {activeView === 'network_topology' && <TopologyView designId={designId} nodes={topologyNodes} links={topologyLinks} onAddNode={addTopologyNode} onUpdateNode={updateTopologyNode} onDeleteNode={deleteTopologyNode} onAddLink={addTopologyLink} onUpdateLink={updateTopologyLink} onDeleteLink={deleteTopologyLink} />}
       </div>
 
       {/* Confirm dialog */}
