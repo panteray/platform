@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   // Retry up to 5 times if unique constraint fails
   while (attempt < 5) {
     subNumber = await nextSubNumber(admin, caller.org_id)
-    ({ data, error } = await admin.from('subcontractors').insert({
+      const result = await admin.from('subcontractors').insert({
       org_id: caller.org_id,
       sub_number: subNumber,
       name: body.name,
@@ -54,6 +54,8 @@ export async function POST(request: NextRequest) {
       notes: body.notes ?? null,
       created_by: caller.id,
     }).select().single())
+      data = result.data;
+      error = result.error;
     if (!error || !error.message.includes('unique_sub_number')) break;
     attempt++;
   }
