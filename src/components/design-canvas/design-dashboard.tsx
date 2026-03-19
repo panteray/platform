@@ -34,7 +34,7 @@ const ACS_TYPES = ['access_control', 'door', 'card_reader', 'electric_strike', '
 const AV_TYPES = ['av', 'speaker', 'monitor', 'amplifier']
 const VAPE_ENV_TYPES = ['vape_environmental', 'vape_detector', 'environmental_detector']
 
-// --- Reusable sub-components (inline-styled, C tokens) ---
+// --- Reusable sub-components ---
 
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
@@ -68,32 +68,131 @@ function StatRow({ label, value, sub }: { label: string; value: string | number;
   )
 }
 
-function DeviceBar({ label, count, total, color, icon: Icon }: { label: string; count: number; total: number; color: string; icon: React.ElementType }) {
-  const pct = total > 0 ? Math.round((count / total) * 100) : 0
+/** SVG Donut Chart — replaces flat progress bars */
+function DonutChart({ segments, size = 140, strokeWidth = 24 }: {
+  segments: Array<{ label: string; value: number; color: string }>
+  size?: number
+  strokeWidth?: number
+}) {
+  const total = segments.reduce((s, seg) => s + seg.value, 0)
+  if (total === 0) return null
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  let offset = 0
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
-      <Icon size={14} color={color} style={{ flexShrink: 0 }} />
-      <span style={{ fontSize: 13, color: C.textMuted, width: 100, flexShrink: 0 }}>{label}</span>
-      <div style={{ flex: 1, height: 6, background: C.bgHover, borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.3s' }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+      <svg width={size} height={size} style={{ flexShrink: 0 }}>
+        {/* Background ring */}
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={C.bgActive} strokeWidth={strokeWidth} />
+        {/* Segments */}
+        {segments.filter(s => s.value > 0).map((seg) => {
+          const pct = seg.value / total
+          const dashLen = circumference * pct
+          const dashOffset = -offset * circumference
+          offset += pct
+          return (
+            <circle key={seg.label}
+              cx={size / 2} cy={size / 2} r={radius}
+              fill="none" stroke={seg.color} strokeWidth={strokeWidth}
+              strokeDasharray={`${dashLen} ${circumference - dashLen}`}
+              strokeDashoffset={dashOffset}
+              strokeLinecap="butt"
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+              style={{ transition: 'stroke-dasharray 0.5s ease' }}
+            />
+          )
+        })}
+        {/* Center text */}
+        <text x={size / 2} y={size / 2 - 6} textAnchor="middle" fill={C.text} fontSize={22} fontWeight={700} fontFamily="'IBM Plex Mono', monospace">
+          {total}
+        </text>
+        <text x={size / 2} y={size / 2 + 12} textAnchor="middle" fill={C.textDim} fontSize={10}>
+          devices
+        </text>
+      </svg>
+      {/* Legend */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {segments.filter(s => s.value > 0).map((seg) => (
+          <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: seg.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: C.textMuted, width: 90 }}>{seg.label}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: "'IBM Plex Mono', monospace" }}>{seg.value}</span>
+          </div>
+        ))}
       </div>
-      <span style={{ fontSize: 13, fontWeight: 600, color: C.text, width: 36, textAlign: 'right' }}>{count}</span>
     </div>
   )
 }
 
+/** SVG Circular Progress Ring (Axis Site Designer pattern) */
+function ProgressRing({ label, value, max, unit, size = 80, strokeWidth = 6 }: {
+  label: string; value: number; max: number; unit?: string; size?: number; strokeWidth?: number
+}) {
+  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const dashLen = (pct / 100) * circumference
+  const color = pct >= 100 ? C.green : pct >= 50 ? C.yellow : C.red
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      <svg width={size} height={size}>
+        {/* Background */}
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={C.bgActive} strokeWidth={strokeWidth} />
+        {/* Fill */}
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none"
+          stroke={color} strokeWidth={strokeWidth}
+          strokeDasharray={`${dashLen} ${circumference - dashLen}`}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          style={{ transition: 'stroke-dasharray 0.5s ease' }}
+        />
+        {/* Center value */}
+        <text x={size / 2} y={size / 2 + 1} textAnchor="middle" fill={C.text}
+          fontSize={14} fontWeight={700} fontFamily="'IBM Plex Mono', monospace">
+          {typeof value === 'number' && !Number.isInteger(value) ? value.toFixed(1) : value}
+        </text>
+        {unit && (
+          <text x={size / 2} y={size / 2 + 14} textAnchor="middle" fill={C.textDim} fontSize={8}>
+            {unit}
+          </text>
+        )}
+      </svg>
+      <span style={{ fontSize: 10, color: C.textMuted, textAlign: 'center' }}>{label}</span>
+      {max > 0 && (
+        <span style={{ fontSize: 9, color: C.textDim }}>/ {max} {unit ?? ''}</span>
+      )}
+    </div>
+  )
+}
+
+/** Improved Risk Gauge — arc-style */
 function RiskGauge({ label, score, max }: { label: string; score: number; max: number }) {
   const pct = max > 0 ? Math.min((score / max) * 100, 100) : 0
   const color = pct < 33 ? C.green : pct < 66 ? C.yellow : C.red
   const riskLabel = pct < 33 ? 'Low' : pct < 66 ? 'Medium' : 'High'
+  const arcRadius = 30
+  const arcCirc = Math.PI * arcRadius // half circle
+  const arcFill = (pct / 100) * arcCirc
+
   return (
-    <div style={{ padding: '8px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 12, color: C.textMuted }}>{label}</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color }}>{riskLabel}</span>
-      </div>
-      <div style={{ height: 4, background: C.bgHover, borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2 }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
+      <svg width={68} height={38} viewBox="0 0 68 38">
+        {/* Background arc */}
+        <path d={`M 4 34 A ${arcRadius} ${arcRadius} 0 0 1 64 34`}
+          fill="none" stroke={C.bgActive} strokeWidth={5} strokeLinecap="round" />
+        {/* Fill arc */}
+        <path d={`M 4 34 A ${arcRadius} ${arcRadius} 0 0 1 64 34`}
+          fill="none" stroke={color} strokeWidth={5} strokeLinecap="round"
+          strokeDasharray={`${arcFill} ${arcCirc}`}
+          style={{ transition: 'stroke-dasharray 0.5s ease' }}
+        />
+        <text x={34} y={32} textAnchor="middle" fill={color} fontSize={11} fontWeight={700} fontFamily="'IBM Plex Mono'">{riskLabel}</text>
+      </svg>
+      <div>
+        <div style={{ fontSize: 12, color: C.textMuted }}>{label}</div>
+        <div style={{ fontSize: 10, color: C.textDim }}>{score}/{max}</div>
       </div>
     </div>
   )
@@ -108,7 +207,6 @@ export function DesignDashboard({ designId, onNavigateCanvas }: DesignDashboardP
   const [cables, setCables] = useState<DesignCable[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Fetch design + devices + cables
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -140,7 +238,6 @@ export function DesignDashboard({ designId, onNavigateCanvas }: DesignDashboardP
     return () => { cancelled = true }
   }, [designId])
 
-  // Device category counts
   const counts = useMemo(() => {
     const cam = devices.filter(d => CAMERA_TYPES.includes(d.category)).length
     const acs = devices.filter(d => ACS_TYPES.includes(d.category)).length
@@ -151,7 +248,6 @@ export function DesignDashboard({ designId, onNavigateCanvas }: DesignDashboardP
     return { cam, acs, net, av, vape, other, total: devices.length }
   }, [devices])
 
-  // Storage calc
   const storageOutput: SystemStorageOutput | null = useMemo(() => {
     const camDevices = devices
       .filter(d => CAMERA_TYPES.includes(d.category))
@@ -163,18 +259,12 @@ export function DesignDashboard({ designId, onNavigateCanvas }: DesignDashboardP
     catch { return null }
   }, [devices])
 
-  // Cable total
   const cableTotal = useMemo(() => cables.reduce((s, c) => s + (c.total_length_ft ?? 0), 0), [cables])
 
-  // Risk factor scoring
   const risk = useMemo(() => {
-    // Camera complexity: 0-10 cameras = low, 11-50 = med, 50+ = high
     const camScore = counts.cam <= 10 ? counts.cam : counts.cam <= 50 ? 10 + (counts.cam - 10) * 0.5 : 30 + (counts.cam - 50) * 0.3
-    // Door complexity: 0-5 = low, 6-20 = med, 20+ = high
     const doorScore = counts.acs <= 5 ? counts.acs : counts.acs <= 20 ? 5 + (counts.acs - 5) * 0.8 : 17 + (counts.acs - 20) * 0.5
-    // Pathway: cable run complexity
     const pathScore = cableTotal <= 1000 ? cableTotal / 100 : cableTotal <= 5000 ? 10 + (cableTotal - 1000) / 400 : 20 + (cableTotal - 5000) / 1000
-    // Overall
     const overall = (camScore + doorScore + pathScore) / 3
     return {
       camera: Math.min(Math.round(camScore), 30),
@@ -257,38 +347,41 @@ export function DesignDashboard({ designId, onNavigateCanvas }: DesignDashboardP
           )}
         </Card>
 
-        {/* Device Summary */}
+        {/* Device Summary — SVG Donut */}
         <Card>
           <SectionTitle icon={Package} label="Device Summary" />
-          <DeviceBar label="Cameras" count={counts.cam} total={counts.total} color="#3b82f6" icon={Camera} />
-          <DeviceBar label="Access Control" count={counts.acs} total={counts.total} color="#f97316" icon={DoorOpen} />
-          <DeviceBar label="Network" count={counts.net} total={counts.total} color="#22c55e" icon={Wifi} />
-          <DeviceBar label="AV" count={counts.av} total={counts.total} color="#8b5cf6" icon={Speaker} />
-          <DeviceBar label="Vape/Env" count={counts.vape} total={counts.total} color="#ef4444" icon={Wind} />
-          {counts.other > 0 && (
-            <DeviceBar label="Other" count={counts.other} total={counts.total} color={C.textDim} icon={Package} />
-          )}
-          <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>Total Devices</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{counts.total}</span>
-          </div>
+          <DonutChart segments={[
+            { label: 'Cameras', value: counts.cam, color: '#3b82f6' },
+            { label: 'Access Control', value: counts.acs, color: '#f97316' },
+            { label: 'Network', value: counts.net, color: '#22c55e' },
+            { label: 'AV', value: counts.av, color: '#8b5cf6' },
+            { label: 'Vape/Env', value: counts.vape, color: '#ef4444' },
+            { label: 'Other', value: counts.other, color: C.textDim },
+          ]} />
         </Card>
 
-        {/* Project Requirements */}
+        {/* Project Requirements — Circular Progress Rings (Axis pattern) */}
         <Card>
           <SectionTitle icon={Gauge} label="Project Requirements" />
-          <StatRow label="Total Cameras" value={counts.cam} />
-          <StatRow label="Total Doors" value={counts.acs} />
-          <StatRow label="Network Devices" value={counts.net} />
-          <StatRow label="Cable Runs" value={cables.length} />
-          <StatRow label="Cable Estimate" value={cableTotal > 0 ? `${cableTotal.toLocaleString()} ft` : '—'} />
-          {storageOutput && (
-            <>
-              <StatRow label="Bandwidth" value={storageOutput.totalBandwidthMbps.toFixed(1)} sub="Mbps" />
-              <StatRow label="PoE Budget" value={storageOutput.poeBudget.totalWatts} sub="W" />
-              <StatRow label="Switch Capacity" value={storageOutput.poeBudget.recommendedSwitchWatts} sub="W" />
-            </>
+          {storageOutput ? (
+            <div style={{ display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: 12 }}>
+              <ProgressRing label="Bandwidth" value={parseFloat(storageOutput.totalBandwidthMbps.toFixed(1))} max={1000} unit="Mbps" />
+              <ProgressRing label="Storage" value={parseFloat(storageOutput.totalStorageTB.toFixed(1))} max={parseFloat(storageOutput.raidAnalysis.usableStorageTB.toFixed(1))} unit="TB" />
+              <ProgressRing label="PoE Budget" value={storageOutput.poeBudget.totalWatts} max={storageOutput.poeBudget.recommendedSwitchWatts} unit="W" />
+              <ProgressRing label="Drives" value={storageOutput.raidAnalysis.driveCount} max={storageOutput.raidAnalysis.driveCount + 2} unit="disks" />
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: 12 }}>
+              <ProgressRing label="Cameras" value={counts.cam} max={0} />
+              <ProgressRing label="Doors" value={counts.acs} max={0} />
+              <ProgressRing label="Network" value={counts.net} max={0} />
+              <ProgressRing label="Cable Runs" value={cables.length} max={0} />
+            </div>
           )}
+          <div style={{ marginTop: 16, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+            <StatRow label="Cable Runs" value={cables.length} />
+            <StatRow label="Cable Estimate" value={cableTotal > 0 ? `${cableTotal.toLocaleString()} ft` : '—'} />
+          </div>
         </Card>
 
         {/* Storage Calculator Summary */}
@@ -303,7 +396,7 @@ export function DesignDashboard({ designId, onNavigateCanvas }: DesignDashboardP
               <StatRow label="RAID Level" value={`RAID ${storageOutput.raidAnalysis.raidLevel}`} />
               <StatRow label="Usable Capacity" value={storageOutput.raidAnalysis.usableStorageTB.toFixed(1)} sub="TB" />
               <StatRow label="Raw Capacity" value={storageOutput.raidAnalysis.rawStorageTB.toFixed(1)} sub="TB" />
-              <StatRow label="Drives Required" value={storageOutput.raidAnalysis.driveCount} sub={`× ${storageOutput.raidAnalysis.driveSizeTB} TB`} />
+              <StatRow label="Drives Required" value={storageOutput.raidAnalysis.driveCount} sub={`x ${storageOutput.raidAnalysis.driveSizeTB} TB`} />
             </>
           ) : (
             <div style={{ padding: '20px 0', textAlign: 'center' }}>
@@ -314,14 +407,14 @@ export function DesignDashboard({ designId, onNavigateCanvas }: DesignDashboardP
           )}
         </Card>
 
-        {/* Risk Factor */}
+        {/* Risk Factor — arc gauges */}
         <Card>
           <SectionTitle icon={AlertTriangle} label="Risk Factor / Presales" />
-          <RiskGauge label="Camera Complexity" score={risk.camera} max={30} />
-          <RiskGauge label="Door Complexity" score={risk.door} max={30} />
-          <RiskGauge label="Pathway Complexity" score={risk.pathway} max={30} />
-          <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 8, paddingTop: 8 }}>
-            <RiskGauge label="Overall Project Risk" score={risk.overall} max={30} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            <RiskGauge label="Camera Complexity" score={risk.camera} max={30} />
+            <RiskGauge label="Door Complexity" score={risk.door} max={30} />
+            <RiskGauge label="Pathway Complexity" score={risk.pathway} max={30} />
+            <RiskGauge label="Overall Risk" score={risk.overall} max={30} />
           </div>
           <div style={{ marginTop: 12, padding: '8px 12px', background: C.bgPanel, borderRadius: 6 }}>
             <span style={{ fontSize: 11, color: C.textDim }}>

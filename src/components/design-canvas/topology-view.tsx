@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { List, LayoutGrid } from 'lucide-react'
 import { C } from './constants'
 import type { DesignTopologyNode, DesignTopologyLink } from '@/types/database'
 
@@ -33,7 +34,6 @@ const CABLE_TYPES = ['cat5e', 'cat6', 'cat6a', 'fiber_sm', 'fiber_mm', 'coax', '
 const NODE_W = 64
 const NODE_H = 44
 
-/* Node shape paths centered at (0,0) — translated via transform */
 function NodeShape({ type, color, selected }: { type: string; color: string; selected: boolean }) {
   const stroke = selected ? '#fff' : color
   const sw = selected ? 2.5 : 2
@@ -48,6 +48,20 @@ function NodeShape({ type, color, selected }: { type: string; color: string; sel
     default:
       return <rect x={-NODE_W / 2} y={-NODE_H / 2} width={NODE_W} height={NODE_H} rx={6} fill={fill} stroke={stroke} strokeWidth={sw} />
   }
+}
+
+/** Speed string to Mbps for bandwidth utilization coloring */
+function speedToMbps(s: string | null | undefined): number {
+  if (!s) return 1000
+  const map: Record<string, number> = { '10M': 10, '100M': 100, '1G': 1000, '2.5G': 2500, '5G': 5000, '10G': 10000, '25G': 25000, '40G': 40000, '100G': 100000 }
+  return map[s] ?? 1000
+}
+
+/** Bandwidth utilization color: green <50%, yellow 50-80%, red >80% */
+function bwColor(utilPct: number): string {
+  if (utilPct >= 80) return C.red
+  if (utilPct >= 50) return C.yellow
+  return C.green
 }
 
 const inputStyle: React.CSSProperties = {
@@ -66,6 +80,10 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
   const [dragNode, setDragNode] = useState<string | null>(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [addType, setAddType] = useState('switch')
+  const [showConnectionsList, setShowConnectionsList] = useState(false)
+  const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: 1200, h: 700 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [panStart, setPanStart] = useState({ x: 0, y: 0, vx: 0, vy: 0 })
   const svgRef = useRef<SVGSVGElement>(null)
 
   const filteredNodes = activeLayer ? nodes.filter((n) => n.layer === activeLayer) : nodes
@@ -80,6 +98,16 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) ?? null : null
   const selectedLink = selectedLinkId ? links.find((l) => l.id === selectedLinkId) ?? null : null
 
+  // Port count per node
+  const portCounts = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const l of links) {
+      map.set(l.from_node_id, (map.get(l.from_node_id) ?? 0) + 1)
+      map.set(l.to_node_id, (map.get(l.to_node_id) ?? 0) + 1)
+    }
+    return map
+  }, [links])
+
   /* ---- Drag ---- */
   const handleMouseDown = (nodeId: string, e: React.MouseEvent) => {
     if (linkMode) return
@@ -89,15 +117,25 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
     const svg = svgRef.current
     if (!svg) return
     const pt = svg.getBoundingClientRect()
-    setDragOffset({ x: e.clientX - pt.left - node.position_x, y: e.clientY - pt.top - node.position_y })
+    const scaleX = viewBox.w / pt.width
+    const scaleY = viewBox.h / pt.height
+    setDragOffset({
+      x: (e.clientX - pt.left) * scaleX + viewBox.x - node.position_x,
+      y: (e.clientY - pt.top) * scaleY + viewBox.y - node.position_y,
+    })
   }
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragNode) return
     const svg = svgRef.current
     if (!svg) return
     const pt = svg.getBoundingClientRect()
-    onUpdateNode(dragNode, { position_x: Math.round(e.clientX - pt.left - dragOffset.x), position_y: Math.round(e.clientY - pt.top - dragOffset.y) })
-  }, [dragNode, dragOffset, onUpdateNode])
+    const scaleX = viewBox.w / pt.width
+    const scaleY = viewBox.h / pt.height
+    onUpdateNode(dragNode, {
+      position_x: Math.round((e.clientX - pt.left) * scaleX + viewBox.x - dragOffset.x),
+      position_y: Math.round((e.clientY - pt.top) * scaleY + viewBox.y - dragOffset.y),
+    })
+  }, [dragNode, dragOffset, onUpdateNode, viewBox])
   const handleMouseUp = useCallback(() => { setDragNode(null) }, [])
 
   useEffect(() => {
@@ -106,6 +144,50 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
     window.addEventListener('mouseup', handleMouseUp)
     return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp) }
   }, [dragNode, handleMouseMove, handleMouseUp])
+
+  /* ---- Pan/Zoom ---- */
+  const handleSvgMouseDown = (e: React.MouseEvent) => {
+    if (e.target === svgRef.current || (e.target as SVGElement).tagName === 'rect') {
+      if (!linkMode) {
+        setSelectedNodeId(null)
+        setSelectedLinkId(null)
+      }
+      // Middle click or space held — pan
+      if (e.button === 1 || e.button === 0) {
+        setIsPanning(true)
+        setPanStart({ x: e.clientX, y: e.clientY, vx: viewBox.x, vy: viewBox.y })
+      }
+    }
+  }
+  useEffect(() => {
+    if (!isPanning) return
+    function onMove(e: MouseEvent) {
+      const svg = svgRef.current
+      if (!svg) return
+      const pt = svg.getBoundingClientRect()
+      const scaleX = viewBox.w / pt.width
+      const scaleY = viewBox.h / pt.height
+      setViewBox(prev => ({
+        ...prev,
+        x: panStart.vx - (e.clientX - panStart.x) * scaleX,
+        y: panStart.vy - (e.clientY - panStart.y) * scaleY,
+      }))
+    }
+    function onUp() { setIsPanning(false) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  }, [isPanning, panStart, viewBox.w, viewBox.h])
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    const factor = e.deltaY > 0 ? 1.1 : 0.9
+    setViewBox(prev => {
+      const nw = prev.w * factor
+      const nh = prev.h * factor
+      return { x: prev.x - (nw - prev.w) / 2, y: prev.y - (nh - prev.h) / 2, w: nw, h: nh }
+    })
+  }, [])
 
   /* ---- Node click ---- */
   const handleNodeClick = (nodeId: string) => {
@@ -122,15 +204,11 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
     setSelectedNodeId(nodeId)
     setSelectedLinkId(null)
   }
-
-  /* ---- Link click ---- */
   const handleLinkClick = (linkId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     setSelectedLinkId(linkId)
     setSelectedNodeId(null)
   }
-
-  /* ---- Delete node (cascade links) ---- */
   const handleDeleteNode = async (nodeId: string) => {
     const orphanLinks = links.filter((l) => l.from_node_id === nodeId || l.to_node_id === nodeId)
     for (const l of orphanLinks) { await onDeleteLink(l.id) }
@@ -138,25 +216,64 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
     setSelectedNodeId(null)
   }
 
-  /* ---- Add node ---- */
   const handleAddNode = () => {
     const prefix = NODE_LABELS[addType]?.substring(0, 3).toUpperCase() ?? 'NOD'
     const count = nodes.filter((n) => n.node_type === addType).length + 1
     onAddNode({
       node_type: addType,
       label: `${prefix}-${count}`,
-      position_x: 150 + Math.random() * 500,
-      position_y: 80 + Math.random() * 350,
+      position_x: viewBox.x + viewBox.w / 2 + (Math.random() - 0.5) * 200,
+      position_y: viewBox.y + viewBox.h / 2 + (Math.random() - 0.5) * 150,
       layer: activeLayer ?? 'data_link',
       properties: {},
     })
   }
 
-  /* ---- SVG click (deselect) ---- */
-  const handleSvgClick = () => {
-    if (!linkMode) {
-      setSelectedNodeId(null)
-      setSelectedLinkId(null)
+  /* ---- Simple tree auto-layout ---- */
+  const handleAutoLayout = () => {
+    if (nodes.length === 0) return
+    // Find root(s): nodes with no incoming links
+    const hasIncoming = new Set(links.map(l => l.to_node_id))
+    const roots = nodes.filter(n => !hasIncoming.has(n.id))
+    const startNodes = roots.length > 0 ? roots : [nodes[0]]
+
+    const visited = new Set<string>()
+    const queue: Array<{ id: string; depth: number; idx: number }> = []
+    const depthMap = new Map<number, number>()
+
+    for (let i = 0; i < startNodes.length; i++) {
+      queue.push({ id: startNodes[i].id, depth: 0, idx: i })
+    }
+
+    const positions: Array<{ id: string; x: number; y: number }> = []
+    while (queue.length > 0) {
+      const { id, depth } = queue.shift()!
+      if (visited.has(id)) continue
+      visited.add(id)
+
+      const col = depthMap.get(depth) ?? 0
+      depthMap.set(depth, col + 1)
+      positions.push({ id, x: 120 + depth * 180, y: 80 + col * 90 })
+
+      const children = links.filter(l => l.from_node_id === id).map(l => l.to_node_id)
+        .concat(links.filter(l => l.to_node_id === id).map(l => l.from_node_id))
+        .filter(cid => !visited.has(cid))
+      for (const cid of children) {
+        queue.push({ id: cid, depth: depth + 1, idx: 0 })
+      }
+    }
+
+    // Place unvisited nodes
+    let extraIdx = 0
+    for (const n of nodes) {
+      if (!visited.has(n.id)) {
+        positions.push({ id: n.id, x: 120 + extraIdx * 100, y: 500 })
+        extraIdx++
+      }
+    }
+
+    for (const p of positions) {
+      onUpdateNode(p.id, { position_x: p.x, position_y: p.y })
     }
   }
 
@@ -164,43 +281,89 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg, overflow: 'hidden' }}>
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderBottom: `1px solid ${C.border}`, flexShrink: 0, alignItems: 'center' }}>
-        {/* Layer filters */}
         <button onClick={() => setActiveLayer(null)} style={{ padding: '3px 8px', fontSize: 10, fontWeight: 600, borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', background: !activeLayer ? C.accentSubtle : C.bgActive, color: !activeLayer ? C.accent : C.textDim, border: !activeLayer ? `1px solid ${C.accent}` : `1px solid ${C.border}` }}>All</button>
         {LAYERS.map((l) => (
           <button key={l} onClick={() => setActiveLayer(l)} style={{ padding: '3px 8px', fontSize: 10, fontWeight: 600, borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', background: activeLayer === l ? C.accentSubtle : C.bgActive, color: activeLayer === l ? C.accent : C.textDim, border: activeLayer === l ? `1px solid ${C.accent}` : `1px solid ${C.border}` }}>{LAYER_LABELS[l]}</button>
         ))}
         <div style={{ width: 1, height: 16, background: C.border, margin: '0 4px' }} />
-        {/* Link mode toggle */}
         <button onClick={() => { setLinkMode(!linkMode); setLinkSourceId(null) }}
           style={{ padding: '3px 8px', fontSize: 10, fontWeight: 600, borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit',
             background: linkMode ? 'rgba(34,197,94,0.15)' : C.bgActive, color: linkMode ? C.green : C.textDim,
             border: linkMode ? `1px solid ${C.green}` : `1px solid ${C.border}` }}>
           {linkMode ? (linkSourceId ? 'Click Target...' : 'Click Source...') : 'Link Mode'}
         </button>
+        <button onClick={handleAutoLayout} style={{ padding: '3px 8px', fontSize: 10, fontWeight: 500, borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', background: C.bgActive, color: C.textDim, border: `1px solid ${C.border}` }} title="Auto-arrange nodes">
+          <LayoutGrid size={11} style={{ marginRight: 3 }} /> Auto
+        </button>
+        <button onClick={() => setShowConnectionsList(!showConnectionsList)} style={{ padding: '3px 8px', fontSize: 10, fontWeight: 500, borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', background: showConnectionsList ? C.accentSubtle : C.bgActive, color: showConnectionsList ? C.accent : C.textDim, border: showConnectionsList ? `1px solid ${C.accent}` : `1px solid ${C.border}` }} title="Connections list">
+          <List size={11} />
+        </button>
         <div style={{ flex: 1 }} />
-        {/* Add node */}
         <select value={addType} onChange={(e) => setAddType(e.target.value)}
           style={{ padding: '3px 6px', fontSize: 10, borderRadius: 4, background: C.bgActive, color: C.text, border: `1px solid ${C.border}`, outline: 'none', fontFamily: 'inherit' }}>
           {NODE_TYPES.map((t) => <option key={t} value={t}>{NODE_LABELS[t]}</option>)}
         </select>
         <button onClick={handleAddNode} style={{ padding: '3px 10px', fontSize: 10, fontWeight: 500, borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', background: C.accent, color: '#fff', border: 'none' }}>+ Add Node</button>
-        {/* Count */}
         <span style={{ fontSize: 10, color: C.textDim }}>{filteredNodes.length}N / {filteredLinks.length}L</span>
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* SVG Canvas */}
-        <div style={{ flex: 1, position: 'relative', overflow: 'auto' }}>
-          <svg ref={svgRef} width="100%" height="100%" style={{ minWidth: 900, minHeight: 600, cursor: linkMode ? 'crosshair' : 'default' }} onClick={handleSvgClick}>
-            {/* Grid dots */}
+        {/* Connections list panel */}
+        {showConnectionsList && (
+          <div style={{ width: 280, borderRight: `1px solid ${C.border}`, background: C.bgPanel, overflow: 'auto', flexShrink: 0, padding: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              Connections ({filteredLinks.length})
+            </div>
+            {filteredLinks.length === 0 && (
+              <div style={{ fontSize: 11, color: C.textDim, padding: 12, textAlign: 'center' }}>No connections</div>
+            )}
+            {filteredLinks.map((link) => {
+              const src = nodes.find(n => n.id === link.from_node_id)
+              const tgt = nodes.find(n => n.id === link.to_node_id)
+              const isSel = link.id === selectedLinkId
+              return (
+                <div key={link.id}
+                  onClick={() => { setSelectedLinkId(link.id); setSelectedNodeId(null) }}
+                  style={{
+                    padding: '6px 8px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
+                    background: isSel ? C.accentSubtle : 'transparent',
+                    border: isSel ? `1px solid ${C.accent}` : '1px solid transparent',
+                  }}
+                  onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.background = C.bgHover }}
+                  onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <div style={{ fontSize: 11, color: C.text, fontWeight: 500 }}>
+                    {src?.label ?? '?'} → {tgt?.label ?? '?'}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                    {link.cable_type && <span style={{ fontSize: 9, color: C.textDim }}>{link.cable_type}</span>}
+                    {link.speed && <span style={{ fontSize: 9, color: C.textMuted, fontFamily: "'IBM Plex Mono'" }}>{link.speed}</span>}
+                    {link.is_trunk && <span style={{ fontSize: 8, padding: '0 4px', borderRadius: 2, background: 'rgba(139,92,246,0.15)', color: '#8b5cf6', fontWeight: 600 }}>TRUNK</span>}
+                    {!!(link as unknown as Record<string, unknown>).vlan && <span style={{ fontSize: 8, padding: '0 4px', borderRadius: 2, background: 'rgba(34,197,94,0.15)', color: C.green, fontWeight: 600 }}>VLAN {String((link as unknown as Record<string, unknown>).vlan)}</span>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* SVG Canvas with pan/zoom */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          <svg ref={svgRef}
+            viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
+            width="100%" height="100%"
+            style={{ cursor: isPanning ? 'grabbing' : linkMode ? 'crosshair' : 'default' }}
+            onMouseDown={handleSvgMouseDown}
+            onWheel={handleWheel}>
+            {/* Grid */}
             <defs>
               <pattern id="topo-grid" width="40" height="40" patternUnits="userSpaceOnUse">
                 <circle cx="20" cy="20" r="0.5" fill={C.borderSubtle} />
               </pattern>
             </defs>
-            <rect width="100%" height="100%" fill="url(#topo-grid)" />
+            <rect x={viewBox.x} y={viewBox.y} width={viewBox.w} height={viewBox.h} fill="url(#topo-grid)" />
 
-            {/* Links */}
+            {/* Links with bandwidth color */}
             {filteredLinks.map((link) => {
               const src = nodes.find((n) => n.id === link.from_node_id)
               const tgt = nodes.find((n) => n.id === link.to_node_id)
@@ -208,38 +371,47 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
               const midX = (src.position_x + tgt.position_x) / 2
               const midY = (src.position_y + tgt.position_y) / 2
               const isSel = link.id === selectedLinkId
+              // Bandwidth utilization color (from notes field "bw:XX" or default green)
+              const bwNote = (link.notes ?? '').match(/bw:(\d+)/i)
+              const utilPct = bwNote ? (parseInt(bwNote[1]) / speedToMbps(link.speed)) * 100 : 0
+              const lineColor = isSel ? '#fff' : utilPct > 0 ? bwColor(utilPct) : C.textDim
+
               return (
                 <g key={link.id} onClick={(e) => handleLinkClick(link.id, e)} style={{ cursor: 'pointer' }}>
-                  {/* Hit area */}
                   <line x1={src.position_x} y1={src.position_y} x2={tgt.position_x} y2={tgt.position_y} stroke="transparent" strokeWidth={12} />
-                  {/* Visible line */}
                   <line x1={src.position_x} y1={src.position_y} x2={tgt.position_x} y2={tgt.position_y}
-                    stroke={isSel ? '#fff' : C.textDim} strokeWidth={isSel ? 2.5 : link.is_trunk ? 2 : 1.5}
+                    stroke={lineColor} strokeWidth={isSel ? 2.5 : link.is_trunk ? 2 : 1.5}
                     strokeDasharray={link.is_trunk ? 'none' : '6 3'} />
-                  {/* Speed label */}
                   {link.speed && (
                     <text x={midX} y={midY - 6} textAnchor="middle" fill={isSel ? '#fff' : C.textMuted} fontSize={9} fontFamily="'IBM Plex Mono', monospace">{link.speed}</text>
                   )}
-                  {/* Cable type label */}
                   {link.cable_type && (
                     <text x={midX} y={midY + 10} textAnchor="middle" fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace">{link.cable_type}</text>
+                  )}
+                  {/* VLAN tag */}
+                  {!!(link as unknown as Record<string, unknown>).vlan && (
+                    <g transform={`translate(${midX + 30}, ${midY - 6})`}>
+                      <rect x={-14} y={-7} width={28} height={14} rx={3} fill="rgba(34,197,94,0.2)" />
+                      <text x={0} y={3} textAnchor="middle" fill={C.green} fontSize={7} fontWeight={600}>V{String((link as unknown as Record<string, unknown>).vlan)}</text>
+                    </g>
                   )}
                 </g>
               )
             })}
 
-            {/* Link-in-progress line */}
+            {/* Link-in-progress */}
             {linkMode && linkSourceId && (() => {
               const src = nodes.find((n) => n.id === linkSourceId)
               if (!src) return null
               return <circle cx={src.position_x} cy={src.position_y} r={28} fill="none" stroke={C.green} strokeWidth={2} strokeDasharray="4 3" />
             })()}
 
-            {/* Nodes */}
+            {/* Nodes with port badges */}
             {filteredNodes.map((node) => {
               const color = NODE_COLORS[node.node_type ?? 'endpoint'] || C.textMuted
               const isSel = node.id === selectedNodeId
               const isLinkSrc = node.id === linkSourceId
+              const ports = portCounts.get(node.id) ?? 0
               return (
                 <g key={node.id}
                   transform={`translate(${node.position_x}, ${node.position_y})`}
@@ -249,6 +421,13 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
                   <NodeShape type={node.node_type} color={color} selected={isSel || isLinkSrc} />
                   <text x={0} y={3} textAnchor="middle" fill={C.text} fontSize={10} fontWeight={600} fontFamily="'IBM Plex Sans', sans-serif" pointerEvents="none">{node.label}</text>
                   <text x={0} y={NODE_H / 2 + 12} textAnchor="middle" fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace" pointerEvents="none">{NODE_LABELS[node.node_type] ?? node.node_type}</text>
+                  {/* Port count badge */}
+                  {ports > 0 && (
+                    <g transform={`translate(${NODE_W / 2 - 4}, ${-NODE_H / 2 - 4})`}>
+                      <circle r={8} fill={C.bgPanel} stroke={color} strokeWidth={1.5} />
+                      <text x={0} y={3} textAnchor="middle" fill={color} fontSize={8} fontWeight={700} fontFamily="'IBM Plex Mono'">{ports}</text>
+                    </g>
+                  )}
                 </g>
               )
             })}
@@ -258,7 +437,6 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
         {/* Property Panel */}
         {(selectedNode || selectedLink) && (
           <div style={{ width: 240, borderLeft: `1px solid ${C.border}`, background: C.bgPanel, overflow: 'auto', flexShrink: 0 }}>
-            {/* Node properties */}
             {selectedNode && (
               <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -296,9 +474,8 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
                       onBlur={(e) => onUpdateNode(selectedNode.id, { position_y: Number(e.target.value) })} />
                   </div>
                 </div>
-                {/* Connected links count */}
                 <div style={{ fontSize: 10, color: C.textDim }}>
-                  {links.filter((l) => l.from_node_id === selectedNode.id || l.to_node_id === selectedNode.id).length} connection(s)
+                  {portCounts.get(selectedNode.id) ?? 0} connection(s)
                 </div>
                 <button onClick={() => handleDeleteNode(selectedNode.id)}
                   style={{ padding: '4px 0', fontSize: 10, color: C.red, background: 'transparent', border: `1px solid ${C.red}`, borderRadius: 4, cursor: 'pointer' }}>
@@ -306,8 +483,6 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
                 </button>
               </div>
             )}
-
-            {/* Link properties */}
             {selectedLink && (
               <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -343,7 +518,7 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
                 </div>
                 <div>
                   <div style={labelStyle}>Notes</div>
-                  <input defaultValue={selectedLink.notes ?? ''} style={inputStyle}
+                  <input defaultValue={selectedLink.notes ?? ''} style={inputStyle} placeholder="bw:500 for 500Mbps util"
                     onBlur={(e) => onUpdateLink(selectedLink.id, { notes: e.target.value || null })} />
                 </div>
                 <button onClick={() => { onDeleteLink(selectedLink.id); setSelectedLinkId(null) }}

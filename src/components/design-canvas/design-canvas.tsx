@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive, Server, Download, Map as MapIcon } from 'lucide-react'
+import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive, Server, Download, Map as MapIcon, MoreVertical, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { C, GRID_SIZE, UNDO_STACK_DEPTH, isDoorType, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
 import { LABEL_CODES } from './icons'
@@ -82,7 +82,12 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const [satelliteLoading, setSatelliteLoading] = useState(false)
+  const [showFloorPlanMenu, setShowFloorPlanMenu] = useState(false)
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false)
+  const [satelliteOpacity, setSatelliteOpacity] = useState(0.6)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const floorPlanMenuRef = useRef<HTMLDivElement>(null)
+  const overflowMenuRef = useRef<HTMLDivElement>(null)
 
   // Auto-save indicator: flash "saving..." then "saved" on any mutation
   const markSaving = useCallback(() => {
@@ -211,13 +216,18 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
       { label: 'Total', value: areaDevices.length, unit: 'devices', status: 'normal' as RequirementStatus },
     ]
 
-    // Engineering metrics — live from calculator engine
+    // Engineering metrics — live from calculator engine (gauge bars with required vs in-project)
     if (storageOutput) {
+      const bwVal = parseFloat(storageOutput.totalBandwidthMbps.toFixed(1))
+      const storVal = parseFloat(storageOutput.totalStorageTB.toFixed(1))
+      const poeVal = storageOutput.poeBudget.totalWatts
+      const switchVal = storageOutput.poeBudget.recommendedSwitchWatts
+      // Baseline requirements: switch capacity is the ceiling for PoE
       items.push(
-        { label: 'Bandwidth', value: storageOutput.totalBandwidthMbps.toFixed(1), unit: 'Mbps', status: 'normal' as RequirementStatus, separator: true },
-        { label: 'Storage', value: storageOutput.totalStorageTB.toFixed(1), unit: 'TB (30d)', status: storageOutput.totalStorageTB > 100 ? 'deficient' as RequirementStatus : 'normal' as RequirementStatus },
-        { label: 'PoE', value: storageOutput.poeBudget.totalWatts, unit: 'W', status: 'normal' as RequirementStatus },
-        { label: 'Switch', value: storageOutput.poeBudget.recommendedSwitchWatts, unit: 'W', status: 'normal' as RequirementStatus },
+        { label: 'Bandwidth', value: bwVal, unit: 'Mbps', status: 'normal' as RequirementStatus, separator: true, inProject: bwVal, required: bwVal },
+        { label: 'Storage', value: storVal, unit: 'TB', status: storVal > 100 ? 'deficient' as RequirementStatus : 'normal' as RequirementStatus, inProject: storVal, required: storVal },
+        { label: 'PoE', value: poeVal, unit: 'W', status: poeVal > switchVal ? 'deficient' as RequirementStatus : 'normal' as RequirementStatus, inProject: poeVal, required: switchVal },
+        { label: 'Switch', value: switchVal, unit: 'W', status: 'normal' as RequirementStatus, inProject: switchVal, required: switchVal },
       )
     }
 
@@ -504,6 +514,26 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showExportMenu])
 
+  // Close floor plan menu on outside click
+  useEffect(() => {
+    if (!showFloorPlanMenu) return
+    function handleClickOutside(e: MouseEvent) {
+      if (floorPlanMenuRef.current && !floorPlanMenuRef.current.contains(e.target as Node)) setShowFloorPlanMenu(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showFloorPlanMenu])
+
+  // Close overflow menu on outside click
+  useEffect(() => {
+    if (!showOverflowMenu) return
+    function handleClickOutside(e: MouseEvent) {
+      if (overflowMenuRef.current && !overflowMenuRef.current.contains(e.target as Node)) setShowOverflowMenu(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showOverflowMenu])
+
   // Export handler
   const handleExport = useCallback(async (type: 'bom' | 'material-list' | 'hardware-schedule' | 'cable-schedule' | 'snapshot') => {
     setExporting(true)
@@ -674,26 +704,32 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
         {/* RIGHT: Tool buttons — canvas views only */}
         {activeView !== 'network_topology' && (<>
 
-        {/* Undo / Redo */}
+        {/* ── Drawing ── */}
+        <span style={{ fontSize: 8, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.8, flexShrink: 0 }}>Draw</span>
         <button onClick={handleUndo} disabled={undoStack.length === 0}
           style={{ ...toolBtn(false), opacity: undoStack.length === 0 ? 0.3 : 1 }} title="Undo (Ctrl+Z)">
           <Undo2 size={12} />
         </button>
         <button onClick={handleRedo} disabled={redoStack.length === 0}
-          style={{ ...toolBtn(false), opacity: redoStack.length === 0 ? 0.3 : 1 }} title="Redo (Ctrl+Y)">
+          style={{ ...toolBtn(false), opacity: redoStack.length === 0 ? 0.3 : 1 }} title="Redo (Ctrl+Shift+Z)">
           <Redo2 size={12} />
+        </button>
+        <button onClick={() => setSnapToGrid(!snapToGrid)} style={toolBtn(snapToGrid, C.green)} title="Snap to Grid (N)">
+          <Magnet size={12} /> <span>Snap</span>
+        </button>
+        <button onClick={() => { setActiveTool('scale'); }} style={toolBtn(activeTool === 'scale', C.red)} title="Calibrate Scale (S)">
+          <Ruler size={12} /> <span>Scale</span>
+        </button>
+        <button onClick={() => setActiveTool('mdf_idf')} style={toolBtn(activeTool === 'mdf_idf', C.orange)} title="Place MDF/IDF (M)">
+          <Server size={12} /> <span>MDF</span>
         </button>
 
         <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
 
-        {/* Snap to grid */}
-        <button onClick={() => setSnapToGrid(!snapToGrid)} style={toolBtn(snapToGrid, C.green)} title="Snap to Grid">
-          <Magnet size={12} /> <span>Snap</span>
-        </button>
-
-        {/* Layer visibility */}
+        {/* ── View ── */}
+        <span style={{ fontSize: 8, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.8, flexShrink: 0 }}>View</span>
         <div style={{ position: 'relative' }} ref={layerMenuRef}>
-          <button onClick={() => setShowLayerMenu(!showLayerMenu)} style={toolBtn(showLayerMenu)} title="Layer Visibility">
+          <button onClick={() => setShowLayerMenu(!showLayerMenu)} style={toolBtn(showLayerMenu)} title="Layer Visibility (L)">
             <Layers size={12} /> <span>Layers</span>
           </button>
           {showLayerMenu && (
@@ -737,10 +773,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
             </div>
           )}
         </div>
-
-        <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
-
-        <button onClick={() => setShowFovCones(!showFovCones)} style={toolBtn(showFovCones)}>
+        <button onClick={() => setShowFovCones(!showFovCones)} style={toolBtn(showFovCones)} title="Toggle FOV Cones (F)">
           {showFovCones ? <Eye size={12} /> : <EyeOff size={12} />} <span>FOV</span>
         </button>
         {showFovCones && (
@@ -749,45 +782,88 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
             <span style={{ fontSize: 9, fontWeight: 600 }}>{fovDisplayMode === 'dori' ? 'DORI' : 'PPF'}</span>
           </button>
         )}
-        <button onClick={() => setActiveTool('mdf_idf')} style={toolBtn(activeTool === 'mdf_idf', C.orange)}
-          title="Place MDF/IDF closet">
-          <Server size={12} /> <span>MDF</span>
-        </button>
-        <button onClick={() => { setActiveTool('scale'); }} style={toolBtn(activeTool === 'scale', C.red)}>
-          <Ruler size={12} /> <span>Scale</span>
-        </button>
-        <button onClick={() => setShowGrid(!showGrid)} style={toolBtn(showGrid)}>
+        <button onClick={() => setShowGrid(!showGrid)} style={toolBtn(showGrid)} title="Toggle Grid (G)">
           <Grid3X3 size={12} />
         </button>
 
-        {/* Floor plan controls */}
         <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
-        <button onClick={() => fileInputRef.current?.click()} style={toolBtn(false)} title={activeFloorPlan ? 'Replace floor plan' : 'Upload floor plan'}>
-          <Upload size={12} /> <span style={{ fontSize: 9 }}>{activeFloorPlan ? 'Replace' : 'Upload'}</span>
-        </button>
-        <input ref={fileInputRef} type="file" accept=".svg,.pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
-        {activeFloorPlan && (
-          <>
-            <button onClick={() => setConfirmAction({ label: 'Delete floor plan?', action: handleDeleteFloorPlan })}
-              style={toolBtn(false)} title="Remove floor plan">
-              <ImageOff size={12} />
-            </button>
-            {/* Floor plan opacity slider */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} title="Floor plan opacity">
-              <span style={{ fontSize: 8, color: C.textDim }}>Opacity</span>
-              <input type="range" min="0" max="100" value={Math.round(floorPlanOpacity * 100)}
-                onChange={(e) => setFloorPlanOpacity(parseInt(e.target.value) / 100)}
-                style={{ width: 50, height: 3, accentColor: C.accent, cursor: 'pointer' }} />
-              <span style={{ fontSize: 8, color: C.textDim, fontFamily: "'IBM Plex Mono'", minWidth: 22 }}>{Math.round(floorPlanOpacity * 100)}%</span>
-            </div>
-          </>
-        )}
 
-        {/* Design actions */}
+        {/* ── Floor Plan dropdown ── */}
+        <div style={{ position: 'relative' }} ref={floorPlanMenuRef}>
+          <button onClick={() => setShowFloorPlanMenu(!showFloorPlanMenu)} style={toolBtn(showFloorPlanMenu)} title="Floor Plan Options">
+            <Upload size={12} /> <span style={{ fontSize: 9 }}>{activeFloorPlan ? 'Floor Plan' : 'Upload'}</span> <ChevronDown size={9} />
+          </button>
+          {showFloorPlanMenu && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
+              background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
+              padding: '6px 0', minWidth: 200, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            }}>
+              <div onClick={() => { fileInputRef.current?.click(); setShowFloorPlanMenu(false) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 11, color: C.text }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+                <Upload size={12} /> {activeFloorPlan ? 'Replace Floor Plan' : 'Upload Floor Plan'}
+              </div>
+              {activeFloorPlan && (
+                <>
+                  <div onClick={() => { setConfirmAction({ label: 'Delete floor plan?', action: handleDeleteFloorPlan }); setShowFloorPlanMenu(false) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 11, color: C.red }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+                    <ImageOff size={12} /> Remove Floor Plan
+                  </div>
+                  <div style={{ borderTop: `1px solid ${C.border}`, margin: '4px 0' }} />
+                  <div style={{ padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 10, color: C.textDim }}>Opacity</span>
+                    <input type="range" min="0" max="100" value={Math.round(floorPlanOpacity * 100)}
+                      onChange={(e) => setFloorPlanOpacity(parseInt(e.target.value) / 100)}
+                      style={{ width: 70, height: 3, accentColor: C.accent, cursor: 'pointer' }} />
+                    <span style={{ fontSize: 9, color: C.textDim, fontFamily: "'IBM Plex Mono'", minWidth: 22 }}>{Math.round(floorPlanOpacity * 100)}%</span>
+                  </div>
+                </>
+              )}
+              {/* Satellite controls — inside floor plan menu */}
+              {activeArea?.satellite_lat && (
+                <>
+                  <div style={{ borderTop: `1px solid ${C.border}`, margin: '4px 0' }} />
+                  <div style={{ padding: '4px 14px' }}>
+                    <span style={{ fontSize: 9, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.5 }}>Satellite</span>
+                  </div>
+                  <div style={{ padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 10, color: C.textDim }}>Opacity</span>
+                    <input type="range" min="0" max="100" value={Math.round(satelliteOpacity * 100)}
+                      onChange={(e) => setSatelliteOpacity(parseInt(e.target.value) / 100)}
+                      style={{ width: 70, height: 3, accentColor: C.accent, cursor: 'pointer' }} />
+                    <span style={{ fontSize: 9, color: C.textDim, fontFamily: "'IBM Plex Mono'", minWidth: 22 }}>{Math.round(satelliteOpacity * 100)}%</span>
+                  </div>
+                  <div onClick={handleAddLocation}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 11, color: C.text }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+                    <MapIcon size={12} /> Re-geocode
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        <input ref={fileInputRef} type="file" accept=".svg,.pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
+
         <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
-        <button onClick={() => setConfirmAction({ label: 'Delete this entire design?', action: handleDeleteDesign })}
-          style={{ ...toolBtn(false), color: C.red, borderColor: 'transparent' }} title="Delete design">
-          <Trash2 size={12} />
+
+        {/* ── Panels ── */}
+        <button onClick={() => setShowRequirements(!showRequirements)} style={toolBtn(showRequirements)}
+          title="Requirements Bar (R)">
+          <BarChart3 size={12} />
+        </button>
+        <button onClick={() => setShowStoragePanel(!showStoragePanel)} style={toolBtn(showStoragePanel)}
+          title="Storage Panel (T)">
+          <HardDrive size={12} />
+        </button>
+        <button onClick={() => setShowMinimap(!showMinimap)} style={toolBtn(showMinimap)}
+          title="Minimap">
+          <MapIcon size={12} />
         </button>
 
         {/* Export dropdown */}
@@ -825,26 +901,27 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
           )}
         </div>
 
-        {/* Separator */}
-        <div style={{ width: 1, height: 20, background: C.border, flexShrink: 0 }} />
-
-        {/* Requirements toggle */}
-        <button onClick={() => setShowRequirements(!showRequirements)} style={toolBtn(showRequirements)}
-          title="Toggle requirements bar">
-          <BarChart3 size={12} />
-        </button>
-
-        {/* Storage panel toggle */}
-        <button onClick={() => setShowStoragePanel(!showStoragePanel)} style={toolBtn(showStoragePanel)}
-          title="Toggle storage panel">
-          <HardDrive size={12} />
-        </button>
-
-        {/* Minimap toggle */}
-        <button onClick={() => setShowMinimap(!showMinimap)} style={toolBtn(showMinimap)}
-          title="Toggle minimap">
-          <MapIcon size={12} />
-        </button>
+        {/* Overflow menu (delete design etc.) */}
+        <div style={{ position: 'relative' }} ref={overflowMenuRef}>
+          <button onClick={() => setShowOverflowMenu(!showOverflowMenu)} style={toolBtn(showOverflowMenu)}
+            title="More options">
+            <MoreVertical size={12} />
+          </button>
+          {showOverflowMenu && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
+              background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
+              padding: '6px 0', minWidth: 160, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            }}>
+              <div onClick={() => { setConfirmAction({ label: 'Delete this entire design?', action: handleDeleteDesign }); setShowOverflowMenu(false) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 11, color: C.red }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+                <Trash2 size={12} /> Delete Design
+              </div>
+            </div>
+          )}
+        </div>
 
         </>)}
       </div>
@@ -918,6 +995,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                 lat: activeArea.satellite_lat,
                 lng: activeArea.satellite_lng,
                 zoom: activeArea.satellite_zoom ?? 19,
+                opacity: satelliteOpacity,
               } : null} />
 
             {/* Right panel — OVERLAY, when device or zone selected */}

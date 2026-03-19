@@ -107,7 +107,7 @@ interface CanvasAreaProps {
   onMdfIdfMoved?: (id: string, x: number, y: number) => void
   snapshotRef?: React.MutableRefObject<(() => string | null) | null>
   showMinimap?: boolean
-  satelliteConfig?: { lat: number; lng: number; zoom: number } | null
+  satelliteConfig?: { lat: number; lng: number; zoom: number; opacity?: number } | null
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
@@ -1264,6 +1264,7 @@ export function CanvasArea({
     if (floorPlan?.file_url || !satelliteConfig?.lat || !satelliteConfig?.lng) return
 
     const { lat, lng, zoom } = satelliteConfig
+    const satOpacity = satelliteConfig.opacity ?? 0.6
     const cw = canvas.width ?? 1280
     const ch = canvas.height ?? 1280
     // Request tile sized to canvas (clamped to 640 for Static Maps free tier, scale=2 gives 1280)
@@ -1282,7 +1283,7 @@ export function CanvasArea({
         const url = URL.createObjectURL(blob)
         const fm = await import('fabric')
         const img = await fm.FabricImage.fromURL(url)
-        img.set({ opacity: 0.6, selectable: false, evented: false, originX: 'left', originY: 'top' })
+        img.set({ opacity: satOpacity, selectable: false, evented: false, originX: 'left', originY: 'top' })
         // Scale to fill canvas viewport
         const iw = (img.width ?? cw) * (img.scaleX ?? 1)
         const ih = (img.height ?? ch) * (img.scaleY ?? 1)
@@ -1299,7 +1300,19 @@ export function CanvasArea({
     }
 
     void loadSatellite()
-  }, [satelliteConfig, floorPlan, fabricReady])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [satelliteConfig?.lat, satelliteConfig?.lng, satelliteConfig?.zoom, floorPlan, fabricReady])
+
+  // Satellite opacity — update existing background image without refetch
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady) return
+    const canvas = fabricRef.current
+    const bg = canvas.backgroundImage
+    if (bg && satelliteConfig?.opacity !== undefined) {
+      bg.set({ opacity: satelliteConfig.opacity })
+      canvas.requestRenderAll()
+    }
+  }, [satelliteConfig?.opacity, fabricReady])
 
   // Grid (single pattern rect — replaces per-dot rendering for performance)
   const drawGrid = useCallback(() => {
