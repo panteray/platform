@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { X } from "lucide-react";
 import {
   calculateSystemStorage,
@@ -22,15 +22,24 @@ export interface StorageCalculatorPanelProps {
 
 const CAMERA_TYPES = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'];
 
+const RETENTION_OPTIONS = [7, 14, 30, 60, 90, 180, 365];
+const RAID_OPTIONS: (5 | 6)[] = [5, 6];
+const DRIVE_OPTIONS = [2, 4, 6, 8, 10, 12, 16, 18, 20];
+
 export function StorageCalculatorPanel({
   devices,
   storageOutput: externalOutput,
-  retentionDays = 30,
+  retentionDays: defaultRetention = 30,
   onClose,
 }: StorageCalculatorPanelProps) {
-  // Use pre-computed output if available, otherwise compute internally
-  const output: SystemStorageOutput | null = externalOutput !== undefined ? externalOutput : (() => {
-    if (!devices || devices.length === 0) return null;
+  // ---- Interactive settings ----
+  const [retentionDays, setRetentionDays] = useState(defaultRetention);
+  const [raidLevel, setRaidLevel] = useState<5 | 6>(6);
+  const [driveSizeTB, setDriveSizeTB] = useState(10);
+
+  // Camera specs derived from placed devices
+  const cameraSpecs = useMemo(() => {
+    if (!devices || devices.length === 0) return [];
     const camDevices = devices
       .filter((d) => CAMERA_TYPES.includes(d.category))
       .map((d) => ({
@@ -39,13 +48,21 @@ export function StorageCalculatorPanel({
         category: "cctv" as const,
         properties: (d.properties ?? {}) as Record<string, unknown>,
       }));
-    if (camDevices.length === 0) return null;
-    const specs = canvasDevicesToCameraSpecs(camDevices);
-    if (specs.length === 0) return null;
+    return canvasDevicesToCameraSpecs(camDevices);
+  }, [devices]);
+
+  // Re-compute storage when settings change
+  const output: SystemStorageOutput | null = useMemo(() => {
+    if (cameraSpecs.length === 0) return externalOutput ?? null;
     try {
-      return calculateSystemStorage({ cameras: specs, retentionDays, raidLevel: 6, driveSizeTB: 10 });
+      return calculateSystemStorage({
+        cameras: cameraSpecs,
+        retentionDays,
+        raidLevel,
+        driveSizeTB,
+      });
     } catch { return null; }
-  })();
+  }, [cameraSpecs, retentionDays, raidLevel, driveSizeTB, externalOutput]);
 
   const totalCameras = output?.totalCameras ?? 0;
 
@@ -54,6 +71,11 @@ export function StorageCalculatorPanel({
   const metricValue = { fontSize: 20, fontWeight: 700, color: C.text, lineHeight: 1.3 };
   const metricSmall = { fontSize: 11, color: C.textMuted };
   const sectionTitle = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, color: C.textDim, letterSpacing: 0.5, marginBottom: 8 };
+  const selectStyle = {
+    background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4,
+    padding: '4px 8px', fontSize: 11, color: C.text, outline: 'none',
+    fontFamily: "'IBM Plex Mono', monospace", cursor: 'pointer',
+  };
 
   return (
     <div style={{ width: 300, background: C.bgPanel, borderLeft: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -74,6 +96,48 @@ export function StorageCalculatorPanel({
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+        {/* ---- Settings Controls ---- */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={sectionTitle}>Recording Settings</div>
+          <div style={{ ...metricBox, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Retention */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: C.textMuted }}>Retention</span>
+              <select value={retentionDays} onChange={(e) => setRetentionDays(Number(e.target.value))} style={selectStyle}>
+                {RETENTION_OPTIONS.map((d) => (
+                  <option key={d} value={d}>{d} days</option>
+                ))}
+              </select>
+            </div>
+            {/* RAID Level */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: C.textMuted }}>RAID Level</span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {RAID_OPTIONS.map((r) => (
+                  <button key={r} onClick={() => setRaidLevel(r)} style={{
+                    padding: '3px 10px', fontSize: 11, fontWeight: 600,
+                    borderRadius: 4, cursor: 'pointer', border: 'none',
+                    background: raidLevel === r ? `${C.accent}20` : C.bg,
+                    color: raidLevel === r ? C.accent : C.textMuted,
+                    outline: raidLevel === r ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
+                  }}>
+                    RAID {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Drive Size */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: C.textMuted }}>Drive Size</span>
+              <select value={driveSizeTB} onChange={(e) => setDriveSizeTB(Number(e.target.value))} style={selectStyle}>
+                {DRIVE_OPTIONS.map((d) => (
+                  <option key={d} value={d}>{d} TB</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
         {totalCameras === 0 ? (
           <div style={{ textAlign: 'center', color: C.textMuted, fontSize: 12, padding: '32px 16px' }}>
             Place cameras on the canvas to see storage, bandwidth, and PoE estimates.

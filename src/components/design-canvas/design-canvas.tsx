@@ -12,6 +12,9 @@ import { RightPanel } from './right-panel'
 import { DeviceCatalogModal } from './device-catalog-modal'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { StorageCalculatorPanel } from './storage-calculator-panel'
+import { CameraAdvisor } from './camera-advisor'
+import { DeviceComparison } from './device-comparison'
+import { ReportGenerator } from './report-generator'
 import { TopologyView } from './topology-view'
 import { Camera3dPreview } from './camera-3d-preview'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
@@ -63,6 +66,10 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [floorPlanError, setFloorPlanError] = useState<string | null>(null)
   const [showRequirements, setShowRequirements] = useState(false)
   const [showStoragePanel, setShowStoragePanel] = useState(false)
+  const [showCameraAdvisor, setShowCameraAdvisor] = useState(false)
+  const [showComparison, setShowComparison] = useState(false)
+  const [compareIds, setCompareIds] = useState<string[]>([])
+  const [showReport, setShowReport] = useState(false)
   const [showMinimap, setShowMinimap] = useState(false)
   const [editingAreaId, setEditingAreaId] = useState<string | null>(null)
   const [editAreaValue, setEditAreaValue] = useState('')
@@ -909,7 +916,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                 </>
               )}
               {/* Satellite controls — inside floor plan menu */}
-              {hasSatellite ? (
+              {hasSatellite && (
                 <>
                   <div style={{ borderTop: `1px solid ${C.border}`, margin: '4px 0' }} />
                   <div style={{ padding: '4px 14px' }}>
@@ -929,9 +936,9 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                     <MapIcon size={12} /> Re-geocode
                   </div>
                 </>
-              ) : null}
+              )}
               {/* Add Location — when no satellite yet, allow geocoding from floor plan menu */}
-              {!hasSatellite && opp?.install_address && (
+              {!hasSatellite && !!opp?.install_address && (
                 <>
                   <div style={{ borderTop: `1px solid ${C.border}`, margin: '4px 0' }} />
                   <div onClick={() => { handleAddLocation(); setShowFloorPlanMenu(false) }}
@@ -957,6 +964,10 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
         <button onClick={() => setShowStoragePanel(!showStoragePanel)} style={toolBtn(showStoragePanel)}
           title="Storage Panel (T)">
           <HardDrive size={12} />
+        </button>
+        <button onClick={() => setShowCameraAdvisor(!showCameraAdvisor)} style={toolBtn(showCameraAdvisor)}
+          title="Camera Advisor">
+          <Eye size={12} /> Advisor
         </button>
         <button onClick={() => setShowMinimap(!showMinimap)} style={toolBtn(showMinimap)}
           title="Minimap">
@@ -994,6 +1005,13 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                   {item.label}
                 </div>
               ))}
+              <div style={{ height: 1, background: C.border, margin: '4px 0' }} />
+              <div onClick={() => { setShowReport(true); setShowExportMenu(false) }}
+                style={{ padding: '6px 14px', cursor: 'pointer', fontSize: 11, color: C.accent, fontWeight: 600, transition: 'background 0.1s' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+                📄 Site Report (PDF)
+              </div>
             </div>
           )}
         </div>
@@ -1143,12 +1161,33 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                 <StorageCalculatorPanel
                   devices={devices.filter((d: DesignDevice) => d.area_id === activeAreaId)}
                   onClose={() => setShowStoragePanel(false)}
-                  storageOutput={calculateSystemStorage({
-                    cameras: canvasDevicesToCameraSpecs(devices.filter((d: DesignDevice) => d.area_id === activeAreaId)),
-                    retentionDays: 30,
-                    raidLevel: 6,
-                    driveSizeTB: 10
-                  })}
+                />
+              </div>
+            )}
+
+            {/* Camera Advisor — OVERLAY, right side */}
+            {showCameraAdvisor && (
+              <div style={{
+                position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 9,
+                boxShadow: '-4px 0 12px rgba(0,0,0,0.3)',
+              }}>
+                <CameraAdvisor
+                  onClose={() => setShowCameraAdvisor(false)}
+                />
+              </div>
+            )}
+
+            {/* Device Comparison — OVERLAY, right side */}
+            {showComparison && (
+              <div style={{
+                position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 9,
+                boxShadow: '-4px 0 12px rgba(0,0,0,0.3)',
+              }}>
+                <DeviceComparison
+                  devices={devices.filter((d: DesignDevice) => d.area_id === activeAreaId)}
+                  compareIds={compareIds}
+                  onClose={() => setShowComparison(false)}
+                  onRemove={(id) => setCompareIds((prev) => prev.filter((i) => i !== id))}
                 />
               </div>
             )}
@@ -1159,6 +1198,17 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                 floorPlan={activeFloorPlan}
                 scalePxPerFt={scalePxPerFt}
                 onClose={() => setShow3dPreview(false)}
+              />
+            )}
+
+            {/* Report Generator modal */}
+            {showReport && (
+              <ReportGenerator
+                designName={design?.name ?? 'Untitled Design'}
+                areaName={activeArea?.name}
+                devices={devices.filter((d: DesignDevice) => d.area_id === activeAreaId)}
+                canvasSnapshotFn={snapshotRef.current ?? undefined}
+                onClose={() => setShowReport(false)}
               />
             )}
 
