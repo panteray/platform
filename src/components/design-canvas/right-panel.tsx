@@ -1,31 +1,5 @@
-/** Device narrative generator for ACS devices */
-function getDeviceNarrative(device: DesignDevice | null) {
-  if (!device) return '';
-  const p = device as any;
-  const d = device as any;
-  const narrativeInput = {
-    schematicType: p.schematic_type || 'standard',
-    controllerBrand: p.controller_brand || '',
-    controllerModel: p.controller_model || '',
-    lockType: p.lock_type || '',
-    lockVendor: p.lock_manufacturer || '',
-    readerProtocol: p.reader_protocol || 'wiegand',
-    hasDps: !!p.has_dps,
-    hasRex: !!p.has_rex,
-    hasAda: !!p.has_ada,
-    operatorModel: p.operator_model || '',
-    sequencerModel: p.sequencer_model || '',
-    doorName: d.label || '',
-    mdfIdfLocation: p.mdf_idf || '',
-  };
-  return buildNarrative(narrativeInput);
-}
-
-// Import narrative generator
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { buildNarrative } = require('@/lib/calculators/wiring-schematic')
-
 import { useState, useCallback } from 'react'
+import { buildNarrative } from '@/lib/calculators/wiring-schematic'
 import { C, COLORS_16, COLORS_48, PPF_CHART } from './constants'
 import { Section, Field, SliderField, SubLabel } from './section'
 import { ActionIcons } from './icons'
@@ -57,6 +31,26 @@ function prop<T>(device: DesignDevice, key: string, fallback: T): T {
 function mergeProps(device: DesignDevice, key: string, value: unknown): Record<string, unknown> {
   const existing = (device.properties ?? {}) as Record<string, unknown>
   return { ...existing, [key]: value }
+}
+
+/** Device narrative generator for ACS devices */
+function getDeviceNarrative(device: DesignDevice | null): string {
+  if (!device) return ''
+  return buildNarrative({
+    schematicType: prop<string>(device, 'schematic_type', 'standard') as import('@/lib/calculators/wiring-schematic').SchematicType,
+    controllerBrand: prop(device, 'controller_brand', ''),
+    controllerModel: prop(device, 'controller_model', ''),
+    lockType: prop(device, 'lock_type', ''),
+    lockVendor: prop(device, 'lock_manufacturer', ''),
+    readerProtocol: prop(device, 'reader_protocol', 'wiegand') as 'wiegand' | 'osdp',
+    hasDps: !!prop(device, 'has_dps', false),
+    hasRex: !!prop(device, 'has_rex', false),
+    hasAda: !!prop(device, 'has_ada', false),
+    operatorModel: prop(device, 'operator_model', ''),
+    sequencerModel: prop(device, 'sequencer_model', ''),
+    doorName: device.label || '',
+    mdfIdfLocation: prop(device, 'mdf_idf', ''),
+  })
 }
 
 /** Manufacturer-aware smart codec label */

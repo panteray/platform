@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Camera, KeyRound } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { roleLabel } from '@/lib/roles'
@@ -201,10 +202,11 @@ export default function ProfilePage() {
         <div className="flex items-center gap-6">
           <div className="relative">
             {avatarDisplayUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
+              <Image
                 src={avatarDisplayUrl}
                 alt="Avatar"
+                width={80}
+                height={80}
                 className="h-20 w-20 rounded-full border-2 border-border object-cover"
               />
             ) : (

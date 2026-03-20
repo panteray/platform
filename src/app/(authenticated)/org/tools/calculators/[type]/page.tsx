@@ -164,6 +164,7 @@ function formatValue(v: unknown): string {
 function useAutoCalc<T>(fn: () => T | null, deps: unknown[], delay = 300) {
   const [result, setResult] = useState<T | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Dynamic deps array passed at call site — ESLint cannot statically analyze spread deps
   const compute = useCallback(fn, deps) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

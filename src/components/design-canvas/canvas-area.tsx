@@ -316,6 +316,7 @@ export function CanvasArea({
         fabricRef.current.dispose(); fabricRef.current = null; setFabricReady(false)
       }
     }
+    // Canvas init runs exactly once on mount. Adding deps would destroy and recreate the canvas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1298,6 +1299,8 @@ export function CanvasArea({
     if (ext === 'svg') { void loadFloorPlanSVG() }
     else if (ext === 'pdf') { void loadFloorPlanPDF() }
     else { void loadFloorPlanImage() }
+    // Primitive deps intentional — satelliteConfig?.lat prevents refetch on opacity-only changes.
+    // Full object ref would break effect ordering between floor plan and satellite effects.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floorPlan, fabricReady, onFloorPlanError, designId, floorPlanOpacity, satelliteConfig?.lat])
 
@@ -1345,6 +1348,7 @@ export function CanvasArea({
     }
 
     void loadSatellite()
+    // Primitive deps intentional — prevents refetch when only opacity changes (separate effect handles that).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [satelliteConfig?.lat, satelliteConfig?.lng, satelliteConfig?.zoom, floorPlan, fabricReady])
 

@@ -21,7 +21,7 @@ export type { SystemStorageInput, SystemStorageOutput, CameraSpec, CanvasStorage
 export { calculateSolar } from './solar'
 export type { SolarInput, SolarOutput } from './solar'
 
-export { generateWiringSchematic, validateWiringInput } from './wiring-schematic'
+export { generateWiringSchematic, validateWiringInput, buildNarrative } from './wiring-schematic'
 export type { WiringInput, WiringOutput, SchematicType, WiringValidation } from './wiring-schematic'
 
 export { runCableEstimator, checkCableOverage, CABLE_TYPES } from './cable-estimator'

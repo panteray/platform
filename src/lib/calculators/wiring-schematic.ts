@@ -260,7 +260,7 @@ function buildCableSchedule(connections: WiringConnection[], doorName: string): 
   }));
 }
 
-function buildNarrative(input: WiringInput): string {
+export function buildNarrative(input: WiringInput): string {
   let text = `${input.doorName}: ${input.lockType} controlled by ${input.controllerBrand} ${input.controllerModel}. `;
   text += `Entry via ${input.readerProtocol.toUpperCase()} reader. `;
   if (input.hasRex) text += 'REX device provides request-to-exit. ';
