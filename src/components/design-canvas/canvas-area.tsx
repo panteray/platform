@@ -1574,19 +1574,30 @@ export function CanvasArea({
     async function loadSatelliteGrid() {
       try {
         // Fetch all tiles in parallel
+        let fetchErrors = 0
         const tilePromises = offsets.map(async (off) => {
           const params = new URLSearchParams({
             lat: String(off.tileLat), lng: String(off.tileLng),
             zoom: String(zoom), width: String(tileW), height: String(tileH),
           })
           const res = await fetch(`/api/org/satellite-tile?${params.toString()}`)
-          if (!res.ok) return null
+          if (!res.ok) {
+            fetchErrors++
+            const errBody = await res.json().catch(() => ({}))
+            console.error(`Satellite tile fetch failed (${res.status}):`, (errBody as Record<string, string>).error ?? 'Unknown')
+            return null
+          }
           const blob = await res.blob()
           return { ...off, blob }
         })
         const tiles = (await Promise.all(tilePromises)).filter(Boolean) as Array<{ row: number; col: number; blob: Blob }>
 
-        if (tiles.length === 0) { toast.error('Satellite tiles failed to load — check API key'); return }
+        if (tiles.length === 0) {
+          toast.error(fetchErrors > 0
+            ? 'Satellite tiles failed — check Google Maps API key and billing'
+            : 'Satellite tiles failed to load — check API key')
+          return
+        }
 
         // Composite tiles onto an offscreen canvas
         const compositeW = GRID * actualTilePx
@@ -1597,6 +1608,8 @@ export function CanvasArea({
         const ctx = offscreen.getContext('2d')
         if (!ctx) return
 
+        let loadedCount = 0
+        let errorCount = 0
         const imageLoadPromises = tiles.map((tile) => {
           return new Promise<void>((resolve) => {
             const url = URL.createObjectURL(tile.blob)
@@ -1604,14 +1617,28 @@ export function CanvasArea({
             image.onload = () => {
               ctx.drawImage(image, tile.col * actualTilePx, tile.row * actualTilePx, actualTilePx, actualTilePx)
               URL.revokeObjectURL(url)
+              loadedCount++
               resolve()
             }
-            image.onerror = () => { URL.revokeObjectURL(url); resolve() }
+            image.onerror = () => {
+              URL.revokeObjectURL(url)
+              errorCount++
+              console.error(`Satellite tile image decode failed: row=${tile.row} col=${tile.col}`)
+              resolve()
+            }
             image.src = url
           })
         })
 
         await Promise.all(imageLoadPromises)
+
+        if (loadedCount === 0) {
+          toast.error('Satellite images failed to decode — API may be returning error tiles')
+          return
+        }
+        if (errorCount > 0) {
+          toast.warning(`${errorCount} of ${tiles.length} satellite tiles failed to load`)
+        }
 
         // Convert composited canvas to blob → Fabric image
         const compositeBlob = await new Promise<Blob | null>((resolve) => offscreen.toBlob(resolve, 'image/png'))

@@ -41,7 +41,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: `Static Maps API error (${res.status})` }, { status: 502 })
     }
 
+    // Google returns HTTP 200 even for errors — validate content-type is actually an image
+    const contentType = res.headers.get('content-type') ?? ''
+    if (!contentType.startsWith('image/')) {
+      const body = await res.text()
+      console.error('Google Static Maps returned non-image:', contentType, body.slice(0, 500))
+      return NextResponse.json({ error: `Static Maps returned ${contentType} instead of image — check API key restrictions` }, { status: 502 })
+    }
+
     const imageBuffer = await res.arrayBuffer()
+
+    // Reject suspiciously small responses (Google error tiles are often < 1KB)
+    if (imageBuffer.byteLength < 1000) {
+      console.error('Google Static Maps returned tiny response:', imageBuffer.byteLength, 'bytes')
+      return NextResponse.json({ error: `Static Maps returned ${imageBuffer.byteLength} byte image — likely an error tile` }, { status: 502 })
+    }
+
     return new NextResponse(imageBuffer, {
       status: 200,
       headers: {
