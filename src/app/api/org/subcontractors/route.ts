@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       region_state: body.region_state ?? null,
       notes: body.notes ?? null,
       created_by: caller.id,
-    }).select().single())
+    }).select().single()
       data = result.data;
       error = result.error;
     if (!error || !error.message.includes('unique_sub_number')) break;
