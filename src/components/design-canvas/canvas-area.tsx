@@ -1336,7 +1336,7 @@ export function CanvasArea({
     const canvas = fabricRef.current
     if (!floorPlan?.file_url) {
       // Only clear background if there's no satellite — satellite effect manages its own bg
-      if (!satelliteConfig?.lat) {
+      if (satelliteConfig?.lat == null) {
         canvas.backgroundImage = undefined; canvas.requestRenderAll()
       }
       return
@@ -1468,7 +1468,7 @@ export function CanvasArea({
     if (!fabricRef.current || !fabricReady) return
     const canvas = fabricRef.current
     // Only load satellite if there's no floor plan and we have coordinates
-    if (floorPlan?.file_url || !satelliteConfig?.lat || !satelliteConfig?.lng) return
+    if (floorPlan?.file_url || satelliteConfig?.lat == null || satelliteConfig?.lng == null) return
 
     const { lat, lng, zoom } = satelliteConfig
     const satOpacity = satelliteConfig.opacity ?? 0.6

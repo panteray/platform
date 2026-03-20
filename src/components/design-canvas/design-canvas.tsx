@@ -128,6 +128,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   }, [activeArea?.infrastructure_observations])
 
   const opp = design?.opportunities as Record<string, unknown> | undefined
+  const hasSatellite = activeArea?.satellite_lat != null && activeArea?.satellite_lng != null
   const projectName = opp?.project_name ? `${opp.opp_number} / ${opp.project_name}` : design?.name ?? 'Design Canvas'
 
   // ---- FOV data from calculator engine ----
@@ -907,7 +908,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                 </>
               )}
               {/* Satellite controls — inside floor plan menu */}
-              {activeArea?.satellite_lat && (
+              {hasSatellite ? (
                 <>
                   <div style={{ borderTop: `1px solid ${C.border}`, margin: '4px 0' }} />
                   <div style={{ padding: '4px 14px' }}>
@@ -925,6 +926,18 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                     onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
                     <MapIcon size={12} /> Re-geocode
+                  </div>
+                </>
+              ) : null}
+              {/* Add Location — when no satellite yet, allow geocoding from floor plan menu */}
+              {!hasSatellite && opp?.install_address && (
+                <>
+                  <div style={{ borderTop: `1px solid ${C.border}`, margin: '4px 0' }} />
+                  <div onClick={() => { handleAddLocation(); setShowFloorPlanMenu(false) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', cursor: satelliteLoading ? 'wait' : 'pointer', fontSize: 11, color: C.text }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+                    <MapIcon size={12} /> {satelliteLoading ? 'Loading...' : 'Add Satellite Location'}
                   </div>
                 </>
               )}
@@ -1095,7 +1108,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                 setSelectedDeviceId(device.id)
                 setShow3dPreview(true)
               }}
-              satelliteConfig={activeArea?.satellite_lat && activeArea?.satellite_lng ? {
+              satelliteConfig={activeArea?.satellite_lat != null && activeArea?.satellite_lng != null ? {
                 lat: activeArea.satellite_lat,
                 lng: activeArea.satellite_lng,
                 zoom: activeArea.satellite_zoom ?? 19,
