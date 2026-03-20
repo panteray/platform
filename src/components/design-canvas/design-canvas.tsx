@@ -185,6 +185,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
           sensorW,
           focalLength,
           sensorAngles,
+          blindSpotFt: result.blindSpotFt > 0 ? result.blindSpotFt : undefined,
         })
       } catch {
         // Engine didn't run — skip

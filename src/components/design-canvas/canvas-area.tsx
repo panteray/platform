@@ -5,6 +5,7 @@ import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
 import { Minimap, type MinimapDevice, type MinimapZone, type MinimapInfra, type MinimapViewport } from './minimap'
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON, ToolbarIcons } from './icons'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
+import { PersonPreview } from './person-preview'
 import type { DoriClassification } from '@/lib/calculators'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignZone, DesignMdfIdf } from '@/types/database'
 
@@ -27,6 +28,8 @@ export interface DeviceFovData {
   resolutionW?: number
   sensorW?: number
   focalLength?: number
+  /** Blind spot distance from camera base (ft) — area not visible directly below */
+  blindSpotFt?: number
 }
 
 // ---- Cable Draw State Machine ----
@@ -171,6 +174,7 @@ export function CanvasArea({
   const snapRef = useRef(snapToGrid)
   useEffect(() => { snapRef.current = snapToGrid }, [snapToGrid])
   const [ppfTooltip, setPpfTooltip] = useState<{ visible: boolean; x: number; y: number; ppf: number; dori: string; distFt: number } | null>(null)
+  const [pinnedPreview, setPinnedPreview] = useState<{ ppf: number; distFt: number; cameraLabel: string } | null>(null)
   const fovHandleMap = useRef(new Map<string, FabricObject>())
   const mdfIdfObjectMap = useRef(new Map<string, FabricObject[]>())
 
@@ -874,6 +878,73 @@ export function CanvasArea({
           }
         }
         fovObjectMap.set(deviceId, objects);
+
+        // ---- Blind Spot Visualization ----
+        if (data.blindSpotFt && data.blindSpotFt > 0.5) {
+          const blindR = data.blindSpotFt * (scalePxPerFt || 10);
+          if (blindR > 3) {
+            const cx = device.position_x;
+            const cy = device.position_y;
+            // Hatched semi-circle showing dead zone below camera
+            const blindCircle = new fabric.Circle({
+              left: cx, top: cy, radius: blindR,
+              fill: 'transparent',
+              stroke: 'rgba(120,113,108,0.5)',
+              strokeWidth: 1,
+              strokeDashArray: [3, 3],
+              originX: 'center', originY: 'center',
+              selectable: false, evented: false,
+            });
+            (blindCircle as unknown as Record<string, unknown>).__isBlindSpot = true;
+            canvas.add(blindCircle); canvas.sendObjectToBack(blindCircle);
+            objects.push(blindCircle);
+            // Fill with low-opacity hatched pattern
+            const blindFill = new fabric.Circle({
+              left: cx, top: cy, radius: blindR,
+              fill: 'rgba(120,113,108,0.06)',
+              stroke: 'none', strokeWidth: 0,
+              originX: 'center', originY: 'center',
+              selectable: false, evented: false,
+            });
+            (blindFill as unknown as Record<string, unknown>).__isBlindSpot = true;
+            canvas.add(blindFill); canvas.sendObjectToBack(blindFill);
+            objects.push(blindFill);
+            // Label
+            if (blindR > 15) {
+              const bsLabel = new fabric.FabricText(`${data.blindSpotFt.toFixed(1)}ft blind`, {
+                left: cx, top: cy + blindR + 6, fontSize: 8, fontWeight: '600',
+                fill: 'rgba(120,113,108,0.7)', fontFamily: "'IBM Plex Mono', monospace",
+                originX: 'center', originY: 'top', selectable: false, evented: false,
+              });
+              canvas.add(bsLabel); objects.push(bsLabel);
+            }
+          }
+        }
+
+        // ---- PPF Boundary Labels on Tier Edges (PPF mode) ----
+        if (fovDisplayMode === 'ppf' && data.resolutionW && data.sensorW && data.focalLength) {
+          const cx = device.position_x;
+          const cy = device.position_y;
+          const baseRot = (data.rotation || 0) * (Math.PI / 180);
+          for (const tier of data.tiers) {
+            const tierR = tier.distanceFt * (scalePxPerFt || 10);
+            if (tierR < 20) continue;
+            const ppfVal = calculatePpfAtDistance(data.resolutionW, data.sensorW, data.focalLength, tier.distanceFt);
+            if (ppfVal <= 0) continue;
+            // Position label at tier boundary along the camera direction
+            const lx = cx + Math.cos(baseRot) * tierR;
+            const ly = cy + Math.sin(baseRot) * tierR;
+            let opacity = 0.85;
+            if (highlightedPpfTier && tier.color !== highlightedPpfTier) opacity = 0.2;
+            const ppfLabel = new fabric.FabricText(`${Math.round(ppfVal)}`, {
+              left: lx, top: ly - 6, fontSize: 8, fontWeight: '700',
+              fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
+              originX: 'center', originY: 'bottom', selectable: false, evented: false,
+              opacity,
+            });
+            canvas.add(ppfLabel); objects.push(ppfLabel);
+          }
+        }
         
         // Multi-handle: One handle per sensor/imager
         if (outerR > 0 && onFovHandleDragged) {
@@ -1812,12 +1883,13 @@ export function CanvasArea({
         </div>
       )}
 
-      {/* PPF at Cursor Tooltip */}
       {ppfTooltip?.visible && (
-        <div style={{
+        <div onClick={() => {
+          setPinnedPreview({ ppf: ppfTooltip.ppf, distFt: ppfTooltip.distFt, cameraLabel: '' })
+        }} style={{
           position: 'fixed', left: ppfTooltip.x, top: ppfTooltip.y,
           background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
-          padding: '5px 10px', zIndex: 1001, pointerEvents: 'none',
+          padding: '5px 10px', zIndex: 1001, cursor: 'pointer',
           boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
           fontFamily: "'IBM Plex Mono', monospace",
         }}>
@@ -1828,6 +1900,19 @@ export function CanvasArea({
             <span style={{ color: C.textMuted, fontSize: 9 }}>{ppfTooltip.dori}</span>
             <span style={{ color: C.textDim, fontSize: 9 }}>{ppfTooltip.distFt} ft</span>
           </div>
+          <div style={{ fontSize: 8, color: C.textDim, marginTop: 2 }}>Click for preview</div>
+        </div>
+      )}
+
+      {/* Pinned Person Preview */}
+      {pinnedPreview && (
+        <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 30 }}>
+          <PersonPreview
+            ppf={pinnedPreview.ppf}
+            distanceFt={pinnedPreview.distFt}
+            cameraLabel={pinnedPreview.cameraLabel}
+            onClose={() => setPinnedPreview(null)}
+          />
         </div>
       )}
 
