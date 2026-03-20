@@ -1650,12 +1650,12 @@ export function CanvasArea({
         }
         console.log('[SAT] Images decoded:', loadedCount, 'errors:', errorCount)
 
-        // Convert composited canvas to blob → Fabric image
-        const compositeBlob = await new Promise<Blob | null>((resolve) => offscreen.toBlob(resolve, 'image/png'))
-        if (!compositeBlob) { console.log('[SAT] FAIL: compositeBlob is null'); return }
-        const compositeUrl = URL.createObjectURL(compositeBlob)
+        // Convert composited canvas to data URL → Fabric image (data URL avoids blob revocation issues)
+        const compositeDataUrl = offscreen.toDataURL('image/png')
+        if (!compositeDataUrl || compositeDataUrl === 'data:,') { console.log('[SAT] FAIL: compositeDataUrl is empty'); return }
+        console.log('[SAT] Composite data URL length:', compositeDataUrl.length)
         const fm = await import('fabric')
-        const img = await fm.FabricImage.fromURL(compositeUrl)
+        const img = await fm.FabricImage.fromURL(compositeDataUrl)
         img.set({ opacity: satOpacity, selectable: false, evented: false, originX: 'left', originY: 'top' })
         // Scale composited image to fit canvas viewport
         const iw = (img.width ?? cw) * (img.scaleX ?? 1)
@@ -1665,10 +1665,39 @@ export function CanvasArea({
           img.set({ scaleX: s, scaleY: s })
         }
         console.log('[SAT] Setting backgroundImage — img size:', img.width, 'x', img.height, 'opacity:', satOpacity, 'canvas:', cw, 'x', ch)
+        
+        // Set background — use both direct assignment and renderAll (sync, not requestRenderAll)
         canvas.backgroundImage = img as unknown as import('fabric').FabricImage
-        canvas.requestRenderAll()
-        console.log('[SAT] backgroundImage SET and renderAll called')
-        URL.revokeObjectURL(compositeUrl)
+        canvas.renderAll()
+        console.log('[SAT] backgroundImage SET and renderAll (sync) called')
+        
+        // Verify after 1 second — check if something cleared it
+        setTimeout(() => {
+          const bg = canvas.backgroundImage
+          if (bg) {
+            console.log('[SAT] ✅ VERIFY: backgroundImage still present after 1s — width:', (bg as any).width, 'height:', (bg as any).height, 'opacity:', (bg as any).opacity)
+            canvas.renderAll() // Force re-render
+          } else {
+            console.error('[SAT] ❌ VERIFY: backgroundImage was CLEARED after 1s — something overwrote it')
+            toast.error('Satellite was loaded but something cleared it — check console')
+          }
+        }, 1000)
+        
+        // Second verify at 3s
+        setTimeout(() => {
+          const bg = canvas.backgroundImage
+          if (bg) {
+            console.log('[SAT] ✅ VERIFY 3s: still present')
+            canvas.renderAll()
+            toast.success('Satellite loaded — ' + tiles.length + ' tiles')
+          } else {
+            console.error('[SAT] ❌ VERIFY 3s: backgroundImage GONE')
+            toast.error('Satellite cleared after load — race condition')
+          }
+        }, 3000)
+        
+        // DON'T revoke URL yet — Fabric may need it for lazy re-renders
+        // URL.revokeObjectURL(compositeUrl)
       } catch (err) {
         console.error('Satellite grid load failed:', err)
         toast.error('Satellite load failed')
