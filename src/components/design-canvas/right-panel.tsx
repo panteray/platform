@@ -116,27 +116,61 @@ export function RightPanel({
   onCloseZone,
   zones = [],
 }: RightPanelProps) {
+  // ---- All hooks must be called unconditionally (rules-of-hooks) ----
+  const [glow, setGlow] = useState<Record<string, boolean>>({});
+  const [zoneErrors, setZoneErrors] = useState<Record<string, string>>({});
+
+  // Helper to trigger glow for a field
+  const triggerGlow = useCallback((field: string) => {
+    setGlow((prev) => ({ ...prev, [field]: true }));
+    setTimeout(() => setGlow((prev) => ({ ...prev, [field]: false })), 1600);
+  }, []);
+
+  // Cascading validation
+  const validateZone = useCallback((zone: Record<string, unknown>) => {
+    const errors: Record<string, string> = {};
+    if ((zone.x as number) < 0) errors.x = 'X must be >= 0';
+    if ((zone.y as number) < 0) errors.y = 'Y must be >= 0';
+    if ((zone.width as number) <= 10) errors.width = 'Width must be > 10';
+    if ((zone.height as number) <= 10) errors.height = 'Height must be > 10';
+    if ((zone.width as number) < (zone.height as number)) errors.width = 'Width should be >= Height';
+    setZoneErrors(errors);
+    return Object.keys(errors).length === 0;
+  }, []);
+
+  // ---- Save helpers (for device editing) ----
+  const saveField = useCallback((key: string, value: unknown) => {
+    if (!device) return
+    onUpdateDevice?.(device.id, { [key]: value })
+  }, [device, onUpdateDevice])
+
+  const saveProp = useCallback((key: string, value: unknown) => {
+    if (!device) return
+    onUpdateDevice?.(device.id, { properties: mergeProps(device, key, value) })
+  }, [device, onUpdateDevice])
+
+  const saveFieldFromBlur = useCallback((key: string, value: string) => {
+    // Determine if this is a top-level field or a property
+    const topLevel = ['label', 'mount_type', 'color_hex', 'rotation', 'status', 'condition', 'asset_type', 'billing_type', 'recurring_cost']
+    if (topLevel.includes(key)) {
+      saveField(key, value)
+    } else {
+      saveProp(key, value)
+    }
+  }, [saveField, saveProp])
+
+  const saveSlider = useCallback((key: string, value: number) => {
+    const topLevel = ['rotation', 'recurring_cost']
+    if (topLevel.includes(key)) {
+      saveField(key, value)
+    } else {
+      saveProp(key, value)
+    }
+  }, [saveField, saveProp])
+
   // ---- Zone Editor (takes priority when zone selected) ----
   if (selectedZone && !device) {
     const z = selectedZone
-    const [glow, setGlow] = useState<Record<string, boolean>>({});
-    const [zoneErrors, setZoneErrors] = useState<Record<string, string>>({});
-    // Helper to trigger glow for a field
-    const triggerGlow = (field: string) => {
-      setGlow((prev) => ({ ...prev, [field]: true }));
-      setTimeout(() => setGlow((prev) => ({ ...prev, [field]: false })), 1600);
-    };
-    // Cascading validation
-    const validateZone = (zone: any) => {
-      const errors: Record<string, string> = {};
-      if (zone.x < 0) errors.x = 'X must be >= 0';
-      if (zone.y < 0) errors.y = 'Y must be >= 0';
-      if (zone.width <= 10) errors.width = 'Width must be > 10';
-      if (zone.height <= 10) errors.height = 'Height must be > 10';
-      if (zone.width < zone.height) errors.width = 'Width should be >= Height';
-      setZoneErrors(errors);
-      return Object.keys(errors).length === 0;
-    };
     return (
       <div style={{
         width: 300, height: '100%', background: C.bgPanel, borderLeft: `1px solid ${C.border}`,
@@ -286,40 +320,13 @@ export function RightPanel({
     )
   }
 
+  // After null checks, device is narrowed to DesignDevice
   const d = device
   const cat = d.category
   const p = (d.properties ?? {}) as Record<string, unknown>
   const manufacturer = String(p.manufacturer || '')
   const model = String(p.model || d.label)
   const channels = (p.channels as number) || 1
-
-  // ---- Save helpers ----
-  const saveField = useCallback((key: string, value: unknown) => {
-    onUpdateDevice?.(d.id, { [key]: value })
-  }, [d.id, onUpdateDevice])
-
-  const saveProp = useCallback((key: string, value: unknown) => {
-    onUpdateDevice?.(d.id, { properties: mergeProps(d, key, value) })
-  }, [d, onUpdateDevice])
-
-  const saveFieldFromBlur = useCallback((key: string, value: string) => {
-    // Determine if this is a top-level field or a property
-    const topLevel = ['label', 'mount_type', 'color_hex', 'rotation', 'status', 'condition', 'asset_type', 'billing_type', 'recurring_cost']
-    if (topLevel.includes(key)) {
-      saveField(key, value)
-    } else {
-      saveProp(key, value)
-    }
-  }, [saveField, saveProp])
-
-  const saveSlider = useCallback((key: string, value: number) => {
-    const topLevel = ['rotation', 'recurring_cost']
-    if (topLevel.includes(key)) {
-      saveField(key, value)
-    } else {
-      saveProp(key, value)
-    }
-  }, [saveField, saveProp])
 
   // PPF data
   const ppf = prop(d, 'ppf', 0)
@@ -674,7 +681,7 @@ export function RightPanel({
                   onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = C.bgActive }}
                 >
-                  <ActionIcons.copy /> Add to HW Schedule
+                  {ActionIcons.copy} Add to HW Schedule
                 </button>
               </div>
             </Section>

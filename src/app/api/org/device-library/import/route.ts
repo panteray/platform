@@ -15,10 +15,9 @@ function getFileType(fileName: string): 'pdf' | 'xlsx' | 'csv' | null {
 }
 
 async function parsePdf(buffer: Buffer, vendor: string | null): Promise<ParsedImportRow[]> {
-  const { PDFParse } = await import('pdf-parse')
-  const parser = new PDFParse({ data: buffer })
-  const textResult = await parser.getText()
-  return parsePdfText(textResult.text, vendor)
+  const pdfParse = (await import('pdf-parse')).default
+  const result = await pdfParse(buffer)
+  return parsePdfText(result.text, vendor)
 }
 
 async function parseExcel(buffer: Buffer, vendor: string | null): Promise<ParsedImportRow[]> {
