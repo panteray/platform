@@ -1404,15 +1404,20 @@ export function CanvasArea({
 
   // Floor plan background
   useEffect(() => {
+    console.log('[FP] Effect fired — fabricReady:', fabricReady, 'floorPlan:', !!floorPlan?.file_url, 'satLat:', satelliteConfig?.lat)
     if (!fabricRef.current || !fabricReady) return
     const canvas = fabricRef.current
     if (!floorPlan?.file_url) {
       // Only clear background if there's no satellite — satellite effect manages its own bg
       if (satelliteConfig?.lat == null) {
+        console.log('[FP] CLEARING backgroundImage — no floor plan, no satellite')
         canvas.backgroundImage = undefined; canvas.requestRenderAll()
+      } else {
+        console.log('[FP] No floor plan but satellite exists — NOT clearing')
       }
       return
     }
+    console.log('[FP] LOADING floor plan:', floorPlan.file_url.slice(0, 80))
 
     let currentUrl = floorPlan.file_url
     const ext = currentUrl.split('.').pop()?.split('?')[0]?.toLowerCase() ?? ''
@@ -1452,7 +1457,7 @@ export function CanvasArea({
           const s = Math.min((cw * 0.9) / gw, (ch * 0.9) / gh, 1)
           group.set({ scaleX: s, scaleY: s })
         }
-        canvas.backgroundImage = group as unknown as import('fabric').FabricImage
+        console.log("[FP] Setting backgroundImage from SVG floor plan"); canvas.backgroundImage = group as unknown as import("fabric").FabricImage
         canvas.requestRenderAll()
       } catch (err) {
         console.error('SVG floor plan load failed:', err)
@@ -1537,9 +1542,11 @@ export function CanvasArea({
 
   // Satellite tile background — 3×3 grid stitching for larger site coverage
   useEffect(() => {
-    if (!fabricRef.current || !fabricReady) return
+    console.log('[SAT] Effect fired — fabricReady:', fabricReady, 'satConfig:', satelliteConfig?.lat, satelliteConfig?.lng, 'floorPlan:', !!floorPlan?.file_url)
+    if (!fabricRef.current || !fabricReady) { console.log('[SAT] SKIP: fabric not ready'); return }
     const canvas = fabricRef.current
-    if (satelliteConfig?.lat == null || satelliteConfig?.lng == null) return
+    if (satelliteConfig?.lat == null || satelliteConfig?.lng == null) { console.log('[SAT] SKIP: no lat/lng'); return }
+    console.log('[SAT] PROCEEDING — lat:', satelliteConfig.lat, 'lng:', satelliteConfig.lng, 'zoom:', satelliteConfig.zoom)
 
     const { lat, lng, zoom } = satelliteConfig
     const satOpacity = satelliteConfig.opacity ?? 0.6
@@ -1591,6 +1598,7 @@ export function CanvasArea({
           return { ...off, blob }
         })
         const tiles = (await Promise.all(tilePromises)).filter(Boolean) as Array<{ row: number; col: number; blob: Blob }>
+        console.log('[SAT] Tiles fetched:', tiles.length, 'of', offsets.length, '| fetchErrors:', fetchErrors)
 
         if (tiles.length === 0) {
           toast.error(fetchErrors > 0
@@ -1633,16 +1641,18 @@ export function CanvasArea({
         await Promise.all(imageLoadPromises)
 
         if (loadedCount === 0) {
+          console.log('[SAT] FAIL: zero images decoded out of', tiles.length)
           toast.error('Satellite images failed to decode — API may be returning error tiles')
           return
         }
         if (errorCount > 0) {
           toast.warning(`${errorCount} of ${tiles.length} satellite tiles failed to load`)
         }
+        console.log('[SAT] Images decoded:', loadedCount, 'errors:', errorCount)
 
         // Convert composited canvas to blob → Fabric image
         const compositeBlob = await new Promise<Blob | null>((resolve) => offscreen.toBlob(resolve, 'image/png'))
-        if (!compositeBlob) return
+        if (!compositeBlob) { console.log('[SAT] FAIL: compositeBlob is null'); return }
         const compositeUrl = URL.createObjectURL(compositeBlob)
         const fm = await import('fabric')
         const img = await fm.FabricImage.fromURL(compositeUrl)
@@ -1654,8 +1664,10 @@ export function CanvasArea({
           const s = Math.min((cw * 0.95) / iw, (ch * 0.95) / ih, 1)
           img.set({ scaleX: s, scaleY: s })
         }
+        console.log('[SAT] Setting backgroundImage — img size:', img.width, 'x', img.height, 'opacity:', satOpacity, 'canvas:', cw, 'x', ch)
         canvas.backgroundImage = img as unknown as import('fabric').FabricImage
         canvas.requestRenderAll()
+        console.log('[SAT] backgroundImage SET and renderAll called')
         URL.revokeObjectURL(compositeUrl)
       } catch (err) {
         console.error('Satellite grid load failed:', err)
