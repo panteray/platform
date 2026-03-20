@@ -1539,7 +1539,7 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricRef.current || !fabricReady) return
     const canvas = fabricRef.current
-    if (floorPlan?.file_url || satelliteConfig?.lat == null || satelliteConfig?.lng == null) return
+    if (satelliteConfig?.lat == null || satelliteConfig?.lng == null) return
 
     const { lat, lng, zoom } = satelliteConfig
     const satOpacity = satelliteConfig.opacity ?? 0.6

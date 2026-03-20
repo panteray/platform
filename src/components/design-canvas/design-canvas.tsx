@@ -1341,7 +1341,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
       {/* Device Catalog Fullscreen Modal */}
       {showDeviceLibrary && (
         <DeviceCatalogModal 
-          category={activeIcon === 'layers' || activeIcon === 'other' ? '' : activeIcon} 
+          category={activeIcon === 'layers' || activeIcon === 'other' ? '' : (TAB_TO_CATEGORY[activeIcon] || activeIcon)} 
           onClose={() => setShowDeviceLibrary(false)} 
           onSelect={handleDeviceSelected} 
         />
