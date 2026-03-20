@@ -85,6 +85,7 @@ interface CanvasAreaProps {
   onSelectDevice: (id: string | null) => void
   onDeviceMoved?: (id: string, x: number, y: number) => void
   onDeviceRotated?: (id: string, angle: number) => void
+  onSensorRotated?: (id: string, index: number, angle: number) => void
   onCanvasClick?: (x: number, y: number) => void
   onDeviceCopy?: (id: string) => void
   onDeviceDelete?: (id: string) => void
@@ -119,6 +120,7 @@ interface CanvasAreaProps {
   snapshotRef?: React.MutableRefObject<(() => string | null) | null>
   showMinimap?: boolean
   satelliteConfig?: { lat: number; lng: number; zoom: number; opacity?: number } | null
+  onShow3dPreview?: (device: DesignDevice) => void
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
@@ -135,11 +137,13 @@ export function CanvasArea({
   pendingDeviceName,
   onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
   onFovHandleDragged, fovDisplayMode = 'ppf', highlightedPpfTier, onPpfTierClick,
+  onSensorRotated,
   mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved, onMdfIdfDeleted,
   walls = [], onWallCreated, onWallDeleted,
   snapshotRef,
   showMinimap = false,
   satelliteConfig,
+  onShow3dPreview,
 }: CanvasAreaProps) {
   // Focus visibility state for accessibility outline
   const [focusVisible, setFocusVisible] = useState(false);
@@ -870,21 +874,29 @@ export function CanvasArea({
           }
         }
         fovObjectMap.set(deviceId, objects);
-        const primaryRotRad = imagerAngles[0] * (Math.PI / 180);
+        
+        // Multi-handle: One handle per sensor/imager
         if (outerR > 0 && onFovHandleDragged) {
-          const hx = device.position_x + Math.cos(primaryRotRad) * outerR;
-          const hy = device.position_y + Math.sin(primaryRotRad) * outerR;
-          const handle = new fabric.Circle({
-            left: hx, top: hy, radius: 5, fill: 'rgba(59,130,246,0.9)', stroke: '#fff', strokeWidth: 1.5,
-            originX: 'center', originY: 'center', selectable: true, evented: true,
-            hasControls: false, hasBorders: false, hoverCursor: 'grab', moveCursor: 'grabbing',
+          imagerAngles.forEach((imagerDeg, idx) => {
+            const rotRad = imagerDeg * (Math.PI / 180);
+            const hx = device.position_x + Math.cos(rotRad) * outerR;
+            const hy = device.position_y + Math.sin(rotRad) * outerR;
+            
+            const handle = new fabric.Circle({
+              left: hx, top: hy, radius: 5, 
+              fill: idx === 0 ? 'rgba(59,130,246,0.9)' : 'rgba(139,92,246,0.9)', // Blue for primary, Purple for others
+              stroke: '#fff', strokeWidth: 1.5,
+              originX: 'center', originY: 'center', selectable: true, evented: true,
+              hasControls: false, hasBorders: false, hoverCursor: 'grab', moveCursor: 'grabbing',
+            });
+            ;(handle as unknown as Record<string, unknown>).__fovHandle = true;
+            ;(handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
+            ;(handle as unknown as Record<string, unknown>).__fovSensorIndex = idx;
+            ;(handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
+            ;(handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
+            canvas.add(handle);
+            fovHandleMap.current.set(`${deviceId}_${idx}`, handle);
           });
-          ;(handle as unknown as Record<string, unknown>).__fovHandle = true;
-          ;(handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
-          ;(handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
-          ;(handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
-          canvas.add(handle);
-          fovHandleMap.current.set(deviceId, handle);
         }
       }
       canvas.renderAll();
@@ -915,7 +927,13 @@ export function CanvasArea({
       
       // Update in real-time for immediate feedback (though throttle/debounce could be added if heavy)
       if (distFt > 1) onFovHandleDragged(deviceId, Math.round(distFt))
-      onDeviceRotated?.(deviceId, Math.round(angleDeg))
+      
+      const sensorIdx = rec.__fovSensorIndex as number
+      if (sensorIdx === 0) {
+        onDeviceRotated?.(deviceId, Math.round(angleDeg))
+      } else {
+        onSensorRotated?.(deviceId, sensorIdx, Math.round(angleDeg))
+      }
     }
     canvas.on('object:moving', handler)
     canvas.on('object:modified', handler)

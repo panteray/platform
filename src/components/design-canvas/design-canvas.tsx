@@ -197,8 +197,8 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const networkTypes = ['network', 'switch', 'access_switch', 'rack', 'nvr', 'router', 'firewall', 'wireless_ap', 'bridge', 'server']
   const storageOutput = useMemo(() => {
     const camDevices = areaDevices
-      .filter((d) => cameraTypes.includes(d.category))
-      .map((d) => ({
+      .filter((d: DesignDevice) => cameraTypes.includes(d.category))
+      .map((d: DesignDevice) => ({
         id: d.id,
         label: d.label || '',
         category: 'cctv' as const, // normalize for engine filter
@@ -397,7 +397,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
 
   // ---- Undo / Redo ----
   const pushUndo = useCallback((action: { undo: () => Promise<void>; redo: () => Promise<void> }) => {
-    setUndoStack(prev => [...prev.slice(-(UNDO_STACK_DEPTH - 1)), action])
+    setUndoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => [...prev.slice(-(UNDO_STACK_DEPTH - 1)), action])
     setRedoStack([])
   }, [])
   const handleUndo = useCallback(async () => {
@@ -416,7 +416,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   }, [redoStack])
 
   const handleDeviceMoved = useCallback(async (id: string, x: number, y: number) => {
-    const device = devices.find(d => d.id === id)
+    const device = devices.find((d: DesignDevice) => d.id === id)
     const prevX = device?.position_x ?? x, prevY = device?.position_y ?? y
     markSaving()
     await updateDevice(id, { position_x: x, position_y: y })
@@ -426,7 +426,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     })
   }, [devices, updateDevice, pushUndo, markSaving])
   const handleDeviceRotated = useCallback(async (id: string, angle: number) => {
-    const device = devices.find(d => d.id === id)
+    const device = devices.find((d: DesignDevice) => d.id === id)
     const prevAngle = device?.rotation ?? 0
     markSaving()
     await updateDevice(id, { rotation: angle })
@@ -435,12 +435,44 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
       redo: async () => { await updateDevice(id, { rotation: angle }) },
     })
   }, [devices, updateDevice, pushUndo, markSaving])
+  const handleSensorRotated = useCallback(async (id: string, index: number, angle: number) => {
+    const device = devices.find((d: DesignDevice) => d.id === id)
+    if (!device) return
+    const props = (device.properties ?? {}) as Record<string, unknown>
+    const currentAngles = (props.sensor_angles as number[]) || []
+    const newAngles = [...currentAngles]
+    
+    // Ensure array is long enough
+    while (newAngles.length <= index) newAngles.push(0)
+    
+    const prevAngle = newAngles[index]
+    newAngles[index] = angle
+    
+    markSaving()
+    await updateDevice(id, { properties: { ...props, sensor_angles: newAngles } })
+    pushUndo({
+      undo: async () => { 
+        const latest = devices.find((d: DesignDevice) => d.id === id)
+        const latestProps = (latest?.properties ?? {}) as Record<string, unknown>
+        const undoAngles = [...((latestProps.sensor_angles as number[]) || [])]
+        undoAngles[index] = prevAngle
+        await updateDevice(id, { properties: { ...latestProps, sensor_angles: undoAngles } }) 
+      },
+      redo: async () => { 
+        const latest = devices.find((d: DesignDevice) => d.id === id)
+        const latestProps = (latest?.properties ?? {}) as Record<string, unknown>
+        const redoAngles = [...((latestProps.sensor_angles as number[]) || [])]
+        redoAngles[index] = angle
+        await updateDevice(id, { properties: { ...latestProps, sensor_angles: redoAngles } }) 
+      },
+    })
+  }, [devices, updateDevice, pushUndo, markSaving])
   const handleFovDragged = useCallback(async (deviceId: string, targetDistanceFt: number) => {
     markSaving()
-    await updateDevice(deviceId, { properties: { ...((devices.find(d => d.id === deviceId)?.properties ?? {}) as Record<string, unknown>), target_distance: targetDistanceFt } })
+    await updateDevice(deviceId, { properties: { ...((devices.find((d: DesignDevice) => d.id === deviceId)?.properties ?? {}) as Record<string, unknown>), target_distance: targetDistanceFt } })
   }, [devices, updateDevice, markSaving])
   const handleDeviceCopy = useCallback(async (id: string) => {
-    const src = devices.find((d) => d.id === id); if (!src) return
+    const src = devices.find((d: DesignDevice) => d.id === id); if (!src) return
     const srcProps = (src.properties ?? {}) as Record<string, unknown>
     const subType = (srcProps.sub_type as string) || ''
     const prefix = LABEL_CODES[subType] || LABEL_CODES[src.category] || 'DEV'
@@ -542,7 +574,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     } catch (err) { console.error('Drop failed:', err) }
   }, [activeAreaId, activeIcon, addDevice, snapToGrid, markSaving, autoCableDoorToController])
 
-  const selectedDevice = selectedDeviceId ? devices.find((d) => d.id === selectedDeviceId) ?? null : null
+  const selectedDevice = selectedDeviceId ? devices.find((d: DesignDevice) => d.id === selectedDeviceId) ?? null : null
   const selectedZone = selectedZoneId ? zones.find((z) => z.id === selectedZoneId) ?? null : null
 
   // Close layer menu on outside click
@@ -802,7 +834,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                 return (
                   <div key={layer.key}
                     onClick={() => allKeys.forEach(k => {
-                      setHiddenCategories(prev => {
+                      setHiddenCategories((prev: Set<string>) => {
                         const next = new Set(prev)
                         if (isHidden) allKeys.forEach(a => next.delete(a))
                         else allKeys.forEach(a => next.add(a))
@@ -1036,6 +1068,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
               onZoneResized={handleZoneResized} onSelectZone={handleSelectZone}
               onZoomChange={() => {}} onSelectDevice={handleSelectDevice}
               onDeviceMoved={handleDeviceMoved} onDeviceRotated={handleDeviceRotated}
+              onSensorRotated={handleSensorRotated}
               onCanvasClick={handleCanvasClick} onDeviceCopy={handleDeviceCopy} onDeviceDelete={handleDeviceDelete}
               onCableCreated={handleCableCreated}
               onToolChange={(t) => setActiveTool(t)}
@@ -1058,8 +1091,8 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
               onMdfIdfDeleted={handleMdfIdfDeleted}
               snapshotRef={snapshotRef}
               showMinimap={showMinimap}
-              onShow3dPreview={(deviceId: string) => {
-                setSelectedDeviceId(deviceId)
+              onShow3dPreview={(device: DesignDevice) => {
+                setSelectedDeviceId(device.id)
                 setShow3dPreview(true)
               }}
               satelliteConfig={activeArea?.satellite_lat && activeArea?.satellite_lng ? {
