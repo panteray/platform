@@ -965,6 +965,15 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
         </div>
         <input ref={fileInputRef} type="file" accept=".svg,.pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
 
+        {/* Satellite location — visible when no satellite yet and opp has address */}
+        {!hasSatellite && !!opp?.install_address && (
+          <button onClick={handleAddLocation} disabled={satelliteLoading}
+            style={{ ...toolBtn(false), cursor: satelliteLoading ? 'wait' : 'pointer', opacity: satelliteLoading ? 0.5 : 1 }}
+            title={`Add Satellite: ${(opp.install_address as string).slice(0, 50)}`}>
+            <MapIcon size={12} /> <span style={{ fontSize: 9 }}>{satelliteLoading ? 'Loading...' : 'Satellite'}</span>
+          </button>
+        )}
+
         <div style={{ width: 1, height: 16, background: C.border, flexShrink: 0 }} />
 
         {/* ── Panels ── */}
