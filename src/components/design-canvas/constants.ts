@@ -16,7 +16,7 @@ export type MountType = 'ceiling' | 'wall' | 'pole' | 'pendant'
 
 export type RecordingMode = 'continuous' | 'motion' | 'motion_object' | 'none'
 
-export type CanvasTool = 'select' | 'place' | 'cable' | 'mdf_idf' | 'zone' | 'measure' | 'scale' | 'door' | 'pan'
+export type CanvasTool = 'select' | 'place' | 'cable' | 'mdf_idf' | 'zone' | 'measure' | 'scale' | 'door' | 'pan' | 'wall'
 
 export interface IconTab {
   id: IconTabId

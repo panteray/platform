@@ -9,6 +9,7 @@ import { CanvasArea, type DeviceFovData } from './canvas-area'
 import { IconSidebar } from './icon-sidebar'
 import { LeftPanel } from './left-panel'
 import { RightPanel } from './right-panel'
+import { DeviceCatalogModal } from './device-catalog-modal'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { StorageCalculatorPanel } from './storage-calculator-panel'
 import { TopologyView } from './topology-view'
@@ -54,6 +55,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [showLeftPanel, setShowLeftPanel] = useState(false)
   const [activeView, setActiveView] = useState<DesignView>('all')
   const [showFovCones, setShowFovCones] = useState(false)
+  const [showDeviceLibrary, setShowDeviceLibrary] = useState(false)
   const [fovDisplayMode, setFovDisplayMode] = useState<'ppf' | 'dori'>('ppf')
   const [highlightedPpfTier, setHighlightedPpfTier] = useState<string | null>(null)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
@@ -116,6 +118,10 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const activeFloorPlan: DesignFloorPlan | null = floorPlans.find((fp) => fp.area_id === activeAreaId) ?? null
   const areaDevices = useMemo(() => devices.filter((d) => d.area_id === activeAreaId), [devices, activeAreaId])
   const areaCables = useMemo(() => cables.filter((c) => c.area_id === activeAreaId), [cables, activeAreaId])
+
+  const walls = useMemo(() => {
+    return ((activeArea?.infrastructure_observations as Record<string, unknown>)?.walls as Array<{ id: string; points: Array<{ x: number; y: number }> }>) || []
+  }, [activeArea?.infrastructure_observations])
 
   const opp = design?.opportunities as Record<string, unknown> | undefined
   const projectName = opp?.project_name ? `${opp.opp_number} / ${opp.project_name}` : design?.name ?? 'Design Canvas'
@@ -239,6 +245,24 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   }, [areaCables])
 
   // ---- Handlers ----
+  const handleWallCreated = useCallback((points: Array<{ x: number; y: number }>) => {
+    if (!activeArea) return
+    const newWall = { id: crypto.randomUUID(), points }
+    const obs = (activeArea.infrastructure_observations as Record<string, unknown>) || {}
+    const currentWalls = (obs.walls as Array<{ id: string; points: Array<{ x: number; y: number }> }>) || []
+    updateArea(activeArea.id, { infrastructure_observations: { ...obs, walls: [...currentWalls, newWall] } })
+    markSaving()
+  }, [activeArea, updateArea, markSaving])
+
+  const handleWallDeleted = useCallback((id: string) => {
+    if (!activeArea) return
+    const obs = (activeArea.infrastructure_observations as Record<string, unknown>) || {}
+    const currentWalls = (obs.walls as Array<{ id: string; points: Array<{ x: number; y: number }> }>) || []
+    const newWalls = currentWalls.filter(w => w.id !== id)
+    updateArea(activeArea.id, { infrastructure_observations: { ...obs, walls: newWalls } })
+    markSaving()
+  }, [activeArea, updateArea, markSaving])
+
   async function handleFloorPlanUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file || !activeAreaId) return
     setFloorPlanError(null)
@@ -250,11 +274,18 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   function handleIconChange(tabId: IconTabId) {
     setActiveIcon(tabId)
     setPendingDevice(null)
-    if (tabId === 'layers') { setShowLeftPanel(true); setActiveTool('select') }
-    else { setShowLeftPanel(true); setActiveTool('select') }
+    if (tabId === 'layers') { 
+      setShowLeftPanel(true); 
+      setActiveTool('select') 
+    } else { 
+      // Ensure specific icon types launch modal
+      setShowDeviceLibrary(true);
+      setActiveTool('select') 
+    }
   }
   const handleDeviceSelected = useCallback((device: DeviceSearchResult) => {
     setPendingDevice(device)
+    setShowDeviceLibrary(false)
     setActiveTool('place')
   }, [])
   const handleChangeModel = useCallback((deviceId: string) => {
@@ -272,9 +303,8 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const handleChangeModelFromPanel = useCallback((deviceId: string, category: string) => {
     const tab = CATEGORY_TO_TAB[category] || 'camera'
     setActiveIcon(tab)
-    setShowLeftPanel(true)
+    setShowDeviceLibrary(true)
     setPendingDevice(null)
-    // Keep the device selected so the right panel stays open
   }, [])
   // Auto-cable: when door hardware is placed, auto-create cable to nearest door_controller
   const autoCableDoorToController = useCallback(async (newDevice: DesignDevice) => {
@@ -945,7 +975,21 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
 
       {/* ========== MAIN CONTENT — CANVAS + OVERLAY PANELS ========== */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {activeView !== 'network_topology' && (
+          {activeView === 'network_topology' ? (
+            <div className="flex-1 flex overflow-hidden bg-background">
+              <TopologyView
+                designId={designId}
+                nodes={topologyNodes}
+                links={topologyLinks}
+                onAddNode={addTopologyNode}
+                onUpdateNode={updateTopologyNode}
+                onDeleteNode={deleteTopologyNode}
+                onAddLink={addTopologyLink}
+                onUpdateLink={updateTopologyLink}
+                onDeleteLink={deleteTopologyLink}
+              />
+            </div>
+          ) : (
           <>
             <IconSidebar activeIcon={activeIcon} onIconChange={handleIconChange} />
 
@@ -972,6 +1016,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
               selectedDeviceId={selectedDeviceId} showFovCones={showFovCones} fovData={fovData}
               scalePxPerFt={scalePxPerFt}
               zones={zones} selectedZoneId={selectedZoneId}
+              walls={walls} onWallCreated={handleWallCreated} onWallDeleted={handleWallDeleted}
               onZoneCreated={handleZoneCreated} onZoneMoved={handleZoneMoved}
               onZoneResized={handleZoneResized} onSelectZone={handleSelectZone}
               onZoomChange={() => {}} onSelectDevice={handleSelectDevice}
@@ -1128,6 +1173,15 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
             </div>
           </div>
         </div>
+      )}
+
+      {/* Device Catalog Fullscreen Modal */}
+      {showDeviceLibrary && (
+        <DeviceCatalogModal 
+          category={activeIcon === 'layers' || activeIcon === 'other' ? '' : activeIcon} 
+          onClose={() => setShowDeviceLibrary(false)} 
+          onSelect={handleDeviceSelected} 
+        />
       )}
     </div>
   )

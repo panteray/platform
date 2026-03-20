@@ -63,6 +63,12 @@ interface ZoneDrawState {
   startY: number
 }
 
+// ---- Wall Draw State ----
+interface WallDrawState {
+  isDrawing: boolean
+  points: Array<{ x: number; y: number }>
+}
+
 interface CanvasAreaProps {
   designId: string
   areaId: string | null
@@ -88,6 +94,9 @@ interface CanvasAreaProps {
   onFloorPlanError?: (msg: string) => void
   zones?: DesignZone[]
   selectedZoneId?: string | null
+  walls?: Array<{ id: string; points: Array<{ x: number; y: number }> }>
+  onWallCreated?: (points: Array<{ x: number; y: number }>) => void
+  onWallDeleted?: (id: string) => void
   onZoneCreated?: (zone: { name: string; color: string; x: number; y: number; width: number; height: number }) => void
   onZoneMoved?: (id: string, x: number, y: number) => void
   onZoneResized?: (id: string, width: number, height: number) => void
@@ -143,6 +152,7 @@ export function CanvasArea({
   const [cableDraw, setCableDraw] = useState<CableDrawState>({ phase: 'idle', sourceDeviceId: null, waypoints: [] })
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, deviceId: null })
   const [measureState, setMeasureState] = useState<MeasureState>({ points: [] })
+  const [wallDraw, setWallDraw] = useState<WallDrawState>({ isDrawing: false, points: [] })
   const [scaleCal, setScaleCal] = useState<ScaleCalState>({ points: [] })
   const measureObjectsRef = useRef<FabricObject[]>([])
   const cablePreviewRef = useRef<FabricObject | null>(null)
@@ -150,6 +160,7 @@ export function CanvasArea({
   const [scaleInput, setScaleInput] = useState<{ visible: boolean; distPx: number }>({ visible: false, distPx: 0 })
   const [zoneDraw, setZoneDraw] = useState<{ isDrawing: boolean; startX: number; startY: number }>({ isDrawing: false, startX: 0, startY: 0 })
   const zonePreviewRef = useRef<FabricObject | null>(null)
+  const wallPreviewRef = useRef<FabricObject | null>(null)
   const activeToolRef = useRef(activeTool)
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
   const snapRef = useRef(snapToGrid)
@@ -369,8 +380,15 @@ export function CanvasArea({
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedDeviceId) {
-        e.preventDefault(); onDeviceDelete?.(selectedDeviceId)
+      if ((e.key === 'Delete' || e.key === 'Backspace')) {
+        const activeObjs = fabricRef.current?.getActiveObjects() || []
+        if (activeObjs.length > 0) {
+          const wallId = (activeObjs[0] as unknown as Record<string, unknown>).wallId as string;
+          if (wallId) { e.preventDefault(); onWallDeleted?.(wallId); return; }
+        }
+        if (selectedDeviceId) {
+          e.preventDefault(); onDeviceDelete?.(selectedDeviceId)
+        }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault(); onUndo?.()
@@ -463,6 +481,19 @@ export function CanvasArea({
         return
       }
 
+      // Wall tool
+      if (activeTool === 'wall') {
+        setWallDraw((prev) => {
+          const pts = [...prev.points, { x, y }]
+          if (pts.length >= 2) {
+            onWallCreated?.(pts)
+            return { isDrawing: false, points: [] }
+          }
+          return { isDrawing: true, points: pts }
+        })
+        return
+      }
+
       // Zone draw start
       if (activeTool === 'zone' && !opt.target) {
         setZoneDraw({ isDrawing: true, startX: x, startY: y })
@@ -549,6 +580,43 @@ export function CanvasArea({
       }
     }
   }, [activeTool, cableDraw, fabricReady])
+
+  // ---- Wall preview line during routing ----
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady) return
+    if (activeTool !== 'wall' || !wallDraw.isDrawing || wallDraw.points.length === 0) {
+      if (wallPreviewRef.current && fabricRef.current) {
+        fabricRef.current.remove(wallPreviewRef.current)
+        wallPreviewRef.current = null
+        fabricRef.current.renderAll()
+      }
+      return
+    }
+    const canvas = fabricRef.current
+    const handler = (opt: { e: Event }) => {
+      const evt = opt.e as MouseEvent
+      const point = canvas.getScenePoint(evt)
+      const p1 = wallDraw.points[0]
+      if (wallPreviewRef.current) canvas.remove(wallPreviewRef.current)
+      import('fabric').then((fm) => {
+        if (!fabricRef.current) return
+        const preview = new fm.Line([p1.x, p1.y, point.x, point.y], {
+          stroke: C.accent, strokeWidth: 4, strokeDashArray: [4, 4], selectable: false, evented: false, opacity: 0.5,
+        })
+        wallPreviewRef.current = preview
+        canvas.add(preview)
+        canvas.renderAll()
+      })
+    }
+    canvas.on('mouse:move', handler)
+    return () => {
+      canvas.off('mouse:move', handler)
+      if (wallPreviewRef.current && fabricRef.current) {
+        fabricRef.current.remove(wallPreviewRef.current)
+        wallPreviewRef.current = null
+      }
+    }
+  }, [activeTool, wallDraw, fabricReady])
 
   // ---- Draw measurement line ----
   const drawMeasurement = useCallback(async (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
@@ -706,8 +774,29 @@ export function CanvasArea({
         [tierColor: string]: { r: number }
       }
     } = {};
+
+    function getRayIntersection(o: {x:number,y:number}, d: {x:number,y:number}, a: {x:number,y:number}, b: {x:number,y:number}) {
+      const v1 = { x: o.x - a.x, y: o.y - a.y };
+      const v2 = { x: b.x - a.x, y: b.y - a.y };
+      const v3 = { x: -d.y, y: d.x };
+      const dot = v2.x * v3.x + v2.y * v3.y;
+      if (Math.abs(dot) < 0.000001) return null;
+      const t1 = (v2.x * v1.y - v2.y * v1.x) / dot;
+      const t2 = (v1.x * v3.x + v1.y * v3.y) / dot;
+      if (t1 >= 0 && t2 >= 0 && t2 <= 1) return t1;
+      return null;
+    }
+
     async function animateFovCones() {
       const fabric = await import('fabric');
+      const wallSegments: Array<{ p1: {x:number,y:number}, p2: {x:number,y:number} }> = [];
+      for (const w of walls || []) {
+        if (w.points && w.points.length >= 2) {
+          for (let i = 0; i < w.points.length - 1; i++) {
+            wallSegments.push({ p1: w.points[i], p2: w.points[i+1] });
+          }
+        }
+      }
       for (const [deviceId, data] of fovData.entries()) {
         const device = devices.find((d) => d.id === deviceId);
         if (!device) continue;
@@ -730,12 +819,29 @@ export function CanvasArea({
             if (r > outerR) outerR = r;
             const cx = device.position_x;
             const cy = device.position_y;
-            const absStartX = cx + Math.cos(rotRad - halfAngle) * r;
-            const absStartY = cy + Math.sin(rotRad - halfAngle) * r;
-            const absEndX = cx + Math.cos(rotRad + halfAngle) * r;
-            const absEndY = cy + Math.sin(rotRad + halfAngle) * r;
-            const largeArc = data.hFov > 180 ? 1 : 0;
-            const pathStr = `M ${cx} ${cy} L ${absStartX} ${absStartY} A ${r} ${r} 0 ${largeArc} 1 ${absEndX} ${absEndY} Z`;
+            
+            const numSteps = Math.max(10, Math.ceil(data.hFov));
+            const angleStep = (data.hFov * (Math.PI / 180)) / numSteps;
+            const startAngleRad = rotRad - halfAngle;
+
+            const polyPoints = [{ x: cx, y: cy }];
+            for (let i = 0; i <= numSteps; i++) {
+                const currentAngle = startAngleRad + i * angleStep;
+                const rayDir = { x: Math.cos(currentAngle), y: Math.sin(currentAngle) };
+                let minDist = r;
+                for (const seg of wallSegments) {
+                    const t = getRayIntersection({x: cx, y: cy}, rayDir, seg.p1, seg.p2);
+                    if (t !== null && t < minDist) minDist = t;
+                }
+                polyPoints.push({ x: cx + rayDir.x * minDist, y: cy + rayDir.y * minDist });
+            }
+
+            let pathStr = `M ${polyPoints[0].x} ${polyPoints[0].y}`;
+            for (let k = 1; k < polyPoints.length; k++) {
+                pathStr += ` L ${polyPoints[k].x} ${polyPoints[k].y}`;
+            }
+            pathStr += " Z";
+
             let opacity = tier.opacity;
             if (highlightedPpfTier) {
               opacity = tier.color === highlightedPpfTier ? Math.min(tier.opacity * 3, 0.5) : tier.opacity * 0.2;
@@ -783,9 +889,9 @@ export function CanvasArea({
       canvas.renderAll();
       animationFrame = requestAnimationFrame(animateFovCones);
     }
-    animateFovCones();
+    void animateFovCones();
     return () => { if (animationFrame) cancelAnimationFrame(animationFrame); };
-  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, isDraggingDevice])
+  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, isDraggingDevice, walls])
 
   // ---- FOV Handle Drag → update target distance ----
   useEffect(() => {
@@ -802,7 +908,11 @@ export function CanvasArea({
       const dy = (obj.top ?? 0) - cy
       const distPx = Math.sqrt(dx * dx + dy * dy)
       const distFt = distPx / (scalePxPerFt || 10)
+      const angleRad = Math.atan2(dy, dx)
+      let angleDeg = angleRad * (180 / Math.PI)
+      if (angleDeg < 0) angleDeg += 360
       if (distFt > 1) onFovHandleDragged(deviceId, Math.round(distFt))
+      onDeviceRotated?.(deviceId, Math.round(angleDeg))
     }
     canvas.on('object:modified', handler)
     return () => { canvas.off('object:modified', handler) }
@@ -913,6 +1023,30 @@ export function CanvasArea({
     }
     void addCables()
   }, [cables, fabricReady])
+
+  // ---- Wall Rendering ----
+  useEffect(() => {
+    if (!fabricReady || !fabricRef.current) return
+    const canvas = fabricRef.current
+    canvas.getObjects().filter((o) => (o as unknown as Record<string, unknown>).__isWall === true).forEach((o) => canvas.remove(o))
+
+    async function addWalls() {
+      const fabric = await import('fabric')
+      const wallObjs: FabricObject[] = []
+      for (const wall of walls || []) {
+        if (wall.points.length < 2) continue
+        const p1 = wall.points[0]; const p2 = wall.points[1]
+        const line = new fabric.Line([p1.x, p1.y, p2.x, p2.y], {
+          stroke: '#64748b', strokeWidth: 4, selectable: true, evented: true,
+        })
+        ;(line as unknown as Record<string, unknown>).__isWall = true
+        ;(line as unknown as Record<string, unknown>).wallId = wall.id
+        canvas.add(line); canvas.sendObjectToBack(line); wallObjs.push(line)
+      }
+      canvas.renderAll()
+    }
+    void addWalls()
+  }, [walls, fabricReady])
 
   // ---- Zone Rendering ----
   useEffect(() => {

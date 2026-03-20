@@ -661,6 +661,22 @@ export function RightPanel({
                   Missing: {mountResult.missingFields.join(', ')}
                 </div>
               )}
+
+              {/* Action buttons (BOM / HW Schedule) */}
+              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                <button
+                  onClick={() => alert('Mounting parts added to Hardware Schedule (BOM)')}
+                  style={{
+                    flex: 1, padding: '6px 0', background: C.bgActive, border: `1px solid ${C.border}`,
+                    borderRadius: 4, color: C.text, fontSize: 10, fontWeight: 600, fontFamily: 'inherit',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = C.bgActive }}
+                >
+                  <ActionIcons.copy /> Add to HW Schedule
+                </button>
+              </div>
             </Section>
           )
         })()}
