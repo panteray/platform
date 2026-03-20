@@ -684,6 +684,15 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     }
   }, [opp, activeAreaId, updateArea, refetch])
 
+  // Auto-load satellite on area open when no satellite exists and opp has address
+  const autoLoadedRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!activeAreaId || hasSatellite || !opp?.install_address || satelliteLoading) return
+    if (autoLoadedRef.current.has(activeAreaId)) return
+    autoLoadedRef.current.add(activeAreaId)
+    handleAddLocation()
+  }, [activeAreaId, hasSatellite, opp?.install_address, satelliteLoading, handleAddLocation])
+
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.textMuted, fontSize: 13 }}>Loading design...</div>
   if (error || !design) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: C.bg, color: C.red, fontSize: 13 }}>{error ?? 'Design not found'}</div>
 
@@ -965,12 +974,12 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
         </div>
         <input ref={fileInputRef} type="file" accept=".svg,.pdf,.png,.jpg,.jpeg" onChange={handleFloorPlanUpload} style={{ display: 'none' }} />
 
-        {/* Satellite location — visible when no satellite yet and opp has address */}
-        {!hasSatellite && !!opp?.install_address && (
+        {/* Satellite location — add or change */}
+        {!!opp?.install_address && (
           <button onClick={handleAddLocation} disabled={satelliteLoading}
-            style={{ ...toolBtn(false), cursor: satelliteLoading ? 'wait' : 'pointer', opacity: satelliteLoading ? 0.5 : 1 }}
-            title={`Add Satellite: ${(opp.install_address as string).slice(0, 50)}`}>
-            <MapIcon size={12} /> <span style={{ fontSize: 9 }}>{satelliteLoading ? 'Loading...' : 'Satellite'}</span>
+            style={{ ...toolBtn(hasSatellite, hasSatellite ? '#10b981' : undefined), cursor: satelliteLoading ? 'wait' : 'pointer', opacity: satelliteLoading ? 0.5 : 1 }}
+            title={hasSatellite ? 'Re-geocode satellite from address' : `Add Satellite: ${(opp.install_address as string).slice(0, 50)}`}>
+            <MapIcon size={12} /> <span style={{ fontSize: 9 }}>{satelliteLoading ? 'Loading...' : hasSatellite ? 'Location' : 'Satellite'}</span>
           </button>
         )}
 
