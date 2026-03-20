@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
 import { Minimap, type MinimapDevice, type MinimapZone, type MinimapInfra, type MinimapViewport } from './minimap'
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON, ToolbarIcons } from './icons'
@@ -136,6 +136,7 @@ export function CanvasArea({
   onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
   onFovHandleDragged, fovDisplayMode = 'ppf', highlightedPpfTier, onPpfTierClick,
   mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved, onMdfIdfDeleted,
+  walls = [], onWallCreated, onWallDeleted,
   snapshotRef,
   showMinimap = false,
   satelliteConfig,
@@ -207,7 +208,7 @@ export function CanvasArea({
       setFabricReady(true)
 
       // Zoom
-      canvas.on('mouse:wheel', (opt) => {
+      canvas.on('mouse:wheel', (opt: { e: WheelEvent }) => {
         const delta = opt.e.deltaY
         let zoom = canvas.getZoom()
         zoom *= 0.999 ** delta
@@ -251,7 +252,7 @@ export function CanvasArea({
       document.addEventListener('keydown', handleKeyDown)
       document.addEventListener('keyup', handleKeyUp)
 
-      canvas.on('mouse:down', (opt) => {
+      canvas.on('mouse:down', (opt: { e: MouseEvent; target?: FabricObject }) => {
         const evt = opt.e as MouseEvent
         setContextMenu({ visible: false, x: 0, y: 0, deviceId: null })
         if (evt.button === 1 || spaceHeld || activeToolRef.current === 'pan') {
@@ -274,7 +275,7 @@ export function CanvasArea({
         }
         if (evt.button === 0 && !opt.target) onSelectDevice(null)
       })
-      canvas.on('mouse:move', (opt) => {
+      canvas.on('mouse:move', (opt: { e: MouseEvent }) => {
         if (!isPanning) return
         const evt = opt.e as MouseEvent
         const vpt = canvas.viewportTransform
@@ -282,7 +283,7 @@ export function CanvasArea({
         lastPanX = evt.clientX; lastPanY = evt.clientY
         canvas.requestRenderAll()
       })
-      canvas.on('mouse:up', (opt) => {
+      canvas.on('mouse:up', (opt: { e: MouseEvent }) => {
         if (isPanning) {
           isPanning = false; canvas.selection = true
           if (container) container.style.cursor = activeToolRef.current === 'pan' ? 'grab' : spaceHeld ? 'grab' : 'default'
@@ -292,12 +293,12 @@ export function CanvasArea({
       })
 
       // Selection bridging
-      canvas.on('selection:created', (e) => { const did = (e.selected?.[0] as unknown as Record<string, unknown>)?.deviceId as string; if (did) onSelectDevice(did) })
-      canvas.on('selection:updated', (e) => { const did = (e.selected?.[0] as unknown as Record<string, unknown>)?.deviceId as string; if (did) onSelectDevice(did) })
+      canvas.on('selection:created', (e: { selected?: FabricObject[] }) => { const did = (e.selected?.[0] as unknown as Record<string, unknown>)?.deviceId as string; if (did) onSelectDevice(did) })
+      canvas.on('selection:updated', (e: { selected?: FabricObject[] }) => { const did = (e.selected?.[0] as unknown as Record<string, unknown>)?.deviceId as string; if (did) onSelectDevice(did) })
       canvas.on('selection:cleared', () => onSelectDevice(null))
 
       // Object modified
-      canvas.on('object:modified', (e) => {
+      canvas.on('object:modified', (e: { target?: FabricObject }) => {
         const obj = e.target; if (!obj) return
         const did = (obj as unknown as Record<string, unknown>).deviceId as string; if (!did) return
         if (obj.left !== undefined && obj.top !== undefined) {
@@ -678,7 +679,7 @@ export function CanvasArea({
       }
     }
     // Remove all labels (they don't have stable IDs — simpler to recreate)
-    canvas.getObjects().filter((o) => (o as unknown as Record<string, unknown>).__isLabel === true).forEach((o) => canvas.remove(o))
+    canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isLabel === true).forEach((o: FabricObject) => canvas.remove(o))
 
     // Update existing device positions/rotation (no SVG reload needed)
     for (const device of visibleDevices) {
@@ -763,8 +764,8 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
-    fovObjectMap.forEach((objs) => objs.forEach((o) => canvas.remove(o))); fovObjectMap.clear()
-    fovHandleMap.current.forEach((o) => canvas.remove(o)); fovHandleMap.current.clear()
+    fovObjectMap.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); fovObjectMap.clear()
+    fovHandleMap.current.forEach((o: FabricObject) => canvas.remove(o)); fovHandleMap.current.clear()
     // Drag suppression: hide FOV cones if dragging device
     if (!showFovCones || isDraggingDevice) { canvas.renderAll(); return }
 
@@ -893,7 +894,7 @@ export function CanvasArea({
     return () => { if (animationFrame) cancelAnimationFrame(animationFrame); };
   }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, isDraggingDevice, walls])
 
-  // ---- FOV Handle Drag → update target distance ----
+  // ---- FOV Handle Drag → update distance & rotation ----
   useEffect(() => {
     if (!fabricRef.current || !fabricReady || !onFovHandleDragged) return
     const canvas = fabricRef.current
@@ -911,12 +912,18 @@ export function CanvasArea({
       const angleRad = Math.atan2(dy, dx)
       let angleDeg = angleRad * (180 / Math.PI)
       if (angleDeg < 0) angleDeg += 360
+      
+      // Update in real-time for immediate feedback (though throttle/debounce could be added if heavy)
       if (distFt > 1) onFovHandleDragged(deviceId, Math.round(distFt))
       onDeviceRotated?.(deviceId, Math.round(angleDeg))
     }
+    canvas.on('object:moving', handler)
     canvas.on('object:modified', handler)
-    return () => { canvas.off('object:modified', handler) }
-  }, [fabricReady, onFovHandleDragged, scalePxPerFt])
+    return () => { 
+      canvas.off('object:moving', handler)
+      canvas.off('object:modified', handler)
+    }
+  }, [fabricReady, onFovHandleDragged, onDeviceRotated, scalePxPerFt])
 
   // ---- PPF at Cursor Tooltip ----
   useEffect(() => {
@@ -988,8 +995,8 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
-    cableObjectMap.forEach((obj) => canvas.remove(obj)); cableObjectMap.clear()
-    canvas.getObjects().filter((o) => (o as unknown as Record<string, unknown>).__isCableLabel === true).forEach((o) => canvas.remove(o))
+    cableObjectMap.forEach((obj: FabricObject) => canvas.remove(obj)); cableObjectMap.clear()
+    canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isCableLabel === true).forEach((o: FabricObject) => canvas.remove(o))
 
     async function addCables() {
       const fabric = await import('fabric')
@@ -1028,7 +1035,7 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
-    canvas.getObjects().filter((o) => (o as unknown as Record<string, unknown>).__isWall === true).forEach((o) => canvas.remove(o))
+    canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isWall === true).forEach((o: FabricObject) => canvas.remove(o))
 
     async function addWalls() {
       const fabric = await import('fabric')
@@ -1052,8 +1059,8 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
-    zoneObjectMap.forEach((objs) => objs.forEach((o) => canvas.remove(o))); zoneObjectMap.clear()
-    canvas.getObjects().filter((o) => (o as unknown as Record<string, unknown>).__isZoneLabel === true).forEach((o) => canvas.remove(o))
+    zoneObjectMap.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); zoneObjectMap.clear()
+    canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isZoneLabel === true).forEach((o: FabricObject) => canvas.remove(o))
 
     async function addZones() {
       const fabric = await import('fabric')
@@ -1196,7 +1203,7 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
-    mdfIdfObjectMap.current.forEach((objs) => objs.forEach((o) => canvas.remove(o)))
+    mdfIdfObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o)))
     mdfIdfObjectMap.current.clear()
 
     async function addMdfIdfs() {
@@ -1501,7 +1508,7 @@ export function CanvasArea({
   const drawGrid = useCallback(() => {
     if (!fabricRef.current || !fabricReady) return
     const canvas = fabricRef.current
-    canvas.getObjects().filter((o) => (o as unknown as Record<string, unknown>).__isGrid === true).forEach((o) => canvas.remove(o))
+    canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isGrid === true).forEach((o: FabricObject) => canvas.remove(o))
     if (!showGrid) { canvas.requestRenderAll(); return }
     import('fabric').then((fm) => {
       const tile = document.createElement('canvas')
@@ -1578,7 +1585,7 @@ export function CanvasArea({
     if (toolId === 'fitView') {
       const canvas = fabricRef.current
       if (canvas) {
-        const objs = canvas.getObjects().filter((o) => !(o as unknown as Record<string, unknown>).__isGrid)
+        const objs = canvas.getObjects().filter((o: FabricObject) => !(o as unknown as Record<string, unknown>).__isGrid)
         if (objs.length === 0) { canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); setZoomLevel(1) }
         else {
           let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
@@ -1618,12 +1625,12 @@ export function CanvasArea({
   return (
     <div
       ref={containerRef}
-      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
-      onDrop={(e) => {
+      onDragOver={(e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
+      onDrop={(e: React.DragEvent) => {
         e.preventDefault()
         const data = e.dataTransfer.getData('application/panteray-device')
         if (!data || !fabricRef.current) return
-        const point = fabricRef.current.getScenePoint(e.nativeEvent as unknown as MouseEvent)
+        const point = fabricRef.current.getScenePoint(e.nativeEvent)
         onDeviceDrop?.(Math.round(point.x), Math.round(point.y), data)
       }}
       aria-label="Design canvas area"
@@ -1702,9 +1709,9 @@ export function CanvasArea({
           <div style={{ fontSize: 12, color: C.text, fontFamily: 'IBM Plex Sans, sans-serif' }}>Enter real-world distance (ft)</div>
           <input autoFocus type="number" min="0.1" step="0.1" placeholder="e.g. 10"
             style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4, padding: '6px 10px', fontSize: 13, color: C.text, outline: 'none', fontFamily: "'IBM Plex Mono'" }}
-            onKeyDown={(e) => {
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
               if (e.key === 'Enter') {
-                const ft = parseFloat((e.target as HTMLInputElement).value)
+                const ft = parseFloat((e.currentTarget as HTMLInputElement).value)
                 if (ft > 0) onScaleCalibrated?.(scaleInput.distPx / ft)
                 // Clear scale visuals
                 if (fabricRef.current) {
@@ -1757,8 +1764,8 @@ export function CanvasArea({
             ) : (
             <div key={item.label} onClick={() => { item.action(); setContextMenu({ visible: false, x: 0, y: 0, deviceId: null }) }}
               style={{ padding: '6px 14px', fontSize: 12, color: item.label === 'Delete' ? C.red : C.text, cursor: 'pointer' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+              onMouseEnter={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = C.bgHover }}
+              onMouseLeave={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}>
               {item.label}
             </div>
             )
@@ -1779,8 +1786,8 @@ export function CanvasArea({
           ].map((item) => (
             <div key={item.label} onClick={() => { item.action(); setContextMenu({ visible: false, x: 0, y: 0, deviceId: null, mdfIdfId: null }) }}
               style={{ padding: '6px 14px', fontSize: 12, color: item.color, cursor: 'pointer' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+              onMouseEnter={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = C.bgHover }}
+              onMouseLeave={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}>
               {item.label}
             </div>
           ))}
@@ -1819,8 +1826,8 @@ export function CanvasArea({
                 border: activeTool === item.id ? '1px solid rgba(59,130,246,0.3)' : 'none',
                 borderRadius: 6, color: activeTool === item.id ? C.accent : C.textMuted, cursor: 'pointer', transition: 'all 0.12s',
               }}
-              onMouseEnter={(e) => { if (activeTool !== item.id) { e.currentTarget.style.background = C.bgHover; e.currentTarget.style.color = C.text } }}
-              onMouseLeave={(e) => { if (activeTool !== item.id) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.textMuted } }}>
+              onMouseEnter={(e: React.MouseEvent) => { if (activeTool !== item.id) { (e.currentTarget as HTMLButtonElement).style.background = C.bgHover; (e.currentTarget as HTMLButtonElement).style.color = C.text } }}
+              onMouseLeave={(e: React.MouseEvent) => { if (activeTool !== item.id) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = C.textMuted } }}>
               {item.icon}
             </button>
           )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive, Server, Download, Map as MapIcon, MoreVertical, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { C, GRID_SIZE, UNDO_STACK_DEPTH, isDoorType, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
@@ -13,6 +13,7 @@ import { DeviceCatalogModal } from './device-catalog-modal'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { StorageCalculatorPanel } from './storage-calculator-panel'
 import { TopologyView } from './topology-view'
+import { Camera3dPreview } from './camera-3d-preview'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { calculateFovDori, getFovConeTiers, calculateSystemStorage, canvasDevicesToCameraSpecs } from '@/lib/calculators'
 import { exportBom, exportMaterialList, exportHardwareSchedule, exportCableSchedule, exportCanvasSnapshot } from '@/lib/export-helpers'
@@ -87,6 +88,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [showFloorPlanMenu, setShowFloorPlanMenu] = useState(false)
   const [showOverflowMenu, setShowOverflowMenu] = useState(false)
   const [satelliteOpacity, setSatelliteOpacity] = useState(0.6)
+  const [show3dPreview, setShow3dPreview] = useState(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const floorPlanMenuRef = useRef<HTMLDivElement>(null)
   const overflowMenuRef = useRef<HTMLDivElement>(null)
@@ -116,7 +118,9 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
 
   const activeArea = areas.find((a) => a.id === activeAreaId) ?? null
   const activeFloorPlan: DesignFloorPlan | null = floorPlans.find((fp) => fp.area_id === activeAreaId) ?? null
-  const areaDevices = useMemo(() => devices.filter((d) => d.area_id === activeAreaId), [devices, activeAreaId])
+  const areaDevices = useMemo(() => {
+    return devices.filter((d: DesignDevice) => d.area_id === activeAreaId)
+  }, [devices, activeAreaId])
   const areaCables = useMemo(() => cables.filter((c) => c.area_id === activeAreaId), [cables, activeAreaId])
 
   const walls = useMemo(() => {
@@ -209,17 +213,28 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   }, [areaDevices])
 
   const requirements: RequirementItem[] = useMemo(() => {
-    const camCount = areaDevices.filter((d) => cameraTypes.includes(d.category)).length
-    const doorCount = areaDevices.filter((d) => d.category === 'access_control' || d.category === 'door').length
-    const netCount = areaDevices.filter((d) => networkTypes.includes(d.category)).length
-    const avCount = areaDevices.filter((d) => d.category === 'av' || d.category === 'speaker').length
+    const areaDevices = devices.filter((d: DesignDevice) => d.area_id === activeAreaId)
+    const cameraCount = areaDevices.filter((d: DesignDevice) => d.category === 'cctv').length
+    const storageData = calculateSystemStorage({
+      cameras: canvasDevicesToCameraSpecs(areaDevices),
+      retentionDays: 30, // Default
+      raidLevel: 5,      // Default
+      driveSizeTB: 10,   // Default
+    })
+    const totalStorageGb = storageData.totalStorageTB * 1024 // Convert to GB for the bar if needed, or just use TB
+    const totalBandwidthMbps = storageData.totalBandwidthMbps
+    const totalCost = areaDevices.reduce((sum: number, d: DesignDevice) => sum + (Number(d.properties?.cost) || 0), 0)
+    const camCount = areaDevices.filter((d: DesignDevice) => cameraTypes.includes(d.category)).length
+    const doorCount = areaDevices.filter((d: DesignDevice) => d.category === 'access_control' || d.category === 'door').length
+    const netCount = areaDevices.filter((d: DesignDevice) => networkTypes.includes(d.category)).length
+    const avCount = areaDevices.filter((d: DesignDevice) => d.category === 'av' || d.category === 'speaker').length
 
     const items: RequirementItem[] = [
-      { label: 'Cameras', value: camCount, unit: '', status: 'normal' as RequirementStatus },
-      { label: 'Doors', value: doorCount, unit: '', status: 'normal' as RequirementStatus },
-      { label: 'Network', value: netCount, unit: '', status: 'normal' as RequirementStatus },
-      { label: 'AV', value: avCount, unit: '', status: 'normal' as RequirementStatus },
-      { label: 'Total', value: areaDevices.length, unit: 'devices', status: 'normal' as RequirementStatus },
+      { label: 'Cameras', value: camCount, unit: '', status: 'normal' },
+      { label: 'Doors', value: doorCount, unit: '', status: 'normal' },
+      { label: 'Network', value: netCount, unit: '', status: 'normal' },
+      { label: 'AV', value: avCount, unit: '', status: 'normal' },
+      { label: 'Total', value: areaDevices.length, unit: 'devices', status: 'normal' },
     ]
 
     // Engineering metrics — live from calculator engine (gauge bars with required vs in-project)
@@ -230,17 +245,17 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
       const switchVal = storageOutput.poeBudget.recommendedSwitchWatts
       // Baseline requirements: switch capacity is the ceiling for PoE
       items.push(
-        { label: 'Bandwidth', value: bwVal, unit: 'Mbps', status: 'normal' as RequirementStatus, separator: true, inProject: bwVal, required: bwVal },
-        { label: 'Storage', value: storVal, unit: 'TB', status: storVal > 100 ? 'deficient' as RequirementStatus : 'normal' as RequirementStatus, inProject: storVal, required: storVal },
-        { label: 'PoE', value: poeVal, unit: 'W', status: poeVal > switchVal ? 'deficient' as RequirementStatus : 'normal' as RequirementStatus, inProject: poeVal, required: switchVal },
-        { label: 'Switch', value: switchVal, unit: 'W', status: 'normal' as RequirementStatus, inProject: switchVal, required: switchVal },
+        { label: 'Bandwidth', value: bwVal, unit: 'Mbps', status: 'normal' as any, separator: true, inProject: bwVal, required: bwVal },
+        { label: 'Storage', value: storVal, unit: 'TB', status: (storVal > 100 ? 'deficient' : 'normal') as any, inProject: storVal, required: storVal },
+        { label: 'PoE', value: poeVal, unit: 'W', status: (poeVal > switchVal ? 'deficient' : 'normal') as any, inProject: poeVal, required: switchVal },
+        { label: 'Switch', value: switchVal, unit: 'W', status: 'normal' as any, inProject: switchVal, required: switchVal },
       )
     }
 
     return items
-  }, [areaDevices, storageOutput])
+  }, [areaDevices, storageOutput, devices, activeAreaId])
   const cableEstimate = useMemo(() => {
-    const total = areaCables.reduce((sum, c) => sum + (c.total_length_ft ?? 0), 0)
+    const total = areaCables.reduce((sum: number, c: any) => sum + (c.total_length_ft ?? 0), 0)
     return total > 0 ? `${total.toLocaleString()} ft` : undefined
   }, [areaCables])
 
@@ -274,13 +289,13 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   function handleIconChange(tabId: IconTabId) {
     setActiveIcon(tabId)
     setPendingDevice(null)
-    if (tabId === 'layers') { 
-      setShowLeftPanel(true); 
-      setActiveTool('select') 
-    } else { 
+    if (tabId === 'layers') {
+      setShowLeftPanel(true);
+      setActiveTool('select')
+    } else {
       // Ensure specific icon types launch modal
       setShowDeviceLibrary(true);
-      setActiveTool('select') 
+      setActiveTool('select')
     }
   }
   const handleDeviceSelected = useCallback((device: DeviceSearchResult) => {
@@ -389,15 +404,15 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     const action = undoStack[undoStack.length - 1]
     if (!action) return
     await action.undo()
-    setUndoStack(prev => prev.slice(0, -1))
-    setRedoStack(prev => [...prev, action])
+    setUndoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => prev.slice(0, -1))
+    setRedoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => [...prev, action])
   }, [undoStack])
   const handleRedo = useCallback(async () => {
     const action = redoStack[redoStack.length - 1]
     if (!action) return
     await action.redo()
-    setRedoStack(prev => prev.slice(0, -1))
-    setUndoStack(prev => [...prev, action])
+    setRedoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => prev.slice(0, -1))
+    setUndoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => [...prev, action])
   }, [redoStack])
 
   const handleDeviceMoved = useCallback(async (id: string, x: number, y: number) => {
@@ -693,7 +708,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                     {isEditing ? (
                       <input value={editAreaValue} onChange={(e) => setEditAreaValue(e.target.value)}
                         onBlur={() => handleAreaRenameBlur(area.id)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleAreaRenameBlur(area.id); if (e.key === 'Escape') setEditingAreaId(null) }}
+                        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') handleAreaRenameBlur(area.id); if (e.key === 'Escape') setEditingAreaId(null) }}
                         autoFocus
                         style={{ background: 'transparent', border: 'none', color: C.text, fontSize: 10, width: 60, outline: 'none', fontFamily: 'inherit' }}
                       />
@@ -1043,6 +1058,10 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
               onMdfIdfDeleted={handleMdfIdfDeleted}
               snapshotRef={snapshotRef}
               showMinimap={showMinimap}
+              onShow3dPreview={(deviceId: string) => {
+                setSelectedDeviceId(deviceId)
+                setShow3dPreview(true)
+              }}
               satelliteConfig={activeArea?.satellite_lat && activeArea?.satellite_lng ? {
                 lat: activeArea.satellite_lat,
                 lng: activeArea.satellite_lng,
@@ -1069,13 +1088,31 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
             )}
 
             {/* Storage panel — OVERLAY, right side */}
-            {showStoragePanel && !selectedDevice && !selectedZone && (
+            {showStoragePanel && (
               <div style={{
                 position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 9,
                 boxShadow: '-4px 0 12px rgba(0,0,0,0.3)',
               }}>
-                <StorageCalculatorPanel devices={areaDevices} storageOutput={storageOutput} onClose={() => setShowStoragePanel(false)} />
+                <StorageCalculatorPanel
+                  devices={devices.filter((d: DesignDevice) => d.area_id === activeAreaId)}
+                  onClose={() => setShowStoragePanel(false)}
+                  storageOutput={calculateSystemStorage({
+                    cameras: canvasDevicesToCameraSpecs(devices.filter((d: DesignDevice) => d.area_id === activeAreaId)),
+                    retentionDays: 30,
+                    raidLevel: 6,
+                    driveSizeTB: 10
+                  })}
+                />
               </div>
+            )}
+
+            {show3dPreview && selectedDeviceId && (
+              <Camera3dPreview
+                device={devices.find((d: DesignDevice) => d.id === selectedDeviceId)!}
+                floorPlan={activeFloorPlan}
+                scalePxPerFt={scalePxPerFt}
+                onClose={() => setShow3dPreview(false)}
+              />
             )}
 
             {/* Welcome modal — shown when no floor plan and not dismissed */}
