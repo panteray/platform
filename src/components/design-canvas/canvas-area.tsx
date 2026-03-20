@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
 import { Minimap, type MinimapDevice, type MinimapZone, type MinimapInfra, type MinimapViewport } from './minimap'
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON, ToolbarIcons } from './icons'
@@ -260,7 +261,7 @@ export function CanvasArea({
       document.addEventListener('keydown', handleKeyDown)
       document.addEventListener('keyup', handleKeyUp)
 
-      canvas.on('mouse:down', (opt: { e: MouseEvent; target?: FabricObject }) => {
+      canvas.on('mouse:down', (opt: { e: MouseEvent | TouchEvent; target?: FabricObject }) => {
         const evt = opt.e as MouseEvent
         setContextMenu({ visible: false, x: 0, y: 0, deviceId: null })
         if (evt.button === 1 || spaceHeld || activeToolRef.current === 'pan') {
@@ -283,7 +284,7 @@ export function CanvasArea({
         }
         if (evt.button === 0 && !opt.target) onSelectDevice(null)
       })
-      canvas.on('mouse:move', (opt: { e: MouseEvent }) => {
+      canvas.on('mouse:move', (opt: { e: MouseEvent | TouchEvent }) => {
         if (!isPanning) return
         const evt = opt.e as MouseEvent
         const vpt = canvas.viewportTransform
@@ -291,7 +292,7 @@ export function CanvasArea({
         lastPanX = evt.clientX; lastPanY = evt.clientY
         canvas.requestRenderAll()
       })
-      canvas.on('mouse:up', (opt: { e: MouseEvent }) => {
+      canvas.on('mouse:up', (opt: { e: MouseEvent | TouchEvent }) => {
         if (isPanning) {
           isPanning = false; canvas.selection = true
           if (container) container.style.cursor = activeToolRef.current === 'pan' ? 'grab' : spaceHeld ? 'grab' : 'default'
@@ -1585,7 +1586,7 @@ export function CanvasArea({
         })
         const tiles = (await Promise.all(tilePromises)).filter(Boolean) as Array<{ row: number; col: number; blob: Blob }>
 
-        if (tiles.length === 0) return
+        if (tiles.length === 0) { toast.error('Satellite tiles failed to load — check API key'); return }
 
         // Composite tiles onto an offscreen canvas
         const compositeW = GRID * actualTilePx
@@ -1631,6 +1632,7 @@ export function CanvasArea({
         URL.revokeObjectURL(compositeUrl)
       } catch (err) {
         console.error('Satellite grid load failed:', err)
+        toast.error('Satellite load failed')
       }
     }
 
