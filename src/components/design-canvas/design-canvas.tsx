@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react'
+import { toast } from 'sonner'
 import { Upload, Grid3X3, Ruler, Eye, EyeOff, ArrowLeft, Plus, BarChart3, X, Trash2, ImageOff, Undo2, Redo2, Layers, Magnet, HardDrive, Server, Download, Map as MapIcon, MoreVertical, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { C, GRID_SIZE, UNDO_STACK_DEPTH, isDoorType, type CanvasTool, type IconTabId, type RequirementStatus } from './constants'
@@ -653,7 +654,10 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   // Satellite auto-load: geocode OPP address → update area with lat/lng → dismiss welcome modal
   const handleAddLocation = useCallback(async () => {
     const address = (opp?.install_address as string)?.trim()
-    if (!address || !activeAreaId) return
+    if (!address || !activeAreaId) {
+      toast.error(!address ? 'No install address on opportunity' : 'No active area selected')
+      return
+    }
     setSatelliteLoading(true)
     try {
       const res = await fetch('/api/org/geocode', {
@@ -661,13 +665,20 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address }),
       })
-      if (!res.ok) throw new Error('Geocode failed')
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        toast.error(`Geocode failed (${res.status}): ${(errBody as Record<string, string>).error || 'Unknown error'}`)
+        return
+      }
       const { lat, lng } = await res.json()
-      await updateArea(activeAreaId, { satellite_lat: lat, satellite_lng: lng, satellite_zoom: 19 })
+      if (!lat || !lng) { toast.error('Geocode returned no coordinates'); return }
+      const updated = await updateArea(activeAreaId, { satellite_lat: lat, satellite_lng: lng, satellite_zoom: 19 })
+      if (!updated) { toast.error('Failed to save satellite coordinates'); return }
       await refetch()
       setWelcomeDismissed(true)
     } catch (err) {
       console.error('Add location failed:', err)
+      toast.error(`Satellite location failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setSatelliteLoading(false)
     }
