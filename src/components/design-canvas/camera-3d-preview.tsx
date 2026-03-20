@@ -250,4 +250,3 @@ export function Camera3dPreview({ device, floorPlan, scalePxPerFt, onClose }: Ca
     </div>
   )
 }
-}
