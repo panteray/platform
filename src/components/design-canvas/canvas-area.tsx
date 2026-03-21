@@ -130,10 +130,6 @@ interface CanvasAreaProps {
   onShow3dPreview?: (device: DesignDevice) => void
 }
 
-const deviceObjectMap = new Map<string, FabricObject>()
-const cableObjectMap = new Map<string, FabricObject>()
-const zoneObjectMap = new Map<string, FabricObject[]>()
-
 export function CanvasArea({
   designId, areaId, floorPlan, devices, cables, showGrid, activeTool, selectedDeviceId,
   showFovCones, fovData, scalePxPerFt,
@@ -184,6 +180,9 @@ export function CanvasArea({
   const fovHandleMap = useRef(new Map<string, FabricObject>())
   const mdfIdfObjectMap = useRef(new Map<string, FabricObject[]>())
   const fovObjectMap = useRef(new Map<string, FabricObject[]>())
+  const deviceObjectMap = useRef(new Map<string, FabricObject>())
+  const cableObjectMap = useRef(new Map<string, FabricObject>())
+  const zoneObjectMap = useRef(new Map<string, FabricObject[]>())
   const isDraggingRef = useRef(false)
   const BASE_ICON_PX = 20 // constant screen-pixel size for device icons (IPVM-style small markers)
 
@@ -430,7 +429,7 @@ export function CanvasArea({
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selectedDeviceId) {
         e.preventDefault()
         const nudge = e.shiftKey ? 10 : 1
-        const obj = deviceObjectMap.get(selectedDeviceId)
+        const obj = deviceObjectMap.current.get(selectedDeviceId)
         if (obj && fabricRef.current) {
           const dx = e.key === 'ArrowRight' ? nudge : e.key === 'ArrowLeft' ? -nudge : 0
           const dy = e.key === 'ArrowDown' ? nudge : e.key === 'ArrowUp' ? -nudge : 0
@@ -692,14 +691,14 @@ export function CanvasArea({
     prevDeviceSnapRef.current = snapshot
 
     const currentIds = new Set(visibleDevices.map((d) => d.id))
-    const existingIds = new Set(deviceObjectMap.keys())
+    const existingIds = new Set(deviceObjectMap.current.keys())
 
     // Remove devices no longer present (or now hidden)
     for (const id of existingIds) {
       if (!currentIds.has(id)) {
-        const obj = deviceObjectMap.get(id)
+        const obj = deviceObjectMap.current.get(id)
         if (obj) canvas.remove(obj)
-        deviceObjectMap.delete(id)
+        deviceObjectMap.current.delete(id)
       }
     }
     // Remove all labels (they don't have stable IDs — simpler to recreate)
@@ -707,7 +706,7 @@ export function CanvasArea({
 
     // Update existing device positions/rotation (no SVG reload needed)
     for (const device of visibleDevices) {
-      const existing = deviceObjectMap.get(device.id)
+      const existing = deviceObjectMap.current.get(device.id)
       if (existing) {
         existing.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0 })
       }
@@ -728,7 +727,7 @@ export function CanvasArea({
           const iconScale = BASE_ICON_PX / (64 * (fabricRef.current?.getZoom() || 1))
           group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: iconScale, scaleY: iconScale, originX: 'center', originY: 'center', hasControls: false, hasBorders: false, lockScalingX: true, lockScalingY: true, lockRotation: true, selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move' })
           ;(group as unknown as Record<string, unknown>).deviceId = device.id
-          canvas.add(group); deviceObjectMap.set(device.id, group)
+          canvas.add(group); deviceObjectMap.current.set(device.id, group)
         } catch { /* skip */ }
       }
       // Re-add all labels for visible devices (lightweight text objects)
@@ -787,7 +786,7 @@ export function CanvasArea({
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
     const iconScale = BASE_ICON_PX / (64 * zoomLevel)
-    for (const [, obj] of deviceObjectMap) {
+    for (const [, obj] of deviceObjectMap.current) {
       obj.set({ scaleX: iconScale, scaleY: iconScale })
     }
     // Rescale labels and status rings to stay readable
@@ -1121,7 +1120,7 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
-    cableObjectMap.forEach((obj: FabricObject) => canvas.remove(obj)); cableObjectMap.clear()
+    cableObjectMap.current.forEach((obj: FabricObject) => canvas.remove(obj)); cableObjectMap.current.clear()
     canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isCableLabel === true).forEach((o: FabricObject) => canvas.remove(o))
 
     async function addCables() {
@@ -1135,7 +1134,7 @@ export function CanvasArea({
           strokeWidth: 2, strokeDashArray: [6, 3], selectable: true, evented: true, opacity: 0.6,
         })
         ;(polyline as unknown as Record<string, unknown>).cableId = cable.id
-        canvas.add(polyline); canvas.sendObjectToBack(polyline); cableObjectMap.set(cable.id, polyline)
+        canvas.add(polyline); canvas.sendObjectToBack(polyline); cableObjectMap.current.set(cable.id, polyline)
 
         // Cable label (type + length) at midpoint
         if (wps.length >= 2) {
@@ -1185,7 +1184,7 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
-    zoneObjectMap.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); zoneObjectMap.clear()
+    zoneObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); zoneObjectMap.current.clear()
     canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isZoneLabel === true).forEach((o: FabricObject) => canvas.remove(o))
 
     async function addZones() {
@@ -1232,7 +1231,7 @@ export function CanvasArea({
           canvas.add(errorBubble); objects.push(errorBubble)
         }
 
-        zoneObjectMap.set(zone.id, objects)
+        zoneObjectMap.current.set(zone.id, objects)
       }
       canvas.renderAll()
     }
@@ -1423,7 +1422,7 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricRef.current || !fabricReady) return
     if (selectedZoneId) {
-      const objs = zoneObjectMap.get(selectedZoneId)
+      const objs = zoneObjectMap.current.get(selectedZoneId)
       const rect = objs?.[0]
       if (rect) { fabricRef.current.setActiveObject(rect); fabricRef.current.renderAll() }
     }
@@ -1433,7 +1432,7 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricRef.current || !fabricReady) return
     if (selectedDeviceId) {
-      const obj = deviceObjectMap.get(selectedDeviceId)
+      const obj = deviceObjectMap.current.get(selectedDeviceId)
       if (obj) { fabricRef.current.setActiveObject(obj); fabricRef.current.renderAll() }
     }
   }, [selectedDeviceId, fabricReady])
@@ -1834,7 +1833,7 @@ export function CanvasArea({
         <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 0', minWidth: 140, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
           {[
             { label: 'Rotate 90°', action: () => {
-              const obj = deviceObjectMap.get(contextMenu.deviceId!)
+              const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
               if (obj && fabricRef.current) {
                 const newAngle = ((obj.angle ?? 0) + 90) % 360
                 obj.set({ angle: newAngle }); fabricRef.current.renderAll()
@@ -1842,11 +1841,11 @@ export function CanvasArea({
               }
             }},
             { label: 'Bring to Front', action: () => {
-              const obj = deviceObjectMap.get(contextMenu.deviceId!)
+              const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
               if (obj && fabricRef.current) { fabricRef.current.bringObjectToFront(obj); fabricRef.current.renderAll() }
             }},
             { label: 'Send to Back', action: () => {
-              const obj = deviceObjectMap.get(contextMenu.deviceId!)
+              const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
               if (obj && fabricRef.current) { fabricRef.current.sendObjectToBack(obj); fabricRef.current.renderAll() }
             }},
             null,
