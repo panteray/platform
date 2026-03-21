@@ -1748,7 +1748,13 @@ export function CanvasArea({
       }}
       aria-label="Design canvas area"
       role="region"
-      style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}
+      style={{
+        flex: 1, position: 'relative', overflow: 'hidden',
+        background: satelliteDataUrl
+          ? `url(${satelliteDataUrl}) center/contain no-repeat #000`
+          : C.bg,
+        opacity: satelliteDataUrl ? (satelliteConfig?.opacity ?? 0.6) : undefined,
+      }}
     >
       <canvas
         ref={canvasRef}
@@ -1756,22 +1762,9 @@ export function CanvasArea({
         aria-label="Device placement canvas"
         style={{
           width: '100%', height: '100%', outline: focusVisible ? '2px solid #3B82F6' : 'none', borderRadius: 8,
-          background: satelliteDataUrl ? 'transparent' : C.bg,
-          position: 'relative', zIndex: 1,
         }}
         onFocus={() => setFocusVisible(true)}
         onBlur={() => setFocusVisible(false)}
-      />
-      {/* Satellite image — always in DOM (Fabric rewrites canvas DOM, conditional render breaks React) */}
-      <img
-        src={satelliteDataUrl || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}
-        alt=""
-        style={{
-          position: 'absolute', inset: 0, width: '100%', height: '100%',
-          objectFit: 'contain', opacity: satelliteConfig?.opacity ?? 0.6,
-          pointerEvents: 'none', zIndex: 0,
-          display: satelliteDataUrl ? 'block' : 'none',
-        }}
       />
 
       {/* Placement hint */}
