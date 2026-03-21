@@ -59,7 +59,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [activeIcon, setActiveIcon] = useState<IconTabId>('layers')
   const [showLeftPanel, setShowLeftPanel] = useState(false)
   const [activeView, setActiveView] = useState<DesignView>('all')
-  const [showFovCones, setShowFovCones] = useState(false)
+  const [showFovCones, setShowFovCones] = useState(true)
   const [showDeviceLibrary, setShowDeviceLibrary] = useState(false)
   const [fovDisplayMode, setFovDisplayMode] = useState<'ppf' | 'dori'>('ppf')
   const [highlightedPpfTier, setHighlightedPpfTier] = useState<string | null>(null)

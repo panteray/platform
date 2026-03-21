@@ -129,7 +129,6 @@ interface CanvasAreaProps {
 }
 
 const deviceObjectMap = new Map<string, FabricObject>()
-const fovObjectMap = new Map<string, FabricObject[]>()
 const cableObjectMap = new Map<string, FabricObject>()
 const zoneObjectMap = new Map<string, FabricObject[]>()
 
@@ -182,6 +181,9 @@ export function CanvasArea({
   const [pinnedPreview, setPinnedPreview] = useState<{ ppf: number; distFt: number; cameraLabel: string } | null>(null)
   const fovHandleMap = useRef(new Map<string, FabricObject>())
   const mdfIdfObjectMap = useRef(new Map<string, FabricObject[]>())
+  const fovObjectMap = useRef(new Map<string, FabricObject[]>())
+  const isDraggingRef = useRef(false)
+  const BASE_ICON_PX = 28 // constant screen-pixel size for device icons
 
   // Sync viewport state for minimap
   const syncViewport = useCallback(() => {
@@ -287,7 +289,7 @@ export function CanvasArea({
         if (evt.button === 0 && opt.target) {
           // Device drag start
           const did = (opt.target as unknown as Record<string, unknown>).deviceId as string
-          if (did) setIsDraggingDevice(true)
+          if (did) { isDraggingRef.current = true; setIsDraggingDevice(true) }
         }
         if (evt.button === 0 && !opt.target) onSelectDevice(null)
       })
@@ -308,8 +310,8 @@ export function CanvasArea({
           isPanning = false; canvas.selection = true
           if (container) container.style.cursor = activeToolRef.current === 'pan' ? 'grab' : spaceHeld ? 'grab' : 'default'
         }
-        // Device drag end
-        if (isDraggingDevice) setIsDraggingDevice(false)
+        // Device drag end — use ref to avoid stale closure
+        if (isDraggingRef.current) { isDraggingRef.current = false; setIsDraggingDevice(false) }
       })
 
       // Selection bridging
@@ -721,7 +723,8 @@ export function CanvasArea({
         try {
           const result = await fabric.loadSVGFromString(coloredSvg)
           const group = fabric.util.groupSVGElements(result.objects.filter(Boolean) as FabricObject[], result.options)
-          group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: 0.5, scaleY: 0.5, originX: 'center', originY: 'center', hasControls: true, hasBorders: true, lockScalingX: true, lockScalingY: true, lockRotation: false, cornerSize: 10, cornerColor: C.accent, transparentCorners: false, rotatingPointOffset: 25 })
+          const iconScale = BASE_ICON_PX / (64 * (fabricRef.current?.getZoom() || 1))
+          group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: iconScale, scaleY: iconScale, originX: 'center', originY: 'center', hasControls: true, hasBorders: true, lockScalingX: true, lockScalingY: true, lockRotation: false, cornerSize: 10, cornerColor: C.accent, transparentCorners: false, rotatingPointOffset: 25 })
           ;(group as unknown as Record<string, unknown>).deviceId = device.id
           canvas.add(group); deviceObjectMap.set(device.id, group)
         } catch { /* skip */ }
@@ -777,6 +780,25 @@ export function CanvasArea({
     }
   }, [devices, fabricReady, hiddenCategories])
 
+  // ---- Constant screen-size: rescale device icons + labels on zoom change ----
+  useEffect(() => {
+    if (!fabricReady || !fabricRef.current) return
+    const canvas = fabricRef.current
+    const iconScale = BASE_ICON_PX / (64 * zoomLevel)
+    for (const [, obj] of deviceObjectMap) {
+      obj.set({ scaleX: iconScale, scaleY: iconScale })
+    }
+    // Rescale labels and status rings to stay readable
+    canvas.getObjects().forEach((o: FabricObject) => {
+      const rec = o as unknown as Record<string, unknown>
+      if (rec.__isLabel === true) {
+        const labelScale = 1 / zoomLevel
+        o.set({ scaleX: labelScale, scaleY: labelScale })
+      }
+    })
+    canvas.requestRenderAll()
+  }, [zoomLevel, fabricReady])
+
   // ---- DORI tier labels for display ----
   const TIER_LABELS: Record<string, string> = { '#22c55e': 'ID', '#eab308': 'REC', '#f97316': 'OBS', '#ef4444': 'DET' }
 
@@ -784,7 +806,7 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
     const canvas = fabricRef.current
-    fovObjectMap.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); fovObjectMap.clear()
+    fovObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); fovObjectMap.current.clear()
     fovHandleMap.current.forEach((o: FabricObject) => canvas.remove(o)); fovHandleMap.current.clear()
     // Drag suppression: hide FOV cones if dragging device
     if (!showFovCones || isDraggingDevice) { canvas.renderAll(); return }
@@ -810,6 +832,9 @@ export function CanvasArea({
 
     async function animateFovCones() {
       const fabric = await import('fabric');
+      // Bug 1 fix: clean previous frame objects before creating new ones
+      fovObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); fovObjectMap.current.clear()
+      fovHandleMap.current.forEach((o: FabricObject) => canvas.remove(o)); fovHandleMap.current.clear()
       const wallSegments: Array<{ p1: {x:number,y:number}, p2: {x:number,y:number} }> = [];
       for (const w of walls || []) {
         if (w.points && w.points.length >= 2) {
@@ -889,7 +914,7 @@ export function CanvasArea({
             }
           }
         }
-        fovObjectMap.set(deviceId, objects);
+        fovObjectMap.current.set(deviceId, objects);
 
         // ---- Blind Spot Visualization ----
         if (data.blindSpotFt && data.blindSpotFt > 0.5) {
