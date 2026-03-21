@@ -726,7 +726,7 @@ export function CanvasArea({
           const result = await fabric.loadSVGFromString(coloredSvg)
           const group = fabric.util.groupSVGElements(result.objects.filter(Boolean) as FabricObject[], result.options)
           const iconScale = BASE_ICON_PX / (64 * (fabricRef.current?.getZoom() || 1))
-          group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: iconScale, scaleY: iconScale, originX: 'center', originY: 'center', hasControls: true, hasBorders: true, lockScalingX: true, lockScalingY: true, lockRotation: false, cornerSize: 10, cornerColor: C.accent, transparentCorners: false, rotatingPointOffset: 25 })
+          group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: iconScale, scaleY: iconScale, originX: 'center', originY: 'center', hasControls: false, hasBorders: false, lockScalingX: true, lockScalingY: true, lockRotation: true, selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move' })
           ;(group as unknown as Record<string, unknown>).deviceId = device.id
           canvas.add(group); deviceObjectMap.set(device.id, group)
         } catch { /* skip */ }
@@ -834,9 +834,9 @@ export function CanvasArea({
 
     async function animateFovCones() {
       const fabric = await import('fabric');
-      // Bug 1 fix: clean previous frame objects before creating new ones
+      // Bug 1 fix: clean previous frame CONE objects before creating new ones
+      // Do NOT clear handles here — they need to persist for user interaction
       fovObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); fovObjectMap.current.clear()
-      fovHandleMap.current.forEach((o: FabricObject) => canvas.remove(o)); fovHandleMap.current.clear()
       const wallSegments: Array<{ p1: {x:number,y:number}, p2: {x:number,y:number} }> = [];
       for (const w of walls || []) {
         if (w.points && w.points.length >= 2) {
@@ -1019,28 +1019,46 @@ export function CanvasArea({
           }
         }
         
-        // Multi-handle: One handle per sensor/imager
+        // Multi-handle: One handle per sensor/imager — reuse existing, update position
+        const activeHandleKeys = new Set<string>();
         if (outerR > 0 && onFovHandleDragged) {
           imagerAngles.forEach((imagerDeg, idx) => {
             const rotRad = imagerDeg * (Math.PI / 180);
             const hx = device.position_x + Math.cos(rotRad) * outerR;
             const hy = device.position_y + Math.sin(rotRad) * outerR;
+            const key = `${deviceId}_${idx}`;
+            activeHandleKeys.add(key);
             
-            const handle = new fabric.Circle({
-              left: hx, top: hy, radius: 5, 
-              fill: idx === 0 ? 'rgba(59,130,246,0.9)' : 'rgba(139,92,246,0.9)', // Blue for primary, Purple for others
-              stroke: '#fff', strokeWidth: 1.5,
-              originX: 'center', originY: 'center', selectable: true, evented: true,
-              hasControls: false, hasBorders: false, hoverCursor: 'grab', moveCursor: 'grabbing',
-            });
-            ;(handle as unknown as Record<string, unknown>).__fovHandle = true;
-            ;(handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
-            ;(handle as unknown as Record<string, unknown>).__fovSensorIndex = idx;
-            ;(handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
-            ;(handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
-            canvas.add(handle);
-            fovHandleMap.current.set(`${deviceId}_${idx}`, handle);
+            const existing = fovHandleMap.current.get(key);
+            if (existing) {
+              // Update position + device center (device may have moved)
+              existing.set({ left: hx, top: hy });
+              const rec = existing as unknown as Record<string, unknown>;
+              rec.__fovDeviceCx = device.position_x;
+              rec.__fovDeviceCy = device.position_y;
+            } else {
+              const handle = new fabric.Circle({
+                left: hx, top: hy, radius: 5, 
+                fill: idx === 0 ? 'rgba(59,130,246,0.9)' : 'rgba(139,92,246,0.9)',
+                stroke: '#fff', strokeWidth: 1.5,
+                originX: 'center', originY: 'center', selectable: true, evented: true,
+                hasControls: false, hasBorders: false, hoverCursor: 'grab', moveCursor: 'grabbing',
+              });
+              ;(handle as unknown as Record<string, unknown>).__fovHandle = true;
+              ;(handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
+              ;(handle as unknown as Record<string, unknown>).__fovSensorIndex = idx;
+              ;(handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
+              ;(handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
+              canvas.add(handle);
+              fovHandleMap.current.set(key, handle);
+            }
           });
+        }
+        // Remove stale handles for this device (e.g. sensor count changed)
+        for (const [key, obj] of fovHandleMap.current) {
+          if (key.startsWith(`${deviceId}_`) && !activeHandleKeys.has(key)) {
+            canvas.remove(obj); fovHandleMap.current.delete(key);
+          }
         }
       }
       canvas.renderAll();

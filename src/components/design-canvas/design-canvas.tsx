@@ -401,6 +401,9 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
       })
       markSaving()
       if (newDev) await autoCableDoorToController(newDev)
+      // Clear placement mode — device is placed, banner should disappear
+      setPendingDevice(null)
+      setActiveTool('select')
     } finally {
       placingRef.current = false
     }
