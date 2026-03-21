@@ -7,7 +7,7 @@ import { Minimap, type MinimapDevice, type MinimapZone, type MinimapInfra, type 
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON, ToolbarIcons } from './icons'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { PersonPreview } from './person-preview'
-import { SatelliteMap } from './satellite-map'
+import { SatelliteMap, type SatelliteMapHandle } from './satellite-map'
 import type { DoriClassification } from '@/lib/calculators'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignZone, DesignMdfIdf } from '@/types/database'
 
@@ -155,6 +155,8 @@ export function CanvasArea({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<FabricCanvas | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const satMapRef = useRef<SatelliteMapHandle>(null)
+  const satBaseZoomRef = useRef(satelliteConfig?.zoom ?? 19)
   const [fabricReady, setFabricReady] = useState(false)
   const [zoomLevel, setZoomLevel] = useState(1)
   const [isDraggingDevice, setIsDraggingDevice] = useState(false)
@@ -175,6 +177,7 @@ export function CanvasArea({
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
   const snapRef = useRef(snapToGrid)
   useEffect(() => { snapRef.current = snapToGrid }, [snapToGrid])
+  useEffect(() => { satBaseZoomRef.current = satelliteConfig?.zoom ?? 19 }, [satelliteConfig?.zoom])
   const [ppfTooltip, setPpfTooltip] = useState<{ visible: boolean; x: number; y: number; ppf: number; dori: string; distFt: number } | null>(null)
   const [pinnedPreview, setPinnedPreview] = useState<{ ppf: number; distFt: number; cameraLabel: string } | null>(null)
   const fovHandleMap = useRef(new Map<string, FabricObject>())
@@ -227,6 +230,9 @@ export function CanvasArea({
         canvas.zoomToPoint(point, zoom)
         setZoomLevel(zoom)
         onZoomChange?.(zoom)
+        // Sync satellite map zoom: each 2x Fabric zoom = +1 Google Maps zoom level
+        const mapZoom = satBaseZoomRef.current + Math.log2(zoom)
+        satMapRef.current?.syncZoom(mapZoom)
         opt.e.preventDefault()
         opt.e.stopPropagation()
       })
@@ -288,8 +294,12 @@ export function CanvasArea({
       canvas.on('mouse:move', (opt: { e: MouseEvent | TouchEvent }) => {
         if (!isPanning) return
         const evt = opt.e as MouseEvent
+        const dx = evt.clientX - lastPanX
+        const dy = evt.clientY - lastPanY
         const vpt = canvas.viewportTransform
-        if (vpt) { vpt[4] += evt.clientX - lastPanX; vpt[5] += evt.clientY - lastPanY }
+        if (vpt) { vpt[4] += dx; vpt[5] += dy }
+        // Sync satellite map pan (negate: Fabric slides content right, Maps panBy moves center right)
+        satMapRef.current?.panBy(-dx, -dy)
         lastPanX = evt.clientX; lastPanY = evt.clientY
         canvas.requestRenderAll()
       })
@@ -1689,6 +1699,7 @@ export function CanvasArea({
     >
       {/* Satellite map — Google Maps JS API, always in DOM (conditional render breaks React/Fabric DOM) */}
       <SatelliteMap
+        ref={satMapRef}
         lat={satelliteConfig?.lat ?? 0}
         lng={satelliteConfig?.lng ?? 0}
         zoom={satelliteConfig?.zoom ?? 19}

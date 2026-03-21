@@ -91,7 +91,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
-  const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const [satelliteLoading, setSatelliteLoading] = useState(false)
   const [showFloorPlanMenu, setShowFloorPlanMenu] = useState(false)
   const [showOverflowMenu, setShowOverflowMenu] = useState(false)
@@ -675,7 +674,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
       const updated = await updateArea(activeAreaId, { satellite_lat: lat, satellite_lng: lng, satellite_zoom: 19 })
       if (!updated) { toast.error('Failed to save satellite coordinates'); return }
       await refetch()
-      setWelcomeDismissed(true)
     } catch (err) {
       console.error('Add location failed:', err)
       toast.error(`Satellite location failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -1242,75 +1240,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
             )}
 
             {/* Welcome modal — shown when no floor plan and not dismissed */}
-            {!activeFloorPlan && !welcomeDismissed && areaDevices.length === 0 && (
-              <div style={{
-                position: 'absolute', inset: 0, zIndex: 20,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(15,17,23,0.85)',
-              }}>
-                <div style={{
-                  background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 12,
-                  padding: '32px 36px', minWidth: 360, maxWidth: 420,
-                  boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
-                }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: '0 0 6px' }}>Welcome to your Design</h2>
-                  <p style={{ fontSize: 13, color: C.textMuted, margin: '0 0 24px', lineHeight: 1.5 }}>
-                    Get started by adding a floor plan, setting a location, or jump straight into the canvas.
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <button
-                      onClick={() => { fileInputRef.current?.click(); setWelcomeDismissed(true) }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px',
-                        background: C.accent, color: '#fff', border: 'none', borderRadius: 8,
-                        fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left',
-                      }}
-                    >
-                      <Upload size={16} />
-                      <div>
-                        <div>Add Floor Plan</div>
-                        <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>Upload SVG, PDF, or image</div>
-                      </div>
-                    </button>
-                    <button
-                      disabled={!opp?.install_address || satelliteLoading}
-                      onClick={handleAddLocation}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px',
-                        background: opp?.install_address ? C.bgActive : C.bgActive,
-                        color: opp?.install_address ? C.text : C.textDim,
-                        border: `1px solid ${C.border}`, borderRadius: 8,
-                        fontSize: 13, fontWeight: 500,
-                        cursor: opp?.install_address && !satelliteLoading ? 'pointer' : 'not-allowed',
-                        textAlign: 'left',
-                        opacity: opp?.install_address ? 1 : 0.6,
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      <MapIcon size={16} />
-                      <div>
-                        <div>{satelliteLoading ? 'Loading satellite...' : 'Add Location'}</div>
-                        <div style={{ fontSize: 11, fontWeight: 400, color: C.textDim }}>
-                          {opp?.install_address
-                            ? `Satellite view from ${(opp.install_address as string).slice(0, 40)}${(opp.install_address as string).length > 40 ? '...' : ''}`
-                            : 'No address — link an Opportunity first'}
-                        </div>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setWelcomeDismissed(true)}
-                      style={{
-                        padding: '10px 16px', background: 'transparent', color: C.textMuted,
-                        border: `1px solid ${C.border}`, borderRadius: 8,
-                        fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      Skip — start with blank canvas
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </>
         )}
         {activeView === 'network_topology' && <TopologyView designId={designId} nodes={topologyNodes} links={topologyLinks} onAddNode={addTopologyNode} onUpdateNode={updateTopologyNode} onDeleteNode={deleteTopologyNode} onAddLink={addTopologyLink} onUpdateLink={updateTopologyLink} onDeleteLink={deleteTopologyLink} />}
