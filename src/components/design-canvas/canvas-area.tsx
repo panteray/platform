@@ -1750,18 +1750,6 @@ export function CanvasArea({
       role="region"
       style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}
     >
-      {/* Satellite image — rendered as plain HTML behind the Fabric canvas */}
-      {satelliteDataUrl && (
-        <img
-          src={satelliteDataUrl}
-          alt="Satellite"
-          style={{
-            position: 'absolute', inset: 0, width: '100%', height: '100%',
-            objectFit: 'contain', opacity: satelliteConfig?.opacity ?? 0.6,
-            pointerEvents: 'none', zIndex: 0,
-          }}
-        />
-      )}
       <canvas
         ref={canvasRef}
         tabIndex={0}
@@ -1773,6 +1761,17 @@ export function CanvasArea({
         }}
         onFocus={() => setFocusVisible(true)}
         onBlur={() => setFocusVisible(false)}
+      />
+      {/* Satellite image — always in DOM (Fabric rewrites canvas DOM, conditional render breaks React) */}
+      <img
+        src={satelliteDataUrl || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}
+        alt=""
+        style={{
+          position: 'absolute', inset: 0, width: '100%', height: '100%',
+          objectFit: 'contain', opacity: satelliteConfig?.opacity ?? 0.6,
+          pointerEvents: 'none', zIndex: 0,
+          display: satelliteDataUrl ? 'block' : 'none',
+        }}
       />
 
       {/* Placement hint */}
