@@ -61,7 +61,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [activeView, setActiveView] = useState<DesignView>('all')
   const [showFovCones, setShowFovCones] = useState(true)
   const [showDeviceLibrary, setShowDeviceLibrary] = useState(false)
-  const [fovDisplayMode, setFovDisplayMode] = useState<'ppf' | 'dori'>('ppf')
+  const [fovDisplayMode, setFovDisplayMode] = useState<'simple' | 'ppf' | 'dori'>('simple')
   const [highlightedPpfTier, setHighlightedPpfTier] = useState<string | null>(null)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
   const [floorPlanError, setFloorPlanError] = useState<string | null>(null)
@@ -162,6 +162,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
             { distanceFt: targetDist * 0.6, color: C.yellow, opacity: 0.15 },
             { distanceFt: targetDist * 0.3, color: C.red, opacity: 0.2 },
           ],
+          colorHex: d.color_hex || undefined,
         })
         continue
       }
@@ -193,6 +194,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
           focalLength,
           sensorAngles,
           blindSpotFt: result.blindSpotFt > 0 ? result.blindSpotFt : undefined,
+          colorHex: d.color_hex || undefined,
         })
       } catch {
         // Engine didn't run — skip
@@ -887,9 +889,9 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
           {showFovCones ? <Eye size={12} /> : <EyeOff size={12} />} <span>FOV</span>
         </button>
         {showFovCones && (
-          <button onClick={() => setFovDisplayMode(fovDisplayMode === 'ppf' ? 'dori' : 'ppf')}
-            style={toolBtn(fovDisplayMode === 'dori', C.green)} title="Toggle PPF / DORI labels">
-            <span style={{ fontSize: 9, fontWeight: 600 }}>{fovDisplayMode === 'dori' ? 'DORI' : 'PPF'}</span>
+          <button onClick={() => setFovDisplayMode(fovDisplayMode === 'simple' ? 'ppf' : fovDisplayMode === 'ppf' ? 'dori' : 'simple')}
+            style={toolBtn(fovDisplayMode !== 'simple', C.green)} title="FOV mode: Simple / PPF / DORI">
+            <span style={{ fontSize: 9, fontWeight: 600 }}>{fovDisplayMode === 'simple' ? 'FOV' : fovDisplayMode === 'dori' ? 'DORI' : 'PPF'}</span>
           </button>
         )}
         <button onClick={() => setShowGrid(!showGrid)} style={toolBtn(showGrid)} title="Toggle Grid (G)">

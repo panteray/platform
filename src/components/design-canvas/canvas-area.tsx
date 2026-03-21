@@ -32,6 +32,8 @@ export interface DeviceFovData {
   focalLength?: number
   /** Blind spot distance from camera base (ft) — area not visible directly below */
   blindSpotFt?: number
+  /** Device color for simple cone mode (IPVM-style single-color cone) */
+  colorHex?: string
 }
 
 // ---- Cable Draw State Machine ----
@@ -115,7 +117,7 @@ interface CanvasAreaProps {
   onRedo?: () => void
   floorPlanOpacity?: number
   onFovHandleDragged?: (deviceId: string, targetDistanceFt: number) => void
-  fovDisplayMode?: 'ppf' | 'dori'
+  fovDisplayMode?: 'simple' | 'ppf' | 'dori'
   highlightedPpfTier?: string | null
   onPpfTierClick?: (tier: string | null) => void
   mdfIdfs?: DesignMdfIdf[]
@@ -140,7 +142,7 @@ export function CanvasArea({
   zones = [], selectedZoneId, onZoneCreated, onZoneMoved, onZoneResized, onSelectZone,
   pendingDeviceName,
   onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
-  onFovHandleDragged, fovDisplayMode = 'ppf', highlightedPpfTier, onPpfTierClick,
+  onFovHandleDragged, fovDisplayMode = 'simple', highlightedPpfTier, onPpfTierClick,
   onSensorRotated,
   mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved, onMdfIdfDeleted,
   walls = [], onWallCreated, onWallDeleted,
@@ -183,7 +185,7 @@ export function CanvasArea({
   const mdfIdfObjectMap = useRef(new Map<string, FabricObject[]>())
   const fovObjectMap = useRef(new Map<string, FabricObject[]>())
   const isDraggingRef = useRef(false)
-  const BASE_ICON_PX = 28 // constant screen-pixel size for device icons
+  const BASE_ICON_PX = 20 // constant screen-pixel size for device icons (IPVM-style small markers)
 
   // Sync viewport state for minimap
   const syncViewport = useCallback(() => {
@@ -855,61 +857,95 @@ export function CanvasArea({
         let outerR = 0;
         for (const imagerDeg of imagerAngles) {
           const rotRad = imagerDeg * (Math.PI / 180);
-          for (const tier of data.tiers) {
-            // Animate radius and angle
-            const targetR = tier.distanceFt * (scalePxPerFt || 10);
-            const prevR = prevParams[deviceId]?.[tier.color]?.r || targetR;
-            const r = prevR + (targetR - prevR) * 0.2;
-            if (!prevParams[deviceId]) prevParams[deviceId] = {};
-            prevParams[deviceId][tier.color] = { r: r };
-            if (r > outerR) outerR = r;
-            const cx = device.position_x;
-            const cy = device.position_y;
-            
+
+          // Helper: build a wall-clipped cone path at given radius
+          function buildConePath(cx: number, cy: number, r: number): string {
             const numSteps = Math.max(10, Math.ceil(data.hFov));
             const angleStep = (data.hFov * (Math.PI / 180)) / numSteps;
             const startAngleRad = rotRad - halfAngle;
-
             const polyPoints = [{ x: cx, y: cy }];
             for (let i = 0; i <= numSteps; i++) {
-                const currentAngle = startAngleRad + i * angleStep;
-                const rayDir = { x: Math.cos(currentAngle), y: Math.sin(currentAngle) };
-                let minDist = r;
-                for (const seg of wallSegments) {
-                    const t = getRayIntersection({x: cx, y: cy}, rayDir, seg.p1, seg.p2);
-                    if (t !== null && t < minDist) minDist = t;
-                }
-                polyPoints.push({ x: cx + rayDir.x * minDist, y: cy + rayDir.y * minDist });
+              const currentAngle = startAngleRad + i * angleStep;
+              const rayDir = { x: Math.cos(currentAngle), y: Math.sin(currentAngle) };
+              let minDist = r;
+              for (const seg of wallSegments) {
+                const t = getRayIntersection({x: cx, y: cy}, rayDir, seg.p1, seg.p2);
+                if (t !== null && t < minDist) minDist = t;
+              }
+              polyPoints.push({ x: cx + rayDir.x * minDist, y: cy + rayDir.y * minDist });
             }
-
             let pathStr = `M ${polyPoints[0].x} ${polyPoints[0].y}`;
-            for (let k = 1; k < polyPoints.length; k++) {
-                pathStr += ` L ${polyPoints[k].x} ${polyPoints[k].y}`;
-            }
-            pathStr += " Z";
+            for (let k = 1; k < polyPoints.length; k++) pathStr += ` L ${polyPoints[k].x} ${polyPoints[k].y}`;
+            return pathStr + ' Z';
+          }
 
-            let opacity = tier.opacity;
-            if (highlightedPpfTier) {
-              opacity = tier.color === highlightedPpfTier ? Math.min(tier.opacity * 3, 0.5) : tier.opacity * 0.2;
-            }
-            const path = new fabric.Path(pathStr, {
-              fill: tier.color, opacity, selectable: false, evented: false,
+          if (fovDisplayMode === 'simple') {
+            // ---- IPVM-style: single-color cone with gradient effect ----
+            const coneColor = data.colorHex || '#29b6f6';
+            const maxTier = data.tiers.reduce((a, b) => b.distanceFt > a.distanceFt ? b : a, data.tiers[0]);
+            const targetR = maxTier.distanceFt * (scalePxPerFt || 10);
+            const prevR = prevParams[deviceId]?.['simple']?.r || targetR;
+            const r = prevR + (targetR - prevR) * 0.2;
+            if (!prevParams[deviceId]) prevParams[deviceId] = {};
+            prevParams[deviceId]['simple'] = { r };
+            if (r > outerR) outerR = r;
+            const cx = device.position_x;
+            const cy = device.position_y;
+
+            // Outer cone — full radius, lighter
+            const outerPath = new fabric.Path(buildConePath(cx, cy, r), {
+              fill: coneColor, opacity: 0.15, selectable: false, evented: false,
             });
-            canvas.add(path); canvas.sendObjectToBack(path); objects.push(path);
-            if (fovDisplayMode === 'dori' && r > 20) {
-              const labelR = r * 0.92;
-              const lx = cx + Math.cos(rotRad) * labelR;
-              const ly = cy + Math.sin(rotRad) * labelR;
-              const label = TIER_LABELS[tier.color] || '';
-              if (label) {
-                const text = new fabric.FabricText(label, {
-                  left: lx, top: ly, fontSize: 9, fontWeight: '700',
-                  fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
-                  originX: 'center', originY: 'center', selectable: false, evented: false,
-                  opacity: highlightedPpfTier && tier.color !== highlightedPpfTier ? 0.2 : 0.9,
-                });
-                ;(text as unknown as Record<string, unknown>).__isDoriLabel = true;
-                canvas.add(text); objects.push(text);
+            canvas.add(outerPath); canvas.sendObjectToBack(outerPath); objects.push(outerPath);
+
+            // Inner cone — 35% radius, adds opacity for graduated "darker near camera" effect
+            const innerR = r * 0.35;
+            const innerPath = new fabric.Path(buildConePath(cx, cy, innerR), {
+              fill: coneColor, opacity: 0.10, selectable: false, evented: false,
+            });
+            canvas.add(innerPath); canvas.sendObjectToBack(innerPath); objects.push(innerPath);
+
+            // Cone outline stroke — subtle edge definition
+            const strokePath = new fabric.Path(buildConePath(cx, cy, r), {
+              fill: 'transparent', stroke: coneColor, strokeWidth: 1, opacity: 0.35,
+              selectable: false, evented: false,
+            });
+            canvas.add(strokePath); canvas.sendObjectToBack(strokePath); objects.push(strokePath);
+          } else {
+            // ---- PPF / DORI tier mode (existing behavior) ----
+            for (const tier of data.tiers) {
+              const targetR = tier.distanceFt * (scalePxPerFt || 10);
+              const prevR = prevParams[deviceId]?.[tier.color]?.r || targetR;
+              const r = prevR + (targetR - prevR) * 0.2;
+              if (!prevParams[deviceId]) prevParams[deviceId] = {};
+              prevParams[deviceId][tier.color] = { r: r };
+              if (r > outerR) outerR = r;
+              const cx = device.position_x;
+              const cy = device.position_y;
+
+              let opacity = tier.opacity;
+              if (highlightedPpfTier) {
+                opacity = tier.color === highlightedPpfTier ? Math.min(tier.opacity * 3, 0.5) : tier.opacity * 0.2;
+              }
+              const path = new fabric.Path(buildConePath(cx, cy, r), {
+                fill: tier.color, opacity, selectable: false, evented: false,
+              });
+              canvas.add(path); canvas.sendObjectToBack(path); objects.push(path);
+              if (fovDisplayMode === 'dori' && r > 20) {
+                const labelR = r * 0.92;
+                const lx = cx + Math.cos(rotRad) * labelR;
+                const ly = cy + Math.sin(rotRad) * labelR;
+                const label = TIER_LABELS[tier.color] || '';
+                if (label) {
+                  const text = new fabric.FabricText(label, {
+                    left: lx, top: ly, fontSize: 9, fontWeight: '700',
+                    fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
+                    originX: 'center', originY: 'center', selectable: false, evented: false,
+                    opacity: highlightedPpfTier && tier.color !== highlightedPpfTier ? 0.2 : 0.9,
+                  });
+                  ;(text as unknown as Record<string, unknown>).__isDoriLabel = true;
+                  canvas.add(text); objects.push(text);
+                }
               }
             }
           }
