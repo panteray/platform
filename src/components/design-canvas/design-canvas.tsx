@@ -153,10 +153,29 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
       const mountHeight = Number(props.mount_height) || 10
       const targetDist = Number(props.target_distance) || 30
       const tiltAngle = Number(props.tilt_angle) || 15
+      // fov_angle from device library specs (69% of cameras have this)
+      const fovAngle = Number(props.fov_angle) || 0
+      // Parse resolution string ("5MP" → 2592, "4MP" → 2560, "1080p" → 1920) as fallback
+      const resolutionStr = String(props.resolution || '')
+      const parsedResW = resW || (() => {
+        const mpMatch = resolutionStr.match(/(\d+)\s*MP/i)
+        if (mpMatch) {
+          const mp = parseInt(mpMatch[1])
+          // Standard 16:9 width from megapixels
+          const MEGAPIXEL_TO_WIDTH: Record<number, number> = { 2: 1920, 3: 2048, 4: 2560, 5: 2592, 6: 3072, 8: 3840, 12: 4000 }
+          return MEGAPIXEL_TO_WIDTH[mp] || Math.round(Math.sqrt(mp * 1000000 * 16 / 9))
+        }
+        if (/1080/i.test(resolutionStr)) return 1920
+        if (/4K|2160/i.test(resolutionStr)) return 3840
+        if (/720/i.test(resolutionStr)) return 1280
+        return 0
+      })()
 
-      if (!focalLength || !sensorW || !resW) {
+      if (!focalLength || !sensorW || !parsedResW) {
+        // No lens params — use fov_angle from library if available, else fallback 90°
+        const hFov = fovAngle > 0 ? fovAngle : 90
         map.set(d.id, {
-          hFov: 90, rotation: d.rotation || 0,
+          hFov, rotation: d.rotation || 0,
           tiers: [
             { distanceFt: targetDist, color: C.green, opacity: 0.12 },
             { distanceFt: targetDist * 0.6, color: C.yellow, opacity: 0.15 },
@@ -168,7 +187,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
       }
 
       try {
-        const input = { resolutionW: resW, resolutionH: resH || resW * 0.5625, sensorW, sensorH: sensorH || sensorW * 0.5625, focalLength, mountHeight, targetDistance: targetDist, tiltAngle }
+        const input = { resolutionW: parsedResW, resolutionH: resH || parsedResW * 0.5625, sensorW, sensorH: sensorH || sensorW * 0.5625, focalLength, mountHeight, targetDistance: targetDist, tiltAngle }
         const result = calculateFovDori(input)
         const tiers = getFovConeTiers(input)
 
@@ -189,7 +208,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
           hFov: result.hFov,
           rotation: d.rotation || 0,
           tiers: tiers.map((t) => ({ distanceFt: t.distanceFt, color: t.color, opacity: t.opacity })),
-          resolutionW: resW,
+          resolutionW: parsedResW,
           sensorW,
           focalLength,
           sensorAngles,
