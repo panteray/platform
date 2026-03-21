@@ -707,13 +707,13 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.bg, overflow: 'hidden' }}>
       {/* ========== SINGLE CONSOLIDATED TOP BAR — 40px ========== */}
-      <div style={{
+      <div role="toolbar" aria-label="Design canvas toolbar" style={{
         display: 'flex', alignItems: 'center', height: 40, minHeight: 40,
         padding: '0 10px', gap: 6,
         background: C.bgSurface, borderBottom: `1px solid ${C.border}`, flexShrink: 0,
       }}>
         {/* LEFT: Back + Project Name */}
-        <button onClick={() => onNavigateDashboard ? onNavigateDashboard() : router.push('/org/designs')} style={{ display: 'flex', alignItems: 'center', color: C.textMuted, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+        <button onClick={() => onNavigateDashboard ? onNavigateDashboard() : router.push('/org/designs')} aria-label="Back to designs" style={{ display: 'flex', alignItems: 'center', color: C.textMuted, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
           <ArrowLeft size={14} />
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginRight: 8, minWidth: 0 }}>
@@ -1175,7 +1175,8 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                   onUpdateZone={(id, updates) => updateZone(id, updates)}
                   onDeleteZone={handleDeleteZone}
                   onCloseZone={() => setSelectedZoneId(null)}
-                  zones={zones} />
+                  zones={zones}
+                  scalePxPerFt={scalePxPerFt} />
               </div>
             )}
 

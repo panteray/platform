@@ -18,6 +18,8 @@ interface RightPanelProps {
   onDeleteZone?: (id: string) => void
   onCloseZone?: () => void
   zones?: DesignZone[]
+  /** Pixels per foot — used to convert zone px values ↔ ft for display */
+  scalePxPerFt?: number
 }
 
 /** Extract typed property from device.properties JSONB */
@@ -115,7 +117,11 @@ export function RightPanel({
   onDeleteZone,
   onCloseZone,
   zones = [],
+  scalePxPerFt = 10,
 }: RightPanelProps) {
+  // ---- Dual-track conversion: px ↔ ft ----
+  const pxToFt = useCallback((px: number) => Math.round((px / scalePxPerFt) * 10) / 10, [scalePxPerFt])
+  const ftToPx = useCallback((ft: number) => Math.round(ft * scalePxPerFt), [scalePxPerFt])
   // ---- All hooks must be called unconditionally (rules-of-hooks) ----
   const [glow, setGlow] = useState<Record<string, boolean>>({});
   const [zoneErrors, setZoneErrors] = useState<Record<string, string>>({});
@@ -126,14 +132,14 @@ export function RightPanel({
     setTimeout(() => setGlow((prev) => ({ ...prev, [field]: false })), 1600);
   }, []);
 
-  // Cascading validation
-  const validateZone = useCallback((zone: Record<string, unknown>) => {
+  // Cascading validation (operates on ft values)
+  const validateZone = useCallback((zoneFt: { x: number; y: number; width: number; height: number }) => {
     const errors: Record<string, string> = {};
-    if ((zone.x as number) < 0) errors.x = 'X must be >= 0';
-    if ((zone.y as number) < 0) errors.y = 'Y must be >= 0';
-    if ((zone.width as number) <= 10) errors.width = 'Width must be > 10';
-    if ((zone.height as number) <= 10) errors.height = 'Height must be > 10';
-    if ((zone.width as number) < (zone.height as number)) errors.width = 'Width should be >= Height';
+    if (zoneFt.x < 0) errors.x = 'X must be >= 0';
+    if (zoneFt.y < 0) errors.y = 'Y must be >= 0';
+    if (zoneFt.width <= 1) errors.width = 'Width must be > 1 ft';
+    if (zoneFt.height <= 1) errors.height = 'Height must be > 1 ft';
+    if (zoneFt.width < zoneFt.height) errors.width = 'Width should be >= Height';
     setZoneErrors(errors);
     return Object.keys(errors).length === 0;
   }, []);
@@ -171,8 +177,9 @@ export function RightPanel({
   // ---- Zone Editor (takes priority when zone selected) ----
   if (selectedZone && !device) {
     const z = selectedZone
+    const zFt = { x: pxToFt(z.x), y: pxToFt(z.y), width: pxToFt(z.width), height: pxToFt(z.height) }
     return (
-      <div style={{
+      <div role="complementary" aria-label="Zone properties" style={{
         width: 300, height: '100%', background: C.bgPanel, borderLeft: `1px solid ${C.border}`,
         display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden',
       }}>
@@ -182,7 +189,7 @@ export function RightPanel({
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <span style={{ fontSize: 10, color: z.color }}>Zone Properties</span>
-          <button onClick={() => onCloseZone?.()} style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 2 }}>
+          <button onClick={() => onCloseZone?.()} aria-label="Close zone panel" style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 2 }}>
             {ActionIcons.close}
           </button>
         </div>
@@ -193,6 +200,7 @@ export function RightPanel({
             <input
               defaultValue={z.name}
               key={z.id + '-zname'}
+              aria-label="Zone name"
               onBlur={(e) => {
                 if (e.target.value !== z.name) {
                   onUpdateZone?.(z.id, { name: e.target.value });
@@ -214,6 +222,10 @@ export function RightPanel({
                 <div
                   key={c}
                   onClick={() => onUpdateZone?.(z.id, { color: c })}
+                  role="button"
+                  aria-label={`Set zone color ${c}`}
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onUpdateZone?.(z.id, { color: c }) }}
                   style={{
                     width: 18, height: 18, borderRadius: 4, background: c, cursor: 'pointer',
                     border: z.color === c ? '2px solid white' : '2px solid transparent',
@@ -224,18 +236,19 @@ export function RightPanel({
             </div>
           </div>
 
-          {/* Position & Size */}
-          <Section title="Position & Size" defaultOpen={true}>
+          {/* Position & Size (ft) */}
+          <Section title="Position & Size (ft)" defaultOpen={true}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               <div>
-                <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>X</div>
-                <input type="number" defaultValue={z.x} key={z.id + '-zx'}
+                <label style={{ fontSize: 9, color: C.textDim, marginBottom: 2, display: 'block' }}>X (ft)</label>
+                <input type="number" step="0.1" defaultValue={zFt.x} key={z.id + '-zx'}
+                  aria-label="Zone X position in feet"
                   onBlur={(e) => {
-                    const v = parseInt(e.target.value);
-                    if (!isNaN(v) && v !== z.x) {
-                      onUpdateZone?.(z.id, { x: v });
+                    const vFt = parseFloat(e.target.value);
+                    if (!isNaN(vFt) && vFt !== zFt.x) {
+                      onUpdateZone?.(z.id, { x: ftToPx(vFt) });
                       triggerGlow('x');
-                      validateZone({ ...z, x: v });
+                      validateZone({ ...zFt, x: vFt });
                     }
                   }}
                   style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['x'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
@@ -244,14 +257,15 @@ export function RightPanel({
                 
               </div>
               <div>
-                <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Y</div>
-                <input type="number" defaultValue={z.y} key={z.id + '-zy'}
+                <label style={{ fontSize: 9, color: C.textDim, marginBottom: 2, display: 'block' }}>Y (ft)</label>
+                <input type="number" step="0.1" defaultValue={zFt.y} key={z.id + '-zy'}
+                  aria-label="Zone Y position in feet"
                   onBlur={(e) => {
-                    const v = parseInt(e.target.value);
-                    if (!isNaN(v) && v !== z.y) {
-                      onUpdateZone?.(z.id, { y: v });
+                    const vFt = parseFloat(e.target.value);
+                    if (!isNaN(vFt) && vFt !== zFt.y) {
+                      onUpdateZone?.(z.id, { y: ftToPx(vFt) });
                       triggerGlow('y');
-                      validateZone({ ...z, y: v });
+                      validateZone({ ...zFt, y: vFt });
                     }
                   }}
                   style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['y'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
@@ -260,14 +274,15 @@ export function RightPanel({
                 
               </div>
               <div>
-                <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Width</div>
-                <input type="number" defaultValue={z.width} key={z.id + '-zw'}
+                <label style={{ fontSize: 9, color: C.textDim, marginBottom: 2, display: 'block' }}>Width (ft)</label>
+                <input type="number" step="0.1" defaultValue={zFt.width} key={z.id + '-zw'}
+                  aria-label="Zone width in feet"
                   onBlur={(e) => {
-                    const v = parseInt(e.target.value);
-                    if (!isNaN(v) && v > 0 && v !== z.width) {
-                      onUpdateZone?.(z.id, { width: v });
+                    const vFt = parseFloat(e.target.value);
+                    if (!isNaN(vFt) && vFt > 0 && vFt !== zFt.width) {
+                      onUpdateZone?.(z.id, { width: ftToPx(vFt) });
                       triggerGlow('width');
-                      validateZone({ ...z, width: v });
+                      validateZone({ ...zFt, width: vFt });
                     }
                   }}
                   style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['width'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
@@ -276,14 +291,15 @@ export function RightPanel({
                 
               </div>
               <div>
-                <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Height</div>
-                <input type="number" defaultValue={z.height} key={z.id + '-zh'}
+                <label style={{ fontSize: 9, color: C.textDim, marginBottom: 2, display: 'block' }}>Height (ft)</label>
+                <input type="number" step="0.1" defaultValue={zFt.height} key={z.id + '-zh'}
+                  aria-label="Zone height in feet"
                   onBlur={(e) => {
-                    const v = parseInt(e.target.value);
-                    if (!isNaN(v) && v > 0 && v !== z.height) {
-                      onUpdateZone?.(z.id, { height: v });
+                    const vFt = parseFloat(e.target.value);
+                    if (!isNaN(vFt) && vFt > 0 && vFt !== zFt.height) {
+                      onUpdateZone?.(z.id, { height: ftToPx(vFt) });
                       triggerGlow('height');
-                      validateZone({ ...z, height: v });
+                      validateZone({ ...zFt, height: vFt });
                     }
                   }}
                   style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['height'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
@@ -298,6 +314,7 @@ export function RightPanel({
         {/* Actions footer */}
         <div style={{ padding: '8px 12px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 8 }}>
           <button onClick={() => onDeleteZone?.(z.id)}
+            aria-label="Delete zone"
             style={{
               flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
               padding: '6px 0', fontSize: 11, fontWeight: 500, fontFamily: 'inherit',
@@ -333,7 +350,7 @@ export function RightPanel({
   const ppfColor = ppf >= 76 ? C.green : ppf >= 38 ? C.yellow : ppf > 0 ? C.red : C.textDim
 
   return (
-    <div style={{
+    <div role="complementary" aria-label="Device properties" style={{
       width: 300, height: '100%', background: C.bgPanel, borderLeft: `1px solid ${C.border}`,
       display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden',
     }}>
@@ -343,7 +360,7 @@ export function RightPanel({
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <span style={{ fontSize: 10, color: C.accent }}>Properties</span>
-        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 2 }}>
+        <button onClick={onClose} aria-label="Close properties panel" style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 2 }}>
           {ActionIcons.close}
         </button>
       </div>

@@ -11,6 +11,9 @@ interface IconSidebarProps {
 export function IconSidebar({ activeIcon, onIconChange }: IconSidebarProps) {
   return (
     <div
+      role="toolbar"
+      aria-label="Design tools"
+      aria-orientation="vertical"
       style={{
         width: 52,
         background: C.bgPanel,
@@ -28,6 +31,8 @@ export function IconSidebar({ activeIcon, onIconChange }: IconSidebarProps) {
           key={tab.id}
           onClick={() => onIconChange(tab.id)}
           title={tab.label}
+          aria-label={tab.label}
+          aria-pressed={activeIcon === tab.id}
           style={{
             width: 40,
             height: 40,
@@ -42,7 +47,10 @@ export function IconSidebar({ activeIcon, onIconChange }: IconSidebarProps) {
             borderRadius: 8,
             cursor: 'pointer',
             transition: 'all 0.15s',
+            outline: 'none',
           }}
+          onFocus={(e) => { e.currentTarget.style.boxShadow = '0 0 0 2px #3B82F6' }}
+          onBlur={(e) => { e.currentTarget.style.boxShadow = 'none' }}
           onMouseEnter={(e) => {
             if (activeIcon !== tab.id) {
               e.currentTarget.style.background = C.bgHover
