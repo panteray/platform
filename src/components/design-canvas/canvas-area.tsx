@@ -1531,7 +1531,7 @@ export function CanvasArea({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floorPlan, fabricReady, onFloorPlanError, designId, floorPlanOpacity])
 
-  // Satellite tile fetch — generates data URL for HTML <img> render (bypasses Fabric entirely)
+  // Satellite tile fetch — generates blob URL for rendering (bypasses Fabric entirely)
   useEffect(() => {
     if (satelliteConfig?.lat == null || satelliteConfig?.lng == null) { setSatelliteDataUrl(null); return }
 
@@ -1556,6 +1556,7 @@ export function CanvasArea({
     }
 
     let cancelled = false
+    let blobUrl: string | null = null
     async function loadSatelliteGrid() {
       try {
         const tilePromises = offsets.map(async (off) => {
@@ -1596,9 +1597,11 @@ export function CanvasArea({
         if (cancelled) return
         if (loadedCount === 0) { toast.error('Satellite images failed to decode'); return }
 
-        // Store as JPEG data URL (smaller than PNG for photo content)
-        const dataUrl = offscreen.toDataURL('image/jpeg', 0.85)
-        if (!cancelled) setSatelliteDataUrl(dataUrl)
+        // Convert to blob → blob URL (NOT data URL — data URL was 34MB and killed the browser)
+        const compositeBlob = await new Promise<Blob | null>((resolve) => offscreen.toBlob(resolve, 'image/jpeg', 0.85))
+        if (!compositeBlob || cancelled) return
+        blobUrl = URL.createObjectURL(compositeBlob)
+        setSatelliteDataUrl(blobUrl)
       } catch (err) {
         console.error('Satellite load failed:', err)
         if (!cancelled) toast.error('Satellite load failed')
@@ -1606,7 +1609,10 @@ export function CanvasArea({
     }
 
     void loadSatelliteGrid()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      if (blobUrl) URL.revokeObjectURL(blobUrl)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [satelliteConfig?.lat, satelliteConfig?.lng, satelliteConfig?.zoom])
 
@@ -1616,14 +1622,15 @@ export function CanvasArea({
     if (!fabricRef.current || !fabricReady) return
     const hasSat = !!satelliteDataUrl
     
-    // 1. Fabric's internal background (drawn on the 2D context before objects)
+    // Fabric's internal background (drawn on the 2D context before objects)
     fabricRef.current.backgroundColor = hasSat ? 'transparent' : C.bg
     
-    // 2. Force ALL Fabric DOM elements transparent via direct DOM manipulation
-    // Fabric v6 wraps our canvas in a div.canvas-container containing lower + upper canvases
+    // Force ALL Fabric DOM elements transparent + z-index above satellite div
     const wrapper = canvasRef.current?.parentElement
     if (wrapper) {
       wrapper.style.background = 'transparent'
+      wrapper.style.position = 'relative'
+      wrapper.style.zIndex = '1'
       wrapper.querySelectorAll('canvas').forEach((c) => {
         (c as HTMLElement).style.background = 'transparent'
       })
@@ -1763,13 +1770,16 @@ export function CanvasArea({
       }}
       aria-label="Design canvas area"
       role="region"
-      style={{
-        flex: 1, position: 'relative', overflow: 'hidden',
-        background: satelliteDataUrl
-          ? `linear-gradient(rgba(0,0,0,${1 - (satelliteConfig?.opacity ?? 0.6)}), rgba(0,0,0,${1 - (satelliteConfig?.opacity ?? 0.6)})), url(${satelliteDataUrl}) center/contain no-repeat #000`
-          : C.bg,
-      }}
+      style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}
     >
+      {/* Satellite backdrop — always in DOM to avoid React/Fabric DOM conflicts */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: satelliteDataUrl ? `url(${satelliteDataUrl})` : 'none',
+        backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+        opacity: satelliteDataUrl ? (satelliteConfig?.opacity ?? 0.6) : 0,
+        pointerEvents: 'none', zIndex: 0,
+      }} />
       <canvas
         ref={canvasRef}
         tabIndex={0}
