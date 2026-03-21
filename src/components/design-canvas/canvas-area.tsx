@@ -1611,10 +1611,25 @@ export function CanvasArea({
   }, [satelliteConfig?.lat, satelliteConfig?.lng, satelliteConfig?.zoom])
 
   // Toggle Fabric canvas background: transparent when satellite present, dark when not
+  // Must force transparency on ALL Fabric-created DOM elements (wrapper div, lower canvas, upper canvas)
   useEffect(() => {
     if (!fabricRef.current || !fabricReady) return
-    fabricRef.current.backgroundColor = satelliteDataUrl ? 'transparent' : C.bg
-    fabricRef.current.requestRenderAll()
+    const hasSat = !!satelliteDataUrl
+    
+    // 1. Fabric's internal background (drawn on the 2D context before objects)
+    fabricRef.current.backgroundColor = hasSat ? 'transparent' : C.bg
+    
+    // 2. Force ALL Fabric DOM elements transparent via direct DOM manipulation
+    // Fabric v6 wraps our canvas in a div.canvas-container containing lower + upper canvases
+    const wrapper = canvasRef.current?.parentElement
+    if (wrapper) {
+      wrapper.style.background = 'transparent'
+      wrapper.querySelectorAll('canvas').forEach((c) => {
+        (c as HTMLElement).style.background = 'transparent'
+      })
+    }
+    
+    fabricRef.current.renderAll()
   }, [satelliteDataUrl, fabricReady])
 
   // Grid (single pattern rect — replaces per-dot rendering for performance)
@@ -1751,9 +1766,8 @@ export function CanvasArea({
       style={{
         flex: 1, position: 'relative', overflow: 'hidden',
         background: satelliteDataUrl
-          ? `url(${satelliteDataUrl}) center/contain no-repeat #000`
+          ? `linear-gradient(rgba(0,0,0,${1 - (satelliteConfig?.opacity ?? 0.6)}), rgba(0,0,0,${1 - (satelliteConfig?.opacity ?? 0.6)})), url(${satelliteDataUrl}) center/contain no-repeat #000`
           : C.bg,
-        opacity: satelliteDataUrl ? (satelliteConfig?.opacity ?? 0.6) : undefined,
       }}
     >
       <canvas
