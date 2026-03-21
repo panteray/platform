@@ -813,13 +813,6 @@ export function CanvasArea({
     // Drag suppression: hide FOV cones if dragging device
     if (!showFovCones || isDraggingDevice) { canvas.renderAll(); return }
 
-    let animationFrame: number | undefined;
-    let prevParams: {
-      [deviceId: string]: {
-        [tierColor: string]: { r: number }
-      }
-    } = {};
-
     function getRayIntersection(o: {x:number,y:number}, d: {x:number,y:number}, a: {x:number,y:number}, b: {x:number,y:number}) {
       const v1 = { x: o.x - a.x, y: o.y - a.y };
       const v2 = { x: b.x - a.x, y: b.y - a.y };
@@ -832,11 +825,9 @@ export function CanvasArea({
       return null;
     }
 
-    async function animateFovCones() {
+    // Single render pass — no rAF loop. Renders once when deps change.
+    async function renderFovCones() {
       const fabric = await import('fabric');
-      // Bug 1 fix: clean previous frame CONE objects before creating new ones
-      // Do NOT clear handles here — they need to persist for user interaction
-      fovObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); fovObjectMap.current.clear()
       const wallSegments: Array<{ p1: {x:number,y:number}, p2: {x:number,y:number} }> = [];
       for (const w of walls || []) {
         if (w.points && w.points.length >= 2) {
@@ -848,7 +839,7 @@ export function CanvasArea({
       for (const [deviceId, data] of fovData.entries()) {
         const device = devices.find((d) => d.id === deviceId);
         if (!device) continue;
-        const objects = [];
+        const objects: FabricObject[] = [];
         const halfAngle = (data.hFov / 2) * (Math.PI / 180);
         const baseRotDeg = data.rotation || 0;
         const imagerAngles = data.sensorAngles && data.sensorAngles.length > 0
@@ -880,45 +871,32 @@ export function CanvasArea({
           }
 
           if (fovDisplayMode === 'simple') {
-            // ---- IPVM-style: single-color cone with gradient effect ----
             const coneColor = data.colorHex || '#29b6f6';
             const maxTier = data.tiers.reduce((a, b) => b.distanceFt > a.distanceFt ? b : a, data.tiers[0]);
-            const targetR = maxTier.distanceFt * (scalePxPerFt || 10);
-            const prevR = prevParams[deviceId]?.['simple']?.r || targetR;
-            const r = prevR + (targetR - prevR) * 0.2;
-            if (!prevParams[deviceId]) prevParams[deviceId] = {};
-            prevParams[deviceId]['simple'] = { r };
+            const r = maxTier.distanceFt * (scalePxPerFt || 10);
             if (r > outerR) outerR = r;
             const cx = device.position_x;
             const cy = device.position_y;
 
-            // Outer cone — full radius, lighter
             const outerPath = new fabric.Path(buildConePath(cx, cy, r), {
               fill: coneColor, opacity: 0.15, selectable: false, evented: false,
             });
             canvas.add(outerPath); canvas.sendObjectToBack(outerPath); objects.push(outerPath);
 
-            // Inner cone — 35% radius, adds opacity for graduated "darker near camera" effect
             const innerR = r * 0.35;
             const innerPath = new fabric.Path(buildConePath(cx, cy, innerR), {
               fill: coneColor, opacity: 0.10, selectable: false, evented: false,
             });
             canvas.add(innerPath); canvas.sendObjectToBack(innerPath); objects.push(innerPath);
 
-            // Cone outline stroke — subtle edge definition
             const strokePath = new fabric.Path(buildConePath(cx, cy, r), {
               fill: 'transparent', stroke: coneColor, strokeWidth: 1, opacity: 0.35,
               selectable: false, evented: false,
             });
             canvas.add(strokePath); canvas.sendObjectToBack(strokePath); objects.push(strokePath);
           } else {
-            // ---- PPF / DORI tier mode (existing behavior) ----
             for (const tier of data.tiers) {
-              const targetR = tier.distanceFt * (scalePxPerFt || 10);
-              const prevR = prevParams[deviceId]?.[tier.color]?.r || targetR;
-              const r = prevR + (targetR - prevR) * 0.2;
-              if (!prevParams[deviceId]) prevParams[deviceId] = {};
-              prevParams[deviceId][tier.color] = { r: r };
+              const r = tier.distanceFt * (scalePxPerFt || 10);
               if (r > outerR) outerR = r;
               const cx = device.position_x;
               const cy = device.position_y;
@@ -958,31 +936,21 @@ export function CanvasArea({
           if (blindR > 3) {
             const cx = device.position_x;
             const cy = device.position_y;
-            // Hatched semi-circle showing dead zone below camera
             const blindCircle = new fabric.Circle({
               left: cx, top: cy, radius: blindR,
-              fill: 'transparent',
-              stroke: 'rgba(120,113,108,0.5)',
-              strokeWidth: 1,
+              fill: 'transparent', stroke: 'rgba(120,113,108,0.5)', strokeWidth: 1,
               strokeDashArray: [3, 3],
-              originX: 'center', originY: 'center',
-              selectable: false, evented: false,
+              originX: 'center', originY: 'center', selectable: false, evented: false,
             });
             (blindCircle as unknown as Record<string, unknown>).__isBlindSpot = true;
-            canvas.add(blindCircle); canvas.sendObjectToBack(blindCircle);
-            objects.push(blindCircle);
-            // Fill with low-opacity hatched pattern
+            canvas.add(blindCircle); canvas.sendObjectToBack(blindCircle); objects.push(blindCircle);
             const blindFill = new fabric.Circle({
               left: cx, top: cy, radius: blindR,
-              fill: 'rgba(120,113,108,0.06)',
-              stroke: 'none', strokeWidth: 0,
-              originX: 'center', originY: 'center',
-              selectable: false, evented: false,
+              fill: 'rgba(120,113,108,0.06)', stroke: 'none', strokeWidth: 0,
+              originX: 'center', originY: 'center', selectable: false, evented: false,
             });
             (blindFill as unknown as Record<string, unknown>).__isBlindSpot = true;
-            canvas.add(blindFill); canvas.sendObjectToBack(blindFill);
-            objects.push(blindFill);
-            // Label
+            canvas.add(blindFill); canvas.sendObjectToBack(blindFill); objects.push(blindFill);
             if (blindR > 15) {
               const bsLabel = new fabric.FabricText(`${data.blindSpotFt.toFixed(1)}ft blind`, {
                 left: cx, top: cy + blindR + 6, fontSize: 8, fontWeight: '600',
@@ -994,7 +962,7 @@ export function CanvasArea({
           }
         }
 
-        // ---- PPF Boundary Labels on Tier Edges (PPF mode) ----
+        // ---- PPF Boundary Labels (PPF mode) ----
         if (fovDisplayMode === 'ppf' && data.resolutionW && data.sensorW && data.focalLength) {
           const cx = device.position_x;
           const cy = device.position_y;
@@ -1004,7 +972,6 @@ export function CanvasArea({
             if (tierR < 20) continue;
             const ppfVal = calculatePpfAtDistance(data.resolutionW, data.sensorW, data.focalLength, tier.distanceFt);
             if (ppfVal <= 0) continue;
-            // Position label at tier boundary along the camera direction
             const lx = cx + Math.cos(baseRot) * tierR;
             const ly = cy + Math.sin(baseRot) * tierR;
             let opacity = 0.85;
@@ -1012,60 +979,39 @@ export function CanvasArea({
             const ppfLabel = new fabric.FabricText(`${Math.round(ppfVal)}`, {
               left: lx, top: ly - 6, fontSize: 8, fontWeight: '700',
               fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
-              originX: 'center', originY: 'bottom', selectable: false, evented: false,
-              opacity,
+              originX: 'center', originY: 'bottom', selectable: false, evented: false, opacity,
             });
             canvas.add(ppfLabel); objects.push(ppfLabel);
           }
         }
         
-        // Multi-handle: One handle per sensor/imager — reuse existing, update position
-        const activeHandleKeys = new Set<string>();
+        // FOV rotation handle — one per sensor/imager
         if (outerR > 0 && onFovHandleDragged) {
           imagerAngles.forEach((imagerDeg, idx) => {
             const rotRad = imagerDeg * (Math.PI / 180);
             const hx = device.position_x + Math.cos(rotRad) * outerR;
             const hy = device.position_y + Math.sin(rotRad) * outerR;
             const key = `${deviceId}_${idx}`;
-            activeHandleKeys.add(key);
-            
-            const existing = fovHandleMap.current.get(key);
-            if (existing) {
-              // Update position + device center (device may have moved)
-              existing.set({ left: hx, top: hy });
-              const rec = existing as unknown as Record<string, unknown>;
-              rec.__fovDeviceCx = device.position_x;
-              rec.__fovDeviceCy = device.position_y;
-            } else {
-              const handle = new fabric.Circle({
-                left: hx, top: hy, radius: 5, 
-                fill: idx === 0 ? 'rgba(59,130,246,0.9)' : 'rgba(139,92,246,0.9)',
-                stroke: '#fff', strokeWidth: 1.5,
-                originX: 'center', originY: 'center', selectable: true, evented: true,
-                hasControls: false, hasBorders: false, hoverCursor: 'grab', moveCursor: 'grabbing',
-              });
-              ;(handle as unknown as Record<string, unknown>).__fovHandle = true;
-              ;(handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
-              ;(handle as unknown as Record<string, unknown>).__fovSensorIndex = idx;
-              ;(handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
-              ;(handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
-              canvas.add(handle);
-              fovHandleMap.current.set(key, handle);
-            }
+            const handle = new fabric.Circle({
+              left: hx, top: hy, radius: 6,
+              fill: idx === 0 ? 'rgba(59,130,246,0.9)' : 'rgba(139,92,246,0.9)',
+              stroke: '#fff', strokeWidth: 1.5,
+              originX: 'center', originY: 'center', selectable: true, evented: true,
+              hasControls: false, hasBorders: false, hoverCursor: 'grab', moveCursor: 'grabbing',
+            });
+            ;(handle as unknown as Record<string, unknown>).__fovHandle = true;
+            ;(handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
+            ;(handle as unknown as Record<string, unknown>).__fovSensorIndex = idx;
+            ;(handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
+            ;(handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
+            canvas.add(handle);
+            fovHandleMap.current.set(key, handle);
           });
         }
-        // Remove stale handles for this device (e.g. sensor count changed)
-        for (const [key, obj] of fovHandleMap.current) {
-          if (key.startsWith(`${deviceId}_`) && !activeHandleKeys.has(key)) {
-            canvas.remove(obj); fovHandleMap.current.delete(key);
-          }
-        }
       }
-      canvas.renderAll();
-      animationFrame = requestAnimationFrame(animateFovCones);
+      canvas.requestRenderAll();
     }
-    void animateFovCones();
-    return () => { if (animationFrame) cancelAnimationFrame(animationFrame); };
+    void renderFovCones();
   }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, isDraggingDevice, walls])
 
   // ---- FOV Handle Drag → update distance & rotation ----
