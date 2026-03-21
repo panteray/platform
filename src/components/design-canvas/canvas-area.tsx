@@ -7,6 +7,7 @@ import { Minimap, type MinimapDevice, type MinimapZone, type MinimapInfra, type 
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON, ToolbarIcons } from './icons'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { PersonPreview } from './person-preview'
+import { SatelliteMap } from './satellite-map'
 import type { DoriClassification } from '@/lib/calculators'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignZone, DesignMdfIdf } from '@/types/database'
 
@@ -178,7 +179,6 @@ export function CanvasArea({
   const [pinnedPreview, setPinnedPreview] = useState<{ ppf: number; distFt: number; cameraLabel: string } | null>(null)
   const fovHandleMap = useRef(new Map<string, FabricObject>())
   const mdfIdfObjectMap = useRef(new Map<string, FabricObject[]>())
-  const [satelliteDataUrl, setSatelliteDataUrl] = useState<string | null>(null)
 
   // Sync viewport state for minimap
   const syncViewport = useCallback(() => {
@@ -1531,99 +1531,14 @@ export function CanvasArea({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floorPlan, fabricReady, onFloorPlanError, designId, floorPlanOpacity])
 
-  // Satellite tile fetch — generates blob URL for rendering (bypasses Fabric entirely)
-  useEffect(() => {
-    if (satelliteConfig?.lat == null || satelliteConfig?.lng == null) { setSatelliteDataUrl(null); return }
-
-    const { lat, lng, zoom } = satelliteConfig
-    const tileW = 640
-    const tileH = 640
-    const actualTilePx = tileW * 2
-
-    const metersPerPx = (156543.03392 * Math.cos(lat * Math.PI / 180)) / Math.pow(2, zoom)
-    const tileCoverageM = metersPerPx * actualTilePx
-    const latDelta = tileCoverageM / 111320
-    const lngDelta = tileCoverageM / (111320 * Math.cos(lat * Math.PI / 180))
-
-    const GRID = 3
-    const offsets: Array<{ row: number; col: number; tileLat: number; tileLng: number }> = []
-    for (let row = 0; row < GRID; row++) {
-      for (let col = 0; col < GRID; col++) {
-        const dr = row - Math.floor(GRID / 2)
-        const dc = col - Math.floor(GRID / 2)
-        offsets.push({ row, col, tileLat: lat - dr * latDelta, tileLng: lng + dc * lngDelta })
-      }
-    }
-
-    let cancelled = false
-    let blobUrl: string | null = null
-    async function loadSatelliteGrid() {
-      try {
-        const tilePromises = offsets.map(async (off) => {
-          const params = new URLSearchParams({
-            lat: String(off.tileLat), lng: String(off.tileLng),
-            zoom: String(zoom), width: String(tileW), height: String(tileH),
-          })
-          const res = await fetch(`/api/org/satellite-tile?${params.toString()}`)
-          if (!res.ok) return null
-          const blob = await res.blob()
-          return { ...off, blob }
-        })
-        const tiles = (await Promise.all(tilePromises)).filter(Boolean) as Array<{ row: number; col: number; blob: Blob }>
-        if (cancelled) return
-
-        if (tiles.length === 0) { toast.error('Satellite tiles failed — check API key'); return }
-
-        const offscreen = document.createElement('canvas')
-        offscreen.width = GRID * actualTilePx
-        offscreen.height = GRID * actualTilePx
-        const ctx = offscreen.getContext('2d')
-        if (!ctx) return
-
-        let loadedCount = 0
-        await Promise.all(tiles.map((tile) => new Promise<void>((resolve) => {
-          const url = URL.createObjectURL(tile.blob)
-          const image = new Image()
-          image.onload = () => {
-            ctx.drawImage(image, tile.col * actualTilePx, tile.row * actualTilePx, actualTilePx, actualTilePx)
-            URL.revokeObjectURL(url)
-            loadedCount++
-            resolve()
-          }
-          image.onerror = () => { URL.revokeObjectURL(url); resolve() }
-          image.src = url
-        })))
-
-        if (cancelled) return
-        if (loadedCount === 0) { toast.error('Satellite images failed to decode'); return }
-
-        // Convert to blob → blob URL (NOT data URL — data URL was 34MB and killed the browser)
-        const compositeBlob = await new Promise<Blob | null>((resolve) => offscreen.toBlob(resolve, 'image/jpeg', 0.85))
-        if (!compositeBlob || cancelled) return
-        blobUrl = URL.createObjectURL(compositeBlob)
-        setSatelliteDataUrl(blobUrl)
-      } catch (err) {
-        console.error('Satellite load failed:', err)
-        if (!cancelled) toast.error('Satellite load failed')
-      }
-    }
-
-    void loadSatelliteGrid()
-    return () => {
-      cancelled = true
-      if (blobUrl) URL.revokeObjectURL(blobUrl)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [satelliteConfig?.lat, satelliteConfig?.lng, satelliteConfig?.zoom])
-
   // Toggle Fabric canvas background: transparent when satellite present, dark when not
   // Must force transparency on ALL Fabric-created DOM elements (wrapper div, lower canvas, upper canvas)
+  const hasSatellite = satelliteConfig?.lat != null && satelliteConfig?.lng != null
   useEffect(() => {
     if (!fabricRef.current || !fabricReady) return
-    const hasSat = !!satelliteDataUrl
     
     // Fabric's internal background (drawn on the 2D context before objects)
-    fabricRef.current.backgroundColor = hasSat ? 'transparent' : C.bg
+    fabricRef.current.backgroundColor = hasSatellite ? 'transparent' : C.bg
     
     // Force ALL Fabric DOM elements transparent + z-index above satellite div
     const wrapper = canvasRef.current?.parentElement
@@ -1637,7 +1552,7 @@ export function CanvasArea({
     }
     
     fabricRef.current.renderAll()
-  }, [satelliteDataUrl, fabricReady])
+  }, [hasSatellite, fabricReady])
 
   // Grid (single pattern rect — replaces per-dot rendering for performance)
   const drawGrid = useCallback(() => {
@@ -1772,14 +1687,14 @@ export function CanvasArea({
       role="region"
       style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}
     >
-      {/* Satellite backdrop — always in DOM to avoid React/Fabric DOM conflicts */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        backgroundImage: satelliteDataUrl ? `url(${satelliteDataUrl})` : 'none',
-        backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
-        opacity: satelliteDataUrl ? (satelliteConfig?.opacity ?? 0.6) : 0,
-        pointerEvents: 'none', zIndex: 0,
-      }} />
+      {/* Satellite map — Google Maps JS API, always in DOM (conditional render breaks React/Fabric DOM) */}
+      <SatelliteMap
+        lat={satelliteConfig?.lat ?? 0}
+        lng={satelliteConfig?.lng ?? 0}
+        zoom={satelliteConfig?.zoom ?? 19}
+        opacity={hasSatellite ? (satelliteConfig?.opacity ?? 0.6) : 0}
+        hidden={!hasSatellite}
+      />
       <canvas
         ref={canvasRef}
         tabIndex={0}
