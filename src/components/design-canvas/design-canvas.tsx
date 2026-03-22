@@ -255,14 +255,10 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const requirements: RequirementItem[] = useMemo(() => {
     const areaDevices = devices.filter((d: DesignDevice) => d.area_id === activeAreaId)
     const cameraCount = areaDevices.filter((d: DesignDevice) => d.category === 'cctv').length
-    const storageData = calculateSystemStorage({
-      cameras: canvasDevicesToCameraSpecs(areaDevices),
-      retentionDays: 30, // Default
-      raidLevel: 5,      // Default
-      driveSizeTB: 10,   // Default
-    })
-    const totalStorageGb = storageData.totalStorageTB * 1024 // Convert to GB for the bar if needed, or just use TB
-    const totalBandwidthMbps = storageData.totalBandwidthMbps
+    // Reuse existing storageOutput instead of recalculating with different RAID level
+    const bwVal = storageOutput ? parseFloat(storageOutput.totalBandwidthMbps.toFixed(1)) : 0
+    const storVal = storageOutput ? parseFloat(storageOutput.totalStorageTB.toFixed(1)) : 0
+    const poeData = storageOutput?.poeBudget
     const totalCost = areaDevices.reduce((sum: number, d: DesignDevice) => sum + (Number(d.properties?.cost) || 0), 0)
     const camCount = areaDevices.filter((d: DesignDevice) => cameraTypes.includes(d.category)).length
     const doorCount = areaDevices.filter((d: DesignDevice) => d.category === 'access_control' || d.category === 'door').length
@@ -279,10 +275,8 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
 
     // Engineering metrics — live from calculator engine (gauge bars with required vs in-project)
     if (storageOutput) {
-      const bwVal = parseFloat(storageOutput.totalBandwidthMbps.toFixed(1))
-      const storVal = parseFloat(storageOutput.totalStorageTB.toFixed(1))
-      const poeVal = storageOutput.poeBudget.totalWatts
-      const switchVal = storageOutput.poeBudget.recommendedSwitchWatts
+      const poeVal = poeData!.totalWatts
+      const switchVal = poeData!.recommendedSwitchWatts
       // Baseline requirements: switch capacity is the ceiling for PoE
       items.push(
         { label: 'Bandwidth', value: bwVal, unit: 'Mbps', status: 'normal' as any, separator: true, inProject: bwVal, required: bwVal },
@@ -468,15 +462,11 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     })
   }, [devices, updateDevice, pushUndo, markSaving])
   const handleDeviceRotated = useCallback(async (id: string, angle: number) => {
-    const device = devices.find((d: DesignDevice) => d.id === id)
-    const prevAngle = device?.rotation ?? 0
+    // During FOV handle drag this fires ~60fps — just update device, NO undo push.
+    // Undo is batched via handleDragCommit (called once on drag-end).
     markSaving()
     await updateDevice(id, { rotation: angle })
-    pushUndo({
-      undo: async () => { await updateDevice(id, { rotation: prevAngle }) },
-      redo: async () => { await updateDevice(id, { rotation: angle }) },
-    })
-  }, [devices, updateDevice, pushUndo, markSaving])
+  }, [updateDevice, markSaving])
   const handleSensorRotated = useCallback(async (id: string, index: number, angle: number) => {
     const device = devices.find((d: DesignDevice) => d.id === id)
     if (!device) return
@@ -510,9 +500,30 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     })
   }, [devices, updateDevice, pushUndo, markSaving])
   const handleFovDragged = useCallback(async (deviceId: string, targetDistanceFt: number) => {
+    // During drag this fires ~60fps — just update, NO undo push. Batched via handleDragCommit.
     markSaving()
     await updateDevice(deviceId, { properties: { ...((devices.find((d: DesignDevice) => d.id === deviceId)?.properties ?? {}) as Record<string, unknown>), target_distance: targetDistanceFt } })
   }, [devices, updateDevice, markSaving])
+
+  // Batched undo: called once on drag-end with the original state before drag started
+  const handleDragCommit = useCallback((dragState: { deviceId: string; prevAngle: number; prevDist: number; sensorIdx: number } | null) => {
+    if (!dragState) return
+    const { deviceId, prevAngle, prevDist } = dragState
+    const device = devices.find((d: DesignDevice) => d.id === deviceId)
+    if (!device) return
+    const currentAngle = device.rotation ?? 0
+    const currentDist = Number((device.properties as Record<string, unknown>)?.target_distance) || 30
+    pushUndo({
+      undo: async () => {
+        await updateDevice(deviceId, { rotation: prevAngle })
+        await updateDevice(deviceId, { properties: { ...((devices.find(d => d.id === deviceId)?.properties ?? {}) as Record<string, unknown>), target_distance: prevDist } })
+      },
+      redo: async () => {
+        await updateDevice(deviceId, { rotation: currentAngle })
+        await updateDevice(deviceId, { properties: { ...((devices.find(d => d.id === deviceId)?.properties ?? {}) as Record<string, unknown>), target_distance: currentDist } })
+      },
+    })
+  }, [devices, updateDevice, pushUndo])
   const handleDeviceCopy = useCallback(async (id: string) => {
     const src = devices.find((d: DesignDevice) => d.id === id); if (!src) return
     const srcProps = (src.properties ?? {}) as Record<string, unknown>
@@ -1167,6 +1178,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                 setSelectedDeviceId(device.id)
                 setShow3dPreview(true)
               }}
+              onDragCommit={handleDragCommit}
               satelliteConfig={activeArea?.satellite_lat != null && activeArea?.satellite_lng != null ? {
                 lat: activeArea.satellite_lat,
                 lng: activeArea.satellite_lng,
