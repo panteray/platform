@@ -3,7 +3,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
-
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON, ToolbarIcons } from './icons'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { PersonPreview } from './person-preview'
@@ -15,102 +14,45 @@ type FabricCanvas = import('fabric').Canvas
 type FabricObject = import('fabric').FabricObject
 
 // ---- FOV Tier Data ----
-interface FovTier {
-  distanceFt: number
-  color: string
-  opacity: number
-}
+interface FovTier { distanceFt: number; color: string; opacity: number }
 
 export interface DeviceFovData {
-  hFov: number
-  rotation: number
-  tiers: FovTier[]
-  sensorAngles?: number[]
-  // Camera specs for PPF-at-cursor computation
-  resolutionW?: number
-  sensorW?: number
-  focalLength?: number
-  /** Blind spot distance from camera base (ft) — area not visible directly below */
-  blindSpotFt?: number
-  /** Device color for simple cone mode (IPVM-style single-color cone) */
-  colorHex?: string
+  hFov: number; rotation: number; tiers: FovTier[]; sensorAngles?: number[]
+  resolutionW?: number; sensorW?: number; focalLength?: number
+  blindSpotFt?: number; colorHex?: string
 }
 
-// ---- Cable Draw State Machine ----
+// ---- State types ----
 type CableDrawPhase = 'idle' | 'pick_source' | 'routing' | 'complete'
-interface CableDrawState {
-  phase: CableDrawPhase
-  sourceDeviceId: string | null
-  waypoints: Array<{ x: number; y: number }>
-}
-
-// ---- Scale Calibration ----
-interface ScaleCalState {
-  points: Array<{ x: number; y: number }>
-}
-
-// ---- Context Menu ----
-interface ContextMenuState {
-  visible: boolean
-  x: number
-  y: number
-  deviceId: string | null
-  mdfIdfId?: string | null
-}
-
-// ---- Measure State ----
-interface MeasureState {
-  points: Array<{ x: number; y: number }>
-}
-
-// ---- Wall Draw State ----
-interface WallDrawState {
-  isDrawing: boolean
-  points: Array<{ x: number; y: number }>
-}
+interface CableDrawState { phase: CableDrawPhase; sourceDeviceId: string | null; waypoints: Array<{ x: number; y: number }> }
+interface ContextMenuState { visible: boolean; x: number; y: number; deviceId: string | null; mdfIdfId?: string | null }
 
 interface CanvasAreaProps {
-  designId: string
-  areaId: string | null
-  floorPlan: DesignFloorPlan | null
-  devices: DesignDevice[]
-  cables: DesignCable[]
-  showGrid: boolean
-  activeTool: CanvasTool
-  selectedDeviceId: string | null
-  showFovCones: boolean
-  fovData: Map<string, DeviceFovData>
+  designId: string; areaId: string | null; floorPlan: DesignFloorPlan | null
+  devices: DesignDevice[]; cables: DesignCable[]; showGrid: boolean; activeTool: CanvasTool
+  selectedDeviceId: string | null; showFovCones: boolean; fovData: Map<string, DeviceFovData>
   scalePxPerFt: number
-  onZoomChange?: (zoom: number) => void
-  onSelectDevice: (id: string | null) => void
+  onZoomChange?: (zoom: number) => void; onSelectDevice: (id: string | null) => void
   onDeviceMoved?: (id: string, x: number, y: number) => void
   onDeviceRotated?: (id: string, angle: number) => void
   onSensorRotated?: (id: string, index: number, angle: number) => void
   onCanvasClick?: (x: number, y: number) => void
-  onDeviceCopy?: (id: string) => void
-  onDeviceDelete?: (id: string) => void
+  onDeviceCopy?: (id: string) => void; onDeviceDelete?: (id: string) => void
   onCableCreated?: (cable: { from_device_id: string; to_device_id: string | null; waypoints: Array<{ x: number; y: number }>; length_ft: number }) => void
   onToolChange?: (tool: CanvasTool) => void
-  onScaleCalibrated?: (pxPerFt: number) => void
-  onFloorPlanError?: (msg: string) => void
+  onScaleCalibrated?: (pxPerFt: number) => void; onFloorPlanError?: (msg: string) => void
   walls?: Array<{ id: string; points: Array<{ x: number; y: number }> }>
-  onWallCreated?: (points: Array<{ x: number; y: number }>) => void
-  onWallDeleted?: (id: string) => void
+  onWallCreated?: (points: Array<{ x: number; y: number }>) => void; onWallDeleted?: (id: string) => void
   pendingDeviceName?: string
   onDeviceDrop?: (x: number, y: number, deviceData: string) => void
-  snapToGrid?: boolean
-  hiddenCategories?: Set<string>
-  onUndo?: () => void
-  onRedo?: () => void
-  floorPlanOpacity?: number
+  snapToGrid?: boolean; hiddenCategories?: Set<string>
+  onUndo?: () => void; onRedo?: () => void; floorPlanOpacity?: number
   onFovHandleDragged?: (deviceId: string, targetDistanceFt: number) => void
   onFovAngleChanged?: (deviceId: string, fovAngle: number) => void
   fovDisplayMode?: 'simple' | 'ppf' | 'dori' | 'heatmap'
-  highlightedPpfTier?: string | null
-  onPpfTierClick?: (tier: string | null) => void
+  highlightedPpfTier?: string | null; onPpfTierClick?: (tier: string | null) => void
   mdfIdfs?: DesignMdfIdf[]
-  onMdfIdfPlaced?: (x: number, y: number) => void
-  onMdfIdfMoved?: (id: string, x: number, y: number) => void
+  onMdfIdfPlaced?: (x: number, y: number) => void; onMdfIdfMoved?: (id: string, x: number, y: number) => void
   onMdfIdfDeleted?: (id: string) => void
   snapshotRef?: React.MutableRefObject<(() => string | null) | null>
   satelliteConfig?: { lat: number; lng: number; zoom: number; opacity?: number } | null
@@ -119,1839 +61,979 @@ interface CanvasAreaProps {
   viewportCenterRef?: React.MutableRefObject<(() => { x: number; y: number }) | null>
 }
 
+// ============================================================================
+// CANVAS AREA — CLEAN REWRITE
+// Proper fabric.js event model: fabric handles all object dragging natively.
+// Pan: space+drag or middle-click. Never conflicts with object interaction.
+// ============================================================================
+
 export function CanvasArea({
-  designId, areaId, floorPlan, devices, cables, showGrid, activeTool, selectedDeviceId,
-  showFovCones, fovData, scalePxPerFt,
-  onZoomChange, onSelectDevice, onDeviceMoved, onDeviceRotated, onCanvasClick,
-  onDeviceCopy, onDeviceDelete, onCableCreated, onToolChange, onScaleCalibrated, onFloorPlanError,
-  pendingDeviceName,
-  onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
-  onFovHandleDragged, onFovAngleChanged, fovDisplayMode = 'simple', highlightedPpfTier, onPpfTierClick,
-  onSensorRotated,
-  mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved, onMdfIdfDeleted,
-  walls = [], onWallCreated, onWallDeleted,
-  snapshotRef,
-  satelliteConfig,
-  onShow3dPreview,
-  onDragCommit,
-  viewportCenterRef,
+  designId, areaId, floorPlan, devices, cables, showGrid, activeTool,
+  selectedDeviceId, showFovCones, fovData, scalePxPerFt,
+  onZoomChange, onSelectDevice, onDeviceMoved, onDeviceRotated, onSensorRotated,
+  onCanvasClick, onDeviceCopy, onDeviceDelete, onCableCreated, onToolChange,
+  onScaleCalibrated, onFloorPlanError, walls, onWallCreated, onWallDeleted,
+  pendingDeviceName, onDeviceDrop, snapToGrid, hiddenCategories,
+  onUndo, onRedo, floorPlanOpacity = 0.6,
+  onFovHandleDragged, onFovAngleChanged,
+  fovDisplayMode = 'simple', highlightedPpfTier, onPpfTierClick,
+  mdfIdfs, onMdfIdfPlaced, onMdfIdfMoved, onMdfIdfDeleted,
+  snapshotRef, satelliteConfig, onShow3dPreview, onDragCommit, viewportCenterRef,
 }: CanvasAreaProps) {
-  // Focus visibility state for accessibility outline
-  const [focusVisible, setFocusVisible] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const fabricRef = useRef<FabricCanvas | null>(null)
+
   const containerRef = useRef<HTMLDivElement>(null)
-  const satMapRef = useRef<SatelliteMapHandle>(null)
-  const satBaseZoomRef = useRef(satelliteConfig?.zoom ?? 19)
+  const canvasElRef = useRef<HTMLCanvasElement>(null)
+  const fabricRef = useRef<FabricCanvas | null>(null)
   const [fabricReady, setFabricReady] = useState(false)
-  const zoomLevelRef = useRef(1)
-  const [zoomDisplay, setZoomDisplay] = useState(100)
-  const zoomDisplayTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const draggingDeviceIdRef = useRef<string | null>(null)
-  const [cableDraw, setCableDraw] = useState<CableDrawState>({ phase: 'idle', sourceDeviceId: null, waypoints: [] })
-  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, deviceId: null })
-  const [measureState, setMeasureState] = useState<MeasureState>({ points: [] })
-  const [wallDraw, setWallDraw] = useState<WallDrawState>({ isDrawing: false, points: [] })
-  const [scaleCal, setScaleCal] = useState<ScaleCalState>({ points: [] })
-  const measureObjectsRef = useRef<FabricObject[]>([])
-  const cablePreviewRef = useRef<FabricObject | null>(null)
-  const scaleObjectsRef = useRef<FabricObject[]>([])
-  const [scaleInput, setScaleInput] = useState<{ visible: boolean; distPx: number }>({ visible: false, distPx: 0 })
-  const wallPreviewRef = useRef<FabricObject | null>(null)
-  const didPanDragRef = useRef(false)
-  const pendingClickRef = useRef<{ x: number; y: number; target: FabricObject | null } | null>(null)
+
+  // Refs for stable access in event handlers
   const activeToolRef = useRef(activeTool)
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
-  const snapRef = useRef(snapToGrid)
-  useEffect(() => { snapRef.current = snapToGrid }, [snapToGrid])
-  useEffect(() => { satBaseZoomRef.current = satelliteConfig?.zoom ?? 19 }, [satelliteConfig?.zoom])
-  const [ppfTooltip, setPpfTooltip] = useState<{ visible: boolean; x: number; y: number; ppf: number; dori: string; distFt: number } | null>(null)
-  const [pinnedPreview, setPinnedPreview] = useState<{ ppf: number; distFt: number; cameraLabel: string } | null>(null)
-  const fovHandleMap = useRef(new Map<string, FabricObject>())
-  const mdfIdfObjectMap = useRef(new Map<string, FabricObject[]>())
-  const fovObjectMap = useRef(new Map<string, FabricObject[]>())
-  const deviceObjectMap = useRef(new Map<string, FabricObject>())
-  const cableObjectMap = useRef(new Map<string, FabricObject>())
-  const isDraggingRef = useRef(false)
-  const isDraggingFovHandleRef = useRef(false)
-  const BASE_ICON_PX = 20 // constant screen-pixel size for device icons (IPVM-style small markers)
+  const selectedIdRef = useRef(selectedDeviceId)
+  useEffect(() => { selectedIdRef.current = selectedDeviceId }, [selectedDeviceId])
+  const devicesRef = useRef(devices)
+  useEffect(() => { devicesRef.current = devices }, [devices])
 
-  // Helper: update zoom ref + throttled display + rescale icons (no React re-render per tick)
-  const updateZoom = useCallback((zoom: number) => {
-    zoomLevelRef.current = zoom
-    const canvas = fabricRef.current
-    if (canvas) {
-      const iconScale = BASE_ICON_PX / (64 * zoom)
-      for (const [, obj] of deviceObjectMap.current) {
-        obj.set({ scaleX: iconScale, scaleY: iconScale })
-      }
-      canvas.getObjects().forEach((o: FabricObject) => {
-        const rec = o as unknown as Record<string, unknown>
-        if (rec.__isLabel === true) {
-          const labelScale = 1 / zoom
-          o.set({ scaleX: labelScale, scaleY: labelScale })
-        }
-      })
-      canvas.requestRenderAll()
-    }
-    if (zoomDisplayTimer.current) clearTimeout(zoomDisplayTimer.current)
-    zoomDisplayTimer.current = setTimeout(() => setZoomDisplay(Math.round(zoom * 100)), 50)
-  }, [])
+  // Track pan state
+  const isPanning = useRef(false)
+  const panStart = useRef({ x: 0, y: 0 })
+  const spaceHeld = useRef(false)
 
-  // ---- Initialize Fabric.js ----
+  // Object tracking maps
+  const deviceObjMap = useRef(new Map<string, FabricObject>())
+  const fovObjMap = useRef(new Map<string, FabricObject[]>())
+  const handleObjMap = useRef(new Map<string, FabricObject>())
+  const gridObjRef = useRef<FabricObject | null>(null)
+  const floorPlanObjRef = useRef<FabricObject | null>(null)
+  const cableObjMap = useRef(new Map<string, FabricObject>())
+
+  // Drag state for undo batching
+  const dragStartRef = useRef<{ deviceId: string; prevAngle: number; prevDist: number; sensorIdx: number } | null>(null)
+  const throttleRef = useRef(0)
+
+  // Cable draw state
+  const [cableDraw, setCableDraw] = useState<CableDrawState>({ phase: 'idle', sourceDeviceId: null, waypoints: [] })
+
+  // Scale calibration
+  const [scalePoints, setScalePoints] = useState<Array<{ x: number; y: number }>>([])
+  const [scaleInput, setScaleInput] = useState<{ visible: boolean; x: number; y: number }>({ visible: false, x: 0, y: 0 })
+
+  // Context menu
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, deviceId: null })
+
+  // Measure tool
+  const [measurePoints, setMeasurePoints] = useState<Array<{ x: number; y: number }>>([])
+
+  // ========================================================================
+  // 1. CANVAS INITIALIZATION
+  // ========================================================================
   useEffect(() => {
-    if (!canvasRef.current || fabricRef.current) return
+    if (!canvasElRef.current || !containerRef.current) return
     let cancelled = false
 
-    async function initFabric() {
-      const fabricModule = await import('fabric')
-      if (cancelled || !canvasRef.current) return
-      const container = containerRef.current
-      const width = container?.clientWidth ?? 800
-      const height = container?.clientHeight ?? 600
+    async function init() {
+      const fm = await import('fabric')
+      if (cancelled || !canvasElRef.current || !containerRef.current) return
 
-      const canvas = new fabricModule.Canvas(canvasRef.current, {
-        width, height, backgroundColor: C.bg, selection: false,
-        preserveObjectStacking: true, fireRightClick: true, stopContextMenu: true,
+      const rect = containerRef.current.getBoundingClientRect()
+      const canvas = new fm.Canvas(canvasElRef.current, {
+        width: rect.width, height: rect.height,
+        backgroundColor: C.bg,
+        selection: false, // No rubber-band selection (we use click-to-select)
+        preserveObjectStacking: true,
+        stopContextMenu: true,
+        fireRightClick: true,
       })
+
       fabricRef.current = canvas
       setFabricReady(true)
 
-      // Zoom
-      canvas.on('mouse:wheel', (opt: { e: WheelEvent }) => {
-        const delta = opt.e.deltaY
+      // ---- Zoom (mouse wheel) ----
+      canvas.on('mouse:wheel', (opt: any) => {
+        const evt = opt.e as WheelEvent
+        evt.preventDefault()
+        const delta = evt.deltaY
         let zoom = canvas.getZoom()
         zoom *= 0.999 ** delta
         zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom))
-        const point = canvas.getScenePoint(opt.e)
-        canvas.zoomToPoint(point, zoom)
-        updateZoom(zoom)
+        canvas.zoomToPoint(canvas.getScenePoint(evt), zoom)
         onZoomChange?.(zoom)
-        // Sync satellite map zoom: each 2x Fabric zoom = +1 Google Maps zoom level
-        const mapZoom = satBaseZoomRef.current + Math.log2(zoom)
-        satMapRef.current?.syncZoom(mapZoom)
-        opt.e.preventDefault()
-        opt.e.stopPropagation()
-      })
-
-      // Pan — click-vs-drag: mousedown records intent, mousemove >3px starts actual pan
-      let isPanning = false
-      let isPendingPan = false
-      let pendingPanStartX = 0
-      let pendingPanStartY = 0
-      let lastPanX = 0
-      let lastPanY = 0
-      let spaceHeld = false
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.code === 'Space') { spaceHeld = true; if (container) container.style.cursor = 'grab' }
-        if (e.key === 'Escape') {
-          setContextMenu({ visible: false, x: 0, y: 0, deviceId: null })
-          setCableDraw({ phase: 'idle', sourceDeviceId: null, waypoints: [] })
-          setMeasureState({ points: [] })
-          setScaleCal({ points: [] })
-          if (cablePreviewRef.current && fabricRef.current) {
-            fabricRef.current.remove(cablePreviewRef.current)
-            cablePreviewRef.current = null
-            fabricRef.current.renderAll()
-          }
-          // Clear scale calibration visuals
-          if (fabricRef.current && scaleObjectsRef.current.length > 0) {
-            for (const obj of scaleObjectsRef.current) fabricRef.current.remove(obj)
-            scaleObjectsRef.current = []
-            fabricRef.current.renderAll()
-          }
-        }
-      }
-      const handleKeyUp = (e: KeyboardEvent) => {
-        if (e.code === 'Space') { spaceHeld = false; if (container) container.style.cursor = 'default' }
-      }
-      document.addEventListener('keydown', handleKeyDown)
-      document.addEventListener('keyup', handleKeyUp)
-
-      canvas.on('mouse:down', (opt: { e: MouseEvent | TouchEvent; target?: FabricObject }) => {
-        const evt = opt.e as MouseEvent
-        setContextMenu({ visible: false, x: 0, y: 0, deviceId: null })
-        // Middle-click, space+click, or pan tool = always pan immediately
-        if (evt.button === 1 || spaceHeld || activeToolRef.current === 'pan') {
-          isPanning = true; lastPanX = evt.clientX; lastPanY = evt.clientY
-          if (container) container.style.cursor = 'grabbing'
-          return
-        }
-        // Right-click context menu
-        if (evt.button === 2 && opt.target) {
-          const did = (opt.target as unknown as Record<string, unknown>).deviceId as string
-          if (did) { setContextMenu({ visible: true, x: evt.clientX, y: evt.clientY, deviceId: did }); return }
-          const mid = (opt.target as unknown as Record<string, unknown>).__mdfIdfId as string
-          if (mid) { setContextMenu({ visible: true, x: evt.clientX, y: evt.clientY, deviceId: null, mdfIdfId: mid }); return }
-          return
-        }
-        // Left-click on a device = start device drag (Fabric handles movement)
-        if (evt.button === 0 && opt.target) {
-          const did = (opt.target as unknown as Record<string, unknown>).deviceId as string
-          if (did) { isDraggingRef.current = true; draggingDeviceIdRef.current = did }
-          return
-        }
-        // Left-click on empty space: start pending pan (will become pan if dragged, click if released)
-        if (evt.button === 0 && !opt.target) {
-          pendingPanStartX = evt.clientX; pendingPanStartY = evt.clientY
-          isPendingPan = true; isPanning = false
-          didPanDragRef.current = false
-          // Store click info for tool handler to use on mouse:up
-          const point = canvas.getScenePoint(evt)
-          pendingClickRef.current = { x: Math.round(point.x), y: Math.round(point.y), target: null }
-          lastPanX = evt.clientX; lastPanY = evt.clientY
-        }
-      })
-      canvas.on('mouse:move', (opt: { e: MouseEvent | TouchEvent }) => {
-        const evt = opt.e as MouseEvent
-        // Pending pan → check drag threshold before actually starting pan
-        if (isPendingPan && !isPanning) {
-          const dx = evt.clientX - pendingPanStartX
-          const dy = evt.clientY - pendingPanStartY
-          if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-            isPanning = true; isPendingPan = false
-            didPanDragRef.current = true
-            pendingClickRef.current = null
-            if (container) container.style.cursor = 'grabbing'
-            onSelectDevice(null)
-          }
-          return
-        }
-        if (!isPanning) return
-        const dx = evt.clientX - lastPanX
-        const dy = evt.clientY - lastPanY
-        const vpt = canvas.viewportTransform
-        if (vpt) { vpt[4] += dx; vpt[5] += dy }
-        satMapRef.current?.panBy(-dx, -dy)
-        lastPanX = evt.clientX; lastPanY = evt.clientY
         canvas.requestRenderAll()
       })
-      canvas.on('mouse:up', (opt: { e?: MouseEvent | TouchEvent }) => {
-        // Pending pan that never became a drag = this was a click on empty space
-        if (isPendingPan && !isPanning) {
-          isPendingPan = false
-          // didPanDragRef stays false — tool handler on mouse:up will pick it up
-        }
-        if (isPanning) {
-          isPanning = false; isPendingPan = false
-          if (container) container.style.cursor = activeToolRef.current === 'pan' ? 'grab' : spaceHeld ? 'grab' : 'default'
-        }
-        if (isDraggingRef.current) { isDraggingRef.current = false; draggingDeviceIdRef.current = null }
-        if (isDraggingFovHandleRef.current) { isDraggingFovHandleRef.current = false }
-      })
 
-      // Selection bridging
-      canvas.on('selection:created', (e: { selected?: FabricObject[] }) => { const did = (e.selected?.[0] as unknown as Record<string, unknown>)?.deviceId as string; if (did) onSelectDevice(did) })
-      canvas.on('selection:updated', (e: { selected?: FabricObject[] }) => { const did = (e.selected?.[0] as unknown as Record<string, unknown>)?.deviceId as string; if (did) onSelectDevice(did) })
-      canvas.on('selection:cleared', () => onSelectDevice(null))
+      // ---- Pan (space+drag or middle-click) ----
+      canvas.on('mouse:down', (opt: any) => {
+        const evt = opt.e as MouseEvent
+        setContextMenu(prev => ({ ...prev, visible: false }))
 
-      // Object modified
-      canvas.on('object:modified', (e: { target?: FabricObject }) => {
-        const obj = e.target; if (!obj) return
-        const did = (obj as unknown as Record<string, unknown>).deviceId as string; if (!did) return
-        if (obj.left !== undefined && obj.top !== undefined) {
-          let x = Math.round(obj.left), y = Math.round(obj.top)
-          if (snapRef.current) {
-            x = Math.round(x / GRID_SIZE) * GRID_SIZE
-            y = Math.round(y / GRID_SIZE) * GRID_SIZE
-            obj.set({ left: x, top: y })
-            canvas.renderAll()
+        // Middle-click or space held → start pan
+        if (evt.button === 1 || spaceHeld.current || activeToolRef.current === 'pan') {
+          isPanning.current = true
+          panStart.current = { x: evt.clientX, y: evt.clientY }
+          canvas.setCursor('grabbing')
+          evt.preventDefault()
+          return
+        }
+
+        // Right-click → context menu
+        if (evt.button === 2) {
+          const point = canvas.getScenePoint(evt)
+          const target = canvas.findTarget(evt)
+          const rec = target ? (target as unknown as Record<string, unknown>) : null
+          if (rec?.__deviceId) {
+            setContextMenu({ visible: true, x: evt.clientX, y: evt.clientY, deviceId: rec.__deviceId as string })
           }
-          onDeviceMoved?.(did, x, y)
+          evt.preventDefault()
+          return
         }
-        if (obj.angle !== undefined) onDeviceRotated?.(did, Math.round(obj.angle))
+
+        // Left-click on empty space → tool actions
+        const target = canvas.findTarget(evt)
+        if (!target) {
+          const point = canvas.getScenePoint(evt)
+          const x = Math.round(point.x)
+          const y = Math.round(point.y)
+
+          if (activeToolRef.current === 'place') {
+            onCanvasClick?.(x, y)
+            return
+          }
+          if (activeToolRef.current === 'scale') {
+            setScalePoints(prev => {
+              const next = [...prev, { x, y }]
+              if (next.length === 2) {
+                // Show distance input dialog
+                const dist = Math.sqrt((next[1].x - next[0].x) ** 2 + (next[1].y - next[0].y) ** 2)
+                setScaleInput({ visible: true, x: evt.clientX, y: evt.clientY })
+                return next
+              }
+              return next
+            })
+            return
+          }
+          if (activeToolRef.current === 'measure') {
+            setMeasurePoints(prev => {
+              if (prev.length >= 2) return [{ x, y }]
+              return [...prev, { x, y }]
+            })
+            return
+          }
+          if (activeToolRef.current === 'mdf_idf') {
+            onMdfIdfPlaced?.(x, y)
+            return
+          }
+          if (activeToolRef.current === 'cable') {
+            handleCableClick(x, y)
+            return
+          }
+          // Deselect
+          onSelectDevice(null)
+        }
       })
 
-        ; (canvas as unknown as Record<string, unknown>).__cleanupListeners = () => {
-          document.removeEventListener('keydown', handleKeyDown)
-          document.removeEventListener('keyup', handleKeyUp)
+      canvas.on('mouse:move', (opt: any) => {
+        if (!isPanning.current) return
+        const evt = opt.e as MouseEvent
+        const vpt = canvas.viewportTransform!
+        vpt[4] += evt.clientX - panStart.current.x
+        vpt[5] += evt.clientY - panStart.current.y
+        panStart.current = { x: evt.clientX, y: evt.clientY }
+        canvas.requestRenderAll()
+      })
+
+      canvas.on('mouse:up', () => {
+        if (isPanning.current) {
+          isPanning.current = false
+          canvas.setCursor('default')
         }
+      })
+
+      // ---- Object interactions (device click, device drag, FOV handle drag) ----
+      canvas.on('mouse:down', (opt: any) => {
+        const target = opt.target
+        if (!target) return
+        const rec = target as unknown as Record<string, unknown>
+
+        // Click on device icon → select it
+        if (rec.__deviceId && !rec.__fovHandle && !rec.__fovEdgeHandle) {
+          onSelectDevice(rec.__deviceId as string)
+          onToolChange?.('select')
+        }
+      })
+
+      // Device drag end → persist position
+      canvas.on('object:modified', (opt: any) => {
+        const obj = opt.target
+        if (!obj) return
+        const rec = obj as unknown as Record<string, unknown>
+
+        if (rec.__deviceId && !rec.__fovHandle && !rec.__fovEdgeHandle) {
+          const id = rec.__deviceId as string
+          onDeviceMoved?.(id, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
+        }
+
+        // FOV handle drag end → commit for undo
+        if (rec.__fovHandle || rec.__fovEdgeHandle) {
+          onDragCommit?.(dragStartRef.current)
+          dragStartRef.current = null
+        }
+      })
+
+      // Device/handle dragging → real-time updates
+      canvas.on('object:moving', (opt: any) => {
+        const obj = opt.target
+        if (!obj) return
+        const rec = obj as unknown as Record<string, unknown>
+
+        // ---- FOV distance handle (center arc) ----
+        if (rec.__fovHandle) {
+          const now = Date.now()
+          if (now - throttleRef.current < 16) return
+          throttleRef.current = now
+
+          const deviceId = rec.__fovDeviceId as string
+          const cx = rec.__fovDeviceCx as number
+          const cy = rec.__fovDeviceCy as number
+          const dx = (obj.left ?? 0) - cx
+          const dy = (obj.top ?? 0) - cy
+          const distPx = Math.sqrt(dx * dx + dy * dy)
+          const distFt = Math.round(distPx / (scalePxPerFt || 10))
+          let angleDeg = Math.round(Math.atan2(dy, dx) * (180 / Math.PI))
+          if (angleDeg < 0) angleDeg += 360
+
+          // Capture start state for undo
+          if (!dragStartRef.current) {
+            const device = devicesRef.current.find(d => d.id === deviceId)
+            dragStartRef.current = {
+              deviceId,
+              prevAngle: device?.rotation ?? 0,
+              prevDist: Number((device?.properties as Record<string, unknown>)?.target_distance) || 30,
+              sensorIdx: 0,
+            }
+          }
+
+          if (distFt > 1) onFovHandleDragged?.(deviceId, distFt)
+          onDeviceRotated?.(deviceId, angleDeg)
+          return
+        }
+
+        // ---- FOV angle handle (corner) ----
+        if (rec.__fovEdgeHandle) {
+          const now = Date.now()
+          if (now - throttleRef.current < 16) return
+          throttleRef.current = now
+
+          const deviceId = rec.__fovDeviceId as string
+          const cx = rec.__fovDeviceCx as number
+          const cy = rec.__fovDeviceCy as number
+          const rotRad = rec.__fovRotRad as number
+
+          const dx = (obj.left ?? 0) - cx
+          const dy = (obj.top ?? 0) - cy
+          const handleAngle = Math.atan2(dy, dx)
+          let diff = Math.abs(handleAngle - rotRad)
+          if (diff > Math.PI) diff = 2 * Math.PI - diff
+          const newFovDeg = Math.round(Math.min(180, Math.max(5, diff * 2 * (180 / Math.PI))))
+          onFovAngleChanged?.(deviceId, newFovDeg)
+          return
+        }
+      })
     }
-    void initFabric()
+
+    init()
     return () => {
       cancelled = true
-      if (fabricRef.current) {
-        const cleanup = (fabricRef.current as unknown as Record<string, unknown>).__cleanupListeners
-        if (typeof cleanup === 'function') cleanup()
-        fabricRef.current.dispose(); fabricRef.current = null; setFabricReady(false)
+      fabricRef.current?.dispose()
+      fabricRef.current = null
+      setFabricReady(false)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ========================================================================
+  // 2. KEYBOARD SHORTCUTS
+  // ========================================================================
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === ' ') { spaceHeld.current = true; e.preventDefault() }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedIdRef.current && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+          onDeviceDelete?.(selectedIdRef.current)
+        }
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.shiftKey ? onRedo?.() : onUndo?.(); e.preventDefault() }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'c' && selectedIdRef.current) { onDeviceCopy?.(selectedIdRef.current) }
+      if (e.key === 'Escape') { onSelectDevice(null); onToolChange?.('select') }
+      if (e.key === 'f' || e.key === 'F') {
+        if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+          // Toggle FOV is handled by parent
+        }
       }
     }
-    // Canvas init runs exactly once on mount. Adding deps would destroy and recreate the canvas.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Expose canvas snapshot function to parent via ref
-  useEffect(() => {
-    if (!snapshotRef) return
-    snapshotRef.current = () => {
-      const fc = fabricRef.current
-      if (!fc) return null
-      try {
-        return fc.toDataURL({ format: 'png', multiplier: 2 })
-      } catch { return null }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === ' ') { spaceHeld.current = false }
     }
-    return () => { if (snapshotRef) snapshotRef.current = null }
-  }, [fabricReady, snapshotRef])
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => { window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp) }
+  }, [onDeviceDelete, onDeviceCopy, onUndo, onRedo, onSelectDevice, onToolChange])
 
-  // Expose viewport center function to parent via ref (for auto-place)
+  // ========================================================================
+  // 3. CANVAS RESIZE
+  // ========================================================================
   useEffect(() => {
-    if (!viewportCenterRef) return
-    viewportCenterRef.current = () => {
-      const fc = fabricRef.current
-      if (!fc) return { x: 400, y: 300 }
-      const vpt = fc.viewportTransform
-      const cw = fc.width ?? 800, ch = fc.height ?? 600
-      const zoom = fc.getZoom()
-      if (vpt) {
-        return { x: Math.round((cw / 2 - vpt[4]) / zoom), y: Math.round((ch / 2 - vpt[5]) / zoom) }
-      }
-      return { x: 400, y: 300 }
-    }
-    return () => { if (viewportCenterRef) viewportCenterRef.current = null }
-  }, [fabricReady, viewportCenterRef])
-
-  // Resize
-  useEffect(() => {
-    if (!fabricRef.current || !containerRef.current) return
-    const observer = new ResizeObserver(() => {
-      const c = fabricRef.current; const ct = containerRef.current
-      if (!c || !ct) return
-      c.setDimensions({ width: ct.clientWidth, height: ct.clientHeight })
+    if (!containerRef.current || !fabricRef.current) return
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect
+      fabricRef.current?.setDimensions({ width, height })
+      fabricRef.current?.requestRenderAll()
     })
-    observer.observe(containerRef.current)
-    return () => observer.disconnect()
+    ro.observe(containerRef.current)
+    return () => ro.disconnect()
   }, [fabricReady])
 
-  // ---- Extended keyboard shortcuts ----
-  useEffect(() => {
-    function handleKeyboard(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-
-      if ((e.key === 'Delete' || e.key === 'Backspace')) {
-        const activeObjs = fabricRef.current?.getActiveObjects() || []
-        if (activeObjs.length > 0) {
-          const wallId = (activeObjs[0] as unknown as Record<string, unknown>).wallId as string;
-          if (wallId) { e.preventDefault(); onWallDeleted?.(wallId); return; }
-        }
-        if (selectedDeviceId) {
-          e.preventDefault(); onDeviceDelete?.(selectedDeviceId)
-        }
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault(); onUndo?.()
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-        e.preventDefault(); onRedo?.()
-      }
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
-        e.preventDefault(); onRedo?.()
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'd') && selectedDeviceId) {
-        e.preventDefault(); onDeviceCopy?.(selectedDeviceId)
-      }
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selectedDeviceId) {
-        e.preventDefault()
-        const nudge = e.shiftKey ? 10 : 1
-        const obj = deviceObjectMap.current.get(selectedDeviceId)
-        if (obj && fabricRef.current) {
-          const dx = e.key === 'ArrowRight' ? nudge : e.key === 'ArrowLeft' ? -nudge : 0
-          const dy = e.key === 'ArrowDown' ? nudge : e.key === 'ArrowUp' ? -nudge : 0
-          obj.set({ left: (obj.left ?? 0) + dx, top: (obj.top ?? 0) + dy })
-          fabricRef.current.renderAll()
-          onDeviceMoved?.(selectedDeviceId, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
-        }
-      }
-    }
-    document.addEventListener('keydown', handleKeyboard)
-    return () => document.removeEventListener('keydown', handleKeyboard)
-  }, [selectedDeviceId, onDeviceDelete, onDeviceCopy, onUndo, onRedo, onDeviceMoved])
-
-  // ---- Canvas click: Place / Cable / Measure / Scale ----
+  // ========================================================================
+  // 4. FLOOR PLAN
+  // ========================================================================
   useEffect(() => {
     if (!fabricRef.current || !fabricReady) return
     const canvas = fabricRef.current
-    const handler = (opt: { e?: Event }) => {
-      // Only fire tool actions on genuine clicks (not drags that became pans)
-      if (didPanDragRef.current) { didPanDragRef.current = false; pendingClickRef.current = null; return }
-      const pending = pendingClickRef.current
-      pendingClickRef.current = null
-      // Use stored click position (from mouse:down) if available, otherwise compute from event
-      let x: number, y: number
-      let target: FabricObject | null = null
-      if (pending) {
-        x = pending.x; y = pending.y; target = pending.target
-      } else if (opt.e) {
-        const evt = opt.e as MouseEvent
-        if (evt.button !== 0) return
-        const point = canvas.getScenePoint(evt)
-        x = Math.round(point.x); y = Math.round(point.y)
-      } else {
-        return
+
+    // Remove old floor plan
+    if (floorPlanObjRef.current) {
+      canvas.remove(floorPlanObjRef.current)
+      floorPlanObjRef.current = null
+    }
+
+    if (!floorPlan?.file_url) return
+
+    async function loadFloorPlan() {
+      const fm = await import('fabric')
+      try {
+        const img = await fm.FabricImage.fromURL(floorPlan!.file_url!, { crossOrigin: 'anonymous' })
+        img.set({
+          left: 0, top: 0,
+          opacity: floorPlanOpacity,
+          selectable: false, evented: false,
+          originX: 'left', originY: 'top',
+        })
+        canvas.add(img)
+        canvas.sendObjectToBack(img)
+        floorPlanObjRef.current = img
+        canvas.requestRenderAll()
+      } catch (err) {
+        onFloorPlanError?.('Failed to load floor plan image')
+      }
+    }
+    loadFloorPlan()
+  }, [floorPlan?.file_url, floorPlanOpacity, fabricReady])
+
+  // ========================================================================
+  // 5. GRID
+  // ========================================================================
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady) return
+    const canvas = fabricRef.current
+
+    if (gridObjRef.current) {
+      canvas.remove(gridObjRef.current)
+      gridObjRef.current = null
+    }
+
+    if (!showGrid) return
+
+    async function renderGrid() {
+      const fm = await import('fabric')
+      const size = GRID_SIZE
+      const dotCanvas = document.createElement('canvas')
+      dotCanvas.width = size; dotCanvas.height = size
+      const ctx = dotCanvas.getContext('2d')!
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+      ctx.beginPath()
+      ctx.arc(size / 2, size / 2, 0.8, 0, Math.PI * 2)
+      ctx.fill()
+
+      const pattern = new fm.Pattern({ source: dotCanvas, repeat: 'repeat' })
+      const rect = new fm.Rect({
+        left: -10000, top: -10000, width: 20000, height: 20000,
+        fill: pattern as unknown as string,
+        selectable: false, evented: false,
+      })
+      canvas.add(rect)
+      canvas.sendObjectToBack(rect)
+      gridObjRef.current = rect
+      canvas.requestRenderAll()
+    }
+    renderGrid()
+  }, [showGrid, fabricReady])
+
+  // ========================================================================
+  // 6. DEVICE RENDERING
+  // ========================================================================
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady) return
+    const canvas = fabricRef.current
+
+    // Remove old device objects
+    for (const [, obj] of deviceObjMap.current) canvas.remove(obj)
+    deviceObjMap.current.clear()
+
+    async function renderDevices() {
+      const fm = await import('fabric')
+      const cameraTypes = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual']
+
+      for (const device of devices) {
+        if (hiddenCategories?.has(device.category)) continue
+
+        const isCamera = cameraTypes.includes(device.category)
+        const isSelected = device.id === selectedDeviceId
+        const iconKey = CATEGORY_TO_ICON[device.category] || 'generic'
+        const svgStr = DEVICE_SVG_STRINGS[iconKey]
+        const iconScale = 0.6
+
+        try {
+          let group: FabricObject
+
+          if (svgStr) {
+            const result = await fm.loadSVGFromString(svgStr)
+            const svgGroup = fm.util.groupSVGElements(result.objects.filter(Boolean) as FabricObject[], result.options)
+            // Label below icon
+            const label = new fm.FabricText(device.label || '', {
+              left: 0, top: 22, fontSize: 10,
+              fill: C.textMuted, fontFamily: 'IBM Plex Sans, sans-serif',
+              originX: 'center', originY: 'top',
+            })
+            group = new fm.Group([svgGroup, label], {
+              left: device.position_x, top: device.position_y,
+              originX: 'center', originY: 'center',
+              scaleX: iconScale, scaleY: iconScale,
+              angle: isCamera ? 0 : (device.rotation || 0), // Cameras rotate via FOV, not icon
+              hasControls: false, hasBorders: false,
+              lockScalingX: true, lockScalingY: true, lockRotation: true,
+              selectable: true, evented: true,
+              hoverCursor: 'move', moveCursor: 'move',
+            })
+          } else {
+            // Fallback dot
+            const dot = new fm.Circle({
+              left: device.position_x, top: device.position_y,
+              radius: 8, fill: C.accent,
+              originX: 'center', originY: 'center',
+              hasControls: false, hasBorders: false,
+              selectable: true, evented: true,
+              hoverCursor: 'move', moveCursor: 'move',
+            })
+            group = dot
+          }
+
+          // Tag with device ID for event handling
+          const rec = group as unknown as Record<string, unknown>
+          rec.__deviceId = device.id
+          rec.__isCamera = isCamera
+
+          // Selection highlight
+          if (isSelected) {
+            group.set({
+              strokeWidth: 2,
+              stroke: C.accent,
+              padding: 4,
+            } as Record<string, unknown>)
+          }
+
+          canvas.add(group)
+          deviceObjMap.current.set(device.id, group)
+        } catch {
+          // SVG parse failed — skip
+        }
       }
 
-      // Place mode
-      if (activeTool === 'place' && !target) { onCanvasClick?.(x, y); return }
+      // Z-order: grid → floor plan → cones → cables → devices (front)
+      for (const [, obj] of deviceObjMap.current) {
+        canvas.bringObjectToFront(obj)
+      }
+      canvas.requestRenderAll()
+    }
 
-      // Cable draw
-      if (activeTool === 'cable') {
-        if (cableDraw.phase === 'pick_source' || cableDraw.phase === 'idle') {
-          // Find device near click
-          for (const d of devices) {
-            const dx = x - d.position_x; const dy = y - d.position_y
-            if (Math.sqrt(dx * dx + dy * dy) < 20) {
-              setCableDraw({ phase: 'routing', sourceDeviceId: d.id, waypoints: [{ x: d.position_x, y: d.position_y }] })
-              return
+    renderDevices()
+  }, [devices, selectedDeviceId, fabricReady, hiddenCategories])
+
+  // ========================================================================
+  // 7. FOV CONE + HANDLE RENDERING (THE CRITICAL PART)
+  // ========================================================================
+  useEffect(() => {
+    if (!fabricRef.current || !fabricReady) return
+    const canvas = fabricRef.current
+
+    // Clear old FOV objects
+    for (const [, objs] of fovObjMap.current) {
+      for (const o of objs) canvas.remove(o)
+    }
+    fovObjMap.current.clear()
+    for (const [, h] of handleObjMap.current) canvas.remove(h)
+    handleObjMap.current.clear()
+
+    if (!showFovCones && !selectedDeviceId) return
+
+    async function renderFov() {
+      const fm = await import('fabric')
+
+      for (const [deviceId, data] of fovData) {
+        const device = devices.find(d => d.id === deviceId)
+        if (!device) continue
+        if (hiddenCategories?.has(device.category)) continue
+
+        // Only show FOV for selected device if global FOV is off
+        if (!showFovCones && deviceId !== selectedDeviceId) continue
+
+        const objects: FabricObject[] = []
+        const cx = device.position_x
+        const cy = device.position_y
+        const halfAngle = (data.hFov / 2) * (Math.PI / 180)
+
+        // Determine imager angles (multi-sensor support)
+        const imagerAngles = data.sensorAngles
+          ? data.sensorAngles.map(a => a + (device.rotation || 0))
+          : [(device.rotation || 0)]
+
+        for (const imagerDeg of imagerAngles) {
+          const rotRad = imagerDeg * (Math.PI / 180)
+
+          // Render tiers (outermost first)
+          for (let t = 0; t < data.tiers.length; t++) {
+            const tier = data.tiers[t]
+            const r = tier.distanceFt * (scalePxPerFt || 10)
+            if (r < 2) continue
+
+            // Build cone polygon points
+            const steps = 24
+            const points: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
+            for (let i = 0; i <= steps; i++) {
+              const angle = rotRad - halfAngle + (2 * halfAngle * i / steps)
+              points.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r })
             }
+
+            // Determine fill color based on display mode
+            let fillColor = data.colorHex || C.accent
+            let fillOpacity = tier.opacity
+            if (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') {
+              fillColor = tier.color
+              fillOpacity = t === 0 ? 0.08 : tier.opacity
+            } else if (fovDisplayMode === 'heatmap') {
+              fillColor = '#22c55e'
+              fillOpacity = 0.08
+            }
+
+            const cone = new fm.Polygon(points, {
+              fill: fillColor, opacity: fillOpacity,
+              stroke: t === 0 ? fillColor : 'transparent',
+              strokeWidth: t === 0 ? 1 : 0,
+              strokeDashArray: t === 0 ? [4, 4] : undefined,
+              selectable: false, evented: false,
+              originX: 'left', originY: 'top',
+            })
+            canvas.add(cone)
+            objects.push(cone)
           }
-        } else if (cableDraw.phase === 'routing') {
-          // Check if clicking destination device
-          for (const d of devices) {
-            if (d.id === cableDraw.sourceDeviceId) continue
-            const dx = x - d.position_x; const dy = y - d.position_y
-            if (Math.sqrt(dx * dx + dy * dy) < 20) {
-              const finalWp = [...cableDraw.waypoints, { x: d.position_x, y: d.position_y }]
-              let totalLen = 0
-              for (let i = 1; i < finalWp.length; i++) {
-                const ddx = finalWp[i].x - finalWp[i - 1].x
-                const ddy = finalWp[i].y - finalWp[i - 1].y
-                totalLen += Math.sqrt(ddx * ddx + ddy * ddy) / (scalePxPerFt || 1)
+
+          // ---- FOV HANDLES (ONLY for selected device) ----
+          // This is the IPVM/Hanwha 3-handle pattern
+          if (deviceId === selectedDeviceId && onFovHandleDragged) {
+            const outerTier = data.tiers[0]
+            if (!outerTier) continue
+            const outerR = outerTier.distanceFt * (scalePxPerFt || 10)
+            if (outerR < 5) continue
+
+            // ---- Handle 1: Center arc (target distance) ----
+            const centerAngle = rotRad
+            const hx = cx + Math.cos(centerAngle) * outerR
+            const hy = cy + Math.sin(centerAngle) * outerR
+            const distHandle = new fm.Circle({
+              left: hx, top: hy, radius: 7,
+              fill: '#ffffff', stroke: C.accent, strokeWidth: 2.5,
+              originX: 'center', originY: 'center',
+              selectable: true, evented: true,
+              hasControls: false, hasBorders: false,
+              hoverCursor: 'grab', moveCursor: 'grabbing',
+            })
+            const distRec = distHandle as unknown as Record<string, unknown>
+            distRec.__fovHandle = true
+            distRec.__fovDeviceId = deviceId
+            distRec.__fovDeviceCx = cx
+            distRec.__fovDeviceCy = cy
+            distRec.__fovSensorIndex = 0
+            canvas.add(distHandle)
+            handleObjMap.current.set(`${deviceId}_dist`, distHandle)
+
+            // Distance label
+            const distFt = Math.round(outerTier.distanceFt)
+            const distLabel = new fm.FabricText(`${distFt}ft`, {
+              left: hx + Math.cos(centerAngle) * 18,
+              top: hy + Math.sin(centerAngle) * 18,
+              fontSize: 11, fontWeight: '600',
+              fontFamily: "'IBM Plex Mono', monospace",
+              fill: C.accent,
+              originX: 'center', originY: 'center',
+              selectable: false, evented: false,
+            })
+            canvas.add(distLabel)
+            objects.push(distLabel)
+
+            // ---- Handles 2 & 3: Corner handles (FOV angle) ----
+            if (onFovAngleChanged) {
+              const edgeR = outerR * 0.85
+              const makeCornerHandle = (angle: number, key: string) => {
+                const ex = cx + Math.cos(angle) * edgeR
+                const ey = cy + Math.sin(angle) * edgeR
+                const handle = new fm.Circle({
+                  left: ex, top: ey, radius: 6,
+                  fill: '#f97316', stroke: '#ffffff', strokeWidth: 2,
+                  originX: 'center', originY: 'center',
+                  selectable: true, evented: true,
+                  hasControls: false, hasBorders: false,
+                  hoverCursor: 'ew-resize', moveCursor: 'ew-resize',
+                })
+                const handleRec = handle as unknown as Record<string, unknown>
+                handleRec.__fovEdgeHandle = true
+                handleRec.__fovDeviceId = deviceId
+                handleRec.__fovDeviceCx = cx
+                handleRec.__fovDeviceCy = cy
+                handleRec.__fovRotRad = rotRad
+                canvas.add(handle)
+                handleObjMap.current.set(key, handle)
               }
-              onCableCreated?.({ from_device_id: cableDraw.sourceDeviceId!, to_device_id: d.id, waypoints: finalWp, length_ft: Math.round(totalLen) })
-              setCableDraw({ phase: 'pick_source', sourceDeviceId: null, waypoints: [] })
-              return
-            }
-          }
-          // Add waypoint
-          setCableDraw((prev) => ({ ...prev, waypoints: [...prev.waypoints, { x, y }] }))
-        }
-        return
-      }
+              makeCornerHandle(rotRad - halfAngle, `${deviceId}_left`)
+              makeCornerHandle(rotRad + halfAngle, `${deviceId}_right`)
 
-      // Measure tool
-      if (activeTool === 'measure') {
-        setMeasureState((prev) => {
-          const pts = [...prev.points, { x, y }]
-          if (pts.length >= 2) {
-            drawMeasurement(pts[0], pts[1])
-            return { points: [] }
-          }
-          return { points: pts }
-        })
-        return
-      }
-
-      // Wall tool
-      if (activeTool === 'wall') {
-        setWallDraw((prev) => {
-          const pts = [...prev.points, { x, y }]
-          if (pts.length >= 2) {
-            onWallCreated?.(pts)
-            return { isDrawing: false, points: [] }
-          }
-          return { isDrawing: true, points: pts }
-        })
-        return
-      }
-
-      // MDF/IDF placement
-      if (activeTool === 'mdf_idf' && !target) {
-        onMdfIdfPlaced?.(x, y)
-        return
-      }
-
-      // Scale calibration
-      if (activeTool === 'scale') {
-        setScaleCal((prev) => {
-          const pts = [...prev.points, { x, y }]
-          // Draw dot at each click point
-          import('fabric').then((fm) => {
-            if (!fabricRef.current) return
-            const dot = new fm.Circle({ left: x, top: y, radius: 4, fill: C.red, originX: 'center', originY: 'center', selectable: false, evented: false })
-            fabricRef.current.add(dot)
-            scaleObjectsRef.current.push(dot)
-            if (pts.length >= 2) {
-              // Draw line between the two points
-              const line = new fm.Line([pts[0].x, pts[0].y, pts[1].x, pts[1].y], {
-                stroke: C.red, strokeWidth: 1.5, strokeDashArray: [4, 2], selectable: false, evented: false,
+              // Angle label
+              const angleDeg = Math.round(data.hFov)
+              const angleLabel = new fm.FabricText(`${angleDeg}°`, {
+                left: cx + Math.cos(rotRad) * (outerR * 0.4),
+                top: cy + Math.sin(rotRad) * (outerR * 0.4) - 12,
+                fontSize: 10, fontWeight: '600',
+                fontFamily: "'IBM Plex Mono', monospace",
+                fill: '#f97316',
+                originX: 'center', originY: 'center',
+                selectable: false, evented: false,
               })
-              fabricRef.current.add(line)
-              scaleObjectsRef.current.push(line)
+              canvas.add(angleLabel)
+              objects.push(angleLabel)
             }
-            fabricRef.current.renderAll()
-          })
-          if (pts.length >= 2) {
-            const dx = pts[1].x - pts[0].x; const dy = pts[1].y - pts[0].y
-            const distPx = Math.sqrt(dx * dx + dy * dy)
-            setScaleInput({ visible: true, distPx })
-            // Clean up calibration dots + line from canvas
-            if (fabricRef.current) {
-              for (const obj of scaleObjectsRef.current) fabricRef.current.remove(obj)
-              scaleObjectsRef.current = []
-              fabricRef.current.renderAll()
-            }
-            return { points: [] }
           }
-          return { points: pts }
-        })
-        return
-      }
-    }
-    canvas.on('mouse:up', handler)
-    return () => { canvas.off('mouse:up', handler) }
-  }, [activeTool, fabricReady, cableDraw, devices, scalePxPerFt, onCanvasClick, onCableCreated, onScaleCalibrated, onMdfIdfPlaced])
+        }
 
-  // ---- Cable preview line during routing ----
+        fovObjMap.current.set(deviceId, objects)
+      }
+
+      // Z-ordering: cones to back, handles to front
+      for (const [, objs] of fovObjMap.current) {
+        for (const o of objs) canvas.sendObjectToBack(o)
+      }
+      // Grid and floor plan even further back
+      if (gridObjRef.current) canvas.sendObjectToBack(gridObjRef.current)
+      if (floorPlanObjRef.current) {
+        canvas.sendObjectToBack(floorPlanObjRef.current)
+        if (gridObjRef.current) canvas.sendObjectToBack(gridObjRef.current)
+      }
+      // Devices on top of cones
+      for (const [, obj] of deviceObjMap.current) canvas.bringObjectToFront(obj)
+      // Handles on very top
+      for (const [, h] of handleObjMap.current) canvas.bringObjectToFront(h)
+
+      canvas.requestRenderAll()
+    }
+
+    renderFov()
+  }, [fovData, devices, showFovCones, selectedDeviceId, scalePxPerFt, fabricReady,
+      onFovHandleDragged, onFovAngleChanged, fovDisplayMode, highlightedPpfTier,
+      hiddenCategories, walls])
+
+  // ========================================================================
+  // 8. CABLES
+  // ========================================================================
   useEffect(() => {
     if (!fabricRef.current || !fabricReady) return
-    if (activeTool !== 'cable' || cableDraw.phase !== 'routing' || cableDraw.waypoints.length === 0) {
-      // Clean up preview if exists
-      if (cablePreviewRef.current && fabricRef.current) {
-        fabricRef.current.remove(cablePreviewRef.current)
-        cablePreviewRef.current = null
-        fabricRef.current.renderAll()
-      }
-      return
-    }
     const canvas = fabricRef.current
-    const handler = (opt: { e: Event }) => {
-      const evt = opt.e as MouseEvent
-      const point = canvas.getScenePoint(evt)
-      const wps = cableDraw.waypoints
-      // Remove old preview
-      if (cablePreviewRef.current) canvas.remove(cablePreviewRef.current)
-      import('fabric').then((fm) => {
-        const allPts = [...wps, { x: point.x, y: point.y }].map((p) => new fm.Point(p.x, p.y))
-        const preview = new fm.Polyline(allPts, {
-          fill: 'transparent', stroke: C.accent, strokeWidth: 1.5,
-          strokeDashArray: [4, 4], selectable: false, evented: false, opacity: 0.5,
-        })
-        cablePreviewRef.current = preview
-        canvas.add(preview)
-        canvas.renderAll()
-      })
-    }
-    canvas.on('mouse:move', handler)
-    return () => {
-      canvas.off('mouse:move', handler)
-      if (cablePreviewRef.current && fabricRef.current) {
-        fabricRef.current.remove(cablePreviewRef.current)
-        cablePreviewRef.current = null
-      }
-    }
-  }, [activeTool, cableDraw, fabricReady])
 
-  // ---- Wall preview line during routing ----
+    for (const [, obj] of cableObjMap.current) canvas.remove(obj)
+    cableObjMap.current.clear()
+
+    async function renderCables() {
+      const fm = await import('fabric')
+      for (const cable of cables) {
+        const fromDev = devices.find(d => d.id === cable.from_device_id)
+        const toDev = cable.to_device_id ? devices.find(d => d.id === cable.to_device_id) : null
+        if (!fromDev) continue
+
+        const points: Array<{ x: number; y: number }> = [{ x: fromDev.position_x, y: fromDev.position_y }]
+        if (cable.waypoints && Array.isArray(cable.waypoints)) {
+          for (const wp of cable.waypoints as Array<{ x: number; y: number }>) {
+            points.push(wp)
+          }
+        }
+        if (toDev) points.push({ x: toDev.position_x, y: toDev.position_y })
+
+        const flatCoords = points.flatMap(p => [p.x, p.y])
+        const line = new fm.Polyline(points, {
+          fill: 'transparent',
+          stroke: '#64748b', strokeWidth: 2,
+          strokeDashArray: [6, 3],
+          selectable: false, evented: false,
+          opacity: 0.6,
+        })
+        canvas.add(line)
+        cableObjMap.current.set(cable.id, line)
+      }
+      canvas.requestRenderAll()
+    }
+    renderCables()
+  }, [cables, devices, fabricReady])
+
+  // ========================================================================
+  // 9. SNAPSHOT REF (for exports)
+  // ========================================================================
   useEffect(() => {
-    if (!fabricRef.current || !fabricReady) return
-    if (activeTool !== 'wall' || !wallDraw.isDrawing || wallDraw.points.length === 0) {
-      if (wallPreviewRef.current && fabricRef.current) {
-        fabricRef.current.remove(wallPreviewRef.current)
-        wallPreviewRef.current = null
-        fabricRef.current.renderAll()
-      }
-      return
-    }
-    const canvas = fabricRef.current
-    const handler = (opt: { e: Event }) => {
-      const evt = opt.e as MouseEvent
-      const point = canvas.getScenePoint(evt)
-      const p1 = wallDraw.points[0]
-      if (wallPreviewRef.current) canvas.remove(wallPreviewRef.current)
-      import('fabric').then((fm) => {
-        if (!fabricRef.current) return
-        const preview = new fm.Line([p1.x, p1.y, point.x, point.y], {
-          stroke: C.accent, strokeWidth: 4, strokeDashArray: [4, 4], selectable: false, evented: false, opacity: 0.5,
-        })
-        wallPreviewRef.current = preview
-        canvas.add(preview)
-        canvas.renderAll()
-      })
-    }
-    canvas.on('mouse:move', handler)
-    return () => {
-      canvas.off('mouse:move', handler)
-      if (wallPreviewRef.current && fabricRef.current) {
-        fabricRef.current.remove(wallPreviewRef.current)
-        wallPreviewRef.current = null
+    if (snapshotRef) {
+      snapshotRef.current = () => {
+        if (!fabricRef.current) return null
+        return fabricRef.current.toDataURL({ format: 'png', multiplier: 2 })
       }
     }
-  }, [activeTool, wallDraw, fabricReady])
+  }, [snapshotRef, fabricReady])
 
-  // ---- Draw measurement line ----
-  const drawMeasurement = useCallback(async (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
-    if (!fabricRef.current) return
-    const fabric = await import('fabric')
-    const canvas = fabricRef.current
-    // Clear previous measurement
-    for (const obj of measureObjectsRef.current) canvas.remove(obj)
-    measureObjectsRef.current = []
-    const dx = p2.x - p1.x; const dy = p2.y - p1.y
-    const distPx = Math.sqrt(dx * dx + dy * dy)
-    const distFt = scalePxPerFt > 0 ? distPx / scalePxPerFt : distPx
+  // ========================================================================
+  // 10. VIEWPORT CENTER REF (for auto-place)
+  // ========================================================================
+  useEffect(() => {
+    if (viewportCenterRef) {
+      viewportCenterRef.current = () => {
+        if (!fabricRef.current) return { x: 400, y: 300 }
+        const canvas = fabricRef.current
+        const vpt = canvas.viewportTransform!
+        const zoom = canvas.getZoom()
+        const cx = (canvas.width! / 2 - vpt[4]) / zoom
+        const cy = (canvas.height! / 2 - vpt[5]) / zoom
+        return { x: Math.round(cx), y: Math.round(cy) }
+      }
+    }
+  }, [viewportCenterRef, fabricReady])
 
-    const line = new fabric.Line([p1.x, p1.y, p2.x, p2.y], {
-      stroke: C.green, strokeWidth: 1.5, strokeDashArray: [4, 2], selectable: false, evented: false,
+  // ========================================================================
+  // CABLE CLICK HANDLER
+  // ========================================================================
+  const handleCableClick = useCallback((x: number, y: number) => {
+    setCableDraw(prev => {
+      if (prev.phase === 'idle' || prev.phase === 'pick_source') {
+        // Find nearest device
+        const nearest = devices.reduce<{ id: string; dist: number } | null>((best, d) => {
+          const dist = Math.sqrt((d.position_x - x) ** 2 + (d.position_y - y) ** 2)
+          if (dist < 40 && (!best || dist < best.dist)) return { id: d.id, dist }
+          return best
+        }, null)
+        if (nearest) {
+          return { phase: 'routing', sourceDeviceId: nearest.id, waypoints: [{ x, y }] }
+        }
+        toast.error('Click near a device to start a cable')
+        return prev
+      }
+      if (prev.phase === 'routing') {
+        // Check if near a device (end cable)
+        const nearest = devices.reduce<{ id: string; dist: number } | null>((best, d) => {
+          if (d.id === prev.sourceDeviceId) return best
+          const dist = Math.sqrt((d.position_x - x) ** 2 + (d.position_y - y) ** 2)
+          if (dist < 40 && (!best || dist < best.dist)) return { id: d.id, dist }
+          return best
+        }, null)
+        if (nearest) {
+          // Complete cable
+          const totalLen = [...prev.waypoints, { x, y }].reduce((sum, wp, i, arr) => {
+            if (i === 0) return 0
+            return sum + Math.sqrt((wp.x - arr[i-1].x) ** 2 + (wp.y - arr[i-1].y) ** 2)
+          }, 0)
+          onCableCreated?.({
+            from_device_id: prev.sourceDeviceId!,
+            to_device_id: nearest.id,
+            waypoints: prev.waypoints,
+            length_ft: Math.round(totalLen / (scalePxPerFt || 10)),
+          })
+          onToolChange?.('select')
+          return { phase: 'idle', sourceDeviceId: null, waypoints: [] }
+        }
+        // Add waypoint
+        return { ...prev, waypoints: [...prev.waypoints, { x, y }] }
+      }
+      return prev
     })
-    const midX = (p1.x + p2.x) / 2; const midY = (p1.y + p2.y) / 2
-    const label = new fabric.FabricText(`${distFt.toFixed(1)} ft`, {
-      left: midX, top: midY - 12, fontSize: 11, fill: C.green,
-      fontFamily: 'IBM Plex Mono', selectable: false, evented: false, originX: 'center',
-    })
-    canvas.add(line, label)
-    measureObjectsRef.current.push(line, label)
-    canvas.renderAll()
-  }, [scalePxPerFt])
+  }, [devices, scalePxPerFt, onCableCreated, onToolChange])
 
-  // Cursor
+  // ========================================================================
+  // SCALE CALIBRATION SUBMIT
+  // ========================================================================
+  const handleScaleSubmit = useCallback((distanceFt: number) => {
+    if (scalePoints.length !== 2 || distanceFt <= 0) return
+    const pixelDist = Math.sqrt(
+      (scalePoints[1].x - scalePoints[0].x) ** 2 +
+      (scalePoints[1].y - scalePoints[0].y) ** 2
+    )
+    const pxPerFt = pixelDist / distanceFt
+    onScaleCalibrated?.(pxPerFt)
+    setScalePoints([])
+    setScaleInput({ visible: false, x: 0, y: 0 })
+    onToolChange?.('select')
+    toast.success(`Scale set: ${pxPerFt.toFixed(1)} px/ft`)
+  }, [scalePoints, onScaleCalibrated, onToolChange])
+
+  // ========================================================================
+  // CURSOR
+  // ========================================================================
   useEffect(() => {
     if (!containerRef.current) return
-    const cursors: Record<string, string> = { place: 'crosshair', cable: 'crosshair', measure: 'crosshair', scale: 'crosshair', select: 'default', pan: 'grab' }
+    const cursors: Record<string, string> = {
+      select: 'default', place: 'crosshair', cable: 'crosshair',
+      measure: 'crosshair', scale: 'crosshair', pan: 'grab',
+      mdf_idf: 'crosshair', wall: 'crosshair', zone: 'crosshair', door: 'crosshair',
+    }
     containerRef.current.style.cursor = cursors[activeTool] || 'default'
   }, [activeTool])
 
-  // ---- Sync devices (diff-based — only add/remove/update what changed) ----
-  const prevDeviceSnapRef = useRef<string>('')
-  useEffect(() => {
-    if (!fabricReady || !fabricRef.current) return
+  // ========================================================================
+  // DRAG & DROP (for device placement from catalog)
+  // ========================================================================
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    const data = e.dataTransfer.getData('application/json')
+    if (!data || !fabricRef.current) return
     const canvas = fabricRef.current
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const point = canvas.getScenePoint(e.nativeEvent as MouseEvent)
+    onDeviceDrop?.(Math.round(point.x), Math.round(point.y), data)
+  }, [onDeviceDrop])
 
-    // Build a snapshot string of current device state for comparison
-    const visibleDevices = devices.filter((d) => !hiddenCategories?.has(d.category))
-    const snapshot = visibleDevices.map((d) =>
-      `${d.id}|${d.position_x}|${d.position_y}|${d.rotation || 0}|${d.color_hex || ''}|${d.label}|${d.status || 'new'}|${d.category}`
-    ).join(';')
-
-    // Skip if nothing changed
-    if (snapshot === prevDeviceSnapRef.current) return
-    prevDeviceSnapRef.current = snapshot
-
-    const currentIds = new Set(visibleDevices.map((d) => d.id))
-    const existingIds = new Set(deviceObjectMap.current.keys())
-
-    // Remove devices no longer present (or now hidden)
-    for (const id of existingIds) {
-      if (!currentIds.has(id)) {
-        const obj = deviceObjectMap.current.get(id)
-        if (obj) canvas.remove(obj)
-        deviceObjectMap.current.delete(id)
-      }
-    }
-    // Remove all labels (they don't have stable IDs — simpler to recreate)
-    canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isLabel === true).forEach((o: FabricObject) => canvas.remove(o))
-
-    // Update existing device positions/rotation (no SVG reload needed)
-    // Skip the currently-dragged device — Fabric owns its position during drag
-    for (const device of visibleDevices) {
-      if (device.id === draggingDeviceIdRef.current) continue
-      const existing = deviceObjectMap.current.get(device.id)
-      if (existing) {
-        existing.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0 })
-      }
-    }
-
-    // Add new devices
-    const newDevices = visibleDevices.filter((d) => !existingIds.has(d.id))
-    async function addNewDevices() {
-      const fabric = await import('fabric')
-      for (const device of newDevices) {
-        const iconKey = CATEGORY_TO_ICON[device.category] || 'dome_camera'
-        const svgString = DEVICE_SVG_STRINGS[iconKey]
-        if (!svgString) continue
-        const coloredSvg = svgString.replace(/#000/g, device.color_hex || C.accent)
-        try {
-          const result = await fabric.loadSVGFromString(coloredSvg)
-          const group = fabric.util.groupSVGElements(result.objects.filter(Boolean) as FabricObject[], result.options)
-          const iconScale = BASE_ICON_PX / (64 * (fabricRef.current?.getZoom() || 1))
-          group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: iconScale, scaleY: iconScale, originX: 'center', originY: 'center', hasControls: false, hasBorders: false, lockScalingX: true, lockScalingY: true, lockRotation: true, selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move' })
-            ; (group as unknown as Record<string, unknown>).deviceId = device.id
-          canvas.add(group); deviceObjectMap.current.set(device.id, group)
-        } catch { /* skip */ }
-      }
-      // Re-add all labels for visible devices (lightweight text objects)
-      const fabric2 = fabric
-      for (const device of visibleDevices) {
-        const statusColors: Record<string, string> = { new: C.green, existing_keep: C.accent, existing_remove: C.red, relocate: C.yellow }
-        const statusColor = statusColors[device.status || 'new'] || C.green
-        if (device.status && device.status !== 'new') {
-          const ring = new fabric2.Circle({
-            left: device.position_x, top: device.position_y,
-            radius: 16, fill: 'transparent', stroke: statusColor, strokeWidth: 1.5,
-            strokeDashArray: device.status === 'existing_remove' ? [3, 2] : undefined,
-            originX: 'center', originY: 'center', selectable: false, evented: false, opacity: 0.7,
-          })
-            ; (ring as unknown as Record<string, unknown>).__isLabel = true
-          canvas.add(ring)
-        }
-        const labelText = new fabric2.FabricText(device.label, { left: device.position_x, top: device.position_y + 22, fontSize: 10, fill: C.textMuted, fontFamily: 'IBM Plex Sans, sans-serif', originX: 'center', originY: 'top', selectable: false, evented: false })
-          ; (labelText as unknown as Record<string, unknown>).__isLabel = true
-        canvas.add(labelText)
-      }
-      canvas.renderAll()
-    }
-    // Only run async SVG loading if there are actually new devices; otherwise just re-render for position updates + labels
-    if (newDevices.length > 0) {
-      void addNewDevices()
-    } else {
-      // Labels were already re-added synchronously above... need fabric import for them
-      async function readdLabels() {
-        const fabric = await import('fabric')
-        for (const device of visibleDevices) {
-          const statusColors: Record<string, string> = { new: C.green, existing_keep: C.accent, existing_remove: C.red, relocate: C.yellow }
-          const statusColor = statusColors[device.status || 'new'] || C.green
-          if (device.status && device.status !== 'new') {
-            const ring = new fabric.Circle({
-              left: device.position_x, top: device.position_y,
-              radius: 16, fill: 'transparent', stroke: statusColor, strokeWidth: 1.5,
-              strokeDashArray: device.status === 'existing_remove' ? [3, 2] : undefined,
-              originX: 'center', originY: 'center', selectable: false, evented: false, opacity: 0.7,
-            })
-              ; (ring as unknown as Record<string, unknown>).__isLabel = true
-            canvas.add(ring)
-          }
-          const labelText = new fabric.FabricText(device.label, { left: device.position_x, top: device.position_y + 22, fontSize: 10, fill: C.textMuted, fontFamily: 'IBM Plex Sans, sans-serif', originX: 'center', originY: 'top', selectable: false, evented: false })
-            ; (labelText as unknown as Record<string, unknown>).__isLabel = true
-          canvas.add(labelText)
-        }
-        canvas.renderAll()
-      }
-      void readdLabels()
-    }
-  }, [devices, fabricReady, hiddenCategories])
-
-  // ---- DORI tier labels for display ----
-  const TIER_LABELS: Record<string, string> = { '#22c55e': 'ID', '#eab308': 'REC', '#f97316': 'OBS', '#ef4444': 'DET' }
-
-  // ---- FOV Cone Rendering + Drag Handles + DORI Labels ----
-  useEffect(() => {
-    if (!fabricReady || !fabricRef.current) return
-    const canvas = fabricRef.current
-    fovObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); fovObjectMap.current.clear()
-    fovHandleMap.current.forEach((o: FabricObject) => canvas.remove(o)); fovHandleMap.current.clear()
-    // IPVM-style: always show FOV cone for the SELECTED camera, even if global FOV is off
-    const hasSelectedFov = selectedDeviceId && fovData.has(selectedDeviceId)
-    if (isDraggingRef.current) { canvas.renderAll(); return }
-    // Live cone rendering: allow FOV re-render during handle drag (IPVM-style live feedback)
-    // isDraggingFovHandleRef is no longer used to suppress — cones update in real-time
-    if (!showFovCones && !hasSelectedFov) { canvas.renderAll(); return }
-
-    function getRayIntersection(o: { x: number, y: number }, d: { x: number, y: number }, a: { x: number, y: number }, b: { x: number, y: number }) {
-      const v1 = { x: o.x - a.x, y: o.y - a.y };
-      const v2 = { x: b.x - a.x, y: b.y - a.y };
-      const v3 = { x: -d.y, y: d.x };
-      const dot = v2.x * v3.x + v2.y * v3.y;
-      if (Math.abs(dot) < 0.000001) return null;
-      const t1 = (v2.x * v1.y - v2.y * v1.x) / dot;
-      const t2 = (v1.x * v3.x + v1.y * v3.y) / dot;
-      if (t1 >= 0 && t2 >= 0 && t2 <= 1) return t1;
-      return null;
-    }
-
-    // Single render pass — no rAF loop. Renders once when deps change.
-    async function renderFovCones() {
-      const fabric = await import('fabric');
-      // Tier 2: suppress per-object renders during batch add
-      canvas.renderOnAddRemove = false;
-      try {
-        const wallSegments: Array<{ p1: { x: number, y: number }, p2: { x: number, y: number } }> = [];
-        for (const w of walls || []) {
-          if (w.points && w.points.length >= 2) {
-            for (let i = 0; i < w.points.length - 1; i++) {
-              wallSegments.push({ p1: w.points[i], p2: w.points[i + 1] });
-            }
-          }
-        }
-        for (const [deviceId, data] of fovData.entries()) {
-          const device = devices.find((d) => d.id === deviceId);
-          if (!device) continue;
-          // IPVM-style: when global FOV is off, only render cone for the selected camera
-          if (!showFovCones && deviceId !== selectedDeviceId) continue;
-          const objects: FabricObject[] = [];
-          const halfAngle = (data.hFov / 2) * (Math.PI / 180);
-          const baseRotDeg = data.rotation || 0;
-          const imagerAngles = data.sensorAngles && data.sensorAngles.length > 0
-            ? data.sensorAngles.map(a => a + baseRotDeg)
-            : [baseRotDeg];
-          let outerR = 0;
-          for (const imagerDeg of imagerAngles) {
-            const rotRad = imagerDeg * (Math.PI / 180);
-
-            // Helper: build a wall-clipped cone path at given radius
-            function buildConePath(cx: number, cy: number, r: number): string {
-              const numSteps = Math.max(10, Math.ceil(data.hFov));
-              const angleStep = (data.hFov * (Math.PI / 180)) / numSteps;
-              const startAngleRad = rotRad - halfAngle;
-              const polyPoints = [{ x: cx, y: cy }];
-              for (let i = 0; i <= numSteps; i++) {
-                const currentAngle = startAngleRad + i * angleStep;
-                const rayDir = { x: Math.cos(currentAngle), y: Math.sin(currentAngle) };
-                let minDist = r;
-                for (const seg of wallSegments) {
-                  const t = getRayIntersection({ x: cx, y: cy }, rayDir, seg.p1, seg.p2);
-                  if (t !== null && t < minDist) minDist = t;
-                }
-                polyPoints.push({ x: cx + rayDir.x * minDist, y: cy + rayDir.y * minDist });
-              }
-              let pathStr = `M ${polyPoints[0].x} ${polyPoints[0].y}`;
-              for (let k = 1; k < polyPoints.length; k++) pathStr += ` L ${polyPoints[k].x} ${polyPoints[k].y}`;
-              return pathStr + ' Z';
-            }
-
-            if (fovDisplayMode === 'simple' || fovDisplayMode === 'heatmap') {
-              const isHeatmap = fovDisplayMode === 'heatmap'
-              const coneColor = isHeatmap ? '#22c55e' : (data.colorHex || '#29b6f6');
-              const coneOpacity = isHeatmap ? 0.18 : 0.15;
-              const strokeColor = isHeatmap ? 'rgba(34,197,94,0.4)' : coneColor;
-              const maxTier = data.tiers.reduce((a, b) => b.distanceFt > a.distanceFt ? b : a, data.tiers[0]);
-              const r = maxTier.distanceFt * (scalePxPerFt || 10);
-              if (r > outerR) outerR = r;
-              const cx = device.position_x;
-              const cy = device.position_y;
-
-              const isSelectedCone = deviceId === selectedDeviceId;
-              const outerPath = new fabric.Path(buildConePath(cx, cy, r), {
-                fill: coneColor, opacity: coneOpacity,
-                selectable: false, evented: isSelectedCone,
-                hoverCursor: isSelectedCone ? 'crosshair' : 'default',
-              });
-              ; (outerPath as unknown as Record<string, unknown>).__fovConeDeviceId = deviceId;
-              ; (outerPath as unknown as Record<string, unknown>).__fovConeCx = cx;
-              ; (outerPath as unknown as Record<string, unknown>).__fovConeCy = cy;
-              canvas.add(outerPath); objects.push(outerPath);
-
-              const innerR = r * 0.35;
-              const innerPath = new fabric.Path(buildConePath(cx, cy, innerR), {
-                fill: coneColor, opacity: isHeatmap ? 0.12 : 0.10, selectable: false, evented: false,
-              });
-              canvas.add(innerPath); objects.push(innerPath);
-
-              const strokePath = new fabric.Path(buildConePath(cx, cy, r), {
-                fill: 'transparent', stroke: strokeColor, strokeWidth: isHeatmap ? 1.5 : 1, opacity: isHeatmap ? 0.6 : 0.35,
-                selectable: false, evented: false,
-              });
-              canvas.add(strokePath); objects.push(strokePath);
-            } else {
-              for (const tier of data.tiers) {
-                const r = tier.distanceFt * (scalePxPerFt || 10);
-                if (r > outerR) outerR = r;
-                const cx = device.position_x;
-                const cy = device.position_y;
-
-                let opacity = tier.opacity;
-                if (highlightedPpfTier) {
-                  opacity = tier.color === highlightedPpfTier ? Math.min(tier.opacity * 3, 0.5) : tier.opacity * 0.2;
-                }
-                const path = new fabric.Path(buildConePath(cx, cy, r), {
-                  fill: tier.color, opacity, selectable: false, evented: false,
-                });
-                canvas.add(path); objects.push(path);
-                if (fovDisplayMode === 'dori' && r > 20) {
-                  const labelR = r * 0.92;
-                  const lx = cx + Math.cos(rotRad) * labelR;
-                  const ly = cy + Math.sin(rotRad) * labelR;
-                  const label = TIER_LABELS[tier.color] || '';
-                  if (label) {
-                    const text = new fabric.FabricText(label, {
-                      left: lx, top: ly, fontSize: 9, fontWeight: '700',
-                      fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
-                      originX: 'center', originY: 'center', selectable: false, evented: false,
-                      opacity: highlightedPpfTier && tier.color !== highlightedPpfTier ? 0.2 : 0.9,
-                    });
-                    ; (text as unknown as Record<string, unknown>).__isDoriLabel = true;
-                    canvas.add(text); objects.push(text);
-                  }
-                }
-              }
-            }
-          }
-          fovObjectMap.current.set(deviceId, objects);
-
-          // ---- Blind Spot Visualization ----
-          if (data.blindSpotFt && data.blindSpotFt > 0.5) {
-            const blindR = data.blindSpotFt * (scalePxPerFt || 10);
-            if (blindR > 3) {
-              const cx = device.position_x;
-              const cy = device.position_y;
-              const blindCircle = new fabric.Circle({
-                left: cx, top: cy, radius: blindR,
-                fill: 'transparent', stroke: 'rgba(120,113,108,0.5)', strokeWidth: 1,
-                strokeDashArray: [3, 3],
-                originX: 'center', originY: 'center', selectable: false, evented: false,
-              });
-              (blindCircle as unknown as Record<string, unknown>).__isBlindSpot = true;
-              canvas.add(blindCircle); objects.push(blindCircle);
-              const blindFill = new fabric.Circle({
-                left: cx, top: cy, radius: blindR,
-                fill: 'rgba(120,113,108,0.06)', stroke: 'none', strokeWidth: 0,
-                originX: 'center', originY: 'center', selectable: false, evented: false,
-              });
-              (blindFill as unknown as Record<string, unknown>).__isBlindSpot = true;
-              canvas.add(blindFill); objects.push(blindFill);
-              if (blindR > 15) {
-                const bsLabel = new fabric.FabricText(`${data.blindSpotFt.toFixed(1)}ft blind`, {
-                  left: cx, top: cy + blindR + 6, fontSize: 8, fontWeight: '600',
-                  fill: 'rgba(120,113,108,0.7)', fontFamily: "'IBM Plex Mono', monospace",
-                  originX: 'center', originY: 'top', selectable: false, evented: false,
-                });
-                canvas.add(bsLabel); objects.push(bsLabel);
-              }
-            }
-          }
-
-          // ---- PPF Boundary Labels (PPF mode) ----
-          if (fovDisplayMode === 'ppf' && data.resolutionW && data.sensorW && data.focalLength) {
-            const cx = device.position_x;
-            const cy = device.position_y;
-            const baseRot = (data.rotation || 0) * (Math.PI / 180);
-            for (const tier of data.tiers) {
-              const tierR = tier.distanceFt * (scalePxPerFt || 10);
-              if (tierR < 20) continue;
-              const ppfVal = calculatePpfAtDistance(data.resolutionW, data.sensorW, data.focalLength, tier.distanceFt);
-              if (ppfVal <= 0) continue;
-              const lx = cx + Math.cos(baseRot) * tierR;
-              const ly = cy + Math.sin(baseRot) * tierR;
-              let opacity = 0.85;
-              if (highlightedPpfTier && tier.color !== highlightedPpfTier) opacity = 0.2;
-              const ppfLabel = new fabric.FabricText(`${Math.round(ppfVal)}`, {
-                left: lx, top: ly - 6, fontSize: 8, fontWeight: '700',
-                fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
-                originX: 'center', originY: 'bottom', selectable: false, evented: false, opacity,
-              });
-              canvas.add(ppfLabel); objects.push(ppfLabel);
-            }
-          }
-
-          // FOV rotation handle — one per sensor/imager
-          if (outerR > 0 && onFovHandleDragged) {
-            imagerAngles.forEach((imagerDeg, idx) => {
-              const rotRad = imagerDeg * (Math.PI / 180);
-              const hx = device.position_x + Math.cos(rotRad) * outerR;
-              const hy = device.position_y + Math.sin(rotRad) * outerR;
-              const key = `${deviceId}_${idx}`;
-              const handle = new fabric.Circle({
-                left: hx, top: hy, radius: 6,
-                fill: idx === 0 ? 'rgba(59,130,246,0.9)' : 'rgba(139,92,246,0.9)',
-                stroke: '#fff', strokeWidth: 1.5,
-                originX: 'center', originY: 'center', selectable: true, evented: true,
-                hasControls: false, hasBorders: false, hoverCursor: 'grab', moveCursor: 'grabbing',
-              });
-              ; (handle as unknown as Record<string, unknown>).__fovHandle = true;
-              ; (handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
-              ; (handle as unknown as Record<string, unknown>).__fovSensorIndex = idx;
-              ; (handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
-              ; (handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
-              canvas.add(handle);
-              fovHandleMap.current.set(key, handle);
-
-              // ---- FOV angle edge handles (IPVM-style — drag to widen/narrow cone) ----
-              if (onFovAngleChanged && deviceId === selectedDeviceId) {
-                const edgeR = outerR * 0.7; // place handles at 70% of cone length
-                const leftAngle = rotRad - halfAngle;
-                const rightAngle = rotRad + halfAngle;
-                const makeEdgeHandle = (angle: number, side: 'left' | 'right') => {
-                  const ex = device.position_x + Math.cos(angle) * edgeR;
-                  const ey = device.position_y + Math.sin(angle) * edgeR;
-                  const edgeKey = `${deviceId}_${idx}_fov_${side}`;
-                  const edgeHandle = new fabric.Rect({
-                    left: ex, top: ey, width: 8, height: 8,
-                    fill: 'rgba(34,197,94,0.9)',
-                    stroke: '#fff', strokeWidth: 1.5,
-                    originX: 'center', originY: 'center', selectable: true, evented: true,
-                    hasControls: false, hasBorders: false, hoverCursor: 'ew-resize', moveCursor: 'ew-resize',
-                    angle: angle * (180 / Math.PI) + 45,
-                  });
-                  ; (edgeHandle as unknown as Record<string, unknown>).__fovEdgeHandle = true;
-                  ; (edgeHandle as unknown as Record<string, unknown>).__fovEdgeSide = side;
-                  ; (edgeHandle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
-                  ; (edgeHandle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
-                  ; (edgeHandle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
-                  ; (edgeHandle as unknown as Record<string, unknown>).__fovRotRad = rotRad;
-                  canvas.add(edgeHandle);
-                  fovHandleMap.current.set(edgeKey, edgeHandle);
-                };
-                makeEdgeHandle(leftAngle, 'left');
-                makeEdgeHandle(rightAngle, 'right');
-              }
-            });
-          }
-        }
-        // Z-order: grid (back) → FOV cones → cables → labels → devices (front)
-        // Send FOV cones to back first
-        for (const [, objs] of fovObjectMap.current) {
-          for (const o of objs) canvas.sendObjectToBack(o)
-        }
-        // Bring all device icons to front so they sit above cones and are clickable
-        for (const [, obj] of deviceObjectMap.current) {
-          canvas.bringObjectToFront(obj)
-        }
-        // Bring FOV drag handles to very front
-        for (const [, h] of fovHandleMap.current) {
-          canvas.bringObjectToFront(h)
-        }
-      } finally {
-        // ALWAYS restore per-object rendering, even if renderFovCones throws
-        canvas.renderOnAddRemove = true;
-      }
-      canvas.requestRenderAll();
-    }
-    void renderFovCones();
-  }, [fovData, devices, showFovCones, selectedDeviceId, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, walls])
-
-  // ---- FOV Handle/Cone Drag → update distance & rotation ----
-  // Uses throttled updates during drag (16ms = ~60fps) and batched undo on drag-end
-  const fovDragThrottleRef = useRef<number>(0)
-  const fovDragStartRef = useRef<{ deviceId: string; prevAngle: number; prevDist: number; sensorIdx: number } | null>(null)
-  useEffect(() => {
-    if (!fabricRef.current || !fabricReady || !onFovHandleDragged) return
-    const canvas = fabricRef.current
-
-    // Shared: compute angle+dist from device center to a point
-    function computeAngleDist(cx: number, cy: number, px: number, py: number) {
-      const dx = px - cx, dy = py - cy
-      const distPx = Math.sqrt(dx * dx + dy * dy)
-      const distFt = distPx / (scalePxPerFt || 10)
-      const angleRad = Math.atan2(dy, dx)
-      let angleDeg = angleRad * (180 / Math.PI)
-      if (angleDeg < 0) angleDeg += 360
-      return { distFt, angleDeg: Math.round(angleDeg) }
-    }
-
-    // Handle drag (circle at cone tip)
-    const movingHandler = (e: { target?: FabricObject }) => {
-      const obj = e.target; if (!obj) return
-      const rec = obj as unknown as Record<string, unknown>
-
-      // FOV edge handle drag — changes FOV angle
-      if (rec.__fovEdgeHandle) {
-        const now = Date.now()
-        if (now - fovDragThrottleRef.current < 16) return
-        fovDragThrottleRef.current = now
-        const deviceId = rec.__fovDeviceId as string
-        const cx = rec.__fovDeviceCx as number
-        const cy = rec.__fovDeviceCy as number
-        const rotRad = rec.__fovRotRad as number
-        // Compute angle from device center to handle position
-        const dx = (obj.left ?? 0) - cx, dy = (obj.top ?? 0) - cy
-        const handleAngle = Math.atan2(dy, dx)
-        // Difference from rotation axis = half the FOV angle
-        let diff = Math.abs(handleAngle - rotRad)
-        if (diff > Math.PI) diff = 2 * Math.PI - diff
-        const newFovDeg = Math.round(Math.min(180, Math.max(5, diff * 2 * (180 / Math.PI))))
-        onFovAngleChanged?.(deviceId, newFovDeg)
-        return
-      }
-
-      if (!rec.__fovHandle) return
-      const now = Date.now()
-      if (now - fovDragThrottleRef.current < 16) return // throttle to ~60fps
-      fovDragThrottleRef.current = now
-      const deviceId = rec.__fovDeviceId as string
-      const cx = rec.__fovDeviceCx as number
-      const cy = rec.__fovDeviceCy as number
-      const { distFt, angleDeg } = computeAngleDist(cx, cy, obj.left ?? 0, obj.top ?? 0)
-      // Capture start state on first frame (for undo)
-      if (!fovDragStartRef.current) {
-        const device = devices.find(d => d.id === deviceId)
-        fovDragStartRef.current = {
-          deviceId,
-          prevAngle: device?.rotation ?? 0,
-          prevDist: Number((device?.properties as Record<string, unknown>)?.target_distance) || 30,
-          sensorIdx: (rec.__fovSensorIndex as number) || 0,
-        }
-      }
-      if (distFt > 1) onFovHandleDragged(deviceId, Math.round(distFt))
-      const sensorIdx = rec.__fovSensorIndex as number
-      if (sensorIdx === 0) {
-        onDeviceRotated?.(deviceId, angleDeg)
-      } else {
-        onSensorRotated?.(deviceId, sensorIdx, angleDeg)
-      }
-    }
-
-    // Cone body click-to-rotate: click anywhere on cone → rotate to that angle
-    const coneClickHandler = (e: { target?: FabricObject; e?: Event }) => {
-      const obj = e.target; if (!obj) return
-      const rec = obj as unknown as Record<string, unknown>
-      if (!rec.__fovConeDeviceId) return
-      const deviceId = rec.__fovConeDeviceId as string
-      const cx = rec.__fovConeCx as number
-      const cy = rec.__fovConeCy as number
-      const evt = e.e as MouseEvent
-      if (!evt) return
-      const point = canvas.getScenePoint(evt)
-      const { angleDeg } = computeAngleDist(cx, cy, point.x, point.y)
-      onDeviceRotated?.(deviceId, angleDeg)
-    }
-
-    // Drag end: commit final state (parent handles undo via onDragCommit)
-    const modifiedHandler = (e: { target?: FabricObject }) => {
-      const obj = e.target; if (!obj) return
-      const rec = obj as unknown as Record<string, unknown>
-      if (!rec.__fovHandle && !rec.__fovEdgeHandle) return
-      // Signal drag end to parent for undo batching
-      onDragCommit?.(fovDragStartRef.current)
-      fovDragStartRef.current = null
-    }
-    canvas.on('object:moving', movingHandler)
-    canvas.on('object:modified', modifiedHandler)
-    canvas.on('mouse:down', coneClickHandler)
-    return () => {
-      canvas.off('object:moving', movingHandler)
-      canvas.off('object:modified', modifiedHandler)
-      canvas.off('mouse:down', coneClickHandler)
-    }
-  }, [fabricReady, onFovHandleDragged, onFovAngleChanged, onDeviceRotated, onSensorRotated, scalePxPerFt, devices, onDragCommit])
-
-  // ---- PPF at Cursor Tooltip ----
-  useEffect(() => {
-    const hasSelectedFovForTooltip = selectedDeviceId && fovData.has(selectedDeviceId)
-    if (!fabricRef.current || !fabricReady || (!showFovCones && !hasSelectedFovForTooltip)) {
-      setPpfTooltip(null)
-      return
-    }
-    const canvas = fabricRef.current
-    const handler = (opt: { e: Event }) => {
-      const evt = opt.e as MouseEvent
-      const point = canvas.getScenePoint(evt)
-      const px = point.x, py = point.y
-
-      // Check if cursor is inside any FOV cone (including multi-sensor imagers)
-      for (const [deviceId, data] of fovData.entries()) {
-        const device = devices.find((d) => d.id === deviceId)
-        if (!device || !data.resolutionW || !data.sensorW || !data.focalLength) continue
-
-        const dx = px - device.position_x
-        const dy = py - device.position_y
-        const distPx = Math.sqrt(dx * dx + dy * dy)
-        if (distPx < 3) continue // too close to center
-
-        const cursorAngle = Math.atan2(dy, dx) // radians
-        const halfAngle = (data.hFov / 2) * (Math.PI / 180)
-        const maxTierDist = Math.max(...data.tiers.map(t => t.distanceFt))
-        const distFt = distPx / (scalePxPerFt || 10)
-        if (distFt > maxTierDist) continue
-
-        // Check all imager angles (multi-sensor has multiple, single sensor has one)
-        const baseRotDeg = data.rotation || 0
-        const imagerAngles = data.sensorAngles && data.sensorAngles.length > 0
-          ? data.sensorAngles.map(a => a + baseRotDeg)
-          : [baseRotDeg]
-
-        let insideCone = false
-        for (const imagerDeg of imagerAngles) {
-          const rotRad = imagerDeg * (Math.PI / 180)
-          let angleDiff = cursorAngle - rotRad
-          while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI
-          while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
-          if (Math.abs(angleDiff) <= halfAngle) { insideCone = true; break }
-        }
-        if (!insideCone) continue
-
-        // Cursor is inside this cone — compute PPF
-        const ppf = calculatePpfAtDistance(data.resolutionW, data.sensorW, data.focalLength, distFt)
-        const dori = classifyDori(ppf)
-        const doriLabel: Record<DoriClassification, string> = { identification: 'Identification', recognition: 'Recognition', observation: 'Observation', detection: 'Detection', none: 'Monitor Only' }
-
-        setPpfTooltip({
-          visible: true,
-          x: evt.clientX + 14,
-          y: evt.clientY - 8,
-          ppf: Math.round(ppf),
-          dori: doriLabel[dori],
-          distFt: Math.round(distFt * 10) / 10,
-        })
-        return
-      }
-      // Not inside any cone
-      setPpfTooltip(null)
-    }
-    canvas.on('mouse:move', handler)
-    return () => { canvas.off('mouse:move', handler); setPpfTooltip(null) }
-  }, [fabricReady, showFovCones, fovData, devices, scalePxPerFt])
-
-  // ---- Cable Rendering ----
-  useEffect(() => {
-    if (!fabricReady || !fabricRef.current) return
-    const canvas = fabricRef.current
-    cableObjectMap.current.forEach((obj: FabricObject) => canvas.remove(obj)); cableObjectMap.current.clear()
-    canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isCableLabel === true).forEach((o: FabricObject) => canvas.remove(o))
-
-    async function addCables() {
-      const fabric = await import('fabric')
-      for (const cable of cables) {
-        const wps = (cable.waypoints || []) as Array<{ x: number; y: number }>
-        if (wps.length < 2) continue
-        const points = wps.map((wp) => new fabric.Point(wp.x, wp.y))
-        const polyline = new fabric.Polyline(points, {
-          fill: 'transparent', stroke: cable.color_hex || C.accent,
-          strokeWidth: 2, strokeDashArray: [6, 3], selectable: true, evented: true, opacity: 0.6,
-        })
-          ; (polyline as unknown as Record<string, unknown>).cableId = cable.id
-        canvas.add(polyline); canvas.sendObjectToBack(polyline); cableObjectMap.current.set(cable.id, polyline)
-
-        // Cable label (type + length) at midpoint
-        if (wps.length >= 2) {
-          const midIdx = Math.floor(wps.length / 2)
-          const midPt = wps[midIdx]
-          const cableType = (cable.cable_type || 'Cat6').toUpperCase()
-          const lengthStr = cable.total_length_ft ? `${cable.total_length_ft}ft` : cable.length_ft ? `${cable.length_ft}ft` : ''
-          const cableLabel = new fabric.FabricText(`${cableType}${lengthStr ? ' · ' + lengthStr : ''}`, {
-            left: midPt.x, top: midPt.y - 10, fontSize: 8, fill: cable.color_hex || C.accent,
-            fontFamily: "'IBM Plex Mono', monospace", fontWeight: '600',
-            originX: 'center', selectable: false, evented: false, opacity: 0.7,
-          })
-            ; (cableLabel as unknown as Record<string, unknown>).__isCableLabel = true
-          canvas.add(cableLabel)
-        }
-      }
-      canvas.renderAll()
-    }
-    void addCables()
-  }, [cables, fabricReady])
-
-  // ---- Wall Rendering ----
-  useEffect(() => {
-    if (!fabricReady || !fabricRef.current) return
-    const canvas = fabricRef.current
-    canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isWall === true).forEach((o: FabricObject) => canvas.remove(o))
-
-    async function addWalls() {
-      const fabric = await import('fabric')
-      const wallObjs: FabricObject[] = []
-      for (const wall of walls || []) {
-        if (wall.points.length < 2) continue
-        const p1 = wall.points[0]; const p2 = wall.points[1]
-        const line = new fabric.Line([p1.x, p1.y, p2.x, p2.y], {
-          stroke: '#64748b', strokeWidth: 4, selectable: true, evented: true,
-        })
-          ; (line as unknown as Record<string, unknown>).__isWall = true
-          ; (line as unknown as Record<string, unknown>).wallId = wall.id
-        canvas.add(line); canvas.sendObjectToBack(line); wallObjs.push(line)
-      }
-      canvas.renderAll()
-    }
-    void addWalls()
-  }, [walls, fabricReady])
-
-  // ---- MDF/IDF Node Rendering ----
-  useEffect(() => {
-    if (!fabricReady || !fabricRef.current) return
-    const canvas = fabricRef.current
-    mdfIdfObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o)))
-    mdfIdfObjectMap.current.clear()
-
-    async function addMdfIdfs() {
-      const fabric = await import('fabric')
-      for (const node of mdfIdfs) {
-        const objects: FabricObject[] = []
-        // Diamond shape for network closet
-        const size = 18
-        const cx = node.position_x, cy = node.position_y
-        const diamond = new fabric.Polygon([
-          { x: cx, y: cy - size },
-          { x: cx + size, y: cy },
-          { x: cx, y: cy + size },
-          { x: cx - size, y: cy },
-        ], {
-          fill: `${node.color_hex || '#f97316'}30`,
-          stroke: node.color_hex || '#f97316',
-          strokeWidth: 2,
-          selectable: true, evented: true,
-          hasControls: false, hasBorders: true,
-          originX: 'center', originY: 'center',
-          left: cx, top: cy,
-        })
-          ; (diamond as unknown as Record<string, unknown>).__mdfIdfId = node.id
-        canvas.add(diamond); objects.push(diamond)
-
-        // Label
-        const label = new fabric.FabricText(node.name || 'MDF', {
-          left: cx, top: cy + size + 6, fontSize: 9, fontWeight: '700',
-          fill: node.color_hex || '#f97316',
-          fontFamily: "'IBM Plex Mono', monospace",
-          originX: 'center', originY: 'top',
-          selectable: false, evented: false,
-        })
-          ; (label as unknown as Record<string, unknown>).__isMdfIdfLabel = true
-        canvas.add(label); objects.push(label)
-
-        // Distance lines to each device
-        for (const device of devices) {
-          const dx = device.position_x - cx
-          const dy = device.position_y - cy
-          const distPx = Math.sqrt(dx * dx + dy * dy)
-          const distFt = scalePxPerFt > 0 ? distPx / scalePxPerFt : 0
-          // Only render distance line if within reasonable range (< 200ft)
-          if (distFt > 0 && distFt < 200) {
-            const line = new fabric.Line([cx, cy, device.position_x, device.position_y], {
-              stroke: node.color_hex || '#f97316', strokeWidth: 0.5,
-              strokeDashArray: [2, 4], selectable: false, evented: false, opacity: 0.25,
-            })
-              ; (line as unknown as Record<string, unknown>).__isMdfIdfLabel = true
-            canvas.add(line); canvas.sendObjectToBack(line); objects.push(line)
-
-            // Distance label at midpoint
-            const mx = (cx + device.position_x) / 2
-            const my = (cy + device.position_y) / 2
-            const distLabel = new fabric.FabricText(`${Math.round(distFt)}ft`, {
-              left: mx, top: my - 6, fontSize: 7,
-              fill: node.color_hex || '#f97316',
-              fontFamily: "'IBM Plex Mono', monospace",
-              originX: 'center', selectable: false, evented: false, opacity: 0.5,
-            })
-              ; (distLabel as unknown as Record<string, unknown>).__isMdfIdfLabel = true
-            canvas.add(distLabel); objects.push(distLabel)
-          }
-        }
-
-        mdfIdfObjectMap.current.set(node.id, objects)
-      }
-      canvas.renderAll()
-    }
-    void addMdfIdfs()
-  }, [mdfIdfs, devices, fabricReady, scalePxPerFt])
-
-  // ---- MDF/IDF Node Move ----
-  useEffect(() => {
-    if (!fabricRef.current || !fabricReady) return
-    const canvas = fabricRef.current
-    const handler = (e: { target?: FabricObject }) => {
-      const obj = e.target; if (!obj) return
-      const nodeId = (obj as unknown as Record<string, unknown>).__mdfIdfId as string
-      if (!nodeId) return
-      const x = Math.round(obj.left ?? 0)
-      const y = Math.round(obj.top ?? 0)
-      onMdfIdfMoved?.(nodeId, x, y)
-    }
-    canvas.on('object:modified', handler)
-    return () => { canvas.off('object:modified', handler) }
-  }, [fabricReady, onMdfIdfMoved])
-
-  // Selected device highlight
-  useEffect(() => {
-    if (!fabricRef.current || !fabricReady) return
-    if (selectedDeviceId) {
-      const obj = deviceObjectMap.current.get(selectedDeviceId)
-      if (obj) { fabricRef.current.setActiveObject(obj); fabricRef.current.renderAll() }
-    }
-  }, [selectedDeviceId, fabricReady])
-
-  // Floor plan background
-  useEffect(() => {
-    if (!fabricRef.current || !fabricReady) return
-    const canvas = fabricRef.current
-    if (!floorPlan?.file_url) {
-      canvas.backgroundImage = undefined; canvas.requestRenderAll()
-      return
-    }
-
-    let currentUrl = floorPlan.file_url
-    const ext = currentUrl.split('.').pop()?.split('?')[0]?.toLowerCase() ?? ''
-    const opacity = floorPlanOpacity ?? floorPlan.opacity ?? 0.5
-
-    // Signed URL refresh: if initial fetch fails 400/403, get fresh URL from API
-    async function refreshUrl(): Promise<string | null> {
-      try {
-        const res = await fetch(`/api/org/designs/${designId}/floor-plans`)
-        if (!res.ok) return null
-        const json = await res.json()
-        const plans = (json.floorPlans ?? []) as Array<{ id: string; file_url?: string }>
-        const match = plans.find((p) => p.id === floorPlan?.id)
-        return match?.file_url ?? null
-      } catch { return null }
-    }
-
-    async function loadFloorPlanSVG() {
-      try {
-        let response = await fetch(currentUrl, { mode: 'cors' })
-        if ((response.status === 400 || response.status === 403) && floorPlan?.id) {
-          const freshUrl = await refreshUrl()
-          if (freshUrl) { currentUrl = freshUrl; response = await fetch(currentUrl, { mode: 'cors' }) }
-        }
-        if (!response.ok) throw new Error(`Fetch failed: ${response.status}`)
-        const svgText = await response.text()
-        const fm = await import('fabric')
-        const result = await fm.loadSVGFromString(svgText)
-        const objs = result.objects.filter(Boolean) as FabricObject[]
-        if (objs.length === 0) throw new Error('SVG parse returned no objects')
-        const group = fm.util.groupSVGElements(objs, result.options)
-        group.set({ opacity, selectable: false, evented: false, originX: 'left', originY: 'top' })
-        // Auto-size to fit canvas viewport
-        const cw = canvas.width ?? 800, ch = canvas.height ?? 600
-        const gw = (group.width ?? cw) * (group.scaleX ?? 1), gh = (group.height ?? ch) * (group.scaleY ?? 1)
-        if (gw > 0 && gh > 0) {
-          const s = Math.min((cw * 0.9) / gw, (ch * 0.9) / gh, 1)
-          group.set({ scaleX: s, scaleY: s })
-        }
-        canvas.backgroundImage = group as unknown as import('fabric').FabricImage
-        canvas.requestRenderAll()
-      } catch (err) {
-        console.error('SVG floor plan load failed:', err)
-        // Fallback: try as regular image (browser can render simple SVGs via <img>)
-        await loadFloorPlanImage()
-      }
-    }
-
-    async function loadFloorPlanPDF() {
-      try {
-        // Check signed URL freshness first
-        const testRes = await fetch(currentUrl, { method: 'HEAD', mode: 'cors' }).catch(() => null)
-        if (testRes && (testRes.status === 400 || testRes.status === 403) && floorPlan?.id) {
-          const freshUrl = await refreshUrl()
-          if (freshUrl) currentUrl = freshUrl
-        }
-        const pdfjsLib = await import('pdfjs-dist')
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
-        const loadingTask = pdfjsLib.getDocument({ url: currentUrl, disableAutoFetch: true, disableStream: true })
-        const pdf = await loadingTask.promise
-        const page = await pdf.getPage(1)
-        const viewport = page.getViewport({ scale: 2 })
-        const offscreen = document.createElement('canvas')
-        offscreen.width = viewport.width
-        offscreen.height = viewport.height
-        const ctx = offscreen.getContext('2d')
-        if (!ctx) throw new Error('No 2d context')
-        await page.render({ canvasContext: ctx, viewport }).promise
-        const dataUrl = offscreen.toDataURL('image/png')
-        const fm = await import('fabric')
-        const img = await fm.FabricImage.fromURL(dataUrl)
-        img.set({ opacity, selectable: false, evented: false })
-        const cw = canvas.width ?? 800, ch = canvas.height ?? 600
-        const iw = (img.width ?? cw) * (img.scaleX ?? 1), ih = (img.height ?? ch) * (img.scaleY ?? 1)
-        if (iw > 0 && ih > 0) { const s = Math.min((cw * 0.9) / iw, (ch * 0.9) / ih, 1); img.set({ scaleX: s, scaleY: s }) }
-        canvas.backgroundImage = img
-        canvas.requestRenderAll()
-        pdf.destroy()
-      } catch (err) {
-        console.error('PDF floor plan load failed:', err)
-        onFloorPlanError?.('Failed to render PDF. Try uploading as PNG or JPG instead.')
-      }
-    }
-
-    async function loadFloorPlanImage() {
-      try {
-        const fm = await import('fabric')
-        let img: import('fabric').FabricImage
-        try {
-          img = await fm.FabricImage.fromURL(currentUrl, { crossOrigin: 'anonymous' })
-        } catch {
-          // CORS failed — try refreshing signed URL first
-          if (floorPlan?.id) {
-            const freshUrl = await refreshUrl()
-            if (freshUrl) currentUrl = freshUrl
-          }
-          try {
-            img = await fm.FabricImage.fromURL(currentUrl, { crossOrigin: 'anonymous' })
-          } catch {
-            img = await fm.FabricImage.fromURL(currentUrl)
-          }
-        }
-        img.set({ opacity, selectable: false, evented: false })
-        const cw = canvas.width ?? 800, ch = canvas.height ?? 600
-        const iw = (img.width ?? cw) * (img.scaleX ?? 1), ih = (img.height ?? ch) * (img.scaleY ?? 1)
-        if (iw > 0 && ih > 0) { const s = Math.min((cw * 0.9) / iw, (ch * 0.9) / ih, 1); img.set({ scaleX: s, scaleY: s }) }
-        canvas.backgroundImage = img
-        canvas.requestRenderAll()
-      } catch (err) {
-        console.error('Image floor plan load failed:', err)
-        onFloorPlanError?.('Failed to load floor plan image. Check the file and try again.')
-      }
-    }
-
-    if (ext === 'svg') { void loadFloorPlanSVG() }
-    else if (ext === 'pdf') { void loadFloorPlanPDF() }
-    else { void loadFloorPlanImage() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [floorPlan, fabricReady, onFloorPlanError, designId, floorPlanOpacity])
-
-  // Toggle Fabric canvas background: transparent when satellite present, dark when not
-  // Must force transparency on ALL Fabric-created DOM elements (wrapper div, lower canvas, upper canvas)
-  const hasSatellite = satelliteConfig?.lat != null && satelliteConfig?.lng != null
-  useEffect(() => {
-    if (!fabricRef.current || !fabricReady) return
-
-    // Fabric's internal background (drawn on the 2D context before objects)
-    fabricRef.current.backgroundColor = hasSatellite ? 'transparent' : C.bg
-
-    // Force ALL Fabric DOM elements transparent + z-index above satellite div
-    const wrapper = canvasRef.current?.parentElement
-    if (wrapper) {
-      wrapper.style.background = 'transparent'
-      wrapper.style.position = 'relative'
-      wrapper.style.zIndex = '1'
-      wrapper.querySelectorAll('canvas').forEach((c) => {
-        (c as HTMLElement).style.background = 'transparent'
-      })
-    }
-
-    fabricRef.current.renderAll()
-  }, [hasSatellite, fabricReady])
-
-  // Grid (single pattern rect — replaces per-dot rendering for performance)
-  const drawGrid = useCallback(() => {
-    if (!fabricRef.current || !fabricReady) return
-    const canvas = fabricRef.current
-    canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isGrid === true).forEach((o: FabricObject) => canvas.remove(o))
-    if (!showGrid) { canvas.requestRenderAll(); return }
-    import('fabric').then((fm) => {
-      const tile = document.createElement('canvas')
-      tile.width = GRID_SIZE; tile.height = GRID_SIZE
-      const ctx = tile.getContext('2d')
-      if (ctx) { ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.beginPath(); ctx.arc(GRID_SIZE / 2, GRID_SIZE / 2, 1, 0, Math.PI * 2); ctx.fill() }
-      const pattern = new fm.Pattern({ source: tile, repeat: 'repeat' })
-      const gridRect = new fm.Rect({ left: -10000, top: -10000, width: 20000, height: 20000, fill: pattern as unknown as string, selectable: false, evented: false })
-        ; (gridRect as unknown as Record<string, unknown>).__isGrid = true
-      canvas.add(gridRect); canvas.sendObjectToBack(gridRect)
-      canvas.requestRenderAll()
-    })
-  }, [showGrid, fabricReady])
-  useEffect(() => { drawGrid() }, [drawGrid])
-
-  // ---- Tool items for floating toolbar ----
-  const toolItems: ({ icon: React.JSX.Element; label: string; id: string } | null)[] = [
-    { icon: ToolbarIcons.select, label: 'Select', id: 'select' },
-    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v6M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" /><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 16" /></svg>, label: 'Pan', id: 'pan' },
-    { icon: ToolbarIcons.measure, label: 'Measure', id: 'measure' },
-    { icon: ToolbarIcons.cable, label: 'Cable', id: 'cable' },
-    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="6" width="20" height="12" rx="2" /><line x1="6" y1="6" x2="6" y2="18" /><line x1="18" y1="6" x2="18" y2="18" /><line x1="10" y1="10" x2="14" y2="10" /><line x1="10" y1="14" x2="14" y2="14" /></svg>, label: 'MDF/IDF', id: 'mdf_idf' },
-    null,
-    { icon: ToolbarIcons.zoomIn, label: 'Zoom In', id: 'zoomIn' },
-    { icon: ToolbarIcons.zoomOut, label: 'Zoom Out', id: 'zoomOut' },
-    { icon: ToolbarIcons.fitView, label: 'Fit', id: 'fitView' },
-  ]
-
-  const handleToolbarClick = useCallback((toolId: string) => {
-    if (toolId === 'zoomIn') { if (fabricRef.current) { const z = Math.min(ZOOM_MAX, zoomLevelRef.current * 1.2); const cw = fabricRef.current.width ?? 800; const ch = fabricRef.current.height ?? 600; fabricRef.current.zoomToPoint({ x: cw / 2, y: ch / 2 } as import('fabric').Point, z); updateZoom(z); const mapZoom = satBaseZoomRef.current + Math.log2(z); satMapRef.current?.syncZoom(mapZoom) } return }
-    if (toolId === 'zoomOut') { if (fabricRef.current) { const z = Math.max(ZOOM_MIN, zoomLevelRef.current / 1.2); const cw = fabricRef.current.width ?? 800; const ch = fabricRef.current.height ?? 600; fabricRef.current.zoomToPoint({ x: cw / 2, y: ch / 2 } as import('fabric').Point, z); updateZoom(z); const mapZoom = satBaseZoomRef.current + Math.log2(z); satMapRef.current?.syncZoom(mapZoom) } return }
-    if (toolId === 'fitView') {
-      const canvas = fabricRef.current
-      if (canvas) {
-        const objs = canvas.getObjects().filter((o: FabricObject) => !(o as unknown as Record<string, unknown>).__isGrid)
-        if (objs.length === 0) { canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); updateZoom(1) }
-        else {
-          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-          for (const obj of objs) {
-            const l = obj.left ?? 0, t = obj.top ?? 0
-            const w = (obj.width ?? 0) * (obj.scaleX ?? 1), h = (obj.height ?? 0) * (obj.scaleY ?? 1)
-            minX = Math.min(minX, l - w / 2); minY = Math.min(minY, t - h / 2)
-            maxX = Math.max(maxX, l + w / 2); maxY = Math.max(maxY, t + h / 2)
-          }
-          const pad = 60, bw = maxX - minX + pad * 2, bh = maxY - minY + pad * 2
-          const cw = canvas.width ?? 800, ch = canvas.height ?? 600
-          const z = Math.max(ZOOM_MIN, Math.min(cw / bw, ch / bh, ZOOM_MAX))
-          const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
-          canvas.setViewportTransform([z, 0, 0, z, cw / 2 - cx * z, ch / 2 - cy * z])
-          updateZoom(z)
-          const mapZoom = satBaseZoomRef.current + Math.log2(z)
-          satMapRef.current?.syncZoom(mapZoom)
-        }
-        canvas.requestRenderAll()
-      }
-      return
-    }
-    onToolChange?.(toolId as CanvasTool)
-    if (fabricRef.current) { fabricRef.current.selection = (toolId === 'select') }
-    if (toolId === 'cable') setCableDraw({ phase: 'pick_source', sourceDeviceId: null, waypoints: [] })
-    if (toolId !== 'cable') setCableDraw({ phase: 'idle', sourceDeviceId: null, waypoints: [] })
-    if (toolId !== 'measure') {
-      setMeasureState({ points: [] })
-      if (fabricRef.current) {
-        for (const obj of measureObjectsRef.current) fabricRef.current.remove(obj)
-        measureObjectsRef.current = []
-        fabricRef.current.renderAll()
-      }
-    }
-  }, [onToolChange, updateZoom])
-
+  // ========================================================================
+  // RENDER
+  // ========================================================================
   return (
     <div
       ref={containerRef}
-      onDragOver={(e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
-      onDrop={(e: React.DragEvent) => {
-        e.preventDefault()
-        const data = e.dataTransfer.getData('application/panteray-device')
-        if (!data || !fabricRef.current) return
-        const point = fabricRef.current.getScenePoint(e.nativeEvent)
-        onDeviceDrop?.(Math.round(point.x), Math.round(point.y), data)
-      }}
-      aria-label="Design canvas area"
-      role="region"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
       style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}
     >
-      {/* Satellite map — Google Maps JS API, always in DOM (conditional render breaks React/Fabric DOM) */}
-      <SatelliteMap
-        ref={satMapRef}
-        lat={satelliteConfig?.lat ?? 0}
-        lng={satelliteConfig?.lng ?? 0}
-        zoom={satelliteConfig?.zoom ?? 19}
-        opacity={hasSatellite ? (satelliteConfig?.opacity ?? 0.6) : 0}
-        hidden={!hasSatellite}
-      />
-      <canvas
-        ref={canvasRef}
-        tabIndex={0}
-        aria-label="Device placement canvas"
-        style={{
-          width: '100%', height: '100%', outline: focusVisible ? '2px solid #3B82F6' : 'none', borderRadius: 8,
-        }}
-        onFocus={() => setFocusVisible(true)}
-        onBlur={() => setFocusVisible(false)}
-      />
+      <canvas ref={canvasElRef} />
 
-      {/* Placement hint */}
-      {activeTool === 'place' && pendingDeviceName && (
-        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.accent}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.accent, zIndex: 20, whiteSpace: 'nowrap' }}>
-          Click to place <span style={{ fontWeight: 600 }}>{pendingDeviceName}</span>
-        </div>
-      )}
-      {activeTool === 'place' && !pendingDeviceName && (
-        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.textDim}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.textDim, zIndex: 20 }}>
-          Search and select a device from the left panel first
-        </div>
-      )}
-
-      {/* FOV hint — shown when a camera is selected but FOV cones are off */}
-      {selectedDeviceId && !showFovCones && activeTool === 'select' && fovData.has(selectedDeviceId) && (
-        <div style={{ position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid rgba(59,130,246,0.4)`, borderRadius: 6, padding: '4px 12px', fontSize: 10, color: C.accent, zIndex: 20, opacity: 0.85, pointerEvents: 'none' }}>
-          💡 Toggle <span style={{ fontWeight: 600 }}>FOV</span> to adjust field of view &amp; rotation
-        </div>
-      )}
-
-      {/* Cable draw status */}
-      {activeTool === 'cable' && cableDraw.phase !== 'idle' && (
-        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.accent}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.accent, zIndex: 20 }}>
-          {cableDraw.phase === 'pick_source' && 'Click a device to start cable'}
-          {cableDraw.phase === 'routing' && 'Routing — click waypoints or click destination device (ESC cancel)'}
-        </div>
-      )}
-
-      {/* Measure hint */}
-      {activeTool === 'measure' && measureState.points.length === 1 && (
-        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.green}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.green, zIndex: 20 }}>
-          Click second point to measure distance
-        </div>
-      )}
-
-      {/* MDF/IDF placement hint */}
-      {activeTool === 'mdf_idf' && (
-        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.orange}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.orange, zIndex: 20 }}>
-          Click to place MDF/IDF closet
-        </div>
-      )}
-
-      {/* Pan mode hint */}
-      {activeTool === 'pan' && (
-        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.green}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.green, zIndex: 20 }}>
-          Click and drag to pan — scroll to zoom
-        </div>
-      )}
-
-      {/* Scale calibration hint */}
-      {activeTool === 'scale' && !scaleInput.visible && (
-        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.red}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.red, zIndex: 20 }}>
-          {scaleCal.points.length === 0 ? 'Click first point of known distance' : 'Click second point'}
-        </div>
-      )}
-
-      {/* Scale input overlay */}
-      {scaleInput.visible && (
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: C.bgPanel, border: `1px solid ${C.red}`, borderRadius: 8, padding: '16px 20px', zIndex: 30, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 220 }}>
-          <div style={{ fontSize: 12, color: C.text, fontFamily: 'IBM Plex Sans, sans-serif' }}>Enter real-world distance (ft)</div>
-          <input autoFocus type="number" min="0.1" step="0.1" placeholder="e.g. 10"
-            style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4, padding: '6px 10px', fontSize: 13, color: C.text, outline: 'none', fontFamily: "'IBM Plex Mono'" }}
-            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-              if (e.key === 'Enter') {
-                const ft = parseFloat((e.currentTarget as HTMLInputElement).value)
-                if (ft > 0) onScaleCalibrated?.(scaleInput.distPx / ft)
-                // Clear scale visuals
-                if (fabricRef.current) {
-                  for (const obj of scaleObjectsRef.current) fabricRef.current.remove(obj)
-                  scaleObjectsRef.current = []
-                  fabricRef.current.renderAll()
-                }
-                setScaleInput({ visible: false, distPx: 0 })
-              }
-              if (e.key === 'Escape') {
-                if (fabricRef.current) {
-                  for (const obj of scaleObjectsRef.current) fabricRef.current.remove(obj)
-                  scaleObjectsRef.current = []
-                  fabricRef.current.renderAll()
-                }
-                setScaleInput({ visible: false, distPx: 0 })
-              }
-            }}
+      {/* Satellite map layer (below canvas) */}
+      {satelliteConfig && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
+          <SatelliteMap
+            lat={satelliteConfig.lat} lng={satelliteConfig.lng}
+            zoom={satelliteConfig.zoom} opacity={satelliteConfig.opacity ?? 0.5}
           />
-          <div style={{ fontSize: 10, color: C.textDim }}>Press Enter to confirm, Escape to cancel</div>
+        </div>
+      )}
+
+      {/* Tool status bar */}
+      <div style={{
+        position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+        padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+        background: 'rgba(0,0,0,0.7)', color: C.textMuted,
+        pointerEvents: 'none', zIndex: 20,
+      }}>
+        {activeTool === 'select' && !selectedDeviceId && 'Click a device to select • Space+drag to pan • Scroll to zoom'}
+        {activeTool === 'select' && selectedDeviceId && 'Drag device to move • Drag handles to adjust FOV • Delete to remove'}
+        {activeTool === 'place' && (pendingDeviceName ? `Click to place: ${pendingDeviceName}` : 'Select a device from the catalog')}
+        {activeTool === 'cable' && (cableDraw.phase === 'idle' ? 'Click near a device to start cable' : 'Click device to end • Click to add waypoint')}
+        {activeTool === 'measure' && (measurePoints.length === 0 ? 'Click to start measuring' : measurePoints.length === 1 ? 'Click to set end point' : `Distance: ${(Math.sqrt((measurePoints[1].x - measurePoints[0].x) ** 2 + (measurePoints[1].y - measurePoints[0].y) ** 2) / (scalePxPerFt || 10)).toFixed(1)} ft`)}
+        {activeTool === 'scale' && (scalePoints.length === 0 ? 'Click to set first point' : scalePoints.length === 1 ? 'Click to set second point' : 'Enter distance')}
+        {activeTool === 'pan' && 'Drag to pan'}
+        {activeTool === 'mdf_idf' && 'Click to place MDF/IDF'}
+      </div>
+
+      {/* Scale distance input popup */}
+      {scaleInput.visible && (
+        <div style={{
+          position: 'fixed', left: scaleInput.x, top: scaleInput.y - 60,
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 8, padding: 12, zIndex: 100,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+        }}>
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>Enter known distance (ft):</div>
+          <form onSubmit={(e) => {
+            e.preventDefault()
+            const input = (e.target as HTMLFormElement).elements.namedItem('dist') as HTMLInputElement
+            handleScaleSubmit(parseFloat(input.value))
+          }}>
+            <input name="dist" autoFocus type="number" step="0.1" min="0.1"
+              style={{
+                width: 100, padding: '4px 8px', background: C.bgActive,
+                border: `1px solid ${C.accent}`, borderRadius: 4,
+                color: C.text, fontSize: 13, fontFamily: "'IBM Plex Mono'",
+                outline: 'none',
+              }}
+            />
+            <button type="submit" style={{
+              marginLeft: 6, padding: '4px 12px', background: C.accent,
+              color: '#fff', border: 'none', borderRadius: 4, fontSize: 11,
+              fontWeight: 600, cursor: 'pointer',
+            }}>Set</button>
+          </form>
         </div>
       )}
 
       {/* Context menu */}
       {contextMenu.visible && contextMenu.deviceId && (
-        <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 0', minWidth: 140, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
+        <div style={{
+          position: 'fixed', left: contextMenu.x, top: contextMenu.y,
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 6, padding: 4, zIndex: 100,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          minWidth: 140,
+        }}>
           {[
-            {
-              label: 'Rotate 90°', action: () => {
-                const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
-                if (obj && fabricRef.current) {
-                  const newAngle = ((obj.angle ?? 0) + 90) % 360
-                  obj.set({ angle: newAngle }); fabricRef.current.renderAll()
-                  onDeviceRotated?.(contextMenu.deviceId!, newAngle)
-                }
-              }
-            },
-            {
-              label: 'Bring to Front', action: () => {
-                const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
-                if (obj && fabricRef.current) { fabricRef.current.bringObjectToFront(obj); fabricRef.current.renderAll() }
-              }
-            },
-            {
-              label: 'Send to Back', action: () => {
-                const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
-                if (obj && fabricRef.current) { fabricRef.current.sendObjectToBack(obj); fabricRef.current.renderAll() }
-              }
-            },
-            null,
             { label: 'Duplicate', action: () => onDeviceCopy?.(contextMenu.deviceId!) },
-            { label: 'Delete', action: () => onDeviceDelete?.(contextMenu.deviceId!) },
-          ].map((item, i) =>
-            item === null ? (
-              <div key={`sep-${i}`} style={{ height: 1, background: C.border, margin: '3px 8px' }} />
-            ) : (
-              <div key={item.label} onClick={() => { item.action(); setContextMenu({ visible: false, x: 0, y: 0, deviceId: null }) }}
-                style={{ padding: '6px 14px', fontSize: 12, color: item.label === 'Delete' ? C.red : C.text, cursor: 'pointer' }}
-                onMouseEnter={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = C.bgHover }}
-                onMouseLeave={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}>
-                {item.label}
-              </div>
-            )
-          )}
-        </div>
-      )}
-
-      {/* MDF/IDF Context menu */}
-      {contextMenu.visible && contextMenu.mdfIdfId && !contextMenu.deviceId && (
-        <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 0', minWidth: 140, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
-          {[
-            {
-              label: 'Rename', color: C.text, action: () => {
-                // TODO: inline rename
-              }
-            },
-            {
-              label: 'Delete MDF/IDF', color: C.red, action: () => {
-                onMdfIdfDeleted?.(contextMenu.mdfIdfId!)
-              }
-            },
-          ].map((item) => (
-            <div key={item.label} onClick={() => { item.action(); setContextMenu({ visible: false, x: 0, y: 0, deviceId: null, mdfIdfId: null }) }}
-              style={{ padding: '6px 14px', fontSize: 12, color: item.color, cursor: 'pointer' }}
-              onMouseEnter={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = C.bgHover }}
-              onMouseLeave={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}>
-              {item.label}
-            </div>
+            { label: 'Delete', action: () => onDeviceDelete?.(contextMenu.deviceId!), danger: true },
+          ].map(item => (
+            <button key={item.label}
+              onClick={() => { item.action(); setContextMenu(prev => ({ ...prev, visible: false })) }}
+              style={{
+                display: 'block', width: '100%', padding: '6px 12px',
+                background: 'transparent', border: 'none', textAlign: 'left',
+                color: (item as { danger?: boolean }).danger ? C.red : C.text,
+                fontSize: 12, cursor: 'pointer', borderRadius: 4,
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.bgHover)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >{item.label}</button>
           ))}
         </div>
       )}
 
-      {ppfTooltip?.visible && (
-        <div onClick={() => {
-          setPinnedPreview({ ppf: ppfTooltip.ppf, distFt: ppfTooltip.distFt, cameraLabel: '' })
-        }} style={{
-          position: 'fixed', left: ppfTooltip.x, top: ppfTooltip.y,
-          background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
-          padding: '5px 10px', zIndex: 1001, cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+      {/* Measure overlay */}
+      {activeTool === 'measure' && measurePoints.length === 2 && (
+        <div style={{
+          position: 'absolute', top: 12, right: 12, padding: '8px 16px',
+          background: C.bgPanel, border: `1px solid ${C.border}`,
+          borderRadius: 6, zIndex: 20, fontSize: 13, color: C.text,
           fontFamily: "'IBM Plex Mono', monospace",
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, whiteSpace: 'nowrap' }}>
-            <span style={{ fontWeight: 700, color: ppfTooltip.ppf >= 76 ? C.green : ppfTooltip.ppf >= 38 ? C.yellow : ppfTooltip.ppf >= 8 ? C.orange : C.red }}>
-              {ppfTooltip.ppf} PPF
-            </span>
-            <span style={{ color: C.textMuted, fontSize: 9 }}>{ppfTooltip.dori}</span>
-            <span style={{ color: C.textDim, fontSize: 9 }}>{ppfTooltip.distFt} ft</span>
-          </div>
-          <div style={{ fontSize: 8, color: C.textDim, marginTop: 2 }}>Click for preview</div>
+          {(Math.sqrt(
+            (measurePoints[1].x - measurePoints[0].x) ** 2 +
+            (measurePoints[1].y - measurePoints[0].y) ** 2
+          ) / (scalePxPerFt || 10)).toFixed(1)} ft
         </div>
       )}
 
-      {/* Pinned Person Preview */}
-      {pinnedPreview && (
-        <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 30 }}>
+      {/* Person preview for selected camera */}
+      {selectedDeviceId && fovData.has(selectedDeviceId) && (
+        <div style={{ position: 'absolute', bottom: 40, right: 12, zIndex: 20 }}>
           <PersonPreview
-            ppf={pinnedPreview.ppf}
-            distanceFt={pinnedPreview.distFt}
-            cameraLabel={pinnedPreview.cameraLabel}
-            onClose={() => setPinnedPreview(null)}
+            ppf={(() => {
+              const d = fovData.get(selectedDeviceId)
+              if (!d || !d.resolutionW || !d.sensorW || !d.focalLength) return 0
+              const dist = d.tiers[0]?.distanceFt || 30
+              return calculatePpfAtDistance(d.resolutionW, d.sensorW, d.focalLength, dist)
+            })()}
+            distanceFt={fovData.get(selectedDeviceId)?.tiers[0]?.distanceFt || 30}
           />
-        </div>
-      )}
-
-      {/* Floating Toolbar (right side) */}
-      <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 2, background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, boxShadow: '0 4px 24px rgba(0,0,0,0.4)', zIndex: 10 }}>
-        {toolItems.map((item, i) =>
-          item === null ? (
-            <div key={`sep-${i}`} style={{ height: 1, background: C.border, margin: '2px 4px' }} />
-          ) : (
-            <button key={item.id} title={item.label} onClick={() => handleToolbarClick(item.id)}
-              style={{
-                width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: activeTool === item.id ? C.accentSubtle : 'transparent',
-                border: activeTool === item.id ? '1px solid rgba(59,130,246,0.3)' : 'none',
-                borderRadius: 6, color: activeTool === item.id ? C.accent : C.textMuted, cursor: 'pointer', transition: 'all 0.12s',
-              }}
-              onMouseEnter={(e: React.MouseEvent) => { if (activeTool !== item.id) { (e.currentTarget as HTMLButtonElement).style.background = C.bgHover; (e.currentTarget as HTMLButtonElement).style.color = C.text } }}
-              onMouseLeave={(e: React.MouseEvent) => { if (activeTool !== item.id) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = C.textMuted } }}>
-              {item.icon}
-            </button>
-          )
-        )}
-      </div>
-
-      {/* Bottom bar: PPF/DORI Legend + Scale */}
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', background: 'linear-gradient(transparent, rgba(15,17,23,0.95))', zIndex: 10 }}>
-        <div style={{ fontSize: 10, color: C.textDim, fontFamily: "'IBM Plex Mono'" }}>{zoomDisplay}%</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 9, fontFamily: "'IBM Plex Mono'" }}>
-          {[
-            { color: C.green, ppfLabel: '100+', doriLabel: 'ID' },
-            { color: C.yellow, ppfLabel: '50-99', doriLabel: 'REC' },
-            { color: C.orange, ppfLabel: '10-49', doriLabel: 'OBS' },
-            { color: C.red, ppfLabel: '<10', doriLabel: 'DET' },
-          ].map((tier) => {
-            const isActive = highlightedPpfTier === tier.color
-            return (
-              <div key={tier.color}
-                onClick={() => onPpfTierClick?.(isActive ? null : tier.color)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 3, cursor: showFovCones ? 'pointer' : 'default',
-                  padding: '2px 4px', borderRadius: 3,
-                  background: isActive ? `${tier.color}25` : 'transparent',
-                  border: isActive ? `1px solid ${tier.color}50` : '1px solid transparent',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={(e) => { if (showFovCones && !isActive) e.currentTarget.style.background = `${tier.color}15` }}
-                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent' }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: tier.color, opacity: isActive ? 1 : 0.7 }} />
-                <span style={{ color: isActive ? tier.color : C.textDim }}>
-                  {fovDisplayMode === 'dori' ? tier.doriLabel : tier.ppfLabel}
-                </span>
-              </div>
-            )
-          })}
-          <span style={{ color: C.textMuted, marginLeft: 2 }}>{fovDisplayMode === 'dori' ? 'DORI' : 'PPF'}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: C.textDim, fontFamily: "'IBM Plex Mono'" }}>
-          <div style={{ width: 60, height: 2, background: C.textDim, position: 'relative' }}>
-            <div style={{ position: 'absolute', left: 0, top: -3, width: 1, height: 8, background: C.textDim }} />
-            <div style={{ position: 'absolute', right: 0, top: -3, width: 1, height: 8, background: C.textDim }} />
-          </div>
-          <span>{scalePxPerFt > 0 ? `1\u2033 = ${(96 / scalePxPerFt).toFixed(1)} ft` : 'No scale'}</span>
-        </div>
-      </div>
-
-      {areaId && (
-        <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 9, color: C.textDim, fontFamily: 'monospace' }}>
-          {designId.slice(0, 8)} / {areaId.slice(0, 8)}
         </div>
       )}
     </div>
