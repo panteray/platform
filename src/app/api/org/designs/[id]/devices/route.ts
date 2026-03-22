@@ -25,9 +25,10 @@ export async function GET(
 
   if (!design) return NextResponse.json({ error: 'Design not found' }, { status: 404 })
 
+  // Join device_library_items to enrich device properties with library specs
   let query = admin
     .from('design_devices')
-    .select('*')
+    .select('*, device_library_items(specs)')
     .eq('design_id', designId)
     .order('created_at', { ascending: true })
 
@@ -39,7 +40,19 @@ export async function GET(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ devices: devices ?? [] })
+  // Merge library specs into properties (device props take precedence)
+  const enriched = (devices ?? []).map((d: Record<string, unknown>) => {
+    const librarySpecs = (d.device_library_items as Record<string, unknown> | null)?.specs as Record<string, unknown> | null
+    if (librarySpecs && typeof librarySpecs === 'object') {
+      const deviceProps = (d.properties ?? {}) as Record<string, unknown>
+      d.properties = { ...librarySpecs, ...deviceProps }
+    }
+    // Remove the join artifact from the response
+    delete d.device_library_items
+    return d
+  })
+
+  return NextResponse.json({ devices: enriched })
 }
 
 // POST /api/org/designs/[id]/devices

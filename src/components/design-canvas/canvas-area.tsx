@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
-import { Minimap, type MinimapDevice, type MinimapZone, type MinimapInfra, type MinimapViewport } from './minimap'
+
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON, ToolbarIcons } from './icons'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { PersonPreview } from './person-preview'
@@ -125,7 +125,6 @@ interface CanvasAreaProps {
   onMdfIdfMoved?: (id: string, x: number, y: number) => void
   onMdfIdfDeleted?: (id: string) => void
   snapshotRef?: React.MutableRefObject<(() => string | null) | null>
-  showMinimap?: boolean
   satelliteConfig?: { lat: number; lng: number; zoom: number; opacity?: number } | null
   onShow3dPreview?: (device: DesignDevice) => void
 }
@@ -143,7 +142,6 @@ export function CanvasArea({
   mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved, onMdfIdfDeleted,
   walls = [], onWallCreated, onWallDeleted,
   snapshotRef,
-  showMinimap = false,
   satelliteConfig,
   onShow3dPreview,
 }: CanvasAreaProps) {
@@ -155,9 +153,10 @@ export function CanvasArea({
   const satMapRef = useRef<SatelliteMapHandle>(null)
   const satBaseZoomRef = useRef(satelliteConfig?.zoom ?? 19)
   const [fabricReady, setFabricReady] = useState(false)
-  const [zoomLevel, setZoomLevel] = useState(1)
-  const [isDraggingDevice, setIsDraggingDevice] = useState(false)
-  const [vpState, setVpState] = useState<MinimapViewport>({ worldX: 0, worldY: 0, worldW: 4000, worldH: 3000 })
+  const zoomLevelRef = useRef(1)
+  const [zoomDisplay, setZoomDisplay] = useState(100)
+  const zoomDisplayTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draggingDeviceIdRef = useRef<string | null>(null)
   const [cableDraw, setCableDraw] = useState<CableDrawState>({ phase: 'idle', sourceDeviceId: null, waypoints: [] })
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, deviceId: null })
   const [measureState, setMeasureState] = useState<MeasureState>({ points: [] })
@@ -186,22 +185,27 @@ export function CanvasArea({
   const isDraggingRef = useRef(false)
   const BASE_ICON_PX = 20 // constant screen-pixel size for device icons (IPVM-style small markers)
 
-  // Sync viewport state for minimap
-  const syncViewport = useCallback(() => {
-    const fc = fabricRef.current
-    if (!fc) return
-    const vpt = fc.viewportTransform
-    const z = fc.getZoom()
-    const w = fc.getWidth()
-    const h = fc.getHeight()
-    if (vpt) {
-      setVpState({
-        worldX: -vpt[4] / z,
-        worldY: -vpt[5] / z,
-        worldW: w / z,
-        worldH: h / z,
+  // Helper: update zoom ref + throttled display + rescale icons (no React re-render per tick)
+  const updateZoom = useCallback((zoom: number) => {
+    zoomLevelRef.current = zoom
+    // Rescale device icons + labels immediately (imperative, no useEffect)
+    const canvas = fabricRef.current
+    if (canvas) {
+      const iconScale = BASE_ICON_PX / (64 * zoom)
+      for (const [, obj] of deviceObjectMap.current) {
+        obj.set({ scaleX: iconScale, scaleY: iconScale })
+      }
+      canvas.getObjects().forEach((o: FabricObject) => {
+        const rec = o as unknown as Record<string, unknown>
+        if (rec.__isLabel === true) {
+          const labelScale = 1 / zoom
+          o.set({ scaleX: labelScale, scaleY: labelScale })
+        }
       })
     }
+    // Throttled display update (for the % readout in toolbar)
+    if (zoomDisplayTimer.current) clearTimeout(zoomDisplayTimer.current)
+    zoomDisplayTimer.current = setTimeout(() => setZoomDisplay(Math.round(zoom * 100)), 50)
   }, [])
 
   // ---- Initialize Fabric.js ----
@@ -231,7 +235,7 @@ export function CanvasArea({
         zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom))
         const point = canvas.getScenePoint(opt.e)
         canvas.zoomToPoint(point, zoom)
-        setZoomLevel(zoom)
+        updateZoom(zoom)
         onZoomChange?.(zoom)
         // Sync satellite map zoom: each 2x Fabric zoom = +1 Google Maps zoom level
         const mapZoom = satBaseZoomRef.current + Math.log2(zoom)
@@ -290,7 +294,7 @@ export function CanvasArea({
         if (evt.button === 0 && opt.target) {
           // Device drag start
           const did = (opt.target as unknown as Record<string, unknown>).deviceId as string
-          if (did) { isDraggingRef.current = true; setIsDraggingDevice(true) }
+          if (did) { isDraggingRef.current = true; draggingDeviceIdRef.current = did }
         }
         if (evt.button === 0 && !opt.target) onSelectDevice(null)
       })
@@ -312,7 +316,7 @@ export function CanvasArea({
           if (container) container.style.cursor = activeToolRef.current === 'pan' ? 'grab' : spaceHeld ? 'grab' : 'default'
         }
         // Device drag end — use ref to avoid stale closure
-        if (isDraggingRef.current) { isDraggingRef.current = false; setIsDraggingDevice(false) }
+        if (isDraggingRef.current) { isDraggingRef.current = false; draggingDeviceIdRef.current = null }
       })
 
       // Selection bridging
@@ -367,24 +371,6 @@ export function CanvasArea({
     }
     return () => { if (snapshotRef) snapshotRef.current = null }
   }, [fabricReady, snapshotRef])
-
-  // Viewport sync for minimap (throttled)
-  useEffect(() => {
-    if (!fabricReady || !showMinimap) return
-    const fc = fabricRef.current
-    if (!fc) return
-    let raf = 0
-    const handler = () => {
-      if (raf) return
-      raf = requestAnimationFrame(() => {
-        raf = 0
-        syncViewport()
-      })
-    }
-    fc.on('after:render', handler)
-    syncViewport() // initial
-    return () => { fc.off('after:render', handler); if (raf) cancelAnimationFrame(raf) }
-  }, [fabricReady, showMinimap, syncViewport])
 
   // Resize
   useEffect(() => {
@@ -705,7 +691,9 @@ export function CanvasArea({
     canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isLabel === true).forEach((o: FabricObject) => canvas.remove(o))
 
     // Update existing device positions/rotation (no SVG reload needed)
+    // Skip the currently-dragged device — Fabric owns its position during drag
     for (const device of visibleDevices) {
+      if (device.id === draggingDeviceIdRef.current) continue
       const existing = deviceObjectMap.current.get(device.id)
       if (existing) {
         existing.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0 })
@@ -781,25 +769,6 @@ export function CanvasArea({
     }
   }, [devices, fabricReady, hiddenCategories])
 
-  // ---- Constant screen-size: rescale device icons + labels on zoom change ----
-  useEffect(() => {
-    if (!fabricReady || !fabricRef.current) return
-    const canvas = fabricRef.current
-    const iconScale = BASE_ICON_PX / (64 * zoomLevel)
-    for (const [, obj] of deviceObjectMap.current) {
-      obj.set({ scaleX: iconScale, scaleY: iconScale })
-    }
-    // Rescale labels and status rings to stay readable
-    canvas.getObjects().forEach((o: FabricObject) => {
-      const rec = o as unknown as Record<string, unknown>
-      if (rec.__isLabel === true) {
-        const labelScale = 1 / zoomLevel
-        o.set({ scaleX: labelScale, scaleY: labelScale })
-      }
-    })
-    canvas.requestRenderAll()
-  }, [zoomLevel, fabricReady])
-
   // ---- DORI tier labels for display ----
   const TIER_LABELS: Record<string, string> = { '#22c55e': 'ID', '#eab308': 'REC', '#f97316': 'OBS', '#ef4444': 'DET' }
 
@@ -809,8 +778,8 @@ export function CanvasArea({
     const canvas = fabricRef.current
     fovObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); fovObjectMap.current.clear()
     fovHandleMap.current.forEach((o: FabricObject) => canvas.remove(o)); fovHandleMap.current.clear()
-    // Drag suppression: hide FOV cones if dragging device
-    if (!showFovCones || isDraggingDevice) { canvas.renderAll(); return }
+    // Drag suppression: hide FOV cones if dragging device (use ref, not state dep)
+    if (!showFovCones || isDraggingRef.current) { canvas.renderAll(); return }
 
     function getRayIntersection(o: {x:number,y:number}, d: {x:number,y:number}, a: {x:number,y:number}, b: {x:number,y:number}) {
       const v1 = { x: o.x - a.x, y: o.y - a.y };
@@ -827,6 +796,8 @@ export function CanvasArea({
     // Single render pass — no rAF loop. Renders once when deps change.
     async function renderFovCones() {
       const fabric = await import('fabric');
+      // Tier 2: suppress per-object renders during batch add
+      canvas.renderOnAddRemove = false;
       const wallSegments: Array<{ p1: {x:number,y:number}, p2: {x:number,y:number} }> = [];
       for (const w of walls || []) {
         if (w.points && w.points.length >= 2) {
@@ -880,19 +851,19 @@ export function CanvasArea({
             const outerPath = new fabric.Path(buildConePath(cx, cy, r), {
               fill: coneColor, opacity: 0.15, selectable: false, evented: false,
             });
-            canvas.add(outerPath); canvas.sendObjectToBack(outerPath); objects.push(outerPath);
+            canvas.add(outerPath); objects.push(outerPath);
 
             const innerR = r * 0.35;
             const innerPath = new fabric.Path(buildConePath(cx, cy, innerR), {
               fill: coneColor, opacity: 0.10, selectable: false, evented: false,
             });
-            canvas.add(innerPath); canvas.sendObjectToBack(innerPath); objects.push(innerPath);
+            canvas.add(innerPath); objects.push(innerPath);
 
             const strokePath = new fabric.Path(buildConePath(cx, cy, r), {
               fill: 'transparent', stroke: coneColor, strokeWidth: 1, opacity: 0.35,
               selectable: false, evented: false,
             });
-            canvas.add(strokePath); canvas.sendObjectToBack(strokePath); objects.push(strokePath);
+            canvas.add(strokePath); objects.push(strokePath);
           } else {
             for (const tier of data.tiers) {
               const r = tier.distanceFt * (scalePxPerFt || 10);
@@ -907,7 +878,7 @@ export function CanvasArea({
               const path = new fabric.Path(buildConePath(cx, cy, r), {
                 fill: tier.color, opacity, selectable: false, evented: false,
               });
-              canvas.add(path); canvas.sendObjectToBack(path); objects.push(path);
+              canvas.add(path); objects.push(path);
               if (fovDisplayMode === 'dori' && r > 20) {
                 const labelR = r * 0.92;
                 const lx = cx + Math.cos(rotRad) * labelR;
@@ -942,14 +913,14 @@ export function CanvasArea({
               originX: 'center', originY: 'center', selectable: false, evented: false,
             });
             (blindCircle as unknown as Record<string, unknown>).__isBlindSpot = true;
-            canvas.add(blindCircle); canvas.sendObjectToBack(blindCircle); objects.push(blindCircle);
+            canvas.add(blindCircle); objects.push(blindCircle);
             const blindFill = new fabric.Circle({
               left: cx, top: cy, radius: blindR,
               fill: 'rgba(120,113,108,0.06)', stroke: 'none', strokeWidth: 0,
               originX: 'center', originY: 'center', selectable: false, evented: false,
             });
             (blindFill as unknown as Record<string, unknown>).__isBlindSpot = true;
-            canvas.add(blindFill); canvas.sendObjectToBack(blindFill); objects.push(blindFill);
+            canvas.add(blindFill); objects.push(blindFill);
             if (blindR > 15) {
               const bsLabel = new fabric.FabricText(`${data.blindSpotFt.toFixed(1)}ft blind`, {
                 left: cx, top: cy + blindR + 6, fontSize: 8, fontWeight: '600',
@@ -1008,10 +979,16 @@ export function CanvasArea({
           });
         }
       }
+      // Batch-move all FOV cone objects to back (behind devices/labels)
+      for (const [, objs] of fovObjectMap.current) {
+        for (const o of objs) canvas.sendObjectToBack(o)
+      }
+      // Restore per-object rendering and single paint
+      canvas.renderOnAddRemove = true;
       canvas.requestRenderAll();
     }
     void renderFovCones();
-  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, isDraggingDevice, walls])
+  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, walls])
 
   // ---- FOV Handle Drag → update distance & rotation ----
   useEffect(() => {
@@ -1608,47 +1585,6 @@ export function CanvasArea({
   }, [showGrid, fabricReady])
   useEffect(() => { drawGrid() }, [drawGrid])
 
-  // ---- Minimap data ----
-  const CATEGORY_DOT_COLOR: Record<string, string> = {
-    cctv: C.accent, dome: C.accent, bullet: C.accent, turret: C.accent, ptz: C.accent,
-    fisheye: C.accent, multisensor_quad: C.accent, multisensor_dual: C.accent,
-    access_control: C.green, door: C.green, door_controller: C.green, card_reader: C.green,
-    network: '#a78bfa', switch: '#a78bfa', nvr: '#a78bfa', router: '#a78bfa', server: '#a78bfa',
-    av: C.yellow, speaker: C.yellow, other: C.textMuted,
-  }
-  const minimapDevices: MinimapDevice[] = devices.map(d => ({
-    id: d.id, x: d.position_x, y: d.position_y,
-    color: CATEGORY_DOT_COLOR[d.category] ?? C.textDim,
-  }))
-  const minimapZones: MinimapZone[] = (zones ?? []).map(z => ({
-    id: z.id, x: z.x, y: z.y, w: z.width, h: z.height, color: z.color,
-  }))
-  const minimapInfra: MinimapInfra[] = (mdfIdfs ?? []).map(n => ({
-    id: n.id, x: n.position_x, y: n.position_y,
-  }))
-  const minimapBounds = (() => {
-    const all = [...devices.map(d => ({ x: d.position_x, y: d.position_y })), ...(mdfIdfs ?? []).map(n => ({ x: n.position_x, y: n.position_y }))]
-    for (const z of (zones ?? [])) { all.push({ x: z.x, y: z.y }, { x: z.x + z.width, y: z.y + z.height }) }
-    if (all.length === 0) return { minX: 0, minY: 0, maxX: 4000, maxY: 3000 }
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const p of all) { if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y; if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y }
-    const pad = 200
-    return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad }
-  })()
-  const handleMinimapNavigate = useCallback((worldX: number, worldY: number) => {
-    const fc = fabricRef.current
-    if (!fc) return
-    const z = fc.getZoom()
-    const w = fc.getWidth()
-    const h = fc.getHeight()
-    const vpt = fc.viewportTransform
-    if (!vpt) return
-    vpt[4] = -(worldX * z) + w / 2
-    vpt[5] = -(worldY * z) + h / 2
-    fc.setViewportTransform(vpt)
-    fc.requestRenderAll()
-  }, [])
-
   // ---- Tool items for floating toolbar ----
   const toolItems: ({ icon: React.JSX.Element; label: string; id: string } | null)[] = [
     { icon: ToolbarIcons.select, label: 'Select', id: 'select' },
@@ -1664,13 +1600,13 @@ export function CanvasArea({
   ]
 
   const handleToolbarClick = useCallback((toolId: string) => {
-    if (toolId === 'zoomIn') { if (fabricRef.current) { const z = Math.min(ZOOM_MAX, zoomLevel * 1.2); fabricRef.current.setZoom(z); setZoomLevel(z) } return }
-    if (toolId === 'zoomOut') { if (fabricRef.current) { const z = Math.max(ZOOM_MIN, zoomLevel / 1.2); fabricRef.current.setZoom(z); setZoomLevel(z) } return }
+    if (toolId === 'zoomIn') { if (fabricRef.current) { const z = Math.min(ZOOM_MAX, zoomLevelRef.current * 1.2); fabricRef.current.setZoom(z); updateZoom(z) } return }
+    if (toolId === 'zoomOut') { if (fabricRef.current) { const z = Math.max(ZOOM_MIN, zoomLevelRef.current / 1.2); fabricRef.current.setZoom(z); updateZoom(z) } return }
     if (toolId === 'fitView') {
       const canvas = fabricRef.current
       if (canvas) {
         const objs = canvas.getObjects().filter((o: FabricObject) => !(o as unknown as Record<string, unknown>).__isGrid)
-        if (objs.length === 0) { canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); setZoomLevel(1) }
+        if (objs.length === 0) { canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); updateZoom(1) }
         else {
           let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
           for (const obj of objs) {
@@ -1684,7 +1620,7 @@ export function CanvasArea({
           const z = Math.max(ZOOM_MIN, Math.min(cw / bw, ch / bh, ZOOM_MAX))
           const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
           canvas.setViewportTransform([z, 0, 0, z, cw / 2 - cx * z, ch / 2 - cy * z])
-          setZoomLevel(z)
+          updateZoom(z)
         }
         canvas.requestRenderAll()
       }
@@ -1703,9 +1639,8 @@ export function CanvasArea({
         fabricRef.current.renderAll()
       }
     }
-  }, [zoomLevel, onToolChange])
+  }, [onToolChange, updateZoom])
 
-  // ---- Minimap data ----
   return (
     <div
       ref={containerRef}
@@ -1941,21 +1876,9 @@ export function CanvasArea({
         )}
       </div>
 
-      {/* Minimap */}
-      {showMinimap && (
-        <Minimap
-          devices={minimapDevices}
-          zones={minimapZones}
-          infra={minimapInfra}
-          viewport={vpState}
-          bounds={minimapBounds}
-          onNavigate={handleMinimapNavigate}
-        />
-      )}
-
       {/* Bottom bar: PPF/DORI Legend + Scale */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', background: 'linear-gradient(transparent, rgba(15,17,23,0.95))', zIndex: 10 }}>
-        <div style={{ fontSize: 10, color: C.textDim, fontFamily: "'IBM Plex Mono'" }}>{Math.round(zoomLevel * 100)}%</div>
+        <div style={{ fontSize: 10, color: C.textDim, fontFamily: "'IBM Plex Mono'" }}>{zoomDisplay}%</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 9, fontFamily: "'IBM Plex Mono'" }}>
           {[
             { color: C.green, ppfLabel: '100+', doriLabel: 'ID' },

@@ -59,7 +59,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [activeIcon, setActiveIcon] = useState<IconTabId>('layers')
   const [showLeftPanel, setShowLeftPanel] = useState(false)
   const [activeView, setActiveView] = useState<DesignView>('all')
-  const [showFovCones, setShowFovCones] = useState(true)
+  const [showFovCones, setShowFovCones] = useState(false)
   const [showDeviceLibrary, setShowDeviceLibrary] = useState(false)
   const [fovDisplayMode, setFovDisplayMode] = useState<'simple' | 'ppf' | 'dori'>('simple')
   const [highlightedPpfTier, setHighlightedPpfTier] = useState<string | null>(null)
@@ -71,7 +71,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [showComparison, setShowComparison] = useState(false)
   const [compareIds, setCompareIds] = useState<string[]>([])
   const [showReport, setShowReport] = useState(false)
-  const [showMinimap, setShowMinimap] = useState(false)
   const [editingAreaId, setEditingAreaId] = useState<string | null>(null)
   const [editAreaValue, setEditAreaValue] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1020,10 +1019,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
           title="Camera Advisor">
           <Eye size={12} /> Advisor
         </button>
-        <button onClick={() => setShowMinimap(!showMinimap)} style={toolBtn(showMinimap)}
-          title="Minimap">
-          <MapIcon size={12} />
-        </button>
 
         {/* Export dropdown */}
         <div style={{ position: 'relative' }} ref={exportMenuRef}>
@@ -1173,7 +1168,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
               onMdfIdfMoved={handleMdfIdfMoved}
               onMdfIdfDeleted={handleMdfIdfDeleted}
               snapshotRef={snapshotRef}
-              showMinimap={showMinimap}
               onShow3dPreview={(device: DesignDevice) => {
                 setSelectedDeviceId(device.id)
                 setShow3dPreview(true)
