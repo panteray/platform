@@ -11,6 +11,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
+import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON } from './icons'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignMdfIdf } from '@/types/database'
 
@@ -126,6 +127,14 @@ export function CanvasArea({
   const [scalePts, setScalePts] = useState<Array<{ x: number; y: number }>>([])
   const [scalePopup, setScalePopup] = useState({ show: false, x: 0, y: 0 })
 
+  // PPF tooltip state
+  const [ppfTooltip, setPpfTooltip] = useState<{ show: boolean; x: number; y: number; ppf: number; dori: string; distFt: number; label: string } | null>(null)
+  const fovDataRef = useRef(fovData)
+  useEffect(() => { fovDataRef.current = fovData }, [fovData])
+  const scalePxRef = useRef(scalePxPerFt)
+  useEffect(() => { scalePxRef.current = scalePxPerFt }, [scalePxPerFt])
+  const lastPpfT = useRef(0)
+
   // ════════════════════════════════════════════════════════════════
   // INIT CANVAS
   // ════════════════════════════════════════════════════════════════
@@ -211,15 +220,64 @@ export function CanvasArea({
         }
       })
 
-      // ── MOUSE MOVE (pan) ──
+      // ── MOUSE MOVE (pan + PPF tooltip) ──
       c.on('mouse:move', (o: any) => {
-        if (!panning.current) return
         const e = o.e as MouseEvent
-        const vpt = c.viewportTransform!
-        vpt[4] += e.clientX - panOrigin.current.x
-        vpt[5] += e.clientY - panOrigin.current.y
-        panOrigin.current = { x: e.clientX, y: e.clientY }
-        c.requestRenderAll()
+
+        // Pan handling
+        if (panning.current) {
+          const vpt = c.viewportTransform!
+          vpt[4] += e.clientX - panOrigin.current.x
+          vpt[5] += e.clientY - panOrigin.current.y
+          panOrigin.current = { x: e.clientX, y: e.clientY }
+          c.requestRenderAll()
+          return
+        }
+
+        // PPF-at-cursor (throttled 50ms)
+        const now = Date.now()
+        if (now - lastPpfT.current < 50) return
+        lastPpfT.current = now
+
+        const pt = c.getScenePoint(e)
+        const mx = pt.x, my = pt.y
+        const fd = fovDataRef.current
+        const devs = devsRef.current
+        const scale = scalePxRef.current || 10
+        let found = false
+
+        for (const [devId, data] of fd) {
+          if (!data.resolutionW || !data.sensorW || !data.focalLength) continue
+          const dev = devs.find(d => d.id === devId)
+          if (!dev) continue
+
+          const cx = dev.position_x, cy = dev.position_y
+          const dx = mx - cx, dy = my - cy
+          const distPx = Math.sqrt(dx * dx + dy * dy)
+          const distFt = distPx / scale
+
+          // Check if within outermost tier distance
+          const maxDist = data.tiers[0]?.distanceFt || 30
+          if (distFt > maxDist || distFt < 0.5) continue
+
+          // Check if within FOV angle
+          const halfAng = (data.hFov / 2) * Math.PI / 180
+          const rotRad = (dev.rotation || 0) * Math.PI / 180
+          let cursorAngle = Math.atan2(dy, dx) - rotRad
+          // Normalize to -PI..PI
+          while (cursorAngle > Math.PI) cursorAngle -= 2 * Math.PI
+          while (cursorAngle < -Math.PI) cursorAngle += 2 * Math.PI
+          if (Math.abs(cursorAngle) > halfAng) continue
+
+          // Inside FOV cone — compute PPF
+          const ppf = calculatePpfAtDistance(data.resolutionW, data.sensorW, data.focalLength, distFt)
+          const dori = classifyDori(ppf)
+          const label = dev.label || dev.category
+          setPpfTooltip({ show: true, x: e.clientX, y: e.clientY, ppf: Math.round(ppf), dori, distFt: Math.round(distFt), label })
+          found = true
+          break
+        }
+        if (!found) setPpfTooltip(null)
       })
 
       // ── MOUSE UP (stop pan) ──
@@ -499,10 +557,11 @@ export function CanvasArea({
           if (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') fillColor = tier.color
 
           const cone = new fm.Polygon(pts, {
-            fill: fillColor, opacity: t === 0 ? 0.15 : tier.opacity,
+            fill: fillColor, opacity: tier.opacity,
             stroke: t === 0 ? fillColor : 'transparent',
-            strokeWidth: t === 0 ? 1.5 : 0,
+            strokeWidth: t === 0 ? 1 : 0,
             strokeDashArray: t === 0 ? [4, 4] : undefined,
+            strokeOpacity: 0.3,
             selectable: false, evented: false,
           })
           c.add(cone)
@@ -614,15 +673,87 @@ export function CanvasArea({
   }, [cables, devices, ready])
 
   // ════════════════════════════════════════════════════════════════
+  // SCALE VISUAL MARKERS (green endpoints + dashed line)
+  // ════════════════════════════════════════════════════════════════
+  const scaleObjs = useRef<FabricObject[]>([])
+  useEffect(() => {
+    if (!fcRef.current || !ready) return
+    const c = fcRef.current
+    // Clear previous markers
+    for (const o of scaleObjs.current) c.remove(o)
+    scaleObjs.current = []
+
+    if (scalePts.length === 0) { c.requestRenderAll(); return }
+
+    ;(async () => {
+      const fm = await import('fabric')
+
+      // Draw endpoint circles
+      for (const pt of scalePts) {
+        const circle = new fm.Circle({
+          left: pt.x, top: pt.y, radius: 7,
+          fill: '#22c55e', stroke: '#fff', strokeWidth: 2.5,
+          originX: 'center', originY: 'center',
+          selectable: false, evented: false,
+        })
+        c.add(circle)
+        scaleObjs.current.push(circle)
+      }
+
+      // Draw dashed line between points
+      if (scalePts.length >= 2) {
+        const line = new fm.Line(
+          [scalePts[0].x, scalePts[0].y, scalePts[1].x, scalePts[1].y],
+          {
+            stroke: '#22c55e', strokeWidth: 2, strokeDashArray: [8, 4],
+            selectable: false, evented: false, opacity: 0.8,
+          }
+        )
+        c.add(line)
+        scaleObjs.current.push(line)
+
+        // Distance label at midpoint
+        const midX = (scalePts[0].x + scalePts[1].x) / 2
+        const midY = (scalePts[0].y + scalePts[1].y) / 2
+        const pxDist = Math.round(Math.sqrt(
+          (scalePts[1].x - scalePts[0].x) ** 2 + (scalePts[1].y - scalePts[0].y) ** 2
+        ))
+        const label = new fm.FabricText(`${pxDist}px`, {
+          left: midX, top: midY - 16,
+          fontSize: 11, fontWeight: '600', fill: '#22c55e',
+          fontFamily: "'Inter', sans-serif",
+          originX: 'center', originY: 'center',
+          selectable: false, evented: false,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          padding: 3,
+        } as Record<string, unknown>)
+        c.add(label)
+        scaleObjs.current.push(label)
+      }
+
+      // Z-order: scale markers on top
+      for (const o of scaleObjs.current) c.bringObjectToFront(o)
+      c.requestRenderAll()
+    })()
+  }, [scalePts, ready])
+
+  // ════════════════════════════════════════════════════════════════
   // SCALE SUBMIT
   // ════════════════════════════════════════════════════════════════
   const submitScale = useCallback((ft: number) => {
     if (scalePts.length < 2 || ft <= 0) return
     const px = Math.sqrt((scalePts[1].x - scalePts[0].x) ** 2 + (scalePts[1].y - scalePts[0].y) ** 2)
-    onScaleCalibrated?.(px / ft)
+    const pxPerFt = px / ft
+    onScaleCalibrated?.(pxPerFt)
+    // Clear visual markers
+    if (fcRef.current) {
+      for (const o of scaleObjs.current) fcRef.current.remove(o)
+      scaleObjs.current = []
+      fcRef.current.requestRenderAll()
+    }
     setScalePts([]); setScalePopup({ show: false, x: 0, y: 0 })
     onToolChange?.('select')
-    toast.success(`Scale: ${(px / ft).toFixed(1)} px/ft`)
+    toast.success(`Scale: ${pxPerFt.toFixed(1)} px/ft`)
   }, [scalePts, onScaleCalibrated, onToolChange])
 
   // ════════════════════════════════════════════════════════════════
@@ -679,6 +810,30 @@ export function CanvasArea({
               style={{ width: 80, padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.accent}`, borderRadius: 4, color: C.text, fontSize: 12, outline: 'none' }} />
             <button type="submit" style={{ marginLeft: 6, padding: '4px 10px', background: C.accent, color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Set</button>
           </form>
+        </div>
+      )}
+
+      {/* PPF-at-cursor tooltip */}
+      {ppfTooltip?.show && (
+        <div style={{
+          position: 'fixed', left: ppfTooltip.x + 16, top: ppfTooltip.y - 8,
+          background: 'rgba(0,0,0,0.88)', borderRadius: 6, padding: '6px 10px',
+          zIndex: 100, pointerEvents: 'none', whiteSpace: 'nowrap',
+          border: `1px solid ${ppfTooltip.dori === 'identification' ? '#22c55e' : ppfTooltip.dori === 'recognition' ? '#eab308' : ppfTooltip.dori === 'observation' ? '#f97316' : ppfTooltip.dori === 'detection' ? '#ef4444' : '#555'}`,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
+            {ppfTooltip.ppf} <span style={{ fontSize: 10, fontWeight: 500, color: '#aaa' }}>PPF</span>
+          </div>
+          <div style={{
+            fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5,
+            color: ppfTooltip.dori === 'identification' ? '#22c55e' : ppfTooltip.dori === 'recognition' ? '#eab308' : ppfTooltip.dori === 'observation' ? '#f97316' : ppfTooltip.dori === 'detection' ? '#ef4444' : '#888',
+          }}>
+            {ppfTooltip.dori === 'none' ? 'Below Detection' : ppfTooltip.dori}
+          </div>
+          <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>
+            {ppfTooltip.distFt}ft · {ppfTooltip.label}
+          </div>
         </div>
       )}
 

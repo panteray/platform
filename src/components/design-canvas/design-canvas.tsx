@@ -36,6 +36,7 @@ import { LeftPanel } from './left-panel'
 import { RightPanel } from './right-panel'
 import { DeviceCatalogModal } from './device-catalog-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
+import { getFovConeTiers } from '@/lib/calculators'
 import type { DesignDevice, DeviceSearchResult } from '@/types/database'
 
 /* ─── Props ─── */
@@ -136,13 +137,38 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
       }
 
       const deviceColor = d.color_hex || C.accent
-      const tiers = (focalLength > 0 && sensorW > 0 && resW > 0)
-        ? [
-            { distanceFt: targetDist, color: deviceColor, opacity: 0.15 },
-            { distanceFt: targetDist * 0.6, color: '#eab308', opacity: 0.12 },
-            { distanceFt: targetDist * 0.3, color: '#22c55e', opacity: 0.15 },
-          ]
-        : [{ distanceFt: targetDist, color: deviceColor, opacity: 0.15 }]
+      const hasFullSpecs = focalLength > 0 && sensorW > 0 && resW > 0
+
+      let tiers: { distanceFt: number; color: string; opacity: number }[]
+
+      if (hasFullSpecs) {
+        // Use proper DORI-based tier distances from the FOV calculator
+        const doriTiers = getFovConeTiers({
+          resolutionW: resW,
+          resolutionH: Number(props.resolution_h) || Math.round(resW * 9 / 16),
+          sensorW,
+          sensorH: Number(props.sensor_height) || sensorW * 0.75,
+          focalLength,
+          mountHeight: Number(props.install_height) || 9,
+          targetDistance: targetDist,
+        })
+        // doriTiers: detection(outermost) → identification(innermost)
+        // Cap outer tier to user's targetDist so cone doesn't exceed the set range
+        tiers = doriTiers.map((t, i) => ({
+          distanceFt: Math.min(t.distanceFt, targetDist),
+          color: t.color,
+          // Graduated opacity: outermost=faintest, innermost=densest
+          opacity: [0.06, 0.10, 0.14, 0.20][i] ?? 0.10,
+        }))
+      } else {
+        // Fallback: 4 proportional tiers with graduated opacity
+        tiers = [
+          { distanceFt: targetDist, color: deviceColor, opacity: 0.06 },
+          { distanceFt: targetDist * 0.7, color: deviceColor, opacity: 0.10 },
+          { distanceFt: targetDist * 0.45, color: deviceColor, opacity: 0.14 },
+          { distanceFt: targetDist * 0.2, color: deviceColor, opacity: 0.20 },
+        ]
+      }
 
       map.set(d.id, {
         hFov, rotation: d.rotation || 0, tiers,
