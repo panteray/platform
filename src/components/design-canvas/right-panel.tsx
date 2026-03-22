@@ -72,7 +72,7 @@ function ParamRow({ label, value, min, max, step, unit, onChange }: {
               width: 60, textAlign: 'center', background: 'transparent',
               border: 'none', borderLeft: `1px solid ${C.border}`,
               borderRight: `1px solid ${C.border}`,
-              color: C.text, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace",
+              color: C.text, fontFamily: "monospace",
               outline: 'none', padding: '4px 0',
             }} />
           <span style={{ padding: '0 6px', fontSize: 10, color: C.textDim, minWidth: 20 }}>{unit}</span>
@@ -105,7 +105,7 @@ export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDel
       width: 280, height: '100%', background: C.bgPanel,
       borderLeft: `1px solid ${C.border}`,
       display: 'flex', flexDirection: 'column',
-      fontFamily: "'IBM Plex Sans', sans-serif", overflow: 'hidden',
+      fontFamily: "'Inter', 'Segoe UI', sans-serif", overflow: 'hidden',
     }}>
       {/* ── Header ── */}
       <div style={{
@@ -220,7 +220,7 @@ export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDel
         {/* Position (read-only) */}
         <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Position</div>
-          <div style={{ display: 'flex', gap: 8, fontSize: 11, color: C.textMuted, fontFamily: "'IBM Plex Mono', monospace" }}>
+           <div style={{ display: 'flex', gap: 8, fontSize: 11, color: C.textMuted, fontFamily: 'monospace' }}>
             <span>X: {device.position_x}</span>
             <span>Y: {device.position_y}</span>
           </div>

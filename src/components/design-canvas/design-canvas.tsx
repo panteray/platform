@@ -1,39 +1,64 @@
 'use client'
 /**
- * DesignCanvas — Main orchestrator (Hanwha DesignPro / IPVM-style layout).
+ * DesignCanvas — Main orchestrator (Hanwha / Axis / System Surveyor style).
  *
  * Layout:
- *   ┌─────────────────────────────────────────────────────────────────┐
- *   │ TOOLBAR: ← Back │ Area tabs │ Tools │ FOV mode │ Export │ Save │
- *   ├──────────┬──────────────────────────────────┬──────────────────┤
- *   │  LEFT    │        CANVAS                    │   RIGHT PANEL    │
- *   │  PANEL   │   Floor plan + devices + cones   │   Properties     │
- *   │  Device  │   FOV handles (IPVM-style)       │   Scene config   │
- *   │  list    │                                  │   Sliders+inputs │
- *   ├──────────┴──────────────────────────────────┴──────────────────┤
- *   │ BOTTOM BAR: Device counts │ BW │ Storage │ PoE                │
- *   └─────────────────────────────────────────────────────────────────┘
+ *   ┌─────────────────────────────────────────────────────────────────────┐
+ *   │ TOP NAV (40px): ← │ Name │ Page Tabs │ Actions │ + Add Device     │
+ *   ├────────────────────────────────────────────────────────────────────┤
+ *   │ FLOOR PLAN TABS (32px): Area A │ Area B │ +                        │
+ *   ├──┬──────┬────────────────────────────────────┬─────────────────────┤
+ *   │  │      │                                    │                     │
+ *   │52│ LEFT │       CANVAS (Fabric.js)           │   RIGHT PANEL       │
+ *   │px│ 200px│       Devices + FOV cones          │   300px (overlay)   │
+ *   │  │      │       3-handle interaction          │   Properties        │
+ *   │  │      │                                    │                     │
+ *   │  │      │        [Floating toolbar]          │                     │
+ *   │  │      │                                    │                     │
+ *   ├──┴──────┴────────────────────────────────────┴─────────────────────┤
+ *   │ BOTTOM (28px): PPF Legend │ Device Counts │ Metrics │ Scale Bar   │
+ *   └───────────────────────────────────────────────────────────────────┘
  */
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
-  ArrowLeft, Plus, Eye, EyeOff, Upload, Grid3X3, Undo2, Redo2,
+  ArrowLeft, Plus, Eye, EyeOff, Upload, Undo2, Redo2,
   Download, MousePointer, Hand, Ruler, Trash2, Cable, Server,
-  ChevronDown, X, Layers,
+  CircleDot, ChevronDown, X, Layers, Camera, DoorOpen,
+  Wifi, Speaker, Activity, MoreHorizontal, Crosshair,
+  Square, Settings, Maximize2, ZoomIn, ZoomOut, LockKeyhole,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { C, type CanvasTool } from './constants'
+import { C, PPF_CHART, type CanvasTool, type IconTabId, ICON_TABS } from './constants'
 import { CanvasArea, type DeviceFovData } from './canvas-area'
 import { LeftPanel } from './left-panel'
 import { RightPanel } from './right-panel'
 import { DeviceCatalogModal } from './device-catalog-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
-import type { FovDoriInput } from '@/lib/calculators'
 import type { DesignDevice, DeviceSearchResult } from '@/types/database'
 
 /* ─── Props ─── */
 interface Props { designId: string; onNavigateDashboard?: () => void }
+
+/* ─── Icon mapping for sidebar ─── */
+const SIDEBAR_ICONS: Record<IconTabId, React.ReactNode> = {
+  layers: <Layers size={18} />,
+  camera: <Camera size={18} />,
+  door: <DoorOpen size={18} />,
+  network: <Wifi size={18} />,
+  av: <Speaker size={18} />,
+  sensors: <Activity size={18} />,
+  other: <MoreHorizontal size={18} />,
+}
+
+/* ─── Page tabs (Hanwha-style top nav) ─── */
+const PAGE_TABS = [
+  { id: 'maps', label: 'Maps' },
+  { id: 'devices', label: 'Devices' },
+  { id: 'additionals', label: 'Additionals' },
+  { id: 'reports', label: 'Reports' },
+] as const
 
 /* ─── Component ─── */
 export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
@@ -50,6 +75,8 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
 
   /* ── UI state ── */
   const [activeTool, setActiveTool] = useState<CanvasTool>('select')
+  const [activeTab, setActiveTab] = useState<string>('maps')
+  const [activeCategory, setActiveCategory] = useState<IconTabId>('camera')
   const [showGrid, setShowGrid] = useState(true)
   const [showFov, setShowFov] = useState(true)
   const [showLeftPanel, setShowLeftPanel] = useState(true)
@@ -58,7 +85,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   const [floorPlanOpacity, setFloorPlanOpacity] = useState(0.6)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
 
-  /* ── Undo/Redo (simplified) ── */
+  /* ── Undo/Redo ── */
   const undoStack = useRef<Array<DesignDevice[]>>([])
   const redoStack = useRef<Array<DesignDevice[]>>([])
   const pushUndo = useCallback(() => {
@@ -84,6 +111,11 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
     devices.find(d => d.id === selectedDeviceId) ?? null
   , [devices, selectedDeviceId])
 
+  /* ── Device counts ── */
+  const cameraCount = useMemo(() => areaDevices.filter(d => ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(d.category)).length, [areaDevices])
+  const doorCount = useMemo(() => areaDevices.filter(d => d.category === 'access_control').length, [areaDevices])
+  const networkCount = useMemo(() => areaDevices.filter(d => d.category === 'network').length, [areaDevices])
+
   /* ── FOV data computation ── */
   const fovData = useMemo(() => {
     const map = new Map<string, DeviceFovData>()
@@ -97,14 +129,12 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
       const focalLength = Number(props.focal_length) || 0
       const sensorW = Number(props.sensor_width) || 0
       const resW = Number(props.resolution_w) || 0
-      const installH = Number(props.install_height) || 9
 
       let hFov = fovAngle
       if (focalLength > 0 && sensorW > 0) {
         hFov = 2 * Math.atan(sensorW / (2 * focalLength)) * (180 / Math.PI)
       }
 
-      // Build tiers based on available data
       const deviceColor = d.color_hex || C.accent
       const tiers = (focalLength > 0 && sensorW > 0 && resW > 0)
         ? [
@@ -198,103 +228,157 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
 
   /* ── Loading / Error ── */
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: C.bg, color: C.textMuted, fontFamily: "'IBM Plex Sans', sans-serif" }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: C.bg, color: C.textMuted, fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
       Loading design…
     </div>
   )
   if (error) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: C.bg, color: C.red, fontFamily: "'IBM Plex Sans', sans-serif" }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: C.bg, color: C.red, fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
       Error: {error}
     </div>
   )
 
-  /* ── Tool definitions ── */
-  const tools: Array<{ id: CanvasTool; icon: React.ReactNode; label: string }> = [
-    { id: 'select', icon: <MousePointer size={14} />, label: 'Select' },
-    { id: 'pan', icon: <Hand size={14} />, label: 'Pan' },
-    { id: 'measure', icon: <Ruler size={14} />, label: 'Measure' },
-    { id: 'scale', icon: <Ruler size={14} />, label: 'Scale' },
-    { id: 'cable', icon: <Cable size={14} />, label: 'Cable' },
-    { id: 'mdf_idf', icon: <Server size={14} />, label: 'MDF/IDF' },
-  ]
-
-  const toolBtn = (active: boolean): React.CSSProperties => ({
-    display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px',
-    background: active ? C.accentSubtle : 'transparent',
-    border: active ? `1px solid ${C.accent}40` : '1px solid transparent',
-    borderRadius: 5, color: active ? C.accent : C.textMuted,
-    fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
-    transition: 'all 0.12s',
-  })
-
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', height: '100vh',
-      background: C.bg, color: C.text, fontFamily: "'IBM Plex Sans', sans-serif",
+      background: C.bg, color: C.text, fontFamily: "'Inter', 'Segoe UI', sans-serif",
     }}>
-      {/* ═══════ TOOLBAR ═══════ */}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          TOP NAV BAR (40px) — Hanwha DesignPro style
+         ═══════════════════════════════════════════════════════════════════ */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        padding: '6px 12px', background: C.bgSurface,
+        display: 'flex', alignItems: 'center',
+        height: 40, padding: '0 12px', background: C.bgSurface,
         borderBottom: `1px solid ${C.border}`, zIndex: 50, flexShrink: 0,
       }}>
-        {/* Back */}
+        {/* Back + Logo */}
         <button onClick={() => onNavigateDashboard ? onNavigateDashboard() : router.back()}
-          style={{ ...toolBtn(false), marginRight: 4 }}>
-          <ArrowLeft size={14} />
+          style={{ ...btnStyle(false), marginRight: 8, padding: '4px 6px' }}>
+          <ArrowLeft size={15} />
         </button>
 
         {/* Project name */}
-        <span style={{ fontSize: 13, fontWeight: 600, color: C.text, marginRight: 8 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: -0.3 }}>
           {design?.name || 'Design'}
         </span>
 
         {/* Separator */}
-        <div style={{ width: 1, height: 20, background: C.border, margin: '0 4px' }} />
+        <div style={{ width: 1, height: 20, background: C.border, margin: '0 12px' }} />
 
+        {/* Page tabs (Hanwha-style) */}
+        {PAGE_TABS.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            style={{
+              ...btnStyle(false),
+              padding: '6px 14px', fontSize: 12, fontWeight: activeTab === tab.id ? 600 : 400,
+              color: activeTab === tab.id ? C.text : C.textMuted,
+              borderBottom: activeTab === tab.id ? `2px solid ${C.accent}` : '2px solid transparent',
+              borderRadius: 0, background: 'transparent',
+            }}>
+            {tab.label}
+          </button>
+        ))}
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Right actions */}
+        <label style={{ ...btnStyle(false), padding: '4px 10px', gap: 4 }} title="Upload Floor Plan">
+          <Upload size={13} />
+          <span style={{ fontSize: 10 }}>Floor Plan</span>
+          <input type="file" accept="image/*" hidden onChange={handleFloorPlanUpload} />
+        </label>
+
+        <button onClick={() => setShowCatalog(true)} style={{
+          display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px',
+          background: C.accent, color: '#fff', border: 'none',
+          borderRadius: 4, fontSize: 11, fontWeight: 600,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}>
+          <Plus size={13} />
+          Add Device
+        </button>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          FLOOR PLAN TAB BAR (32px) + Tool Strip
+         ═══════════════════════════════════════════════════════════════════ */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        height: 32, padding: '0 12px', background: C.bgPanel,
+        borderBottom: `1px solid ${C.border}`, flexShrink: 0,
+      }}>
         {/* Area tabs */}
         {areas.map(area => (
           <button key={area.id}
             onClick={() => setActiveAreaId(area.id)}
             style={{
-              ...toolBtn(area.id === activeAreaId),
-              fontSize: 11,
+              padding: '4px 12px', fontSize: 11, fontWeight: area.id === activeAreaId ? 600 : 400,
+              background: area.id === activeAreaId ? C.bgActive : 'transparent',
+              border: area.id === activeAreaId ? `1px solid ${C.border}` : '1px solid transparent',
+              borderBottom: area.id === activeAreaId ? `2px solid ${C.accent}` : '2px solid transparent',
+              borderRadius: '4px 4px 0 0', color: area.id === activeAreaId ? C.text : C.textMuted,
+              cursor: 'pointer', fontFamily: 'inherit',
             }}>
             {area.name}
           </button>
         ))}
 
-        {/* Separator */}
-        <div style={{ width: 1, height: 20, background: C.border, margin: '0 4px' }} />
+        {/* + Add area */}
+        <button style={{
+          padding: '2px 8px', fontSize: 13, color: C.textDim,
+          background: 'transparent', border: `1px dashed ${C.border}`,
+          borderRadius: 3, cursor: 'pointer', fontFamily: 'inherit',
+        }} onClick={() => addArea(`Area ${areas.length + 1}`, 'grid')}>
+          +
+        </button>
 
-        {/* Tools */}
-        {tools.map(t => (
+        {/* Separator */}
+        <div style={{ width: 1, height: 18, background: C.border, margin: '0 8px' }} />
+
+        {/* Tool strip */}
+        {[
+          { id: 'select' as CanvasTool, icon: <MousePointer size={13} />, label: 'Select' },
+          { id: 'pan' as CanvasTool, icon: <Hand size={13} />, label: 'Pan' },
+          { id: 'measure' as CanvasTool, icon: <Ruler size={13} />, label: 'Measure' },
+          { id: 'scale' as CanvasTool, icon: <Crosshair size={13} />, label: 'Scale' },
+          { id: 'cable' as CanvasTool, icon: <Cable size={13} />, label: 'Cable' },
+          { id: 'mdf_idf' as CanvasTool, icon: <Server size={13} />, label: 'MDF/IDF' },
+        ].map(t => (
           <button key={t.id} onClick={() => setActiveTool(t.id)}
-            style={toolBtn(activeTool === t.id)} title={t.label}>
+            title={t.label}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px',
+              background: activeTool === t.id ? C.accentSubtle : 'transparent',
+              border: activeTool === t.id ? `1px solid ${C.accent}40` : '1px solid transparent',
+              borderRadius: 3, color: activeTool === t.id ? C.accent : C.textMuted,
+              fontSize: 10, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
             {t.icon}
-            <span style={{ fontSize: 10 }}>{t.label}</span>
+            <span>{t.label}</span>
           </button>
         ))}
 
         {/* Separator */}
-        <div style={{ width: 1, height: 20, background: C.border, margin: '0 4px' }} />
+        <div style={{ width: 1, height: 18, background: C.border, margin: '0 4px' }} />
 
-        {/* Toggle buttons */}
-        <button onClick={() => setShowGrid(!showGrid)} style={toolBtn(showGrid)} title="Grid">
-          <Grid3X3 size={14} />
-        </button>
-        <button onClick={() => setShowFov(!showFov)} style={toolBtn(showFov)} title="FOV Cones">
-          {showFov ? <Eye size={14} /> : <EyeOff size={14} />}
-          <span style={{ fontSize: 10 }}>FOV</span>
+        {/* FOV toggle + DORI toggle */}
+        <button onClick={() => setShowFov(!showFov)}
+          style={{
+            ...btnStyle(showFov), padding: '3px 7px', fontSize: 10, gap: 3,
+            color: showFov ? C.accent : C.textMuted,
+          }} title="Toggle FOV">
+          {showFov ? <Eye size={13} /> : <EyeOff size={13} />}
+          <span>FOV</span>
         </button>
 
-        {/* FOV mode selector */}
         {showFov && (
           <select value={fovMode}
             onChange={e => setFovMode(e.target.value as 'simple' | 'ppf' | 'dori')}
             style={{
               background: C.bgActive, border: `1px solid ${C.border}`,
-              borderRadius: 4, color: C.text, fontSize: 10, padding: '3px 6px',
+              borderRadius: 3, color: C.text, fontSize: 10, padding: '2px 4px',
               fontFamily: 'inherit', cursor: 'pointer',
             }}>
             <option value="simple">Simple</option>
@@ -303,26 +387,50 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           </select>
         )}
 
-        {/* Spacer */}
         <div style={{ flex: 1 }} />
 
-        {/* Right-side actions */}
-        <label style={toolBtn(false)} title="Upload Floor Plan">
-          <Upload size={14} />
-          <span style={{ fontSize: 10 }}>Floor Plan</span>
-          <input type="file" accept="image/*" hidden onChange={handleFloorPlanUpload} />
-        </label>
-
-        <button onClick={() => setShowCatalog(true)} style={{ ...toolBtn(false), background: C.accent, color: '#fff', border: `1px solid ${C.accent}` }}>
-          <Plus size={14} />
-          <span style={{ fontSize: 10, fontWeight: 600 }}>Add Device</span>
-        </button>
+        {/* Zoom controls (right side) */}
+        <button style={btnStyle(false)} title="Zoom In"><ZoomIn size={13} /></button>
+        <button style={btnStyle(false)} title="Zoom Out"><ZoomOut size={13} /></button>
+        <button style={btnStyle(false)} title="Fit to View"><Maximize2 size={13} /></button>
       </div>
 
-      {/* ═══════ MAIN CONTENT ═══════ */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          MAIN CONTENT: Icon Sidebar + Left Panel + Canvas + Right Panel
+         ═══════════════════════════════════════════════════════════════════ */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
 
-        {/* ── LEFT PANEL ── */}
+        {/* ── 52px ICON SIDEBAR ── */}
+        <div style={{
+          width: 52, flexShrink: 0, background: C.bgSurface,
+          borderRight: `1px solid ${C.border}`,
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          paddingTop: 8, gap: 2,
+        }}>
+          {ICON_TABS.map(tab => {
+            const active = activeCategory === tab.id
+            return (
+              <button key={tab.id}
+                onClick={() => setActiveCategory(tab.id)}
+                title={tab.label}
+                style={{
+                  width: 40, height: 40,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  gap: 1, border: active ? `1px solid ${C.accent}` : '1px solid transparent',
+                  borderRadius: 6,
+                  background: active ? C.accentSubtle : 'transparent',
+                  color: active ? C.accent : C.textDim,
+                  cursor: 'pointer', fontSize: 8, fontWeight: 500, fontFamily: 'inherit',
+                  transition: 'all 0.12s',
+                }}>
+                {SIDEBAR_ICONS[tab.id]}
+                <span style={{ marginTop: 1 }}>{tab.label.length > 5 ? tab.label.slice(0, 5) : tab.label}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* ── LEFT PANEL (200px) ── */}
         {showLeftPanel && (
           <LeftPanel
             devices={areaDevices}
@@ -357,7 +465,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           onFovAngleChanged={handleFovAngleChanged}
           floorPlanOpacity={floorPlanOpacity}
           fovDisplayMode={fovMode}
-          onCanvasClick={(x, y) => {}}
+          onCanvasClick={() => {}}
           onCableCreated={async (cable) => { await addCable({ ...cable, design_id: designId, area_id: activeAreaId }) }}
           mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
           onMdfIdfPlaced={async (x, y) => {
@@ -366,11 +474,11 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           onDragCommit={() => {}}
         />
 
-        {/* ── RIGHT PANEL (overlay) ── */}
+        {/* ── RIGHT PANEL (300px, overlay) ── */}
         {selectedDevice && (
           <div style={{
             position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 10,
-            boxShadow: '-4px 0 16px rgba(0,0,0,0.4)',
+            boxShadow: '-4px 0 20px rgba(0,0,0,0.5)',
           }}>
             <RightPanel
               device={selectedDevice}
@@ -384,18 +492,58 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
         )}
       </div>
 
-      {/* ═══════ BOTTOM BAR ═══════ */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          BOTTOM BAR (28px) — PPF Legend + Device Counts + Scale
+         ═══════════════════════════════════════════════════════════════════ */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 16, padding: '6px 16px',
+        display: 'flex', alignItems: 'center', gap: 0,
+        height: 28, padding: '0 12px',
         background: C.bgSurface, borderTop: `1px solid ${C.border}`,
-        fontSize: 11, color: C.textMuted, flexShrink: 0,
+        fontSize: 10, color: C.textMuted, flexShrink: 0,
       }}>
-        <span>📷 {areaDevices.filter(d => ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye'].includes(d.category)).length} cameras</span>
-        <span>🚪 {areaDevices.filter(d => d.category === 'access_control').length} doors</span>
-        <span>🔌 {areaDevices.filter(d => d.category === 'network').length} network</span>
-        <span>Total: {areaDevices.length} devices</span>
+        {/* PPF Legend */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginRight: 16 }}>
+          {PPF_CHART.slice(1, 5).map(tier => (
+            <div key={tier.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: tier.color, opacity: 0.8 }} />
+              <span style={{ fontSize: 9 }}>{tier.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Separator */}
+        <div style={{ width: 1, height: 16, background: C.border, margin: '0 8px' }} />
+
+        {/* Device counts */}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <Camera size={11} /> {cameraCount} {cameraCount === 1 ? 'camera' : 'cameras'}
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <DoorOpen size={11} /> {doorCount} {doorCount === 1 ? 'door' : 'doors'}
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <Wifi size={11} /> {networkCount} network
+          </span>
+          <span>Total: {areaDevices.length}</span>
+        </div>
+
+        {/* Spacer */}
         <div style={{ flex: 1 }} />
-        <span>Scale: {scalePxPerFt.toFixed(1)} px/ft</span>
+
+        {/* Scale bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{
+            width: 50, height: 4, background: C.accent, borderRadius: 1,
+            position: 'relative',
+          }}>
+            <div style={{ position: 'absolute', left: 0, top: -2, width: 1, height: 8, background: C.accent }} />
+            <div style={{ position: 'absolute', right: 0, top: -2, width: 1, height: 8, background: C.accent }} />
+          </div>
+          <span style={{ fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", color: C.text }}>
+            {(50 / scalePxPerFt).toFixed(0)} ft
+          </span>
+        </div>
       </div>
 
       {/* ═══════ DEVICE CATALOG MODAL ═══════ */}
@@ -408,4 +556,17 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
       )}
     </div>
   )
+}
+
+/* ─── Helper ─── */
+function btnStyle(active: boolean): React.CSSProperties {
+  return {
+    display: 'flex', alignItems: 'center', gap: 4,
+    padding: '4px 6px',
+    background: active ? C.accentSubtle : 'transparent',
+    border: active ? `1px solid ${C.accent}40` : '1px solid transparent',
+    borderRadius: 4, color: active ? C.accent : C.textMuted,
+    fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+    transition: 'all 0.12s',
+  }
 }

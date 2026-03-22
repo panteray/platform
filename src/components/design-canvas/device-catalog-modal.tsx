@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { X, Search } from 'lucide-react'
+import { X, Search, Star, Clock, Camera } from 'lucide-react'
 import { C } from './constants'
 import type { DeviceSearchResult } from '@/types/database'
 
@@ -11,18 +11,21 @@ interface DeviceCatalogModalProps {
   onSelect: (device: DeviceSearchResult) => void
 }
 
-const FORM_TYPES: { id: string; label: string }[] = [
-  { id: '', label: 'All' },
-  { id: 'box', label: 'Box' },
-  { id: 'bullet', label: 'Bullet' },
-  { id: 'dome', label: 'Dome' },
-  { id: 'turret', label: 'Turret' },
-  { id: 'ptz', label: 'PTZ' },
-  { id: 'fisheye', label: 'Fisheye' },
-  { id: 'multisensor', label: 'Multi' },
+const FORM_TYPES: { id: string; label: string; icon: string }[] = [
+  { id: '', label: 'All', icon: '' },
+  { id: 'box', label: 'Box', icon: '📦' },
+  { id: 'bullet', label: 'Bullet', icon: '🔫' },
+  { id: 'covert', label: 'Covert', icon: '👁' },
+  { id: 'cube', label: 'Cube', icon: '◻️' },
+  { id: 'dome', label: 'Dome', icon: '🔵' },
+  { id: 'ptz', label: 'PTZ', icon: '🎯' },
+  { id: 'turret', label: 'Turret', icon: '⬡' },
+  { id: 'fisheye', label: 'Fisheye', icon: '🐟' },
+  { id: 'multisensor', label: 'Multi', icon: '🔲' },
 ]
 
 const ACCENT = '#2b8fce'
+const HEADER_BG = '#2b8fce'
 
 export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalogModalProps) {
   const [query, setQuery] = useState('')
@@ -32,6 +35,10 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
   const [selectedForm, setSelectedForm] = useState('')
   const [selectedRes, setSelectedRes] = useState('')
   const [ndaaOnly, setNdaaOnly] = useState(false)
+  const [excludeEol, setExcludeEol] = useState(true)
+  const [irRange, setIrRange] = useState([0, 500])
+  const [haovRange, setHaovRange] = useState([1, 360])
+  const [hoveredModel, setHoveredModel] = useState<DeviceSearchResult | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -63,17 +70,38 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
     timerRef.current = setTimeout(() => doFetch(val, ndaaOnly), 300)
   }
 
-  function toggleNdaa() {
-    const next = !ndaaOnly
-    setNdaaOnly(next)
-    doFetch(query, next)
-  }
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
+
+  /* Generic camera placement */
+  function handleSelectGeneric() {
+    const generic: DeviceSearchResult = {
+      id: 'generic_camera',
+      vendor: 'Generic',
+      model: 'Generic Camera',
+      category: category || 'cctv',
+      subcategory: 'dome',
+      resolution: '2MP',
+      ndaa_compliant: false,
+      partnumber: null,
+      wattage: null,
+      poe_standard: null,
+      manufacturer_id: null,
+      specs: {
+        fov_angle: 90,
+        target_distance: 30,
+        focal_length: 2.8,
+        sensor_width: 5.6,
+        resolution_w: 1920,
+        resolution_h: 1080,
+        install_height: 9,
+      },
+    }
+    onSelect(generic)
+  }
 
   // Derived
   const brands = useMemo(() => {
@@ -89,22 +117,26 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
         const sub = (r.subcategory || '').toLowerCase()
         if (selectedForm === 'multisensor') {
           if (!sub.includes('multisensor') && !sub.includes('multi')) return false
+        } else if (selectedForm === 'covert') {
+          if (!sub.includes('covert') && !sub.includes('hidden') && !sub.includes('pinhole')) return false
+        } else if (selectedForm === 'cube') {
+          if (!sub.includes('cube') && !sub.includes('compact')) return false
         } else if (!sub.includes(selectedForm)) return false
       }
       if (selectedRes) {
         const specs = (r.specs ?? {}) as Record<string, unknown>
         const res = ((specs.resolution as string) || r.resolution || '').toLowerCase()
         if (selectedRes === '2mp') { if (!res.includes('2mp') && !res.includes('1080')) return false }
-        else if (selectedRes === '3mp') { if (!res.includes('3mp')) return false }
         else if (selectedRes === '4mp') { if (!res.includes('4mp')) return false }
         else if (selectedRes === '5mp') { if (!res.includes('5mp')) return false }
-        else if (selectedRes === '6mp') { if (!res.includes('6mp')) return false }
         else if (selectedRes === '8mp') { if (!res.includes('8mp') && !res.includes('4k') && !res.includes('uhd')) return false }
-        else if (selectedRes === '12mp+') { if (!res.includes('12mp') && !res.includes('16mp') && !res.includes('32mp') && !res.includes('8k')) return false }
+        else if (selectedRes === '12mp+') { if (!res.includes('12mp') && !res.includes('16mp') && !res.includes('32mp')) return false }
       }
       return true
     })
   }, [results, selectedBrand, selectedForm, selectedRes])
+
+  const activeInfo = hoveredModel || (filteredModels.length === 1 ? filteredModels[0] : null)
 
   return (
     <div style={{
@@ -119,9 +151,9 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
         boxShadow: '0 25px 80px rgba(0,0,0,0.6)', overflow: 'hidden',
       }} onClick={(e) => e.stopPropagation()}>
 
-        {/* Header */}
+        {/* ═══ HEADER ═══ */}
         <div style={{
-          background: ACCENT, padding: '10px 20px',
+          background: HEADER_BG, padding: '10px 20px',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <span style={{ color: '#fff', fontSize: 15, fontWeight: 600 }}>Select Camera Model</span>
@@ -134,11 +166,12 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
           </button>
         </div>
 
-        {/* Search + Filters */}
+        {/* ═══ FILTERS BAR ═══ */}
         <div style={{
           padding: '12px 20px', borderBottom: `1px solid ${C.border}`,
           display: 'flex', flexDirection: 'column', gap: 10, background: C.bgSurface,
         }}>
+          {/* Row 1: Search + EOL + NDAA + Generic */}
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ flex: 1, position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: C.textMuted }} />
@@ -150,70 +183,126 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
                   outline: 'none', fontFamily: 'inherit',
                 }} />
             </div>
+
+            {/* EOL toggle */}
             <div style={{ display: 'flex', gap: 0, fontSize: 11 }}>
-              <span style={{ color: C.textMuted, marginRight: 8, alignSelf: 'center' }}>NDAA:</span>
-              <button onClick={toggleNdaa}
-                style={{
-                  padding: '5px 10px', fontSize: 11, border: 'none', borderRadius: '4px 0 0 4px',
-                  cursor: 'pointer', fontFamily: 'inherit',
-                  background: !ndaaOnly ? ACCENT : C.bgActive, color: !ndaaOnly ? '#fff' : C.textMuted,
-                }}>All Cameras</button>
-              <button onClick={toggleNdaa}
-                style={{
-                  padding: '5px 10px', fontSize: 11, border: 'none', borderRadius: '0 4px 4px 0',
-                  cursor: 'pointer', fontFamily: 'inherit',
-                  background: ndaaOnly ? ACCENT : C.bgActive, color: ndaaOnly ? '#fff' : C.textMuted,
-                }}>Only NDAA</button>
+              <span style={{ color: C.textMuted, marginRight: 6, alignSelf: 'center', fontSize: 10, fontWeight: 600 }}>EOL:</span>
+              <ToggleBtn label="All Cameras" active={!excludeEol} onClick={() => setExcludeEol(false)} left />
+              <ToggleBtn label="Exclude EOL" active={excludeEol} onClick={() => setExcludeEol(true)} right />
             </div>
+
+            {/* NDAA toggle */}
+            <div style={{ display: 'flex', gap: 0, fontSize: 11 }}>
+              <span style={{ color: C.textMuted, marginRight: 6, alignSelf: 'center', fontSize: 10, fontWeight: 600 }}>NDAA:</span>
+              <ToggleBtn label="All Cameras" active={!ndaaOnly} onClick={() => { setNdaaOnly(false); doFetch(query, false) }} left />
+              <ToggleBtn label="Only NDAA" active={ndaaOnly} onClick={() => { setNdaaOnly(true); doFetch(query, true) }} right />
+            </div>
+
+            {/* Generic Camera button */}
+            <button onClick={handleSelectGeneric} style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '6px 12px', fontSize: 11, fontWeight: 600,
+              background: '#374151', border: `1px solid ${C.border}`,
+              borderRadius: 4, color: '#fff', cursor: 'pointer', fontFamily: 'inherit',
+              whiteSpace: 'nowrap',
+            }}>
+              <Camera size={13} />
+              Select Generic Camera
+            </button>
           </div>
 
-          {/* Form type filters */}
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <span style={{ fontSize: 10, color: C.textDim, marginRight: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Form</span>
-            {FORM_TYPES.map((ft) => {
-              const active = selectedForm === ft.id
-              return (
-                <button key={ft.id} onClick={() => setSelectedForm(active ? '' : ft.id)}
-                  style={{
-                    padding: '4px 12px', fontSize: 11,
-                    border: `1px solid ${active ? ACCENT : C.border}`,
-                    borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit',
-                    background: active ? `${ACCENT}20` : C.bgActive,
-                    color: active ? ACCENT : C.textMuted,
-                  }}>{ft.label}</button>
-              )
-            })}
-          </div>
+          {/* Row 2: Resolution + Form Type Icons + Range Sliders */}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Resolution filter */}
+            <div style={{ display: 'flex', gap: 0, alignItems: 'center' }}>
+              <span style={{ fontSize: 10, color: C.textDim, marginRight: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Resolution</span>
+              <div style={{ display: 'flex', gap: 0 }}>
+                {[
+                  { id: '', label: 'Any' },
+                  { id: '2mp', label: '2MP' },
+                  { id: '4mp', label: '4MP' },
+                  { id: '5mp', label: '5MP' },
+                  { id: '8mp', label: '4K' },
+                  { id: '12mp+', label: '12MP+' },
+                ].map((r, i, arr) => {
+                  const active = selectedRes === r.id
+                  return (
+                    <button key={r.id} onClick={() => setSelectedRes(active ? '' : r.id)}
+                      style={{
+                        padding: '3px 8px', fontSize: 10,
+                        border: `1px solid ${active ? ACCENT : C.border}`,
+                        borderRadius: i === 0 ? '3px 0 0 3px' : i === arr.length - 1 ? '0 3px 3px 0' : 0,
+                        marginLeft: i > 0 ? -1 : 0,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        background: active ? `${ACCENT}20` : C.bgActive,
+                        color: active ? ACCENT : C.textMuted,
+                        fontWeight: active ? 600 : 400,
+                      }}>{r.label}</button>
+                  )
+                })}
+              </div>
+            </div>
 
-          {/* Resolution filter */}
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <span style={{ fontSize: 10, color: C.textDim, marginRight: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Resolution</span>
-            {['', '2mp', '3mp', '4mp', '5mp', '6mp', '8mp', '12mp+'].map((r) => {
-              const active = selectedRes === r
-              const label = r === '' ? 'All' : r === '8mp' ? '4K/8MP' : r.toUpperCase()
-              return (
-                <button key={r} onClick={() => setSelectedRes(active ? '' : r)}
-                  style={{
-                    padding: '4px 10px', fontSize: 11,
-                    border: `1px solid ${active ? ACCENT : C.border}`,
-                    borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit',
-                    background: active ? `${ACCENT}20` : C.bgActive,
-                    color: active ? ACCENT : C.textMuted,
-                  }}>{label}</button>
-              )
-            })}
+            {/* Form type icons */}
+            <div style={{ display: 'flex', gap: 0, alignItems: 'center' }}>
+              <span style={{ fontSize: 10, color: C.textDim, marginRight: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Form</span>
+              <div style={{ display: 'flex', gap: 2 }}>
+                {FORM_TYPES.map((ft) => {
+                  const active = selectedForm === ft.id
+                  return (
+                    <button key={ft.id} onClick={() => setSelectedForm(active ? '' : ft.id)}
+                      title={ft.label}
+                      style={{
+                        padding: '3px 8px', fontSize: 10,
+                        border: `1px solid ${active ? ACCENT : C.border}`,
+                        borderRadius: 3, cursor: 'pointer', fontFamily: 'inherit',
+                        background: active ? `${ACCENT}20` : C.bgActive,
+                        color: active ? ACCENT : C.textMuted,
+                        fontWeight: active ? 600 : 400,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                        minWidth: ft.id ? 42 : 32,
+                      }}>
+                      {ft.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{ft.icon}</span>}
+                      <span>{ft.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* IR Max Range */}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 10, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600, whiteSpace: 'nowrap' }}>IR Range</span>
+              <input type="range" min={0} max={500} value={irRange[1]}
+                onChange={(e) => setIrRange([0, Number(e.target.value)])}
+                style={{ width: 80, accentColor: ACCENT }} />
+              <span style={{ fontSize: 10, color: C.textMuted, whiteSpace: 'nowrap' }}>0–{irRange[1]}m</span>
+            </div>
+
+            {/* HAoV */}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 10, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>HAoV</span>
+              <input type="range" min={1} max={360} value={haovRange[1]}
+                onChange={(e) => setHaovRange([1, Number(e.target.value)])}
+                style={{ width: 80, accentColor: ACCENT }} />
+              <span style={{ fontSize: 10, color: C.textMuted, whiteSpace: 'nowrap' }}>1°–{haovRange[1]}°</span>
+            </div>
           </div>
         </div>
 
-        {/* Three-Column Body */}
+        {/* ═══ THREE-COLUMN BODY ═══ */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-          {/* Brands */}
+          {/* ── BRANDS ── */}
           <div style={{ width: 200, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 600, color: ACCENT, background: C.bgSurface }}>
               Brands
             </div>
             <div style={{ flex: 1, overflow: 'auto' }}>
+              {/* Recent + Favorites */}
+              <BrandRow icon={<Clock size={12} />} label="Recent" active={false} onClick={() => {}} />
+              <BrandRow icon={<Star size={12} style={{ color: '#eab308' }} />} label="Favorite" active={false} onClick={() => {}} starred />
+              <div style={{ height: 1, background: C.border, margin: '2px 0' }} />
               <BrandRow label={`All Brands (${brands.length})`} active={!selectedBrand} onClick={() => setSelectedBrand(null)} />
               {brands.map((brand) => {
                 const count = results.filter((r) => r.vendor === brand).length
@@ -226,7 +315,7 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
             </div>
           </div>
 
-          {/* Models */}
+          {/* ── MODELS ── */}
           <div style={{ flex: 1, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 600, color: ACCENT, background: C.bgSurface }}>
               Models
@@ -238,30 +327,71 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
                 <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: C.textDim }}>No models match filters</div>
               ) : (
                 filteredModels.map((item) => (
-                  <ModelRow key={item.id} item={item} onClick={() => onSelect(item)} />
+                  <ModelRow key={item.id} item={item}
+                    onClick={() => onSelect(item)}
+                    onHover={() => setHoveredModel(item)}
+                    onLeave={() => setHoveredModel(null)} />
                 ))
               )}
             </div>
           </div>
 
-          {/* Info */}
+          {/* ── INFO PANEL ── */}
           <div style={{ width: 280, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{ padding: '8px 12px', borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 600, color: ACCENT, background: C.bgSurface }}>
               Info
             </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 13, color: C.textMuted }}>Choose from</div>
-                <div style={{ fontSize: 36, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>{filteredModels.length.toLocaleString()}</div>
-                <div style={{ fontSize: 13, color: C.textMuted }}>cameras</div>
-              </div>
-              <div style={{ width: '100%', padding: 16, background: C.bg, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <InfoLine label="Brand" value={selectedBrand || 'Any'} />
-                <InfoLine label="Form" value={selectedForm ? FORM_TYPES.find(f => f.id === selectedForm)?.label || 'Any' : 'Any'} />
-                <InfoLine label="Resolution" value={selectedRes ? (selectedRes === '8mp' ? '4K/8MP' : selectedRes.toUpperCase()) : 'Any'} />
-                <InfoLine label="NDAA" value={ndaaOnly ? 'Only NDAA' : 'Any'} />
-                {query && <InfoLine label="Search" value={`"${query}"`} />}
-              </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 20, gap: 16, overflow: 'auto' }}>
+              {activeInfo ? (
+                /* Model detail view */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{activeInfo.model}</div>
+                    <div style={{ fontSize: 12, color: C.textMuted }}>{activeInfo.vendor}</div>
+                  </div>
+                  <div style={{ width: '100%', padding: 14, background: C.bg, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <InfoLine label="Category" value={activeInfo.subcategory?.replace(/_/g, ' ') || activeInfo.category} />
+                    <InfoLine label="Resolution" value={activeInfo.resolution || 'N/A'} />
+                    {activeInfo.specs && (
+                      <>
+                        {(activeInfo.specs as Record<string, unknown>).fov_angle && (
+                          <InfoLine label="FOV Angle" value={`${(activeInfo.specs as Record<string, unknown>).fov_angle}°`} />
+                        )}
+                        {(activeInfo.specs as Record<string, unknown>).focal_length && (
+                          <InfoLine label="Focal Length" value={`${(activeInfo.specs as Record<string, unknown>).focal_length}mm`} />
+                        )}
+                        {(activeInfo.specs as Record<string, unknown>).ir_range && (
+                          <InfoLine label="IR Range" value={`${(activeInfo.specs as Record<string, unknown>).ir_range}m`} />
+                        )}
+                      </>
+                    )}
+                    <InfoLine label="NDAA" value={activeInfo.ndaa_compliant ? '✅ Compliant' : 'No'} />
+                  </div>
+                  <button onClick={() => onSelect(activeInfo)} style={{
+                    width: '100%', padding: '8px 0', background: ACCENT, border: 'none',
+                    borderRadius: 4, color: '#fff', fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}>Select This Camera</button>
+                </div>
+              ) : (
+                /* Summary view */
+                <>
+                  <div style={{ textAlign: 'center', paddingTop: 20 }}>
+                    <div style={{ fontSize: 13, color: C.textMuted }}>Choose from</div>
+                    <div style={{ fontSize: 36, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>{filteredModels.length.toLocaleString()}</div>
+                    <div style={{ fontSize: 13, color: C.textMuted }}>cameras</div>
+                  </div>
+                  <div style={{ width: '100%', padding: 14, background: C.bg, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <InfoLine label="Brand" value={selectedBrand || 'Any'} />
+                    <InfoLine label="Resolutions" value={selectedRes ? (selectedRes === '8mp' ? '4K/8MP' : selectedRes.toUpperCase()) : 'Any'} />
+                    <InfoLine label="Form" value={selectedForm ? FORM_TYPES.find(f => f.id === selectedForm)?.label || 'Any' : 'Any'} />
+                    <InfoLine label="IR Max Range" value={irRange[1] < 500 ? `0–${irRange[1]}m` : 'Any'} />
+                    <InfoLine label="HAoV" value={haovRange[1] < 360 ? `1°–${haovRange[1]}°` : 'Any'} />
+                    <InfoLine label="Show EOL Cameras" value={excludeEol ? 'No' : 'Yes'} />
+                    <InfoLine label="Show Only NDAA Compliant" value={ndaaOnly ? 'Yes' : 'No'} />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -270,7 +400,23 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
   )
 }
 
-function BrandRow({ label, count, active, onClick }: { label: string; count?: number; active: boolean; onClick: () => void }) {
+/* ─── Toggle Button Pair ─── */
+function ToggleBtn({ label, active, onClick, left, right }: { label: string; active: boolean; onClick: () => void; left?: boolean; right?: boolean }) {
+  return (
+    <button onClick={onClick}
+      style={{
+        padding: '4px 8px', fontSize: 10, border: 'none',
+        borderRadius: left ? '3px 0 0 3px' : right ? '0 3px 3px 0' : 0,
+        cursor: 'pointer', fontFamily: 'inherit', fontWeight: active ? 600 : 400,
+        background: active ? ACCENT : C.bgActive, color: active ? '#fff' : C.textMuted,
+      }}>{label}</button>
+  )
+}
+
+/* ─── Brand Row ─── */
+function BrandRow({ label, count, active, onClick, icon, starred }: {
+  label: string; count?: number; active?: boolean; onClick: () => void; icon?: React.ReactNode; starred?: boolean
+}) {
   return (
     <div onClick={onClick}
       style={{
@@ -278,33 +424,39 @@ function BrandRow({ label, count, active, onClick }: { label: string; count?: nu
         color: active ? ACCENT : C.text, fontWeight: active ? 600 : 400,
         background: active ? `${ACCENT}15` : 'transparent',
         borderLeft: active ? `2px solid ${ACCENT}` : '2px solid transparent',
-        display: 'flex', justifyContent: 'space-between',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6,
       }}
       onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = C.bgHover }}
-      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = active ? `${ACCENT}15` : 'transparent' }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = active ? `${ACCENT}15` : 'transparent' }}
     >
-      <span>{label}</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {icon}
+        {label}
+      </span>
       {count != null && <span style={{ fontSize: 10, color: C.textDim }}>{count}</span>}
     </div>
   )
 }
 
-function ModelRow({ item, onClick }: { item: DeviceSearchResult; onClick: () => void }) {
+/* ─── Model Row ─── */
+function ModelRow({ item, onClick, onHover, onLeave }: {
+  item: DeviceSearchResult; onClick: () => void; onHover: () => void; onLeave: () => void
+}) {
   const specs = (item.specs ?? {}) as Record<string, unknown>
   const res = (specs.resolution as string) || item.resolution || ''
   const fov = specs.fov_angle as string | undefined
   const form = (item.subcategory || '').replace(/_/g, ' ')
 
   return (
-    <div onClick={onClick}
+    <div onClick={onClick} onMouseEnter={onHover} onMouseLeave={onLeave}
       style={{
         padding: '8px 12px', cursor: 'pointer',
         borderBottom: `1px solid ${C.borderSubtle}`,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         transition: 'background 0.1s',
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = C.bgHover }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+      onMouseOver={(e) => { e.currentTarget.style.background = C.bgHover }}
+      onMouseOut={(e) => { e.currentTarget.style.background = 'transparent' }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
         <span style={{ fontSize: 13, color: ACCENT, fontWeight: 500 }}>{item.model}</span>

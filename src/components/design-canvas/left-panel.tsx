@@ -47,7 +47,7 @@ export function LeftPanel({ devices, selectedId, onSelect, onAddDevice, onDelete
     <div style={{
       width: 220, background: C.bgPanel, borderRight: `1px solid ${C.border}`,
       display: 'flex', flexDirection: 'column', flexShrink: 0,
-      fontFamily: "'IBM Plex Sans', sans-serif", overflow: 'hidden',
+      fontFamily: "'Inter', 'Segoe UI', sans-serif", overflow: 'hidden',
     }}>
       {/* Header */}
       <div style={{
