@@ -4,7 +4,7 @@ import { C, COLORS_16, COLORS_48, PPF_CHART } from './constants'
 import { Section, Field, SliderField, SubLabel } from './section'
 import { ActionIcons } from './icons'
 import { calculateMountRequirements, type MountCalcOutput } from '@/lib/calculators'
-import type { DesignDevice, DesignZone } from '@/types/database'
+import type { DesignDevice } from '@/types/database'
 
 interface RightPanelProps {
   device: DesignDevice | null
@@ -13,12 +13,6 @@ interface RightPanelProps {
   onDelete?: (id: string) => void
   onUpdateDevice?: (id: string, updates: Partial<DesignDevice>) => void
   onChangeModel?: (deviceId: string, category: string) => void
-  selectedZone?: DesignZone | null
-  onUpdateZone?: (id: string, updates: Record<string, unknown>) => void
-  onDeleteZone?: (id: string) => void
-  onCloseZone?: () => void
-  zones?: DesignZone[]
-  /** Pixels per foot — used to convert zone px values ↔ ft for display */
   scalePxPerFt?: number
 }
 
@@ -112,11 +106,6 @@ export function RightPanel({
   onDelete,
   onUpdateDevice,
   onChangeModel,
-  selectedZone,
-  onUpdateZone,
-  onDeleteZone,
-  onCloseZone,
-  zones = [],
   scalePxPerFt = 10,
 }: RightPanelProps) {
   // ---- Dual-track conversion: px ↔ ft ----
@@ -124,24 +113,11 @@ export function RightPanel({
   const ftToPx = useCallback((ft: number) => Math.round(ft * scalePxPerFt), [scalePxPerFt])
   // ---- All hooks must be called unconditionally (rules-of-hooks) ----
   const [glow, setGlow] = useState<Record<string, boolean>>({});
-  const [zoneErrors, setZoneErrors] = useState<Record<string, string>>({});
 
   // Helper to trigger glow for a field
   const triggerGlow = useCallback((field: string) => {
     setGlow((prev) => ({ ...prev, [field]: true }));
     setTimeout(() => setGlow((prev) => ({ ...prev, [field]: false })), 1600);
-  }, []);
-
-  // Cascading validation (operates on ft values)
-  const validateZone = useCallback((zoneFt: { x: number; y: number; width: number; height: number }) => {
-    const errors: Record<string, string> = {};
-    if (zoneFt.x < 0) errors.x = 'X must be >= 0';
-    if (zoneFt.y < 0) errors.y = 'Y must be >= 0';
-    if (zoneFt.width <= 1) errors.width = 'Width must be > 1 ft';
-    if (zoneFt.height <= 1) errors.height = 'Height must be > 1 ft';
-    if (zoneFt.width < zoneFt.height) errors.width = 'Width should be >= Height';
-    setZoneErrors(errors);
-    return Object.keys(errors).length === 0;
   }, []);
 
   // ---- Save helpers (for device editing) ----
@@ -173,161 +149,6 @@ export function RightPanel({
       saveProp(key, value)
     }
   }, [saveField, saveProp])
-
-  // ---- Zone Editor (takes priority when zone selected) ----
-  if (selectedZone && !device) {
-    const z = selectedZone
-    const zFt = { x: pxToFt(z.x), y: pxToFt(z.y), width: pxToFt(z.width), height: pxToFt(z.height) }
-    return (
-      <div role="complementary" aria-label="Zone properties" style={{
-        width: 300, height: '100%', background: C.bgPanel, borderLeft: `1px solid ${C.border}`,
-        display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden',
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: '8px 12px', borderBottom: `1px solid ${C.border}`,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
-          <span style={{ fontSize: 10, color: z.color }}>Zone Properties</span>
-          <button onClick={() => onCloseZone?.()} aria-label="Close zone panel" style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 2 }}>
-            {ActionIcons.close}
-          </button>
-        </div>
-
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          {/* Name */}
-          <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}` }}>
-            <input
-              defaultValue={z.name}
-              key={z.id + '-zname'}
-              aria-label="Zone name"
-              onBlur={(e) => {
-                if (e.target.value !== z.name) {
-                  onUpdateZone?.(z.id, { name: e.target.value });
-                  triggerGlow('name');
-                }
-              }}
-              style={{
-                width: '100%', background: C.bgActive, border: `1px solid ${C.border}`,
-                borderRadius: 4, padding: '5px 8px', color: C.text, fontSize: 13,
-                fontWeight: 600, fontFamily: 'inherit', outline: 'none',
-                boxShadow: glow['name'] ? '0 0 8px #22c55e' : undefined,
-                transition: 'box-shadow 0.3s',
-              }}
-            />
-
-            {/* Color picker */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-              {COLORS_16.map((c) => (
-                <div
-                  key={c}
-                  onClick={() => onUpdateZone?.(z.id, { color: c })}
-                  role="button"
-                  aria-label={`Set zone color ${c}`}
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onUpdateZone?.(z.id, { color: c }) }}
-                  style={{
-                    width: 18, height: 18, borderRadius: 4, background: c, cursor: 'pointer',
-                    border: z.color === c ? '2px solid white' : '2px solid transparent',
-                    transition: 'all 0.1s',
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Position & Size (ft) */}
-          <Section title="Position & Size (ft)" defaultOpen={true}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-              <div>
-                <label style={{ fontSize: 9, color: C.textDim, marginBottom: 2, display: 'block' }}>X (ft)</label>
-                <input type="number" step="0.1" defaultValue={zFt.x} key={z.id + '-zx'}
-                  aria-label="Zone X position in feet"
-                  onBlur={(e) => {
-                    const vFt = parseFloat(e.target.value);
-                    if (!isNaN(vFt) && vFt !== zFt.x) {
-                      onUpdateZone?.(z.id, { x: ftToPx(vFt) });
-                      triggerGlow('x');
-                      validateZone({ ...zFt, x: vFt });
-                    }
-                  }}
-                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['x'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
-                />
-                {zoneErrors.x && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.x}</div>}
-                
-              </div>
-              <div>
-                <label style={{ fontSize: 9, color: C.textDim, marginBottom: 2, display: 'block' }}>Y (ft)</label>
-                <input type="number" step="0.1" defaultValue={zFt.y} key={z.id + '-zy'}
-                  aria-label="Zone Y position in feet"
-                  onBlur={(e) => {
-                    const vFt = parseFloat(e.target.value);
-                    if (!isNaN(vFt) && vFt !== zFt.y) {
-                      onUpdateZone?.(z.id, { y: ftToPx(vFt) });
-                      triggerGlow('y');
-                      validateZone({ ...zFt, y: vFt });
-                    }
-                  }}
-                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['y'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
-                />
-                {zoneErrors.y && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.y}</div>}
-                
-              </div>
-              <div>
-                <label style={{ fontSize: 9, color: C.textDim, marginBottom: 2, display: 'block' }}>Width (ft)</label>
-                <input type="number" step="0.1" defaultValue={zFt.width} key={z.id + '-zw'}
-                  aria-label="Zone width in feet"
-                  onBlur={(e) => {
-                    const vFt = parseFloat(e.target.value);
-                    if (!isNaN(vFt) && vFt > 0 && vFt !== zFt.width) {
-                      onUpdateZone?.(z.id, { width: ftToPx(vFt) });
-                      triggerGlow('width');
-                      validateZone({ ...zFt, width: vFt });
-                    }
-                  }}
-                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['width'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
-                />
-                {zoneErrors.width && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.width}</div>}
-                
-              </div>
-              <div>
-                <label style={{ fontSize: 9, color: C.textDim, marginBottom: 2, display: 'block' }}>Height (ft)</label>
-                <input type="number" step="0.1" defaultValue={zFt.height} key={z.id + '-zh'}
-                  aria-label="Zone height in feet"
-                  onBlur={(e) => {
-                    const vFt = parseFloat(e.target.value);
-                    if (!isNaN(vFt) && vFt > 0 && vFt !== zFt.height) {
-                      onUpdateZone?.(z.id, { height: ftToPx(vFt) });
-                      triggerGlow('height');
-                      validateZone({ ...zFt, height: vFt });
-                    }
-                  }}
-                  style={{ width: '100%', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', boxShadow: glow['height'] ? '0 0 8px #22c55e' : undefined, transition: 'box-shadow 0.3s' }}
-                />
-                {zoneErrors.height && <div style={{ color: C.red, fontSize: 10, marginTop: 2 }}>{zoneErrors.height}</div>}
-                
-              </div>
-            </div>
-          </Section>
-        </div>
-
-        {/* Actions footer */}
-        <div style={{ padding: '8px 12px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 8 }}>
-          <button onClick={() => onDeleteZone?.(z.id)}
-            aria-label="Delete zone"
-            style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-              padding: '6px 0', fontSize: 11, fontWeight: 500, fontFamily: 'inherit',
-              color: C.red, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-              borderRadius: 4, cursor: 'pointer',
-            }}
-          >
-            {ActionIcons.trash} <span>Delete Zone</span>
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   if (!device) {
     return (
@@ -421,26 +242,6 @@ export function RightPanel({
             </div>
           )}
 
-          {/* Zone assignment */}
-          {zones.length > 0 && (
-            <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 9, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Zone</div>
-              <select
-                value={d.zone_id ?? ''}
-                onChange={(e) => saveField('zone_id', e.target.value || null)}
-                style={{
-                  width: '100%', background: C.bgActive, border: `1px solid ${C.border}`,
-                  borderRadius: 4, padding: '4px 6px', color: C.text, fontSize: 11,
-                  fontFamily: 'inherit', outline: 'none', appearance: 'auto' as never,
-                }}
-              >
-                <option value="">No Zone</option>
-                {zones.map((z) => (
-                  <option key={z.id} value={z.id}>{z.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
 
         {/* ---- STANDARD INFO (all categories) ---- */}

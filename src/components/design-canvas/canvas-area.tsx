@@ -9,7 +9,7 @@ import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { PersonPreview } from './person-preview'
 import { SatelliteMap, type SatelliteMapHandle } from './satellite-map'
 import type { DoriClassification } from '@/lib/calculators'
-import type { DesignDevice, DesignCable, DesignFloorPlan, DesignZone, DesignMdfIdf } from '@/types/database'
+import type { DesignDevice, DesignCable, DesignFloorPlan, DesignMdfIdf } from '@/types/database'
 
 type FabricCanvas = import('fabric').Canvas
 type FabricObject = import('fabric').FabricObject
@@ -63,13 +63,6 @@ interface MeasureState {
   points: Array<{ x: number; y: number }>
 }
 
-// ---- Zone Draw State ----
-interface ZoneDrawState {
-  phase: 'idle' | 'drawing'
-  startX: number
-  startY: number
-}
-
 // ---- Wall Draw State ----
 interface WallDrawState {
   isDrawing: boolean
@@ -100,15 +93,9 @@ interface CanvasAreaProps {
   onToolChange?: (tool: CanvasTool) => void
   onScaleCalibrated?: (pxPerFt: number) => void
   onFloorPlanError?: (msg: string) => void
-  zones?: DesignZone[]
-  selectedZoneId?: string | null
   walls?: Array<{ id: string; points: Array<{ x: number; y: number }> }>
   onWallCreated?: (points: Array<{ x: number; y: number }>) => void
   onWallDeleted?: (id: string) => void
-  onZoneCreated?: (zone: { name: string; color: string; x: number; y: number; width: number; height: number }) => void
-  onZoneMoved?: (id: string, x: number, y: number) => void
-  onZoneResized?: (id: string, width: number, height: number) => void
-  onSelectZone?: (id: string | null) => void
   pendingDeviceName?: string
   onDeviceDrop?: (x: number, y: number, deviceData: string) => void
   snapToGrid?: boolean
@@ -134,7 +121,6 @@ export function CanvasArea({
   showFovCones, fovData, scalePxPerFt,
   onZoomChange, onSelectDevice, onDeviceMoved, onDeviceRotated, onCanvasClick,
   onDeviceCopy, onDeviceDelete, onCableCreated, onToolChange, onScaleCalibrated, onFloorPlanError,
-  zones = [], selectedZoneId, onZoneCreated, onZoneMoved, onZoneResized, onSelectZone,
   pendingDeviceName,
   onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
   onFovHandleDragged, fovDisplayMode = 'simple', highlightedPpfTier, onPpfTierClick,
@@ -166,8 +152,6 @@ export function CanvasArea({
   const cablePreviewRef = useRef<FabricObject | null>(null)
   const scaleObjectsRef = useRef<FabricObject[]>([])
   const [scaleInput, setScaleInput] = useState<{ visible: boolean; distPx: number }>({ visible: false, distPx: 0 })
-  const [zoneDraw, setZoneDraw] = useState<{ isDrawing: boolean; startX: number; startY: number }>({ isDrawing: false, startX: 0, startY: 0 })
-  const zonePreviewRef = useRef<FabricObject | null>(null)
   const wallPreviewRef = useRef<FabricObject | null>(null)
   const activeToolRef = useRef(activeTool)
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
@@ -181,7 +165,6 @@ export function CanvasArea({
   const fovObjectMap = useRef(new Map<string, FabricObject[]>())
   const deviceObjectMap = useRef(new Map<string, FabricObject>())
   const cableObjectMap = useRef(new Map<string, FabricObject>())
-  const zoneObjectMap = useRef(new Map<string, FabricObject[]>())
   const isDraggingRef = useRef(false)
   const BASE_ICON_PX = 20 // constant screen-pixel size for device icons (IPVM-style small markers)
 
@@ -504,12 +487,6 @@ export function CanvasArea({
         return
       }
 
-      // Zone draw start
-      if (activeTool === 'zone' && !opt.target) {
-        setZoneDraw({ isDrawing: true, startX: x, startY: y })
-        return
-      }
-
       // MDF/IDF placement
       if (activeTool === 'mdf_idf' && !opt.target) {
         onMdfIdfPlaced?.(x, y)
@@ -656,7 +633,7 @@ export function CanvasArea({
   // Cursor
   useEffect(() => {
     if (!containerRef.current) return
-    const cursors: Record<string, string> = { place: 'crosshair', cable: 'crosshair', measure: 'crosshair', scale: 'crosshair', zone: 'crosshair', select: 'default', pan: 'grab' }
+    const cursors: Record<string, string> = { place: 'crosshair', cable: 'crosshair', measure: 'crosshair', scale: 'crosshair', select: 'default', pan: 'grab' }
     containerRef.current.style.cursor = cursors[activeTool] || 'default'
   }, [activeTool])
 
@@ -713,7 +690,7 @@ export function CanvasArea({
           const result = await fabric.loadSVGFromString(coloredSvg)
           const group = fabric.util.groupSVGElements(result.objects.filter(Boolean) as FabricObject[], result.options)
           const iconScale = BASE_ICON_PX / (64 * (fabricRef.current?.getZoom() || 1))
-          group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: iconScale, scaleY: iconScale, originX: 'center', originY: 'center', hasControls: true, hasBorders: true, lockScalingX: true, lockScalingY: true, lockRotation: false, selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move', cornerColor: '#3b82f6', cornerStyle: 'circle', cornerSize: 6, transparentCorners: false })
+          group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: iconScale, scaleY: iconScale, originX: 'center', originY: 'center', hasControls: false, hasBorders: false, lockScalingX: true, lockScalingY: true, lockRotation: true, selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move' })
           ;(group as unknown as Record<string, unknown>).deviceId = device.id
           canvas.add(group); deviceObjectMap.current.set(device.id, group)
         } catch { /* skip */ }
@@ -779,7 +756,10 @@ export function CanvasArea({
     fovObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); fovObjectMap.current.clear()
     fovHandleMap.current.forEach((o: FabricObject) => canvas.remove(o)); fovHandleMap.current.clear()
     // Drag suppression: hide FOV cones if dragging device (use ref, not state dep)
-    if (!showFovCones || isDraggingRef.current) { canvas.renderAll(); return }
+    if (isDraggingRef.current) { canvas.renderAll(); return }
+    // If global FOV is off AND no selected device has FOV data, skip entirely
+    const hasSelectedFov = selectedDeviceId && fovData.has(selectedDeviceId)
+    if (!showFovCones && !hasSelectedFov) { canvas.renderAll(); return }
 
     function getRayIntersection(o: {x:number,y:number}, d: {x:number,y:number}, a: {x:number,y:number}, b: {x:number,y:number}) {
       const v1 = { x: o.x - a.x, y: o.y - a.y };
@@ -810,6 +790,8 @@ export function CanvasArea({
       for (const [deviceId, data] of fovData.entries()) {
         const device = devices.find((d) => d.id === deviceId);
         if (!device) continue;
+        // When global FOV is off, only render cone for the selected device (IPVM pattern)
+        if (!showFovCones && deviceId !== selectedDeviceId) continue;
         const objects: FabricObject[] = [];
         const halfAngle = (data.hFov / 2) * (Math.PI / 180);
         const baseRotDeg = data.rotation || 0;
@@ -991,7 +973,7 @@ export function CanvasArea({
       canvas.requestRenderAll();
     }
     void renderFovCones();
-  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, walls])
+  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, walls, selectedDeviceId])
 
   // ---- FOV Handle Drag → update distance & rotation ----
   useEffect(() => {
@@ -1160,150 +1142,6 @@ export function CanvasArea({
     void addWalls()
   }, [walls, fabricReady])
 
-  // ---- Zone Rendering ----
-  useEffect(() => {
-    if (!fabricReady || !fabricRef.current) return
-    const canvas = fabricRef.current
-    zoneObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); zoneObjectMap.current.clear()
-    canvas.getObjects().filter((o: FabricObject) => (o as unknown as Record<string, unknown>).__isZoneLabel === true).forEach((o: FabricObject) => canvas.remove(o))
-
-    async function addZones() {
-      const fabric = await import('fabric')
-      for (const zone of zones) {
-        const objects: FabricObject[] = []
-        const rect = new fabric.Rect({
-          left: zone.x, top: zone.y, width: zone.width, height: zone.height,
-          fill: `${zone.color}20`, stroke: zone.color, strokeWidth: 1.5,
-          strokeDashArray: [6, 3], selectable: true, evented: true,
-          hasControls: true, hasBorders: true,
-          cornerColor: zone.color, cornerSize: 6, transparentCorners: false,
-          lockRotation: true,
-        })
-        ;(rect as unknown as Record<string, unknown>).zoneId = zone.id
-        canvas.add(rect); canvas.sendObjectToBack(rect); objects.push(rect)
-
-        const label = new fabric.FabricText(zone.name, {
-          left: zone.x + 4, top: zone.y + 2, fontSize: 10, fill: zone.color,
-          fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: '600',
-          selectable: false, evented: false, opacity: 0.8,
-        })
-        ;(label as unknown as Record<string, unknown>).__isZoneLabel = true
-        canvas.add(label); objects.push(label)
-
-        // Spatial error bubble for validation errors
-        if (zone.errors && Object.keys(zone.errors).length > 0) {
-          const errorMsg = Object.values(zone.errors).join('\n');
-          const errorBubble = new fabric.FabricText(errorMsg, {
-            left: zone.x + zone.width / 2,
-            top: zone.y - 18,
-            fontSize: 11,
-            fill: '#ef4444',
-            fontFamily: 'IBM Plex Sans, sans-serif',
-            fontWeight: 'bold',
-            opacity: 0.95,
-            backgroundColor: '#fff',
-            padding: 6,
-            borderRadius: 6,
-            selectable: false,
-            evented: false,
-          })
-          ;(errorBubble as unknown as Record<string, unknown>).__isZoneErrorBubble = true
-          canvas.add(errorBubble); objects.push(errorBubble)
-        }
-
-        zoneObjectMap.current.set(zone.id, objects)
-      }
-      canvas.renderAll()
-    }
-    void addZones()
-  }, [zones, fabricReady])
-
-  // ---- Zone Draw (click-drag) ----
-  useEffect(() => {
-    if (!fabricRef.current || !fabricReady) return
-    if (activeTool !== 'zone' || !zoneDraw.isDrawing) {
-      if (zonePreviewRef.current && fabricRef.current) {
-        fabricRef.current.remove(zonePreviewRef.current); zonePreviewRef.current = null; fabricRef.current.renderAll()
-      }
-      return
-    }
-    const canvas = fabricRef.current
-    const moveHandler = (opt: { e: Event }) => {
-      const evt = opt.e as MouseEvent
-      const point = canvas.getScenePoint(evt)
-      const rx = Math.min(zoneDraw.startX, point.x)
-      const ry = Math.min(zoneDraw.startY, point.y)
-      const rw = Math.abs(point.x - zoneDraw.startX)
-      const rh = Math.abs(point.y - zoneDraw.startY)
-      if (zonePreviewRef.current) canvas.remove(zonePreviewRef.current)
-      import('fabric').then((fm) => {
-        if (!fabricRef.current) return
-        const rect = new fm.Rect({
-          left: rx, top: ry, width: rw, height: rh,
-          fill: 'rgba(59,130,246,0.15)', stroke: C.accent, strokeWidth: 1.5,
-          strokeDashArray: [4, 2], selectable: false, evented: false,
-        })
-        zonePreviewRef.current = rect
-        fabricRef.current.add(rect); fabricRef.current.renderAll()
-      })
-    }
-    const upHandler = (opt: { e: Event }) => {
-      const evt = opt.e as MouseEvent
-      const point = canvas.getScenePoint(evt)
-      const rx = Math.min(zoneDraw.startX, point.x)
-      const ry = Math.min(zoneDraw.startY, point.y)
-      const rw = Math.abs(point.x - zoneDraw.startX)
-      const rh = Math.abs(point.y - zoneDraw.startY)
-      if (zonePreviewRef.current && fabricRef.current) { fabricRef.current.remove(zonePreviewRef.current); zonePreviewRef.current = null }
-      setZoneDraw({ isDrawing: false, startX: 0, startY: 0 })
-      if (rw > 10 && rh > 10) {
-        onZoneCreated?.({ name: `Zone ${zones.length + 1}`, color: '#3B82F6', x: Math.round(rx), y: Math.round(ry), width: Math.round(rw), height: Math.round(rh) })
-      }
-      canvas.renderAll()
-    }
-    canvas.on('mouse:move', moveHandler)
-    canvas.on('mouse:up', upHandler)
-    return () => {
-      canvas.off('mouse:move', moveHandler); canvas.off('mouse:up', upHandler)
-      if (zonePreviewRef.current && fabricRef.current) { fabricRef.current.remove(zonePreviewRef.current); zonePreviewRef.current = null }
-    }
-  }, [activeTool, zoneDraw, fabricReady, onZoneCreated, zones.length])
-
-  // ---- Zone Selection ----
-  useEffect(() => {
-    if (!fabricRef.current || !fabricReady) return
-    const canvas = fabricRef.current
-    const handler = (e: { selected?: FabricObject[] }) => {
-      const zid = (e.selected?.[0] as unknown as Record<string, unknown>)?.zoneId as string
-      if (zid) onSelectZone?.(zid)
-    }
-    canvas.on('selection:created', handler)
-    canvas.on('selection:updated', handler)
-    return () => { canvas.off('selection:created', handler); canvas.off('selection:updated', handler) }
-  }, [fabricReady, onSelectZone])
-
-  // ---- Zone Move / Resize ----
-  useEffect(() => {
-    if (!fabricRef.current || !fabricReady) return
-    const canvas = fabricRef.current
-    const handler = (e: { target?: FabricObject }) => {
-      const obj = e.target; if (!obj) return
-      const zid = (obj as unknown as Record<string, unknown>).zoneId as string; if (!zid) return
-      const newW = Math.round((obj.width ?? 0) * (obj.scaleX ?? 1))
-      const newH = Math.round((obj.height ?? 0) * (obj.scaleY ?? 1))
-      obj.set({ scaleX: 1, scaleY: 1, width: newW, height: newH })
-      if (obj.left !== undefined && obj.top !== undefined) onZoneMoved?.(zid, Math.round(obj.left), Math.round(obj.top))
-      onZoneResized?.(zid, newW, newH)
-    }
-    canvas.on('object:modified', handler)
-    return () => { canvas.off('object:modified', handler) }
-  }, [fabricReady, onZoneMoved, onZoneResized])
-
-  // ---- Reset zone draw when tool changes ----
-  useEffect(() => {
-    if (activeTool !== 'zone') setZoneDraw({ isDrawing: false, startX: 0, startY: 0 })
-  }, [activeTool])
-
   // ---- MDF/IDF Node Rendering ----
   useEffect(() => {
     if (!fabricReady || !fabricRef.current) return
@@ -1397,16 +1235,6 @@ export function CanvasArea({
     canvas.on('object:modified', handler)
     return () => { canvas.off('object:modified', handler) }
   }, [fabricReady, onMdfIdfMoved])
-
-  // Selected zone highlight
-  useEffect(() => {
-    if (!fabricRef.current || !fabricReady) return
-    if (selectedZoneId) {
-      const objs = zoneObjectMap.current.get(selectedZoneId)
-      const rect = objs?.[0]
-      if (rect) { fabricRef.current.setActiveObject(rect); fabricRef.current.renderAll() }
-    }
-  }, [selectedZoneId, fabricReady])
 
   // Selected device highlight
   useEffect(() => {
@@ -1594,7 +1422,6 @@ export function CanvasArea({
     { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v6M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" /><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 16" /></svg>, label: 'Pan', id: 'pan' },
     { icon: ToolbarIcons.measure, label: 'Measure', id: 'measure' },
     { icon: ToolbarIcons.cable, label: 'Cable', id: 'cable' },
-    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="4 2" /></svg>, label: 'Zone', id: 'zone' },
     { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="6" width="20" height="12" rx="2" /><line x1="6" y1="6" x2="6" y2="18" /><line x1="18" y1="6" x2="18" y2="18" /><line x1="10" y1="10" x2="14" y2="10" /><line x1="10" y1="14" x2="14" y2="14" /></svg>, label: 'MDF/IDF', id: 'mdf_idf' },
     null,
     { icon: ToolbarIcons.zoomIn, label: 'Zoom In', id: 'zoomIn' },
@@ -1693,13 +1520,6 @@ export function CanvasArea({
         </div>
       )}
 
-      {/* FOV hint — shown when a camera is selected but FOV cones are off */}
-      {selectedDeviceId && !showFovCones && activeTool === 'select' && fovData.has(selectedDeviceId) && (
-        <div style={{ position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid rgba(59,130,246,0.4)`, borderRadius: 6, padding: '4px 12px', fontSize: 10, color: C.accent, zIndex: 20, opacity: 0.85, pointerEvents: 'none' }}>
-          Toggle <span style={{ fontWeight: 600 }}>FOV</span> to adjust field of view &amp; rotation
-        </div>
-      )}
-
       {/* Cable draw status */}
       {activeTool === 'cable' && cableDraw.phase !== 'idle' && (
         <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.accent}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.accent, zIndex: 20 }}>
@@ -1712,13 +1532,6 @@ export function CanvasArea({
       {activeTool === 'measure' && measureState.points.length === 1 && (
         <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.green}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.green, zIndex: 20 }}>
           Click second point to measure distance
-        </div>
-      )}
-
-      {/* Zone draw hint */}
-      {activeTool === 'zone' && !zoneDraw.isDrawing && (
-        <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.accent}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.accent, zIndex: 20 }}>
-          Click and drag to draw a zone
         </div>
       )}
 

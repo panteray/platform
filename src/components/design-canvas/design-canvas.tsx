@@ -40,14 +40,13 @@ interface DesignCanvasProps { designId: string; onNavigateDashboard?: () => void
 export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProps) {
   const state = useDesignCanvas(designId)
   const {
-    design, areas, devices, cables, mdfIdfs, floorPlans, zones, topologyNodes, topologyLinks,
+    design, areas, devices, cables, mdfIdfs, floorPlans, topologyNodes, topologyLinks,
     loading, error, activeAreaId, selectedDeviceId,
     setActiveAreaId, setSelectedDeviceId,
     addArea, updateArea, deleteArea, uploadFloorPlan,
     addDevice, updateDevice, deleteDevice,
     addCable,
     addInfrastructure, updateInfrastructure, deleteInfrastructure,
-    addZone, updateZone, deleteZone,
     addTopologyNode, updateTopologyNode, deleteTopologyNode,
     addTopologyLink, updateTopologyLink, deleteTopologyLink,
     refetch,
@@ -75,7 +74,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [editAreaValue, setEditAreaValue] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const placingRef = useRef(false)
-  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
   const [pendingDevice, setPendingDevice] = useState<DeviceSearchResult | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ label: string; action: () => void } | null>(null)
   const [floorPlanOpacity, setFloorPlanOpacity] = useState(0.5)
@@ -347,7 +345,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   }, [])
   const handleChangeModel = useCallback((deviceId: string) => {
     setSelectedDeviceId(deviceId)
-    setSelectedZoneId(null)
   }, [setSelectedDeviceId])
 
   // Change Model from right panel — opens catalog filtered to same category
@@ -530,15 +527,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     markSaving()
   }, [addCable, activeAreaId, markSaving])
 
-  // Zone handlers
-  const handleZoneCreated = useCallback(async (zone: { name: string; color: string; x: number; y: number; width: number; height: number }) => {
-    await addZone(zone)
-  }, [addZone])
-  const handleZoneMoved = useCallback(async (id: string, x: number, y: number) => { await updateZone(id, { x, y }) }, [updateZone])
-  const handleZoneResized = useCallback(async (id: string, width: number, height: number) => { await updateZone(id, { width, height }) }, [updateZone])
-  const handleSelectZone = useCallback((id: string | null) => { setSelectedZoneId(id); if (id) setSelectedDeviceId(null) }, [setSelectedDeviceId])
-  const handleSelectDevice = useCallback((id: string | null) => { setSelectedDeviceId(id); if (id) setSelectedZoneId(null) }, [setSelectedDeviceId])
-  const handleDeleteZone = useCallback(async (id: string) => { await deleteZone(id); if (selectedZoneId === id) setSelectedZoneId(null) }, [deleteZone, selectedZoneId])
+  const handleSelectDevice = useCallback((id: string | null) => { setSelectedDeviceId(id) }, [setSelectedDeviceId])
 
   // MDF/IDF handlers
   const handleMdfIdfPlaced = useCallback(async (x: number, y: number) => {
@@ -620,7 +609,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   }, [activeAreaId, activeIcon, addDevice, snapToGrid, markSaving, autoCableDoorToController])
 
   const selectedDevice = selectedDeviceId ? devices.find((d: DesignDevice) => d.id === selectedDeviceId) ?? null : null
-  const selectedZone = selectedZoneId ? zones.find((z) => z.id === selectedZoneId) ?? null : null
 
   // Close layer menu on outside click
   useEffect(() => {
@@ -1140,9 +1128,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                 <LeftPanel devices={areaDevices} selectedId={selectedDeviceId}
                   onSelectDevice={(id) => { handleSelectDevice(id); setActiveTool('select') }}
                   onChangeModel={handleChangeModel}
-                  zones={zones} selectedZoneId={selectedZoneId}
-                  onSelectZone={(id) => { handleSelectZone(id); setActiveTool('select') }}
-                  onDeleteZone={handleDeleteZone}
                   activeCategory={activeIcon !== 'layers' ? (TAB_TO_CATEGORY[activeIcon] || activeIcon) : null}
                   onDeviceSelected={handleDeviceSelected}
                   pendingDevice={pendingDevice} />
@@ -1153,10 +1138,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
               devices={areaDevices} cables={areaCables} showGrid={showGrid} activeTool={activeTool}
               selectedDeviceId={selectedDeviceId} showFovCones={showFovCones} fovData={fovData}
               scalePxPerFt={scalePxPerFt}
-              zones={zones} selectedZoneId={selectedZoneId}
               walls={walls} onWallCreated={handleWallCreated} onWallDeleted={handleWallDeleted}
-              onZoneCreated={handleZoneCreated} onZoneMoved={handleZoneMoved}
-              onZoneResized={handleZoneResized} onSelectZone={handleSelectZone}
               onZoomChange={() => {}} onSelectDevice={handleSelectDevice}
               onDeviceMoved={handleDeviceMoved} onDeviceRotated={handleDeviceRotated}
               onSensorRotated={handleSensorRotated}
@@ -1192,8 +1174,8 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                 opacity: satelliteOpacity,
               } : null} />
 
-            {/* Right panel — OVERLAY, when device or zone selected */}
-            {(selectedDevice || selectedZone) && (
+            {/* Right panel — OVERLAY, when device selected */}
+            {selectedDevice && (
               <div style={{
                 position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 10,
                 boxShadow: '-4px 0 12px rgba(0,0,0,0.3)',
@@ -1202,11 +1184,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
                   onClose={() => setSelectedDeviceId(null)} onDuplicate={handleDeviceCopy} onDelete={handleDeviceDelete}
                   onUpdateDevice={(id, updates) => { updateDevice(id, updates as Record<string, unknown>); markSaving() }}
                   onChangeModel={handleChangeModelFromPanel}
-                  selectedZone={selectedZone}
-                  onUpdateZone={(id, updates) => updateZone(id, updates)}
-                  onDeleteZone={handleDeleteZone}
-                  onCloseZone={() => setSelectedZoneId(null)}
-                  zones={zones}
                   scalePxPerFt={scalePxPerFt} />
               </div>
             )}
