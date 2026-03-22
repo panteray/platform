@@ -22,6 +22,22 @@
     --input: 240 5.9% 90%;
     --ring: 221 83% 53%;
     --radius: 0.5rem;
+
+    /* Canvas color tokens — light theme */
+    --canvas-bg: #ffffff;
+    --canvas-bg-surface: #f4f4f5;
+    --canvas-bg-panel: #fafafa;
+    --canvas-bg-hover: #e4e4e7;
+    --canvas-bg-active: #e4e4e7;
+    --canvas-border: #d4d4d8;
+    --canvas-border-subtle: #e4e4e7;
+    --canvas-text: #09090b;
+    --canvas-text-muted: #71717a;
+    --canvas-text-dim: #a1a1aa;
+    --canvas-accent: #2563eb;
+    --canvas-accent-hover: #1d4ed8;
+    --canvas-accent-subtle: rgba(37, 99, 235, 0.08);
+    --canvas-grid-dot: rgba(0, 0, 0, 0.08);
   }
 
   .dark {
@@ -42,6 +58,22 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 217 91% 60%;
+
+    /* Canvas color tokens — dark theme */
+    --canvas-bg: #09090b;
+    --canvas-bg-surface: #18181b;
+    --canvas-bg-panel: #1c1c1f;
+    --canvas-bg-hover: #27272a;
+    --canvas-bg-active: #27272a;
+    --canvas-border: #27272a;
+    --canvas-border-subtle: #1f1f23;
+    --canvas-text: #fafafa;
+    --canvas-text-muted: #a1a1aa;
+    --canvas-text-dim: #71717a;
+    --canvas-accent: #3b82f6;
+    --canvas-accent-hover: #2563eb;
+    --canvas-accent-subtle: rgba(59, 130, 246, 0.12);
+    --canvas-grid-dot: rgba(255, 255, 255, 0.06);
   }
 }
 

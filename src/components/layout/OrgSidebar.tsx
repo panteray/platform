@@ -61,18 +61,18 @@ export function OrgSidebar() {
   return (
     <aside
       className={cn(
-        'flex flex-col border-r border-border bg-zinc-950 transition-all duration-200',
+        'flex flex-col border-r border-border bg-card transition-all duration-200',
         collapsed ? 'w-16 min-w-[64px]' : 'w-60 min-w-[240px]'
       )}
     >
       {/* Logo */}
       <div className="border-b border-border px-4 pb-4 pt-5">
         {collapsed ? (
-          <div className="flex justify-center text-lg font-semibold text-white">P</div>
+          <div className="flex justify-center text-lg font-semibold text-foreground">P</div>
         ) : (
           <>
-            <div className="px-2 text-xl font-semibold tracking-tight text-white">Panteray</div>
-            <div className="mt-0.5 px-2 text-[10px] uppercase tracking-widest text-zinc-500">
+            <div className="px-2 text-xl font-semibold tracking-tight text-foreground">Panteray</div>
+            <div className="mt-0.5 px-2 text-[10px] uppercase tracking-widest text-muted-foreground">
               Organization
             </div>
           </>
@@ -81,13 +81,13 @@ export function OrgSidebar() {
 
       {/* User */}
       <div className={cn('flex items-center gap-3 border-b border-border py-4', collapsed ? 'justify-center px-2' : 'px-4')}>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-[1.5px] border-blue-500 bg-zinc-900 text-sm font-medium text-white">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-[1.5px] border-blue-500 bg-secondary text-sm font-medium text-foreground">
           {initials}
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="truncate text-[13px] font-medium text-white">{displayName}</div>
-            <div className="text-[11px] text-zinc-500">{userRole ?? 'Loading...'}</div>
+            <div className="truncate text-[13px] font-medium text-foreground">{displayName}</div>
+            <div className="text-[11px] text-muted-foreground">{userRole ?? 'Loading...'}</div>
           </div>
         )}
       </div>
@@ -109,8 +109,8 @@ export function OrgSidebar() {
                   'flex items-center rounded-md border-l-[3px] text-[13px] transition-colors',
                   collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-4 py-2',
                   active
-                    ? 'border-blue-500 bg-zinc-900 font-medium text-white'
-                    : 'border-transparent text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
+                    ? 'border-blue-500 bg-accent font-medium text-foreground'
+                    : 'border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                 )}
               >
                 <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
@@ -134,8 +134,8 @@ export function OrgSidebar() {
         {canCRM && (
           <>
             <div className={cn('pt-2 pb-1', collapsed ? 'px-2' : 'px-4')}>
-              <div className="border-t border-zinc-800" />
-              {!collapsed && <p className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">CRM</p>}
+              <div className="border-t border-border" />
+              {!collapsed && <p className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">CRM</p>}
             </div>
             {crmNav.map((item) => {
               const active = pathname.startsWith(item.href)
@@ -175,8 +175,8 @@ export function OrgSidebar() {
         {canTools && (
           <>
             <div className={cn('pt-2 pb-1', collapsed ? 'px-2' : 'px-4')}>
-              <div className="border-t border-zinc-800" />
-              {!collapsed && <p className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Tools</p>}
+              <div className="border-t border-border" />
+              {!collapsed && <p className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Tools</p>}
             </div>
             {toolsNav.map((item) => {
               const active = pathname.startsWith(item.href)
@@ -254,7 +254,7 @@ export function OrgSidebar() {
             <button
               onClick={toggle}
               className={cn(
-                'flex w-full items-center rounded-md py-2 text-zinc-500 transition-colors hover:bg-zinc-900/50 hover:text-zinc-300',
+                'flex w-full items-center rounded-md py-2 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground',
                 collapsed ? 'justify-center px-2' : 'gap-2.5 px-4'
               )}
             >
@@ -277,7 +277,7 @@ export function OrgSidebar() {
               <TooltipTrigger asChild>
                 <button
                   onClick={handleLogout}
-                  className="flex w-full items-center justify-center rounded-md px-2 py-2 text-zinc-500 transition-colors hover:bg-zinc-900/50 hover:text-zinc-300"
+                  className="flex w-full items-center justify-center rounded-md px-2 py-2 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
                 >
                   <LogOut className="h-[18px] w-[18px]" strokeWidth={1.5} />
                 </button>
@@ -287,7 +287,7 @@ export function OrgSidebar() {
           ) : (
             <button
               onClick={handleLogout}
-              className="flex w-full items-center gap-2.5 rounded-md px-4 py-2 text-[13px] text-zinc-500 transition-colors hover:bg-zinc-900/50 hover:text-zinc-300"
+              className="flex w-full items-center gap-2.5 rounded-md px-4 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
             >
               <LogOut className="h-[18px] w-[18px]" strokeWidth={1.5} />
               Sign Out

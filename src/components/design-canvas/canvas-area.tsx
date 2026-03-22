@@ -71,6 +71,12 @@ interface Props {
   onShow3dPreview?: (device: DesignDevice) => void
 }
 
+/* ─── Resolve CSS variable to computed value (needed for <canvas> 2D context) ─── */
+function resolveCanvasColor(varName: string, fallback = '#09090b'): string {
+  if (typeof window === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback
+}
+
 /* ─── Camera categories ─── */
 const CAM_CATS = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual']
 
@@ -133,7 +139,7 @@ export function CanvasArea({
 
       const { width, height } = containerRef.current.getBoundingClientRect()
       const c = new fm.Canvas(canvasElRef.current, {
-        width, height, backgroundColor: C.bg,
+        width, height, backgroundColor: resolveCanvasColor('--canvas-bg'),
         selection: false, preserveObjectStacking: true,
         stopContextMenu: true, fireRightClick: true,
       })
@@ -338,7 +344,7 @@ export function CanvasArea({
       const dotC = document.createElement('canvas')
       dotC.width = GRID_SIZE; dotC.height = GRID_SIZE
       const ctx = dotC.getContext('2d')!
-      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+      ctx.fillStyle = resolveCanvasColor('--canvas-grid-dot', 'rgba(255,255,255,0.06)')
       ctx.beginPath(); ctx.arc(GRID_SIZE / 2, GRID_SIZE / 2, 0.8, 0, Math.PI * 2); ctx.fill()
       const pat = new fm.Pattern({ source: dotC, repeat: 'repeat' })
       const r = new fm.Rect({ left: -10000, top: -10000, width: 20000, height: 20000, fill: pat as unknown as string, selectable: false, evented: false })
@@ -347,6 +353,41 @@ export function CanvasArea({
       c.requestRenderAll()
     })()
   }, [showGrid, ready])
+
+  // ════════════════════════════════════════════════════════════════
+  // THEME CHANGE — re‑apply canvas bg + grid dots when light/dark toggles
+  // ════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!ready) return
+    const root = document.documentElement
+    const observer = new MutationObserver(() => {
+      const c = fcRef.current
+      if (!c) return
+      // Re-apply canvas background
+      c.backgroundColor = resolveCanvasColor('--canvas-bg')
+      // Rebuild grid dots with new dot color
+      if (showGrid && gridObj.current) {
+        ;(async () => {
+          const fm = await import('fabric')
+          c.remove(gridObj.current!)
+          const dotC = document.createElement('canvas')
+          dotC.width = GRID_SIZE; dotC.height = GRID_SIZE
+          const ctx = dotC.getContext('2d')!
+          ctx.fillStyle = resolveCanvasColor('--canvas-grid-dot', 'rgba(255,255,255,0.06)')
+          ctx.beginPath(); ctx.arc(GRID_SIZE / 2, GRID_SIZE / 2, 0.8, 0, Math.PI * 2); ctx.fill()
+          const pat = new fm.Pattern({ source: dotC, repeat: 'repeat' })
+          const r = new fm.Rect({ left: -10000, top: -10000, width: 20000, height: 20000, fill: pat as unknown as string, selectable: false, evented: false })
+          c.add(r); c.sendObjectToBack(r)
+          gridObj.current = r
+          c.requestRenderAll()
+        })()
+      } else {
+        c.requestRenderAll()
+      }
+    })
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [ready, showGrid])
 
   // ════════════════════════════════════════════════════════════════
   // DEVICES
