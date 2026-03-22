@@ -362,10 +362,10 @@ export function CanvasArea({
         if (obj.angle !== undefined) onDeviceRotated?.(did, Math.round(obj.angle))
       })
 
-      ;(canvas as unknown as Record<string, unknown>).__cleanupListeners = () => {
-        document.removeEventListener('keydown', handleKeyDown)
-        document.removeEventListener('keyup', handleKeyUp)
-      }
+        ; (canvas as unknown as Record<string, unknown>).__cleanupListeners = () => {
+          document.removeEventListener('keydown', handleKeyDown)
+          document.removeEventListener('keyup', handleKeyUp)
+        }
     }
     void initFabric()
     return () => {
@@ -764,7 +764,7 @@ export function CanvasArea({
           const group = fabric.util.groupSVGElements(result.objects.filter(Boolean) as FabricObject[], result.options)
           const iconScale = BASE_ICON_PX / (64 * (fabricRef.current?.getZoom() || 1))
           group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: iconScale, scaleY: iconScale, originX: 'center', originY: 'center', hasControls: false, hasBorders: false, lockScalingX: true, lockScalingY: true, lockRotation: true, selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move' })
-          ;(group as unknown as Record<string, unknown>).deviceId = device.id
+            ; (group as unknown as Record<string, unknown>).deviceId = device.id
           canvas.add(group); deviceObjectMap.current.set(device.id, group)
         } catch { /* skip */ }
       }
@@ -780,11 +780,11 @@ export function CanvasArea({
             strokeDashArray: device.status === 'existing_remove' ? [3, 2] : undefined,
             originX: 'center', originY: 'center', selectable: false, evented: false, opacity: 0.7,
           })
-          ;(ring as unknown as Record<string, unknown>).__isLabel = true
+            ; (ring as unknown as Record<string, unknown>).__isLabel = true
           canvas.add(ring)
         }
         const labelText = new fabric2.FabricText(device.label, { left: device.position_x, top: device.position_y + 22, fontSize: 10, fill: C.textMuted, fontFamily: 'IBM Plex Sans, sans-serif', originX: 'center', originY: 'top', selectable: false, evented: false })
-        ;(labelText as unknown as Record<string, unknown>).__isLabel = true
+          ; (labelText as unknown as Record<string, unknown>).__isLabel = true
         canvas.add(labelText)
       }
       canvas.renderAll()
@@ -806,11 +806,11 @@ export function CanvasArea({
               strokeDashArray: device.status === 'existing_remove' ? [3, 2] : undefined,
               originX: 'center', originY: 'center', selectable: false, evented: false, opacity: 0.7,
             })
-            ;(ring as unknown as Record<string, unknown>).__isLabel = true
+              ; (ring as unknown as Record<string, unknown>).__isLabel = true
             canvas.add(ring)
           }
           const labelText = new fabric.FabricText(device.label, { left: device.position_x, top: device.position_y + 22, fontSize: 10, fill: C.textMuted, fontFamily: 'IBM Plex Sans, sans-serif', originX: 'center', originY: 'top', selectable: false, evented: false })
-          ;(labelText as unknown as Record<string, unknown>).__isLabel = true
+            ; (labelText as unknown as Record<string, unknown>).__isLabel = true
           canvas.add(labelText)
         }
         canvas.renderAll()
@@ -835,7 +835,7 @@ export function CanvasArea({
     // isDraggingFovHandleRef is no longer used to suppress — cones update in real-time
     if (!showFovCones && !hasSelectedFov) { canvas.renderAll(); return }
 
-    function getRayIntersection(o: {x:number,y:number}, d: {x:number,y:number}, a: {x:number,y:number}, b: {x:number,y:number}) {
+    function getRayIntersection(o: { x: number, y: number }, d: { x: number, y: number }, a: { x: number, y: number }, b: { x: number, y: number }) {
       const v1 = { x: o.x - a.x, y: o.y - a.y };
       const v2 = { x: b.x - a.x, y: b.y - a.y };
       const v3 = { x: -d.y, y: d.x };
@@ -853,241 +853,241 @@ export function CanvasArea({
       // Tier 2: suppress per-object renders during batch add
       canvas.renderOnAddRemove = false;
       try {
-      const wallSegments: Array<{ p1: {x:number,y:number}, p2: {x:number,y:number} }> = [];
-      for (const w of walls || []) {
-        if (w.points && w.points.length >= 2) {
-          for (let i = 0; i < w.points.length - 1; i++) {
-            wallSegments.push({ p1: w.points[i], p2: w.points[i+1] });
+        const wallSegments: Array<{ p1: { x: number, y: number }, p2: { x: number, y: number } }> = [];
+        for (const w of walls || []) {
+          if (w.points && w.points.length >= 2) {
+            for (let i = 0; i < w.points.length - 1; i++) {
+              wallSegments.push({ p1: w.points[i], p2: w.points[i + 1] });
+            }
           }
         }
-      }
-      for (const [deviceId, data] of fovData.entries()) {
-        const device = devices.find((d) => d.id === deviceId);
-        if (!device) continue;
-        // IPVM-style: when global FOV is off, only render cone for the selected camera
-        if (!showFovCones && deviceId !== selectedDeviceId) continue;
-        const objects: FabricObject[] = [];
-        const halfAngle = (data.hFov / 2) * (Math.PI / 180);
-        const baseRotDeg = data.rotation || 0;
-        const imagerAngles = data.sensorAngles && data.sensorAngles.length > 0
-          ? data.sensorAngles.map(a => a + baseRotDeg)
-          : [baseRotDeg];
-        let outerR = 0;
-        for (const imagerDeg of imagerAngles) {
-          const rotRad = imagerDeg * (Math.PI / 180);
+        for (const [deviceId, data] of fovData.entries()) {
+          const device = devices.find((d) => d.id === deviceId);
+          if (!device) continue;
+          // IPVM-style: when global FOV is off, only render cone for the selected camera
+          if (!showFovCones && deviceId !== selectedDeviceId) continue;
+          const objects: FabricObject[] = [];
+          const halfAngle = (data.hFov / 2) * (Math.PI / 180);
+          const baseRotDeg = data.rotation || 0;
+          const imagerAngles = data.sensorAngles && data.sensorAngles.length > 0
+            ? data.sensorAngles.map(a => a + baseRotDeg)
+            : [baseRotDeg];
+          let outerR = 0;
+          for (const imagerDeg of imagerAngles) {
+            const rotRad = imagerDeg * (Math.PI / 180);
 
-          // Helper: build a wall-clipped cone path at given radius
-          function buildConePath(cx: number, cy: number, r: number): string {
-            const numSteps = Math.max(10, Math.ceil(data.hFov));
-            const angleStep = (data.hFov * (Math.PI / 180)) / numSteps;
-            const startAngleRad = rotRad - halfAngle;
-            const polyPoints = [{ x: cx, y: cy }];
-            for (let i = 0; i <= numSteps; i++) {
-              const currentAngle = startAngleRad + i * angleStep;
-              const rayDir = { x: Math.cos(currentAngle), y: Math.sin(currentAngle) };
-              let minDist = r;
-              for (const seg of wallSegments) {
-                const t = getRayIntersection({x: cx, y: cy}, rayDir, seg.p1, seg.p2);
-                if (t !== null && t < minDist) minDist = t;
+            // Helper: build a wall-clipped cone path at given radius
+            function buildConePath(cx: number, cy: number, r: number): string {
+              const numSteps = Math.max(10, Math.ceil(data.hFov));
+              const angleStep = (data.hFov * (Math.PI / 180)) / numSteps;
+              const startAngleRad = rotRad - halfAngle;
+              const polyPoints = [{ x: cx, y: cy }];
+              for (let i = 0; i <= numSteps; i++) {
+                const currentAngle = startAngleRad + i * angleStep;
+                const rayDir = { x: Math.cos(currentAngle), y: Math.sin(currentAngle) };
+                let minDist = r;
+                for (const seg of wallSegments) {
+                  const t = getRayIntersection({ x: cx, y: cy }, rayDir, seg.p1, seg.p2);
+                  if (t !== null && t < minDist) minDist = t;
+                }
+                polyPoints.push({ x: cx + rayDir.x * minDist, y: cy + rayDir.y * minDist });
               }
-              polyPoints.push({ x: cx + rayDir.x * minDist, y: cy + rayDir.y * minDist });
+              let pathStr = `M ${polyPoints[0].x} ${polyPoints[0].y}`;
+              for (let k = 1; k < polyPoints.length; k++) pathStr += ` L ${polyPoints[k].x} ${polyPoints[k].y}`;
+              return pathStr + ' Z';
             }
-            let pathStr = `M ${polyPoints[0].x} ${polyPoints[0].y}`;
-            for (let k = 1; k < polyPoints.length; k++) pathStr += ` L ${polyPoints[k].x} ${polyPoints[k].y}`;
-            return pathStr + ' Z';
-          }
 
-          if (fovDisplayMode === 'simple' || fovDisplayMode === 'heatmap') {
-            const isHeatmap = fovDisplayMode === 'heatmap'
-            const coneColor = isHeatmap ? '#22c55e' : (data.colorHex || '#29b6f6');
-            const coneOpacity = isHeatmap ? 0.18 : 0.15;
-            const strokeColor = isHeatmap ? 'rgba(34,197,94,0.4)' : coneColor;
-            const maxTier = data.tiers.reduce((a, b) => b.distanceFt > a.distanceFt ? b : a, data.tiers[0]);
-            const r = maxTier.distanceFt * (scalePxPerFt || 10);
-            if (r > outerR) outerR = r;
-            const cx = device.position_x;
-            const cy = device.position_y;
-
-            const isSelectedCone = deviceId === selectedDeviceId;
-            const outerPath = new fabric.Path(buildConePath(cx, cy, r), {
-              fill: coneColor, opacity: coneOpacity,
-              selectable: false, evented: isSelectedCone,
-              hoverCursor: isSelectedCone ? 'crosshair' : 'default',
-            });
-            ;(outerPath as unknown as Record<string, unknown>).__fovConeDeviceId = deviceId;
-            ;(outerPath as unknown as Record<string, unknown>).__fovConeCx = cx;
-            ;(outerPath as unknown as Record<string, unknown>).__fovConeCy = cy;
-            canvas.add(outerPath); objects.push(outerPath);
-
-            const innerR = r * 0.35;
-            const innerPath = new fabric.Path(buildConePath(cx, cy, innerR), {
-              fill: coneColor, opacity: isHeatmap ? 0.12 : 0.10, selectable: false, evented: false,
-            });
-            canvas.add(innerPath); objects.push(innerPath);
-
-            const strokePath = new fabric.Path(buildConePath(cx, cy, r), {
-              fill: 'transparent', stroke: strokeColor, strokeWidth: isHeatmap ? 1.5 : 1, opacity: isHeatmap ? 0.6 : 0.35,
-              selectable: false, evented: false,
-            });
-            canvas.add(strokePath); objects.push(strokePath);
-          } else {
-            for (const tier of data.tiers) {
-              const r = tier.distanceFt * (scalePxPerFt || 10);
+            if (fovDisplayMode === 'simple' || fovDisplayMode === 'heatmap') {
+              const isHeatmap = fovDisplayMode === 'heatmap'
+              const coneColor = isHeatmap ? '#22c55e' : (data.colorHex || '#29b6f6');
+              const coneOpacity = isHeatmap ? 0.18 : 0.15;
+              const strokeColor = isHeatmap ? 'rgba(34,197,94,0.4)' : coneColor;
+              const maxTier = data.tiers.reduce((a, b) => b.distanceFt > a.distanceFt ? b : a, data.tiers[0]);
+              const r = maxTier.distanceFt * (scalePxPerFt || 10);
               if (r > outerR) outerR = r;
               const cx = device.position_x;
               const cy = device.position_y;
 
-              let opacity = tier.opacity;
-              if (highlightedPpfTier) {
-                opacity = tier.color === highlightedPpfTier ? Math.min(tier.opacity * 3, 0.5) : tier.opacity * 0.2;
-              }
-              const path = new fabric.Path(buildConePath(cx, cy, r), {
-                fill: tier.color, opacity, selectable: false, evented: false,
+              const isSelectedCone = deviceId === selectedDeviceId;
+              const outerPath = new fabric.Path(buildConePath(cx, cy, r), {
+                fill: coneColor, opacity: coneOpacity,
+                selectable: false, evented: isSelectedCone,
+                hoverCursor: isSelectedCone ? 'crosshair' : 'default',
               });
-              canvas.add(path); objects.push(path);
-              if (fovDisplayMode === 'dori' && r > 20) {
-                const labelR = r * 0.92;
-                const lx = cx + Math.cos(rotRad) * labelR;
-                const ly = cy + Math.sin(rotRad) * labelR;
-                const label = TIER_LABELS[tier.color] || '';
-                if (label) {
-                  const text = new fabric.FabricText(label, {
-                    left: lx, top: ly, fontSize: 9, fontWeight: '700',
-                    fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
-                    originX: 'center', originY: 'center', selectable: false, evented: false,
-                    opacity: highlightedPpfTier && tier.color !== highlightedPpfTier ? 0.2 : 0.9,
-                  });
-                  ;(text as unknown as Record<string, unknown>).__isDoriLabel = true;
-                  canvas.add(text); objects.push(text);
+              ; (outerPath as unknown as Record<string, unknown>).__fovConeDeviceId = deviceId;
+              ; (outerPath as unknown as Record<string, unknown>).__fovConeCx = cx;
+              ; (outerPath as unknown as Record<string, unknown>).__fovConeCy = cy;
+              canvas.add(outerPath); objects.push(outerPath);
+
+              const innerR = r * 0.35;
+              const innerPath = new fabric.Path(buildConePath(cx, cy, innerR), {
+                fill: coneColor, opacity: isHeatmap ? 0.12 : 0.10, selectable: false, evented: false,
+              });
+              canvas.add(innerPath); objects.push(innerPath);
+
+              const strokePath = new fabric.Path(buildConePath(cx, cy, r), {
+                fill: 'transparent', stroke: strokeColor, strokeWidth: isHeatmap ? 1.5 : 1, opacity: isHeatmap ? 0.6 : 0.35,
+                selectable: false, evented: false,
+              });
+              canvas.add(strokePath); objects.push(strokePath);
+            } else {
+              for (const tier of data.tiers) {
+                const r = tier.distanceFt * (scalePxPerFt || 10);
+                if (r > outerR) outerR = r;
+                const cx = device.position_x;
+                const cy = device.position_y;
+
+                let opacity = tier.opacity;
+                if (highlightedPpfTier) {
+                  opacity = tier.color === highlightedPpfTier ? Math.min(tier.opacity * 3, 0.5) : tier.opacity * 0.2;
+                }
+                const path = new fabric.Path(buildConePath(cx, cy, r), {
+                  fill: tier.color, opacity, selectable: false, evented: false,
+                });
+                canvas.add(path); objects.push(path);
+                if (fovDisplayMode === 'dori' && r > 20) {
+                  const labelR = r * 0.92;
+                  const lx = cx + Math.cos(rotRad) * labelR;
+                  const ly = cy + Math.sin(rotRad) * labelR;
+                  const label = TIER_LABELS[tier.color] || '';
+                  if (label) {
+                    const text = new fabric.FabricText(label, {
+                      left: lx, top: ly, fontSize: 9, fontWeight: '700',
+                      fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
+                      originX: 'center', originY: 'center', selectable: false, evented: false,
+                      opacity: highlightedPpfTier && tier.color !== highlightedPpfTier ? 0.2 : 0.9,
+                    });
+                    ; (text as unknown as Record<string, unknown>).__isDoriLabel = true;
+                    canvas.add(text); objects.push(text);
+                  }
                 }
               }
             }
           }
-        }
-        fovObjectMap.current.set(deviceId, objects);
+          fovObjectMap.current.set(deviceId, objects);
 
-        // ---- Blind Spot Visualization ----
-        if (data.blindSpotFt && data.blindSpotFt > 0.5) {
-          const blindR = data.blindSpotFt * (scalePxPerFt || 10);
-          if (blindR > 3) {
+          // ---- Blind Spot Visualization ----
+          if (data.blindSpotFt && data.blindSpotFt > 0.5) {
+            const blindR = data.blindSpotFt * (scalePxPerFt || 10);
+            if (blindR > 3) {
+              const cx = device.position_x;
+              const cy = device.position_y;
+              const blindCircle = new fabric.Circle({
+                left: cx, top: cy, radius: blindR,
+                fill: 'transparent', stroke: 'rgba(120,113,108,0.5)', strokeWidth: 1,
+                strokeDashArray: [3, 3],
+                originX: 'center', originY: 'center', selectable: false, evented: false,
+              });
+              (blindCircle as unknown as Record<string, unknown>).__isBlindSpot = true;
+              canvas.add(blindCircle); objects.push(blindCircle);
+              const blindFill = new fabric.Circle({
+                left: cx, top: cy, radius: blindR,
+                fill: 'rgba(120,113,108,0.06)', stroke: 'none', strokeWidth: 0,
+                originX: 'center', originY: 'center', selectable: false, evented: false,
+              });
+              (blindFill as unknown as Record<string, unknown>).__isBlindSpot = true;
+              canvas.add(blindFill); objects.push(blindFill);
+              if (blindR > 15) {
+                const bsLabel = new fabric.FabricText(`${data.blindSpotFt.toFixed(1)}ft blind`, {
+                  left: cx, top: cy + blindR + 6, fontSize: 8, fontWeight: '600',
+                  fill: 'rgba(120,113,108,0.7)', fontFamily: "'IBM Plex Mono', monospace",
+                  originX: 'center', originY: 'top', selectable: false, evented: false,
+                });
+                canvas.add(bsLabel); objects.push(bsLabel);
+              }
+            }
+          }
+
+          // ---- PPF Boundary Labels (PPF mode) ----
+          if (fovDisplayMode === 'ppf' && data.resolutionW && data.sensorW && data.focalLength) {
             const cx = device.position_x;
             const cy = device.position_y;
-            const blindCircle = new fabric.Circle({
-              left: cx, top: cy, radius: blindR,
-              fill: 'transparent', stroke: 'rgba(120,113,108,0.5)', strokeWidth: 1,
-              strokeDashArray: [3, 3],
-              originX: 'center', originY: 'center', selectable: false, evented: false,
-            });
-            (blindCircle as unknown as Record<string, unknown>).__isBlindSpot = true;
-            canvas.add(blindCircle); objects.push(blindCircle);
-            const blindFill = new fabric.Circle({
-              left: cx, top: cy, radius: blindR,
-              fill: 'rgba(120,113,108,0.06)', stroke: 'none', strokeWidth: 0,
-              originX: 'center', originY: 'center', selectable: false, evented: false,
-            });
-            (blindFill as unknown as Record<string, unknown>).__isBlindSpot = true;
-            canvas.add(blindFill); objects.push(blindFill);
-            if (blindR > 15) {
-              const bsLabel = new fabric.FabricText(`${data.blindSpotFt.toFixed(1)}ft blind`, {
-                left: cx, top: cy + blindR + 6, fontSize: 8, fontWeight: '600',
-                fill: 'rgba(120,113,108,0.7)', fontFamily: "'IBM Plex Mono', monospace",
-                originX: 'center', originY: 'top', selectable: false, evented: false,
+            const baseRot = (data.rotation || 0) * (Math.PI / 180);
+            for (const tier of data.tiers) {
+              const tierR = tier.distanceFt * (scalePxPerFt || 10);
+              if (tierR < 20) continue;
+              const ppfVal = calculatePpfAtDistance(data.resolutionW, data.sensorW, data.focalLength, tier.distanceFt);
+              if (ppfVal <= 0) continue;
+              const lx = cx + Math.cos(baseRot) * tierR;
+              const ly = cy + Math.sin(baseRot) * tierR;
+              let opacity = 0.85;
+              if (highlightedPpfTier && tier.color !== highlightedPpfTier) opacity = 0.2;
+              const ppfLabel = new fabric.FabricText(`${Math.round(ppfVal)}`, {
+                left: lx, top: ly - 6, fontSize: 8, fontWeight: '700',
+                fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
+                originX: 'center', originY: 'bottom', selectable: false, evented: false, opacity,
               });
-              canvas.add(bsLabel); objects.push(bsLabel);
+              canvas.add(ppfLabel); objects.push(ppfLabel);
             }
           }
-        }
 
-        // ---- PPF Boundary Labels (PPF mode) ----
-        if (fovDisplayMode === 'ppf' && data.resolutionW && data.sensorW && data.focalLength) {
-          const cx = device.position_x;
-          const cy = device.position_y;
-          const baseRot = (data.rotation || 0) * (Math.PI / 180);
-          for (const tier of data.tiers) {
-            const tierR = tier.distanceFt * (scalePxPerFt || 10);
-            if (tierR < 20) continue;
-            const ppfVal = calculatePpfAtDistance(data.resolutionW, data.sensorW, data.focalLength, tier.distanceFt);
-            if (ppfVal <= 0) continue;
-            const lx = cx + Math.cos(baseRot) * tierR;
-            const ly = cy + Math.sin(baseRot) * tierR;
-            let opacity = 0.85;
-            if (highlightedPpfTier && tier.color !== highlightedPpfTier) opacity = 0.2;
-            const ppfLabel = new fabric.FabricText(`${Math.round(ppfVal)}`, {
-              left: lx, top: ly - 6, fontSize: 8, fontWeight: '700',
-              fill: tier.color, fontFamily: "'IBM Plex Mono', monospace",
-              originX: 'center', originY: 'bottom', selectable: false, evented: false, opacity,
+          // FOV rotation handle — one per sensor/imager
+          if (outerR > 0 && onFovHandleDragged) {
+            imagerAngles.forEach((imagerDeg, idx) => {
+              const rotRad = imagerDeg * (Math.PI / 180);
+              const hx = device.position_x + Math.cos(rotRad) * outerR;
+              const hy = device.position_y + Math.sin(rotRad) * outerR;
+              const key = `${deviceId}_${idx}`;
+              const handle = new fabric.Circle({
+                left: hx, top: hy, radius: 6,
+                fill: idx === 0 ? 'rgba(59,130,246,0.9)' : 'rgba(139,92,246,0.9)',
+                stroke: '#fff', strokeWidth: 1.5,
+                originX: 'center', originY: 'center', selectable: true, evented: true,
+                hasControls: false, hasBorders: false, hoverCursor: 'grab', moveCursor: 'grabbing',
+              });
+              ; (handle as unknown as Record<string, unknown>).__fovHandle = true;
+              ; (handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
+              ; (handle as unknown as Record<string, unknown>).__fovSensorIndex = idx;
+              ; (handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
+              ; (handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
+              canvas.add(handle);
+              fovHandleMap.current.set(key, handle);
+
+              // ---- FOV angle edge handles (IPVM-style — drag to widen/narrow cone) ----
+              if (onFovAngleChanged && deviceId === selectedDeviceId) {
+                const edgeR = outerR * 0.7; // place handles at 70% of cone length
+                const leftAngle = rotRad - halfAngle;
+                const rightAngle = rotRad + halfAngle;
+                const makeEdgeHandle = (angle: number, side: 'left' | 'right') => {
+                  const ex = device.position_x + Math.cos(angle) * edgeR;
+                  const ey = device.position_y + Math.sin(angle) * edgeR;
+                  const edgeKey = `${deviceId}_${idx}_fov_${side}`;
+                  const edgeHandle = new fabric.Rect({
+                    left: ex, top: ey, width: 8, height: 8,
+                    fill: 'rgba(34,197,94,0.9)',
+                    stroke: '#fff', strokeWidth: 1.5,
+                    originX: 'center', originY: 'center', selectable: true, evented: true,
+                    hasControls: false, hasBorders: false, hoverCursor: 'ew-resize', moveCursor: 'ew-resize',
+                    angle: angle * (180 / Math.PI) + 45,
+                  });
+                  ; (edgeHandle as unknown as Record<string, unknown>).__fovEdgeHandle = true;
+                  ; (edgeHandle as unknown as Record<string, unknown>).__fovEdgeSide = side;
+                  ; (edgeHandle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
+                  ; (edgeHandle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
+                  ; (edgeHandle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
+                  ; (edgeHandle as unknown as Record<string, unknown>).__fovRotRad = rotRad;
+                  canvas.add(edgeHandle);
+                  fovHandleMap.current.set(edgeKey, edgeHandle);
+                };
+                makeEdgeHandle(leftAngle, 'left');
+                makeEdgeHandle(rightAngle, 'right');
+              }
             });
-            canvas.add(ppfLabel); objects.push(ppfLabel);
           }
         }
-        
-        // FOV rotation handle — one per sensor/imager
-        if (outerR > 0 && onFovHandleDragged) {
-          imagerAngles.forEach((imagerDeg, idx) => {
-            const rotRad = imagerDeg * (Math.PI / 180);
-            const hx = device.position_x + Math.cos(rotRad) * outerR;
-            const hy = device.position_y + Math.sin(rotRad) * outerR;
-            const key = `${deviceId}_${idx}`;
-            const handle = new fabric.Circle({
-              left: hx, top: hy, radius: 6,
-              fill: idx === 0 ? 'rgba(59,130,246,0.9)' : 'rgba(139,92,246,0.9)',
-              stroke: '#fff', strokeWidth: 1.5,
-              originX: 'center', originY: 'center', selectable: true, evented: true,
-              hasControls: false, hasBorders: false, hoverCursor: 'grab', moveCursor: 'grabbing',
-            });
-            ;(handle as unknown as Record<string, unknown>).__fovHandle = true;
-            ;(handle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
-            ;(handle as unknown as Record<string, unknown>).__fovSensorIndex = idx;
-            ;(handle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
-            ;(handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
-            canvas.add(handle);
-            fovHandleMap.current.set(key, handle);
-
-            // ---- FOV angle edge handles (IPVM-style — drag to widen/narrow cone) ----
-            if (onFovAngleChanged && deviceId === selectedDeviceId) {
-              const edgeR = outerR * 0.7; // place handles at 70% of cone length
-              const leftAngle = rotRad - halfAngle;
-              const rightAngle = rotRad + halfAngle;
-              const makeEdgeHandle = (angle: number, side: 'left' | 'right') => {
-                const ex = device.position_x + Math.cos(angle) * edgeR;
-                const ey = device.position_y + Math.sin(angle) * edgeR;
-                const edgeKey = `${deviceId}_${idx}_fov_${side}`;
-                const edgeHandle = new fabric.Rect({
-                  left: ex, top: ey, width: 8, height: 8,
-                  fill: 'rgba(34,197,94,0.9)',
-                  stroke: '#fff', strokeWidth: 1.5,
-                  originX: 'center', originY: 'center', selectable: true, evented: true,
-                  hasControls: false, hasBorders: false, hoverCursor: 'ew-resize', moveCursor: 'ew-resize',
-                  angle: angle * (180 / Math.PI) + 45,
-                });
-                ;(edgeHandle as unknown as Record<string, unknown>).__fovEdgeHandle = true;
-                ;(edgeHandle as unknown as Record<string, unknown>).__fovEdgeSide = side;
-                ;(edgeHandle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
-                ;(edgeHandle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
-                ;(edgeHandle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
-                ;(edgeHandle as unknown as Record<string, unknown>).__fovRotRad = rotRad;
-                canvas.add(edgeHandle);
-                fovHandleMap.current.set(edgeKey, edgeHandle);
-              };
-              makeEdgeHandle(leftAngle, 'left');
-              makeEdgeHandle(rightAngle, 'right');
-            }
-          });
+        // Z-order: grid (back) → FOV cones → cables → labels → devices (front)
+        // Send FOV cones to back first
+        for (const [, objs] of fovObjectMap.current) {
+          for (const o of objs) canvas.sendObjectToBack(o)
         }
-      }
-      // Z-order: grid (back) → FOV cones → cables → labels → devices (front)
-      // Send FOV cones to back first
-      for (const [, objs] of fovObjectMap.current) {
-        for (const o of objs) canvas.sendObjectToBack(o)
-      }
-      // Bring all device icons to front so they sit above cones and are clickable
-      for (const [, obj] of deviceObjectMap.current) {
-        canvas.bringObjectToFront(obj)
-      }
-      // Bring FOV drag handles to very front
-      for (const [, h] of fovHandleMap.current) {
-        canvas.bringObjectToFront(h)
-      }
+        // Bring all device icons to front so they sit above cones and are clickable
+        for (const [, obj] of deviceObjectMap.current) {
+          canvas.bringObjectToFront(obj)
+        }
+        // Bring FOV drag handles to very front
+        for (const [, h] of fovHandleMap.current) {
+          canvas.bringObjectToFront(h)
+        }
       } finally {
         // ALWAYS restore per-object rendering, even if renderFovCones throws
         canvas.renderOnAddRemove = true;
@@ -1195,7 +1195,7 @@ export function CanvasArea({
     canvas.on('object:moving', movingHandler)
     canvas.on('object:modified', modifiedHandler)
     canvas.on('mouse:down', coneClickHandler)
-    return () => { 
+    return () => {
       canvas.off('object:moving', movingHandler)
       canvas.off('object:modified', modifiedHandler)
       canvas.off('mouse:down', coneClickHandler)
@@ -1286,7 +1286,7 @@ export function CanvasArea({
           fill: 'transparent', stroke: cable.color_hex || C.accent,
           strokeWidth: 2, strokeDashArray: [6, 3], selectable: true, evented: true, opacity: 0.6,
         })
-        ;(polyline as unknown as Record<string, unknown>).cableId = cable.id
+          ; (polyline as unknown as Record<string, unknown>).cableId = cable.id
         canvas.add(polyline); canvas.sendObjectToBack(polyline); cableObjectMap.current.set(cable.id, polyline)
 
         // Cable label (type + length) at midpoint
@@ -1300,7 +1300,7 @@ export function CanvasArea({
             fontFamily: "'IBM Plex Mono', monospace", fontWeight: '600',
             originX: 'center', selectable: false, evented: false, opacity: 0.7,
           })
-          ;(cableLabel as unknown as Record<string, unknown>).__isCableLabel = true
+            ; (cableLabel as unknown as Record<string, unknown>).__isCableLabel = true
           canvas.add(cableLabel)
         }
       }
@@ -1324,8 +1324,8 @@ export function CanvasArea({
         const line = new fabric.Line([p1.x, p1.y, p2.x, p2.y], {
           stroke: '#64748b', strokeWidth: 4, selectable: true, evented: true,
         })
-        ;(line as unknown as Record<string, unknown>).__isWall = true
-        ;(line as unknown as Record<string, unknown>).wallId = wall.id
+          ; (line as unknown as Record<string, unknown>).__isWall = true
+          ; (line as unknown as Record<string, unknown>).wallId = wall.id
         canvas.add(line); canvas.sendObjectToBack(line); wallObjs.push(line)
       }
       canvas.renderAll()
@@ -1361,7 +1361,7 @@ export function CanvasArea({
           originX: 'center', originY: 'center',
           left: cx, top: cy,
         })
-        ;(diamond as unknown as Record<string, unknown>).__mdfIdfId = node.id
+          ; (diamond as unknown as Record<string, unknown>).__mdfIdfId = node.id
         canvas.add(diamond); objects.push(diamond)
 
         // Label
@@ -1372,7 +1372,7 @@ export function CanvasArea({
           originX: 'center', originY: 'top',
           selectable: false, evented: false,
         })
-        ;(label as unknown as Record<string, unknown>).__isMdfIdfLabel = true
+          ; (label as unknown as Record<string, unknown>).__isMdfIdfLabel = true
         canvas.add(label); objects.push(label)
 
         // Distance lines to each device
@@ -1387,7 +1387,7 @@ export function CanvasArea({
               stroke: node.color_hex || '#f97316', strokeWidth: 0.5,
               strokeDashArray: [2, 4], selectable: false, evented: false, opacity: 0.25,
             })
-            ;(line as unknown as Record<string, unknown>).__isMdfIdfLabel = true
+              ; (line as unknown as Record<string, unknown>).__isMdfIdfLabel = true
             canvas.add(line); canvas.sendObjectToBack(line); objects.push(line)
 
             // Distance label at midpoint
@@ -1399,7 +1399,7 @@ export function CanvasArea({
               fontFamily: "'IBM Plex Mono', monospace",
               originX: 'center', selectable: false, evented: false, opacity: 0.5,
             })
-            ;(distLabel as unknown as Record<string, unknown>).__isMdfIdfLabel = true
+              ; (distLabel as unknown as Record<string, unknown>).__isMdfIdfLabel = true
             canvas.add(distLabel); objects.push(distLabel)
           }
         }
@@ -1569,10 +1569,10 @@ export function CanvasArea({
   const hasSatellite = satelliteConfig?.lat != null && satelliteConfig?.lng != null
   useEffect(() => {
     if (!fabricRef.current || !fabricReady) return
-    
+
     // Fabric's internal background (drawn on the 2D context before objects)
     fabricRef.current.backgroundColor = hasSatellite ? 'transparent' : C.bg
-    
+
     // Force ALL Fabric DOM elements transparent + z-index above satellite div
     const wrapper = canvasRef.current?.parentElement
     if (wrapper) {
@@ -1583,7 +1583,7 @@ export function CanvasArea({
         (c as HTMLElement).style.background = 'transparent'
       })
     }
-    
+
     fabricRef.current.renderAll()
   }, [hasSatellite, fabricReady])
 
@@ -1600,7 +1600,7 @@ export function CanvasArea({
       if (ctx) { ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.beginPath(); ctx.arc(GRID_SIZE / 2, GRID_SIZE / 2, 1, 0, Math.PI * 2); ctx.fill() }
       const pattern = new fm.Pattern({ source: tile, repeat: 'repeat' })
       const gridRect = new fm.Rect({ left: -10000, top: -10000, width: 20000, height: 20000, fill: pattern as unknown as string, selectable: false, evented: false })
-      ;(gridRect as unknown as Record<string, unknown>).__isGrid = true
+        ; (gridRect as unknown as Record<string, unknown>).__isGrid = true
       canvas.add(gridRect); canvas.sendObjectToBack(gridRect)
       canvas.requestRenderAll()
     })
@@ -1789,22 +1789,28 @@ export function CanvasArea({
       {contextMenu.visible && contextMenu.deviceId && (
         <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 0', minWidth: 140, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
           {[
-            { label: 'Rotate 90°', action: () => {
-              const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
-              if (obj && fabricRef.current) {
-                const newAngle = ((obj.angle ?? 0) + 90) % 360
-                obj.set({ angle: newAngle }); fabricRef.current.renderAll()
-                onDeviceRotated?.(contextMenu.deviceId!, newAngle)
+            {
+              label: 'Rotate 90°', action: () => {
+                const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
+                if (obj && fabricRef.current) {
+                  const newAngle = ((obj.angle ?? 0) + 90) % 360
+                  obj.set({ angle: newAngle }); fabricRef.current.renderAll()
+                  onDeviceRotated?.(contextMenu.deviceId!, newAngle)
+                }
               }
-            }},
-            { label: 'Bring to Front', action: () => {
-              const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
-              if (obj && fabricRef.current) { fabricRef.current.bringObjectToFront(obj); fabricRef.current.renderAll() }
-            }},
-            { label: 'Send to Back', action: () => {
-              const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
-              if (obj && fabricRef.current) { fabricRef.current.sendObjectToBack(obj); fabricRef.current.renderAll() }
-            }},
+            },
+            {
+              label: 'Bring to Front', action: () => {
+                const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
+                if (obj && fabricRef.current) { fabricRef.current.bringObjectToFront(obj); fabricRef.current.renderAll() }
+              }
+            },
+            {
+              label: 'Send to Back', action: () => {
+                const obj = deviceObjectMap.current.get(contextMenu.deviceId!)
+                if (obj && fabricRef.current) { fabricRef.current.sendObjectToBack(obj); fabricRef.current.renderAll() }
+              }
+            },
             null,
             { label: 'Duplicate', action: () => onDeviceCopy?.(contextMenu.deviceId!) },
             { label: 'Delete', action: () => onDeviceDelete?.(contextMenu.deviceId!) },
@@ -1812,12 +1818,12 @@ export function CanvasArea({
             item === null ? (
               <div key={`sep-${i}`} style={{ height: 1, background: C.border, margin: '3px 8px' }} />
             ) : (
-            <div key={item.label} onClick={() => { item.action(); setContextMenu({ visible: false, x: 0, y: 0, deviceId: null }) }}
-              style={{ padding: '6px 14px', fontSize: 12, color: item.label === 'Delete' ? C.red : C.text, cursor: 'pointer' }}
-              onMouseEnter={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = C.bgHover }}
-              onMouseLeave={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}>
-              {item.label}
-            </div>
+              <div key={item.label} onClick={() => { item.action(); setContextMenu({ visible: false, x: 0, y: 0, deviceId: null }) }}
+                style={{ padding: '6px 14px', fontSize: 12, color: item.label === 'Delete' ? C.red : C.text, cursor: 'pointer' }}
+                onMouseEnter={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = C.bgHover }}
+                onMouseLeave={(e: React.MouseEvent) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}>
+                {item.label}
+              </div>
             )
           )}
         </div>
@@ -1827,12 +1833,16 @@ export function CanvasArea({
       {contextMenu.visible && contextMenu.mdfIdfId && !contextMenu.deviceId && (
         <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 0', minWidth: 140, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
           {[
-            { label: 'Rename', color: C.text, action: () => {
-              // TODO: inline rename
-            }},
-            { label: 'Delete MDF/IDF', color: C.red, action: () => {
-              onMdfIdfDeleted?.(contextMenu.mdfIdfId!)
-            }},
+            {
+              label: 'Rename', color: C.text, action: () => {
+                // TODO: inline rename
+              }
+            },
+            {
+              label: 'Delete MDF/IDF', color: C.red, action: () => {
+                onMdfIdfDeleted?.(contextMenu.mdfIdfId!)
+              }
+            },
           ].map((item) => (
             <div key={item.label} onClick={() => { item.action(); setContextMenu({ visible: false, x: 0, y: 0, deviceId: null, mdfIdfId: null }) }}
               style={{ padding: '6px 14px', fontSize: 12, color: item.color, cursor: 'pointer' }}
