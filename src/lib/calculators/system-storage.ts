@@ -107,7 +107,7 @@ const BITRATE_TABLE: Record<string, Record<Compression, number>> = {
 function resolutionToKey(label: string, w: number): string | null {
   const lower = label.toLowerCase().replace(/\s/g, '');
   if (lower in BITRATE_TABLE) return lower;
-  const mp = (w * w) / 1000000;
+  const mp = (w * (w * 9 / 16)) / 1000000;
   if (mp <= 2.5) return '2mp';
   if (mp <= 3.5) return '3mp';
   if (mp <= 4.5) return '4mp';

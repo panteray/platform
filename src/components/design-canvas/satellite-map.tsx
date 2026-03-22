@@ -104,7 +104,7 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
             zoom,
             mapTypeId: 'satellite',
             disableDefaultUI: true,
-            gestureHandling: 'none',
+            gestureHandling: 'cooperative',
             keyboardShortcuts: false,
             draggable: false,
             zoomControl: false,

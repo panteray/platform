@@ -59,7 +59,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [activeIcon, setActiveIcon] = useState<IconTabId>('layers')
   const [showLeftPanel, setShowLeftPanel] = useState(false)
   const [activeView, setActiveView] = useState<DesignView>('all')
-  const [showFovCones, setShowFovCones] = useState(false)
+  const [showFovCones, setShowFovCones] = useState(true)
   const [showDeviceLibrary, setShowDeviceLibrary] = useState(false)
   const [fovDisplayMode, setFovDisplayMode] = useState<'simple' | 'ppf' | 'dori'>('simple')
   const [highlightedPpfTier, setHighlightedPpfTier] = useState<string | null>(null)
@@ -173,6 +173,16 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
       if (!focalLength || !sensorW || !parsedResW) {
         // No lens params — use fov_angle from library if available, else fallback 90°
         const hFov = fovAngle > 0 ? fovAngle : 90
+        // Multi-sensor fallback: check sub_type for multi-sensor cameras that arrive as 'cctv'
+        const fallbackSubType = String(props.sub_type || '')
+        let fallbackSensorAngles: number[] | undefined
+        if (d.category === 'multisensor_quad' || fallbackSubType === 'multisensor_quad') {
+          const custom = props.sensor_angles as number[] | undefined
+          fallbackSensorAngles = Array.isArray(custom) && custom.length > 0 ? custom : [0, 90, 180, 270]
+        } else if (d.category === 'multisensor_dual' || fallbackSubType === 'multisensor_dual') {
+          const custom = props.sensor_angles as number[] | undefined
+          fallbackSensorAngles = Array.isArray(custom) && custom.length > 0 ? custom : [-45, 45]
+        }
         map.set(d.id, {
           hFov, rotation: d.rotation || 0,
           tiers: [
@@ -180,6 +190,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
             { distanceFt: targetDist * 0.6, color: C.yellow, opacity: 0.15 },
             { distanceFt: targetDist * 0.3, color: C.red, opacity: 0.2 },
           ],
+          sensorAngles: fallbackSensorAngles,
           colorHex: d.color_hex || undefined,
         })
         continue
@@ -191,14 +202,16 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
         const tiers = getFovConeTiers(input)
 
         // Multi-sensor cameras: populate sensorAngles for per-imager rendering
+        // Check both d.category and sub_type — catalog devices arrive as 'cctv' with sub_type set
         let sensorAngles: number[] | undefined
-        if (d.category === 'multisensor_quad') {
+        const subType = String(props.sub_type || '')
+        if (d.category === 'multisensor_quad' || subType === 'multisensor_quad') {
           const custom = props.sensor_angles as number[] | undefined
           sensorAngles = Array.isArray(custom) && custom.length > 0 ? custom : [0, 90, 180, 270]
-        } else if (d.category === 'multisensor_dual') {
+        } else if (d.category === 'multisensor_dual' || subType === 'multisensor_dual') {
           const custom = props.sensor_angles as number[] | undefined
           sensorAngles = Array.isArray(custom) && custom.length > 0 ? custom : [-45, 45]
-        } else if (d.category === 'fisheye') {
+        } else if (d.category === 'fisheye' || subType === 'fisheye') {
           // Fisheye: single 360° cone handled by hFov, no multi-imager
           sensorAngles = undefined
         }
@@ -1261,7 +1274,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
             {/* Welcome modal — shown when no floor plan and not dismissed */}
           </>
         )}
-        {activeView === 'network_topology' && <TopologyView designId={designId} nodes={topologyNodes} links={topologyLinks} onAddNode={addTopologyNode} onUpdateNode={updateTopologyNode} onDeleteNode={deleteTopologyNode} onAddLink={addTopologyLink} onUpdateLink={updateTopologyLink} onDeleteLink={deleteTopologyLink} />}
+        {activeView === 'network_topology' && null /* TopologyView already rendered inside ternary above */}
       </div>
 
       {/* Confirm dialog */}

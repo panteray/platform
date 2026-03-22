@@ -221,7 +221,7 @@ export function CanvasArea({
       const height = container?.clientHeight ?? 600
 
       const canvas = new fabricModule.Canvas(canvasRef.current, {
-        width, height, backgroundColor: C.bg, selection: true,
+        width, height, backgroundColor: C.bg, selection: false,
         preserveObjectStacking: true, fireRightClick: true, stopContextMenu: true,
       })
       fabricRef.current = canvas
@@ -312,7 +312,7 @@ export function CanvasArea({
       })
       canvas.on('mouse:up', (opt: { e: MouseEvent | TouchEvent }) => {
         if (isPanning) {
-          isPanning = false; canvas.selection = true
+          isPanning = false; canvas.selection = false
           if (container) container.style.cursor = activeToolRef.current === 'pan' ? 'grab' : spaceHeld ? 'grab' : 'default'
         }
         // Device drag end — use ref to avoid stale closure
@@ -713,7 +713,7 @@ export function CanvasArea({
           const result = await fabric.loadSVGFromString(coloredSvg)
           const group = fabric.util.groupSVGElements(result.objects.filter(Boolean) as FabricObject[], result.options)
           const iconScale = BASE_ICON_PX / (64 * (fabricRef.current?.getZoom() || 1))
-          group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: iconScale, scaleY: iconScale, originX: 'center', originY: 'center', hasControls: false, hasBorders: false, lockScalingX: true, lockScalingY: true, lockRotation: true, selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move' })
+          group.set({ left: device.position_x, top: device.position_y, angle: device.rotation || 0, scaleX: iconScale, scaleY: iconScale, originX: 'center', originY: 'center', hasControls: true, hasBorders: true, lockScalingX: true, lockScalingY: true, lockRotation: false, selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move', cornerColor: '#3b82f6', cornerStyle: 'circle', cornerSize: 6, transparentCorners: false })
           ;(group as unknown as Record<string, unknown>).deviceId = device.id
           canvas.add(group); deviceObjectMap.current.set(device.id, group)
         } catch { /* skip */ }
@@ -1603,8 +1603,8 @@ export function CanvasArea({
   ]
 
   const handleToolbarClick = useCallback((toolId: string) => {
-    if (toolId === 'zoomIn') { if (fabricRef.current) { const z = Math.min(ZOOM_MAX, zoomLevelRef.current * 1.2); fabricRef.current.setZoom(z); updateZoom(z) } return }
-    if (toolId === 'zoomOut') { if (fabricRef.current) { const z = Math.max(ZOOM_MIN, zoomLevelRef.current / 1.2); fabricRef.current.setZoom(z); updateZoom(z) } return }
+    if (toolId === 'zoomIn') { if (fabricRef.current) { const z = Math.min(ZOOM_MAX, zoomLevelRef.current * 1.2); const cw = fabricRef.current.width ?? 800; const ch = fabricRef.current.height ?? 600; fabricRef.current.zoomToPoint({ x: cw / 2, y: ch / 2 } as import('fabric').Point, z); updateZoom(z); const mapZoom = satBaseZoomRef.current + Math.log2(z); satMapRef.current?.syncZoom(mapZoom) } return }
+    if (toolId === 'zoomOut') { if (fabricRef.current) { const z = Math.max(ZOOM_MIN, zoomLevelRef.current / 1.2); const cw = fabricRef.current.width ?? 800; const ch = fabricRef.current.height ?? 600; fabricRef.current.zoomToPoint({ x: cw / 2, y: ch / 2 } as import('fabric').Point, z); updateZoom(z); const mapZoom = satBaseZoomRef.current + Math.log2(z); satMapRef.current?.syncZoom(mapZoom) } return }
     if (toolId === 'fitView') {
       const canvas = fabricRef.current
       if (canvas) {
@@ -1624,6 +1624,8 @@ export function CanvasArea({
           const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
           canvas.setViewportTransform([z, 0, 0, z, cw / 2 - cx * z, ch / 2 - cy * z])
           updateZoom(z)
+          const mapZoom = satBaseZoomRef.current + Math.log2(z)
+          satMapRef.current?.syncZoom(mapZoom)
         }
         canvas.requestRenderAll()
       }
@@ -1631,7 +1633,7 @@ export function CanvasArea({
     }
     onToolChange?.(toolId as CanvasTool)
     if (toolId === 'pan' && fabricRef.current) { fabricRef.current.selection = false }
-    if (toolId !== 'pan' && fabricRef.current) { fabricRef.current.selection = true }
+    if (toolId !== 'pan' && fabricRef.current) { fabricRef.current.selection = false }
     if (toolId === 'cable') setCableDraw({ phase: 'pick_source', sourceDeviceId: null, waypoints: [] })
     if (toolId !== 'cable') setCableDraw({ phase: 'idle', sourceDeviceId: null, waypoints: [] })
     if (toolId !== 'measure') {
@@ -1688,6 +1690,13 @@ export function CanvasArea({
       {activeTool === 'place' && !pendingDeviceName && (
         <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.textDim}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.textDim, zIndex: 20 }}>
           Search and select a device from the left panel first
+        </div>
+      )}
+
+      {/* FOV hint — shown when a camera is selected but FOV cones are off */}
+      {selectedDeviceId && !showFovCones && activeTool === 'select' && fovData.has(selectedDeviceId) && (
+        <div style={{ position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid rgba(59,130,246,0.4)`, borderRadius: 6, padding: '4px 12px', fontSize: 10, color: C.accent, zIndex: 20, opacity: 0.85, pointerEvents: 'none' }}>
+          Toggle <span style={{ fontWeight: 600 }}>FOV</span> to adjust field of view &amp; rotation
         </div>
       )}
 
