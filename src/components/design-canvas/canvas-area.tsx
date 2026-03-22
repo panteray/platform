@@ -116,6 +116,7 @@ interface CanvasAreaProps {
   satelliteConfig?: { lat: number; lng: number; zoom: number; opacity?: number } | null
   onShow3dPreview?: (device: DesignDevice) => void
   onDragCommit?: (dragState: { deviceId: string; prevAngle: number; prevDist: number; sensorIdx: number } | null) => void
+  viewportCenterRef?: React.MutableRefObject<(() => { x: number; y: number }) | null>
 }
 
 export function CanvasArea({
@@ -133,6 +134,7 @@ export function CanvasArea({
   satelliteConfig,
   onShow3dPreview,
   onDragCommit,
+  viewportCenterRef,
 }: CanvasAreaProps) {
   // Focus visibility state for accessibility outline
   const [focusVisible, setFocusVisible] = useState(false);
@@ -390,6 +392,23 @@ export function CanvasArea({
     }
     return () => { if (snapshotRef) snapshotRef.current = null }
   }, [fabricReady, snapshotRef])
+
+  // Expose viewport center function to parent via ref (for auto-place)
+  useEffect(() => {
+    if (!viewportCenterRef) return
+    viewportCenterRef.current = () => {
+      const fc = fabricRef.current
+      if (!fc) return { x: 400, y: 300 }
+      const vpt = fc.viewportTransform
+      const cw = fc.width ?? 800, ch = fc.height ?? 600
+      const zoom = fc.getZoom()
+      if (vpt) {
+        return { x: Math.round((cw / 2 - vpt[4]) / zoom), y: Math.round((ch / 2 - vpt[5]) / zoom) }
+      }
+      return { x: 400, y: 300 }
+    }
+    return () => { if (viewportCenterRef) viewportCenterRef.current = null }
+  }, [fabricReady, viewportCenterRef])
 
   // Resize
   useEffect(() => {
@@ -1628,7 +1647,7 @@ export function CanvasArea({
       return
     }
     onToolChange?.(toolId as CanvasTool)
-    if (fabricRef.current) { fabricRef.current.selection = toolId === 'select' }
+    if (fabricRef.current) { fabricRef.current.selection = (toolId === 'select') }
     if (toolId === 'cable') setCableDraw({ phase: 'pick_source', sourceDeviceId: null, waypoints: [] })
     if (toolId !== 'cable') setCableDraw({ phase: 'idle', sourceDeviceId: null, waypoints: [] })
     if (toolId !== 'measure') {

@@ -85,6 +85,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const layerMenuRef = useRef<HTMLDivElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const snapshotRef = useRef<(() => string | null) | null>(null)
+  const viewportCenterRef = useRef<(() => { x: number; y: number }) | null>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
@@ -348,28 +349,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
       setActiveTool('select')
     }
   }
-  const handleDeviceSelected = useCallback((device: DeviceSearchResult) => {
-    setPendingDevice(device)
-    setShowDeviceLibrary(false)
-    setActiveTool('place')
-  }, [])
-  const handleChangeModel = useCallback((deviceId: string) => {
-    setSelectedDeviceId(deviceId)
-  }, [setSelectedDeviceId])
-
-  // Change Model from right panel — opens catalog filtered to same category
-  const CATEGORY_TO_TAB: Record<string, IconTabId> = {
-    cctv: 'camera', dome: 'camera', bullet: 'camera', turret: 'camera', ptz: 'camera', fisheye: 'camera', multisensor_quad: 'camera', multisensor_dual: 'camera',
-    access_control: 'door', door: 'door', door_controller: 'door', card_reader: 'door', electric_strike: 'door', maglock: 'door', intercom: 'door',
-    network: 'network', switch: 'network', access_switch: 'network', rack: 'network', nvr: 'network', router: 'network', firewall: 'network', wireless_ap: 'network', bridge: 'network', server: 'network',
-    av: 'av', speaker: 'av', vape_environmental: 'sensors', other: 'other',
-  }
-  const handleChangeModelFromPanel = useCallback((deviceId: string, category: string) => {
-    const tab = CATEGORY_TO_TAB[category] || 'camera'
-    setActiveIcon(tab)
-    setShowDeviceLibrary(true)
-    setPendingDevice(null)
-  }, [])
   // Auto-cable: when door hardware is placed, auto-create cable to nearest door_controller
   const autoCableDoorToController = useCallback(async (newDevice: DesignDevice) => {
     // Gate 1: only access_control category devices can auto-cable
@@ -407,6 +386,66 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
       cable_type: '2_conductor',
     })
   }, [areaDevices, scalePxPerFt, addCable])
+
+  const handleDeviceSelected = useCallback(async (device: DeviceSearchResult) => {
+    // Auto-place at viewport center — no click-to-place step
+    setShowDeviceLibrary(false)
+    if (!activeAreaId) return
+    if (placingRef.current) return
+    placingRef.current = true
+    try {
+      const category = device.category || TAB_TO_CATEGORY[activeIcon] || 'other'
+      const subType = device.subcategory || TAB_TO_SUBTYPE[activeIcon] || 'junction_box'
+      const prefix = LABEL_CODES[subType] || LABEL_CODES[category] || 'DEV'
+      const props: Record<string, unknown> = {
+        sub_type: subType,
+        manufacturer: device.vendor,
+        model: device.model,
+        part_number: device.partnumber,
+        ndaa_compliant: device.ndaa_compliant,
+        ...(device.specs ?? {}),
+      }
+      if (device.resolution) props.resolution = device.resolution
+      if (device.wattage) props.poe_watts = device.wattage
+      if (device.poe_standard) props.poe_standard = device.poe_standard
+
+      // Calculate viewport center in scene coordinates via ref
+      const center = viewportCenterRef.current?.()
+      let px = center?.x ?? 400, py = center?.y ?? 300
+      if (snapToGrid) { px = Math.round(px / GRID_SIZE) * GRID_SIZE; py = Math.round(py / GRID_SIZE) * GRID_SIZE }
+
+      const newDev = await addDevice({
+        area_id: activeAreaId, category, position_x: px, position_y: py,
+        color_hex: C.accent, label_prefix: prefix,
+        device_library_item_id: device.id,
+        properties: props,
+      })
+      markSaving()
+      if (newDev) {
+        await autoCableDoorToController(newDev)
+        setSelectedDeviceId(newDev.id) // auto-select the new device so user can drag it
+      }
+    } finally {
+      placingRef.current = false
+    }
+  }, [activeAreaId, activeIcon, addDevice, snapToGrid, markSaving, autoCableDoorToController, setSelectedDeviceId])
+  const handleChangeModel = useCallback((deviceId: string) => {
+    setSelectedDeviceId(deviceId)
+  }, [setSelectedDeviceId])
+
+  // Change Model from right panel — opens catalog filtered to same category
+  const CATEGORY_TO_TAB: Record<string, IconTabId> = {
+    cctv: 'camera', dome: 'camera', bullet: 'camera', turret: 'camera', ptz: 'camera', fisheye: 'camera', multisensor_quad: 'camera', multisensor_dual: 'camera',
+    access_control: 'door', door: 'door', door_controller: 'door', card_reader: 'door', electric_strike: 'door', maglock: 'door', intercom: 'door',
+    network: 'network', switch: 'network', access_switch: 'network', rack: 'network', nvr: 'network', router: 'network', firewall: 'network', wireless_ap: 'network', bridge: 'network', server: 'network',
+    av: 'av', speaker: 'av', vape_environmental: 'sensors', other: 'other',
+  }
+  const handleChangeModelFromPanel = useCallback((deviceId: string, category: string) => {
+    const tab = CATEGORY_TO_TAB[category] || 'camera'
+    setActiveIcon(tab)
+    setShowDeviceLibrary(true)
+    setPendingDevice(null)
+  }, [])
   const handleCanvasClick = useCallback(async (x: number, y: number) => {
     if (activeTool !== 'place' || !activeAreaId || activeIcon === 'layers') return
     if (!pendingDevice) return  // Must select a device from library first
@@ -453,19 +492,26 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     setRedoStack([])
   }, [])
   const handleUndo = useCallback(async () => {
-    const action = undoStack[undoStack.length - 1]
+    // Use ref to avoid stale closure — read action directly from current stack
+    let action: { undo: () => Promise<void>; redo: () => Promise<void> } | undefined
+    setUndoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => {
+      action = prev[prev.length - 1]
+      return prev.slice(0, -1)
+    })
     if (!action) return
     await action.undo()
-    setUndoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => prev.slice(0, -1))
-    setRedoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => [...prev, action])
-  }, [undoStack])
+    setRedoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => [...prev, action!])
+  }, [])
   const handleRedo = useCallback(async () => {
-    const action = redoStack[redoStack.length - 1]
+    let action: { undo: () => Promise<void>; redo: () => Promise<void> } | undefined
+    setRedoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => {
+      action = prev[prev.length - 1]
+      return prev.slice(0, -1)
+    })
     if (!action) return
     await action.redo()
-    setRedoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => prev.slice(0, -1))
-    setUndoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => [...prev, action])
-  }, [redoStack])
+    setUndoStack((prev: Array<{ undo: () => Promise<void>; redo: () => Promise<void> }>) => [...prev, action!])
+  }, [])
 
   const handleDeviceMoved = useCallback(async (id: string, x: number, y: number) => {
     const device = devices.find((d: DesignDevice) => d.id === id)
@@ -484,37 +530,17 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     await updateDevice(id, { rotation: angle })
   }, [updateDevice, markSaving])
   const handleSensorRotated = useCallback(async (id: string, index: number, angle: number) => {
+    // During drag this fires ~60fps — just update, NO undo push. Batched via handleDragCommit.
     const device = devices.find((d: DesignDevice) => d.id === id)
     if (!device) return
     const props = (device.properties ?? {}) as Record<string, unknown>
     const currentAngles = (props.sensor_angles as number[]) || []
     const newAngles = [...currentAngles]
-    
-    // Ensure array is long enough
     while (newAngles.length <= index) newAngles.push(0)
-    
-    const prevAngle = newAngles[index]
     newAngles[index] = angle
-    
     markSaving()
     await updateDevice(id, { properties: { ...props, sensor_angles: newAngles } })
-    pushUndo({
-      undo: async () => { 
-        const latest = devices.find((d: DesignDevice) => d.id === id)
-        const latestProps = (latest?.properties ?? {}) as Record<string, unknown>
-        const undoAngles = [...((latestProps.sensor_angles as number[]) || [])]
-        undoAngles[index] = prevAngle
-        await updateDevice(id, { properties: { ...latestProps, sensor_angles: undoAngles } }) 
-      },
-      redo: async () => { 
-        const latest = devices.find((d: DesignDevice) => d.id === id)
-        const latestProps = (latest?.properties ?? {}) as Record<string, unknown>
-        const redoAngles = [...((latestProps.sensor_angles as number[]) || [])]
-        redoAngles[index] = angle
-        await updateDevice(id, { properties: { ...latestProps, sensor_angles: redoAngles } }) 
-      },
-    })
-  }, [devices, updateDevice, pushUndo, markSaving])
+  }, [devices, updateDevice, markSaving])
   const handleFovDragged = useCallback(async (deviceId: string, targetDistanceFt: number) => {
     // During drag this fires ~60fps — just update, NO undo push. Batched via handleDragCommit.
     markSaving()
@@ -1196,6 +1222,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
               onMdfIdfMoved={handleMdfIdfMoved}
               onMdfIdfDeleted={handleMdfIdfDeleted}
               snapshotRef={snapshotRef}
+              viewportCenterRef={viewportCenterRef}
               onShow3dPreview={(device: DesignDevice) => {
                 setSelectedDeviceId(device.id)
                 setShow3dPreview(true)
