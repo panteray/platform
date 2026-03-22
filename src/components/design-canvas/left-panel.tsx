@@ -7,13 +7,13 @@
  */
 
 import React from 'react'
-import { Plus, Trash2, Camera, DoorOpen, Network, Speaker, Cpu, Box } from 'lucide-react'
+import { Plus, Trash2, Cctv, DoorOpen, Network, Speaker, Cpu, Box } from 'lucide-react'
 import { C } from './constants'
 import type { DesignDevice } from '@/types/database'
 
 const CAT_ICON: Record<string, React.ReactNode> = {
-  cctv: <Camera size={14} />, dome: <Camera size={14} />, bullet: <Camera size={14} />,
-  turret: <Camera size={14} />, ptz: <Camera size={14} />, fisheye: <Camera size={14} />,
+  cctv: <Cctv size={14} />, dome: <Cctv size={14} />, bullet: <Cctv size={14} />,
+  turret: <Cctv size={14} />, ptz: <Cctv size={14} />, fisheye: <Cctv size={14} />,
   access_control: <DoorOpen size={14} />, network: <Network size={14} />,
   av: <Speaker size={14} />, vape_environmental: <Cpu size={14} />,
 }

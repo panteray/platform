@@ -25,7 +25,7 @@ import { toast } from 'sonner'
 import {
   ArrowLeft, Plus, Eye, EyeOff, Upload, Undo2, Redo2,
   Download, MousePointer, Hand, Ruler, Trash2, Cable, Server,
-  CircleDot, ChevronDown, X, Layers, Camera, DoorOpen,
+  CircleDot, ChevronDown, X, Layers, Cctv, DoorOpen,
   Wifi, Speaker, Activity, MoreHorizontal, Crosshair,
   Square, Settings, Maximize2, ZoomIn, ZoomOut, LockKeyhole,
 } from 'lucide-react'
@@ -44,7 +44,7 @@ interface Props { designId: string; onNavigateDashboard?: () => void }
 /* ─── Icon mapping for sidebar ─── */
 const SIDEBAR_ICONS: Record<IconTabId, React.ReactNode> = {
   layers: <Layers size={18} />,
-  camera: <Camera size={18} />,
+  camera: <Cctv size={18} />,
   door: <DoorOpen size={18} />,
   network: <Wifi size={18} />,
   av: <Speaker size={18} />,
@@ -517,7 +517,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
         {/* Device counts */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <Camera size={11} /> {cameraCount} {cameraCount === 1 ? 'camera' : 'cameras'}
+            <Cctv size={11} /> {cameraCount} {cameraCount === 1 ? 'camera' : 'cameras'}
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
             <DoorOpen size={11} /> {doorCount} {doorCount === 1 ? 'door' : 'doors'}

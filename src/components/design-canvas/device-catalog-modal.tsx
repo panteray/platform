@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { X, Search, Star, Clock, Camera } from 'lucide-react'
+import { X, Search, Star, Clock, Cctv } from 'lucide-react'
 import { C } from './constants'
 import type { DeviceSearchResult } from '@/types/database'
 
@@ -11,18 +11,53 @@ interface DeviceCatalogModalProps {
   onSelect: (device: DeviceSearchResult) => void
 }
 
-const FORM_TYPES: { id: string; label: string; icon: string }[] = [
-  { id: '', label: 'All', icon: '' },
-  { id: 'box', label: 'Box', icon: '📦' },
-  { id: 'bullet', label: 'Bullet', icon: '🔫' },
-  { id: 'covert', label: 'Covert', icon: '👁' },
-  { id: 'cube', label: 'Cube', icon: '◻️' },
-  { id: 'dome', label: 'Dome', icon: '🔵' },
-  { id: 'ptz', label: 'PTZ', icon: '🎯' },
-  { id: 'turret', label: 'Turret', icon: '⬡' },
-  { id: 'fisheye', label: 'Fisheye', icon: '🐟' },
-  { id: 'multisensor', label: 'Multi', icon: '🔲' },
+const FORM_TYPES: { id: string; label: string }[] = [
+  { id: '', label: 'All' },
+  { id: 'box', label: 'Box' },
+  { id: 'bullet', label: 'Bullet' },
+  { id: 'covert', label: 'Covert' },
+  { id: 'cube', label: 'Cube' },
+  { id: 'dome', label: 'Dome' },
+  { id: 'ptz', label: 'PTZ' },
+  { id: 'turret', label: 'Turret' },
+  { id: 'fisheye', label: 'Fisheye' },
+  { id: 'multisensor', label: 'Multi' },
 ]
+
+/* SVG camera silhouette icons — actual camera form factor shapes */
+function FormIcon({ type, color }: { type: string; color: string }) {
+  const s = { width: 20, height: 16, fill: color }
+  switch (type) {
+    case 'box': return (
+      <svg viewBox="0 0 24 16" {...s}><rect x="2" y="2" width="16" height="12" rx="1" fill="none" stroke={color} strokeWidth="1.5"/><rect x="18" y="4" width="4" height="6" rx="1" fill="none" stroke={color} strokeWidth="1.5"/></svg>
+    )
+    case 'bullet': return (
+      <svg viewBox="0 0 24 16" {...s}><rect x="1" y="4" width="14" height="8" rx="4" fill="none" stroke={color} strokeWidth="1.5"/><circle cx="19" cy="8" r="3" fill="none" stroke={color} strokeWidth="1.5"/></svg>
+    )
+    case 'dome': return (
+      <svg viewBox="0 0 24 16" {...s}><path d="M4 14 A8 8 0 0 1 20 14" fill="none" stroke={color} strokeWidth="1.5"/><line x1="2" y1="14" x2="22" y2="14" stroke={color} strokeWidth="1.5"/></svg>
+    )
+    case 'turret': return (
+      <svg viewBox="0 0 24 16" {...s}><circle cx="12" cy="7" r="5" fill="none" stroke={color} strokeWidth="1.5"/><circle cx="12" cy="7" r="2" fill={color} opacity="0.5"/><line x1="4" y1="14" x2="20" y2="14" stroke={color} strokeWidth="1.5"/></svg>
+    )
+    case 'ptz': return (
+      <svg viewBox="0 0 24 16" {...s}><ellipse cx="10" cy="6" rx="7" ry="5" fill="none" stroke={color} strokeWidth="1.5"/><circle cx="14" cy="6" r="3" fill="none" stroke={color} strokeWidth="1.5"/><line x1="12" y1="11" x2="12" y2="15" stroke={color} strokeWidth="1.5"/><line x1="8" y1="15" x2="16" y2="15" stroke={color} strokeWidth="1.5"/></svg>
+    )
+    case 'fisheye': return (
+      <svg viewBox="0 0 24 16" {...s}><circle cx="12" cy="8" r="7" fill="none" stroke={color} strokeWidth="1.5"/><circle cx="12" cy="8" r="3" fill="none" stroke={color} strokeWidth="1"/><circle cx="12" cy="8" r="1" fill={color}/></svg>
+    )
+    case 'covert': return (
+      <svg viewBox="0 0 24 16" {...s}><rect x="8" y="3" width="8" height="10" rx="2" fill="none" stroke={color} strokeWidth="1.5"/><circle cx="12" cy="8" r="1.5" fill={color}/></svg>
+    )
+    case 'cube': return (
+      <svg viewBox="0 0 24 16" {...s}><rect x="5" y="2" width="14" height="12" rx="2" fill="none" stroke={color} strokeWidth="1.5"/><circle cx="12" cy="8" r="3" fill="none" stroke={color} strokeWidth="1"/></svg>
+    )
+    case 'multisensor': return (
+      <svg viewBox="0 0 24 16" {...s}><circle cx="7" cy="5" r="3" fill="none" stroke={color} strokeWidth="1.2"/><circle cx="17" cy="5" r="3" fill="none" stroke={color} strokeWidth="1.2"/><circle cx="7" cy="12" r="3" fill="none" stroke={color} strokeWidth="1.2"/><circle cx="17" cy="12" r="3" fill="none" stroke={color} strokeWidth="1.2"/></svg>
+    )
+    default: return null
+  }
+}
 
 const ACCENT = '#2b8fce'
 const HEADER_BG = '#2b8fce'
@@ -34,20 +69,18 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null)
   const [selectedForm, setSelectedForm] = useState('')
   const [selectedRes, setSelectedRes] = useState('')
-  const [ndaaOnly, setNdaaOnly] = useState(false)
-  const [excludeEol, setExcludeEol] = useState(true)
+
   const [irRange, setIrRange] = useState([0, 500])
   const [haovRange, setHaovRange] = useState([1, 360])
   const [hoveredModel, setHoveredModel] = useState<DeviceSearchResult | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  const doFetch = useCallback(async (q: string, ndaa: boolean) => {
+  const doFetch = useCallback(async (q: string) => {
     setLoading(true)
     const params = new URLSearchParams({ limit: '500' })
     if (category) params.set('category', category)
     if (q.trim()) params.set('q', q.trim())
-    if (ndaa) params.set('ndaa_compliant', 'true')
     try {
       const res = await fetch(`/api/org/device-library/search?${params}`)
       if (res.ok) { const json = await res.json(); setResults(json.results ?? []) }
@@ -60,14 +93,14 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
     setSelectedForm('')
     setSelectedRes('')
     setResults([])
-    doFetch('', ndaaOnly)
+    doFetch('')
     setTimeout(() => searchRef.current?.focus(), 100)
-  }, [category, doFetch, ndaaOnly])
+  }, [category, doFetch])
 
   function handleSearch(val: string) {
     setQuery(val)
     if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => doFetch(val, ndaaOnly), 300)
+    timerRef.current = setTimeout(() => doFetch(val), 300)
   }
 
   useEffect(() => {
@@ -171,7 +204,7 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
           padding: '12px 20px', borderBottom: `1px solid ${C.border}`,
           display: 'flex', flexDirection: 'column', gap: 10, background: C.bgSurface,
         }}>
-          {/* Row 1: Search + EOL + NDAA + Generic */}
+          {/* Row 1: Search + Generic Camera */}
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ flex: 1, position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: C.textMuted }} />
@@ -184,20 +217,6 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
                 }} />
             </div>
 
-            {/* EOL toggle */}
-            <div style={{ display: 'flex', gap: 0, fontSize: 11 }}>
-              <span style={{ color: C.textMuted, marginRight: 6, alignSelf: 'center', fontSize: 10, fontWeight: 600 }}>EOL:</span>
-              <ToggleBtn label="All Cameras" active={!excludeEol} onClick={() => setExcludeEol(false)} left />
-              <ToggleBtn label="Exclude EOL" active={excludeEol} onClick={() => setExcludeEol(true)} right />
-            </div>
-
-            {/* NDAA toggle */}
-            <div style={{ display: 'flex', gap: 0, fontSize: 11 }}>
-              <span style={{ color: C.textMuted, marginRight: 6, alignSelf: 'center', fontSize: 10, fontWeight: 600 }}>NDAA:</span>
-              <ToggleBtn label="All Cameras" active={!ndaaOnly} onClick={() => { setNdaaOnly(false); doFetch(query, false) }} left />
-              <ToggleBtn label="Only NDAA" active={ndaaOnly} onClick={() => { setNdaaOnly(true); doFetch(query, true) }} right />
-            </div>
-
             {/* Generic Camera button */}
             <button onClick={handleSelectGeneric} style={{
               display: 'flex', alignItems: 'center', gap: 5,
@@ -206,7 +225,7 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
               borderRadius: 4, color: '#fff', cursor: 'pointer', fontFamily: 'inherit',
               whiteSpace: 'nowrap',
             }}>
-              <Camera size={13} />
+              <Cctv size={13} />
               Select Generic Camera
             </button>
           </div>
@@ -262,7 +281,7 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
                         minWidth: ft.id ? 42 : 32,
                       }}>
-                      {ft.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{ft.icon}</span>}
+                      {ft.id ? <FormIcon type={ft.id} color={active ? ACCENT : C.textMuted} /> : null}
                       <span>{ft.label}</span>
                     </button>
                   )
@@ -387,8 +406,7 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
                     <InfoLine label="Form" value={selectedForm ? FORM_TYPES.find(f => f.id === selectedForm)?.label || 'Any' : 'Any'} />
                     <InfoLine label="IR Max Range" value={irRange[1] < 500 ? `0–${irRange[1]}m` : 'Any'} />
                     <InfoLine label="HAoV" value={haovRange[1] < 360 ? `1°–${haovRange[1]}°` : 'Any'} />
-                    <InfoLine label="Show EOL Cameras" value={excludeEol ? 'No' : 'Yes'} />
-                    <InfoLine label="Show Only NDAA Compliant" value={ndaaOnly ? 'Yes' : 'No'} />
+
                   </div>
                 </>
               )}
