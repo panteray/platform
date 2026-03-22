@@ -755,10 +755,9 @@ export function CanvasArea({
     const canvas = fabricRef.current
     fovObjectMap.current.forEach((objs: FabricObject[]) => objs.forEach((o: FabricObject) => canvas.remove(o))); fovObjectMap.current.clear()
     fovHandleMap.current.forEach((o: FabricObject) => canvas.remove(o)); fovHandleMap.current.clear()
-    // Drag suppression: hide FOV cones if dragging device (use ref, not state dep)
-    if (isDraggingRef.current) { canvas.renderAll(); return }
-    // If global FOV is off AND no selected device has FOV data, skip entirely
+    // IPVM-style: always show FOV cone for the SELECTED camera, even if global FOV is off
     const hasSelectedFov = selectedDeviceId && fovData.has(selectedDeviceId)
+    if (isDraggingRef.current) { canvas.renderAll(); return }
     if (!showFovCones && !hasSelectedFov) { canvas.renderAll(); return }
 
     function getRayIntersection(o: {x:number,y:number}, d: {x:number,y:number}, a: {x:number,y:number}, b: {x:number,y:number}) {
@@ -790,7 +789,7 @@ export function CanvasArea({
       for (const [deviceId, data] of fovData.entries()) {
         const device = devices.find((d) => d.id === deviceId);
         if (!device) continue;
-        // When global FOV is off, only render cone for the selected device (IPVM pattern)
+        // IPVM-style: when global FOV is off, only render cone for the selected camera
         if (!showFovCones && deviceId !== selectedDeviceId) continue;
         const objects: FabricObject[] = [];
         const halfAngle = (data.hFov / 2) * (Math.PI / 180);
@@ -973,7 +972,7 @@ export function CanvasArea({
       canvas.requestRenderAll();
     }
     void renderFovCones();
-  }, [fovData, devices, showFovCones, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, walls, selectedDeviceId])
+  }, [fovData, devices, showFovCones, selectedDeviceId, scalePxPerFt, fabricReady, onFovHandleDragged, fovDisplayMode, highlightedPpfTier, walls])
 
   // ---- FOV Handle Drag → update distance & rotation ----
   useEffect(() => {
@@ -1517,6 +1516,13 @@ export function CanvasArea({
       {activeTool === 'place' && !pendingDeviceName && (
         <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid ${C.textDim}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: C.textDim, zIndex: 20 }}>
           Search and select a device from the left panel first
+        </div>
+      )}
+
+      {/* FOV hint — shown when a camera is selected but FOV cones are off */}
+      {selectedDeviceId && !showFovCones && activeTool === 'select' && fovData.has(selectedDeviceId) && (
+        <div style={{ position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)', background: C.bgPanel, border: `1px solid rgba(59,130,246,0.4)`, borderRadius: 6, padding: '4px 12px', fontSize: 10, color: C.accent, zIndex: 20, opacity: 0.85, pointerEvents: 'none' }}>
+          💡 Toggle <span style={{ fontWeight: 600 }}>FOV</span> to adjust field of view &amp; rotation
         </div>
       )}
 
