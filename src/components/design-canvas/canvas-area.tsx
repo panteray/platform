@@ -171,7 +171,6 @@ export function CanvasArea({
   // Helper: update zoom ref + throttled display + rescale icons (no React re-render per tick)
   const updateZoom = useCallback((zoom: number) => {
     zoomLevelRef.current = zoom
-    // Rescale device icons + labels immediately (imperative, no useEffect)
     const canvas = fabricRef.current
     if (canvas) {
       const iconScale = BASE_ICON_PX / (64 * zoom)
@@ -185,8 +184,8 @@ export function CanvasArea({
           o.set({ scaleX: labelScale, scaleY: labelScale })
         }
       })
+      canvas.requestRenderAll()
     }
-    // Throttled display update (for the % readout in toolbar)
     if (zoomDisplayTimer.current) clearTimeout(zoomDisplayTimer.current)
     zoomDisplayTimer.current = setTimeout(() => setZoomDisplay(Math.round(zoom * 100)), 50)
   }, [])
@@ -261,12 +260,13 @@ export function CanvasArea({
       canvas.on('mouse:down', (opt: { e: MouseEvent | TouchEvent; target?: FabricObject }) => {
         const evt = opt.e as MouseEvent
         setContextMenu({ visible: false, x: 0, y: 0, deviceId: null })
+        // Middle-click, space+click, or pan tool = always pan
         if (evt.button === 1 || spaceHeld || activeToolRef.current === 'pan') {
           isPanning = true; lastPanX = evt.clientX; lastPanY = evt.clientY
-          canvas.selection = false
           if (container) container.style.cursor = 'grabbing'
           return
         }
+        // Right-click context menu
         if (evt.button === 2 && opt.target) {
           const did = (opt.target as unknown as Record<string, unknown>).deviceId as string
           if (did) { setContextMenu({ visible: true, x: evt.clientX, y: evt.clientY, deviceId: did }); return }
@@ -274,12 +274,17 @@ export function CanvasArea({
           if (mid) { setContextMenu({ visible: true, x: evt.clientX, y: evt.clientY, deviceId: null, mdfIdfId: mid }); return }
           return
         }
+        // Left-click on a device = start device drag
         if (evt.button === 0 && opt.target) {
-          // Device drag start
           const did = (opt.target as unknown as Record<string, unknown>).deviceId as string
           if (did) { isDraggingRef.current = true; draggingDeviceIdRef.current = did }
         }
-        if (evt.button === 0 && !opt.target) onSelectDevice(null)
+        // Left-click on empty space = pan (IPVM/Axis behavior)
+        if (evt.button === 0 && !opt.target) {
+          isPanning = true; lastPanX = evt.clientX; lastPanY = evt.clientY
+          if (container) container.style.cursor = 'grabbing'
+          onSelectDevice(null)
+        }
       })
       canvas.on('mouse:move', (opt: { e: MouseEvent | TouchEvent }) => {
         if (!isPanning) return
@@ -288,17 +293,15 @@ export function CanvasArea({
         const dy = evt.clientY - lastPanY
         const vpt = canvas.viewportTransform
         if (vpt) { vpt[4] += dx; vpt[5] += dy }
-        // Sync satellite map pan (negate: Fabric slides content right, Maps panBy moves center right)
         satMapRef.current?.panBy(-dx, -dy)
         lastPanX = evt.clientX; lastPanY = evt.clientY
         canvas.requestRenderAll()
       })
-      canvas.on('mouse:up', (opt: { e: MouseEvent | TouchEvent }) => {
+      canvas.on('mouse:up', () => {
         if (isPanning) {
-          isPanning = false; canvas.selection = false
+          isPanning = false
           if (container) container.style.cursor = activeToolRef.current === 'pan' ? 'grab' : spaceHeld ? 'grab' : 'default'
         }
-        // Device drag end — use ref to avoid stale closure
         if (isDraggingRef.current) { isDraggingRef.current = false; draggingDeviceIdRef.current = null }
       })
 
@@ -961,9 +964,18 @@ export function CanvasArea({
           });
         }
       }
-      // Batch-move all FOV cone objects to back (behind devices/labels)
+      // Z-order: grid (back) → FOV cones → cables → labels → devices (front)
+      // Send FOV cones to back first
       for (const [, objs] of fovObjectMap.current) {
         for (const o of objs) canvas.sendObjectToBack(o)
+      }
+      // Bring all device icons to front so they sit above cones and are clickable
+      for (const [, obj] of deviceObjectMap.current) {
+        canvas.bringObjectToFront(obj)
+      }
+      // Bring FOV drag handles to very front
+      for (const [, h] of fovHandleMap.current) {
+        canvas.bringObjectToFront(h)
       }
       } finally {
         // ALWAYS restore per-object rendering, even if renderFovCones throws
