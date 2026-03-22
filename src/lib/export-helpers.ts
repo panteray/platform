@@ -213,3 +213,138 @@ export function exportCanvasSnapshot(
   const blob = new Blob([arr], { type: mime })
   downloadBlob(blob, `${sanitizeFilename(designName)}_Canvas.png`)
 }
+
+// ---- ISO 62676 Compliance (EN 62676-4 DORI requirements) ----
+
+export interface IsoComplianceResult {
+  deviceId: string
+  label: string
+  requiredDori: 'detection' | 'observation' | 'recognition' | 'identification'
+  achievedDori: string
+  ppf: number
+  targetDistFt: number
+  pass: boolean
+  notes: string
+}
+
+const DORI_PPF_THRESHOLDS: Record<string, number> = {
+  detection: 10, observation: 25, recognition: 63, identification: 125,
+}
+
+export function checkIsoCompliance(
+  devices: { id: string; label: string; category: string; properties: Record<string, unknown> | null }[],
+  requirements: Record<string, 'detection' | 'observation' | 'recognition' | 'identification'>,
+  calculatePpf: (d: { properties: Record<string, unknown> | null }) => number,
+  classifyDori: (ppf: number) => string,
+): IsoComplianceResult[] {
+  const CAMERA_CATS = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual']
+  return devices.filter(d => CAMERA_CATS.includes(d.category)).map(d => {
+    const req = requirements[d.id] || 'detection'
+    const ppf = calculatePpf(d)
+    const achieved = classifyDori(ppf)
+    const requiredPpf = DORI_PPF_THRESHOLDS[req] || 10
+    const pass = ppf >= requiredPpf
+    const p = (d.properties ?? {}) as Record<string, unknown>
+    return {
+      deviceId: d.id, label: d.label, requiredDori: req, achievedDori: achieved,
+      ppf: Math.round(ppf), targetDistFt: (p.target_distance as number) || 30,
+      pass, notes: pass ? '' : `Needs ${requiredPpf} PPF for ${req}, achieving ${Math.round(ppf)}`,
+    }
+  })
+}
+
+export async function exportIsoComplianceReport(
+  designId: string,
+  results: IsoComplianceResult[],
+  designName: string,
+): Promise<void> {
+  const rows = results.map((r, i) => ({
+    '#': i + 1,
+    'Camera': r.label,
+    'Required DORI': r.requiredDori.toUpperCase(),
+    'Achieved DORI': r.achievedDori.toUpperCase(),
+    'PPF': r.ppf,
+    'Target Dist (ft)': r.targetDistFt,
+    'Pass/Fail': r.pass ? 'PASS ✓' : 'FAIL ✗',
+    'Notes': r.notes,
+  }))
+  const passCount = results.filter(r => r.pass).length
+  rows.push({
+    '#': '' as never,
+    'Camera': `SUMMARY: ${passCount}/${results.length} cameras pass`,
+    'Required DORI': '', 'Achieved DORI': '', 'PPF': '' as never,
+    'Target Dist (ft)': '' as never,
+    'Pass/Fail': passCount === results.length ? 'ALL PASS' : 'ISSUES FOUND',
+    'Notes': '',
+  })
+  const blob = toXlsx(rows, 'ISO 62676 Compliance')
+  downloadBlob(blob, `${sanitizeFilename(designName)}_ISO_62676_Compliance.xlsx`)
+}
+
+// ---- BOM with Pricing & Proposals ----
+
+export interface BomPricingConfig {
+  laborRatePerHour: number
+  markupPct: number
+  taxRatePct: number
+  defaultLaborHours: Record<string, number>
+}
+
+const DEFAULT_PRICING: BomPricingConfig = {
+  laborRatePerHour: 85,
+  markupPct: 30,
+  taxRatePct: 8.25,
+  defaultLaborHours: {
+    cctv: 1.5, dome: 1.5, bullet: 1.5, turret: 1.5,
+    ptz: 2.5, fisheye: 2.0,
+    multisensor_quad: 3.0, multisensor_dual: 2.5,
+    access_control: 2.0, door: 3.0,
+    network: 1.0, switch: 0.5, nvr: 2.0,
+    av: 1.5, speaker: 1.0,
+    vape_environmental: 1.0, sensors: 0.75,
+  },
+}
+
+export async function exportBomWithPricing(
+  designId: string,
+  pricing?: Partial<BomPricingConfig>,
+): Promise<void> {
+  const cfg = { ...DEFAULT_PRICING, ...pricing }
+  const data = await fetchExport<BomExport>(designId, 'bom')
+
+  const rows = data.items.map((item, i) => {
+    const msrp = item.unitCost
+    const dealerCost = msrp * 0.65
+    const sellPrice = dealerCost * (1 + cfg.markupPct / 100)
+    const laborHours = (cfg.defaultLaborHours[item.category] || 1) * item.qty
+    return {
+      '#': i + 1,
+      'Category': item.category,
+      'Manufacturer': item.manufacturer,
+      'Model': item.model,
+      'Qty': item.qty,
+      'MSRP': msrp.toFixed(2),
+      'Dealer Cost': dealerCost.toFixed(2),
+      'Sell Price': sellPrice.toFixed(2),
+      'Extended': (sellPrice * item.qty).toFixed(2),
+      'Labor Hrs': laborHours.toFixed(1),
+      'Labor Cost': (laborHours * cfg.laborRatePerHour).toFixed(2),
+    }
+  })
+
+  const subtotalEquipment = rows.reduce((s, r) => s + parseFloat(String(r['Extended'])), 0)
+  const subtotalLabor = rows.reduce((s, r) => s + parseFloat(String(r['Labor Cost'])), 0)
+  const totalBeforeTax = subtotalEquipment + subtotalLabor
+  const tax = totalBeforeTax * (cfg.taxRatePct / 100)
+  const grandTotal = totalBeforeTax + tax
+
+  rows.push(
+    { '#': '' as never, 'Category': '', 'Manufacturer': '', 'Model': 'Subtotal Equipment', 'Qty': '' as never, 'MSRP': '', 'Dealer Cost': '', 'Sell Price': '', 'Extended': subtotalEquipment.toFixed(2), 'Labor Hrs': '', 'Labor Cost': '' },
+    { '#': '' as never, 'Category': '', 'Manufacturer': '', 'Model': `Subtotal Labor ($${cfg.laborRatePerHour}/hr)`, 'Qty': '' as never, 'MSRP': '', 'Dealer Cost': '', 'Sell Price': '', 'Extended': '', 'Labor Hrs': '', 'Labor Cost': subtotalLabor.toFixed(2) },
+    { '#': '' as never, 'Category': '', 'Manufacturer': '', 'Model': `Tax (${cfg.taxRatePct}%)`, 'Qty': '' as never, 'MSRP': '', 'Dealer Cost': '', 'Sell Price': '', 'Extended': tax.toFixed(2), 'Labor Hrs': '', 'Labor Cost': '' },
+    { '#': '' as never, 'Category': '', 'Manufacturer': '', 'Model': 'GRAND TOTAL', 'Qty': '' as never, 'MSRP': '', 'Dealer Cost': '', 'Sell Price': '', 'Extended': grandTotal.toFixed(2), 'Labor Hrs': '', 'Labor Cost': '' },
+  )
+
+  const blob = toXlsx(rows, 'BOM with Pricing')
+  downloadBlob(blob, `${sanitizeFilename(data.designName)}_BOM_Pricing.xlsx`)
+}

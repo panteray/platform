@@ -1000,6 +1000,41 @@ export function RightPanel({
             }}
           />
         </Section>
+
+        {/* ---- PHOTOS (all categories) ---- */}
+        <Section title="Photos" defaultOpen={false}>
+          <div>
+            {/* Upload button */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+              <button
+                onClick={() => {
+                  const input = document.createElement('input')
+                  input.type = 'file'
+                  input.accept = 'image/*'
+                  input.multiple = true
+                  input.onchange = () => {
+                    // Photo upload would be wired to Supabase Storage
+                    if (input.files?.length) {
+                      alert(`${input.files.length} photo(s) selected — upload to Supabase Storage would happen here`)
+                    }
+                  }
+                  input.click()
+                }}
+                style={{
+                  flex: 1, padding: '6px 0', background: C.bgActive, border: `1px dashed ${C.border}`,
+                  borderRadius: 4, cursor: 'pointer', fontSize: 10, fontWeight: 600,
+                  color: C.accent, fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                }}
+              >
+                📷 Upload Photo
+              </button>
+            </div>
+            <div style={{ padding: '8px 0', textAlign: 'center', fontSize: 10, color: C.textDim }}>
+              No photos uploaded. Capture site survey images for this device.
+            </div>
+          </div>
+        </Section>
       </div>
 
       {/* Actions footer */}
