@@ -156,6 +156,8 @@ export function CanvasArea({
   const scaleObjectsRef = useRef<FabricObject[]>([])
   const [scaleInput, setScaleInput] = useState<{ visible: boolean; distPx: number }>({ visible: false, distPx: 0 })
   const wallPreviewRef = useRef<FabricObject | null>(null)
+  const didPanDragRef = useRef(false)
+  const pendingClickRef = useRef<{ x: number; y: number; target: FabricObject | null } | null>(null)
   const activeToolRef = useRef(activeTool)
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
   const snapRef = useRef(snapToGrid)
@@ -230,8 +232,11 @@ export function CanvasArea({
         opt.e.stopPropagation()
       })
 
-      // Pan
+      // Pan — click-vs-drag: mousedown records intent, mousemove >3px starts actual pan
       let isPanning = false
+      let isPendingPan = false
+      let pendingPanStartX = 0
+      let pendingPanStartY = 0
       let lastPanX = 0
       let lastPanY = 0
       let spaceHeld = false
@@ -264,7 +269,7 @@ export function CanvasArea({
       canvas.on('mouse:down', (opt: { e: MouseEvent | TouchEvent; target?: FabricObject }) => {
         const evt = opt.e as MouseEvent
         setContextMenu({ visible: false, x: 0, y: 0, deviceId: null })
-        // Middle-click, space+click, or pan tool = always pan
+        // Middle-click, space+click, or pan tool = always pan immediately
         if (evt.button === 1 || spaceHeld || activeToolRef.current === 'pan') {
           isPanning = true; lastPanX = evt.clientX; lastPanY = evt.clientY
           if (container) container.style.cursor = 'grabbing'
@@ -278,21 +283,39 @@ export function CanvasArea({
           if (mid) { setContextMenu({ visible: true, x: evt.clientX, y: evt.clientY, deviceId: null, mdfIdfId: mid }); return }
           return
         }
-        // Left-click on a device = start device drag
+        // Left-click on a device = start device drag (Fabric handles movement)
         if (evt.button === 0 && opt.target) {
           const did = (opt.target as unknown as Record<string, unknown>).deviceId as string
           if (did) { isDraggingRef.current = true; draggingDeviceIdRef.current = did }
+          return
         }
-        // Left-click on empty space = pan only in select mode (tools like 'place' need empty-space clicks)
-        if (evt.button === 0 && !opt.target && activeToolRef.current === 'select') {
-          isPanning = true; lastPanX = evt.clientX; lastPanY = evt.clientY
-          if (container) container.style.cursor = 'grabbing'
-          onSelectDevice(null)
+        // Left-click on empty space: start pending pan (will become pan if dragged, click if released)
+        if (evt.button === 0 && !opt.target) {
+          pendingPanStartX = evt.clientX; pendingPanStartY = evt.clientY
+          isPendingPan = true; isPanning = false
+          didPanDragRef.current = false
+          // Store click info for tool handler to use on mouse:up
+          const point = canvas.getScenePoint(evt)
+          pendingClickRef.current = { x: Math.round(point.x), y: Math.round(point.y), target: null }
+          lastPanX = evt.clientX; lastPanY = evt.clientY
         }
       })
       canvas.on('mouse:move', (opt: { e: MouseEvent | TouchEvent }) => {
-        if (!isPanning) return
         const evt = opt.e as MouseEvent
+        // Pending pan → check drag threshold before actually starting pan
+        if (isPendingPan && !isPanning) {
+          const dx = evt.clientX - pendingPanStartX
+          const dy = evt.clientY - pendingPanStartY
+          if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+            isPanning = true; isPendingPan = false
+            didPanDragRef.current = true
+            pendingClickRef.current = null
+            if (container) container.style.cursor = 'grabbing'
+            onSelectDevice(null)
+          }
+          return
+        }
+        if (!isPanning) return
         const dx = evt.clientX - lastPanX
         const dy = evt.clientY - lastPanY
         const vpt = canvas.viewportTransform
@@ -301,9 +324,14 @@ export function CanvasArea({
         lastPanX = evt.clientX; lastPanY = evt.clientY
         canvas.requestRenderAll()
       })
-      canvas.on('mouse:up', () => {
+      canvas.on('mouse:up', (opt: { e?: MouseEvent | TouchEvent }) => {
+        // Pending pan that never became a drag = this was a click on empty space
+        if (isPendingPan && !isPanning) {
+          isPendingPan = false
+          // didPanDragRef stays false — tool handler on mouse:up will pick it up
+        }
         if (isPanning) {
-          isPanning = false
+          isPanning = false; isPendingPan = false
           if (container) container.style.cursor = activeToolRef.current === 'pan' ? 'grab' : spaceHeld ? 'grab' : 'default'
         }
         if (isDraggingRef.current) { isDraggingRef.current = false; draggingDeviceIdRef.current = null }
@@ -424,15 +452,27 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricRef.current || !fabricReady) return
     const canvas = fabricRef.current
-    const handler = (opt: { e: Event; target?: FabricObject | null }) => {
-      const evt = opt.e as MouseEvent
-      if (evt.button !== 0) return
-      const point = canvas.getScenePoint(evt)
-      const x = Math.round(point.x)
-      const y = Math.round(point.y)
+    const handler = (opt: { e?: Event }) => {
+      // Only fire tool actions on genuine clicks (not drags that became pans)
+      if (didPanDragRef.current) { didPanDragRef.current = false; pendingClickRef.current = null; return }
+      const pending = pendingClickRef.current
+      pendingClickRef.current = null
+      // Use stored click position (from mouse:down) if available, otherwise compute from event
+      let x: number, y: number
+      let target: FabricObject | null = null
+      if (pending) {
+        x = pending.x; y = pending.y; target = pending.target
+      } else if (opt.e) {
+        const evt = opt.e as MouseEvent
+        if (evt.button !== 0) return
+        const point = canvas.getScenePoint(evt)
+        x = Math.round(point.x); y = Math.round(point.y)
+      } else {
+        return
+      }
 
       // Place mode
-      if (activeTool === 'place' && !opt.target) { onCanvasClick?.(x, y); return }
+      if (activeTool === 'place' && !target) { onCanvasClick?.(x, y); return }
 
       // Cable draw
       if (activeTool === 'cable') {
@@ -496,7 +536,7 @@ export function CanvasArea({
       }
 
       // MDF/IDF placement
-      if (activeTool === 'mdf_idf' && !opt.target) {
+      if (activeTool === 'mdf_idf' && !target) {
         onMdfIdfPlaced?.(x, y)
         return
       }
@@ -538,8 +578,8 @@ export function CanvasArea({
         return
       }
     }
-    canvas.on('mouse:down', handler)
-    return () => { canvas.off('mouse:down', handler) }
+    canvas.on('mouse:up', handler)
+    return () => { canvas.off('mouse:up', handler) }
   }, [activeTool, fabricReady, cableDraw, devices, scalePxPerFt, onCanvasClick, onCableCreated, onScaleCalibrated, onMdfIdfPlaced])
 
   // ---- Cable preview line during routing ----

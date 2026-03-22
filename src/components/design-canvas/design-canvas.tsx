@@ -133,6 +133,22 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
 
   const opp = design?.opportunities as Record<string, unknown> | undefined
   const hasSatellite = activeArea?.satellite_lat != null && activeArea?.satellite_lng != null
+
+  // ---- Auto-calibrate scale from satellite imagery zoom level ----
+  useEffect(() => {
+    if (!hasSatellite || !activeArea) return
+    const lat = activeArea.satellite_lat!
+    const zoom = activeArea.satellite_zoom ?? 19
+    // Google Maps meters-per-pixel at given latitude and zoom
+    // Formula: 156543.03392 * cos(lat) / 2^zoom
+    const metersPerPx = 156543.03392 * Math.cos(lat * (Math.PI / 180)) / Math.pow(2, zoom)
+    const ftPerPx = metersPerPx * 3.28084
+    const pxPerFt = 1 / ftPerPx
+    if (pxPerFt > 0 && isFinite(pxPerFt)) {
+      setScalePxPerFt(Math.round(pxPerFt * 100) / 100)
+    }
+  }, [hasSatellite, activeArea?.satellite_lat, activeArea?.satellite_zoom])
+
   const projectName = opp?.project_name ? `${opp.opp_number} / ${opp.project_name}` : design?.name ?? 'Design Canvas'
 
   // ---- FOV data from calculator engine ----
@@ -215,7 +231,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
         }
 
         map.set(d.id, {
-          hFov: result.hFov,
+          hFov: fovAngle > 0 ? fovAngle : result.hFov,
           rotation: d.rotation || 0,
           tiers: tiers.map((t) => ({ distanceFt: t.distanceFt, color: t.color, opacity: t.opacity })),
           resolutionW: parsedResW,
