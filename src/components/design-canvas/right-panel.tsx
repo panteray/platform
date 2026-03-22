@@ -275,20 +275,24 @@ export function RightPanel({
         {/* ---- CCTV: Scene Configurator (Axis/Hanwha-style) ---- */}
         {isCctv(cat) && (
           <Section title="Scene Configurator" defaultOpen={true}>
-            {/* FOV Presets */}
+            {/* FOV Presets — updates both angle AND target distance */}
             <SubLabel text="FOV Preset" />
             <div style={{ display: 'flex', gap: 3, marginBottom: 10, flexWrap: 'wrap' }}>
               {[
-                { label: 'Tele', angle: 15, icon: '🔭' },
-                { label: 'Normal', angle: 50, icon: '📷' },
-                { label: 'Wide', angle: 90, icon: '🌐' },
-                { label: 'Panoramic', angle: 120, icon: '🔲' },
+                { label: 'Tele', angle: 15, dist: 80, icon: '🔭' },
+                { label: 'Normal', angle: 50, dist: 40, icon: '📷' },
+                { label: 'Wide', angle: 90, dist: 25, icon: '🌐' },
+                { label: 'Panoramic', angle: 120, dist: 15, icon: '🔲' },
               ].map((preset) => {
                 const currentAngle = prop(d, 'fov_angle', 90)
                 const isActive = currentAngle === preset.angle
                 return (
                   <button key={preset.label}
-                    onClick={() => saveProp('fov_angle', preset.angle)}
+                    onClick={() => {
+                      // Update both fov_angle and target_distance simultaneously
+                      const merged = { ...((d.properties ?? {}) as Record<string, unknown>), fov_angle: preset.angle, target_distance: preset.dist }
+                      onUpdateDevice?.(d.id, { properties: merged })
+                    }}
                     style={{
                       flex: 1, padding: '6px 4px', fontSize: 9, fontWeight: 600, fontFamily: 'inherit',
                       background: isActive ? C.accentSubtle : C.bgActive,
@@ -305,6 +309,10 @@ export function RightPanel({
                 )
               })}
             </div>
+
+            {/* Target Distance — directly adjustable */}
+            <SliderField label="Target Distance" value={prop(d, 'target_distance', 30)} unit="ft" min={5} max={200} fieldKey="target_distance" onChangeSave={saveSlider} />
+            <SliderField label="FOV Angle" value={prop(d, 'fov_angle', 90)} unit="°" min={5} max={180} fieldKey="fov_angle" onChangeSave={saveSlider} />
 
             {/* Lighting Conditions */}
             <SubLabel text="Lighting" />
