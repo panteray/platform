@@ -504,6 +504,11 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
     markSaving()
     await updateDevice(deviceId, { properties: { ...((devices.find((d: DesignDevice) => d.id === deviceId)?.properties ?? {}) as Record<string, unknown>), target_distance: targetDistanceFt } })
   }, [devices, updateDevice, markSaving])
+  const handleFovAngleChanged = useCallback(async (deviceId: string, fovAngle: number) => {
+    // During drag this fires ~60fps — just update, NO undo push. Batched via handleDragCommit.
+    markSaving()
+    await updateDevice(deviceId, { properties: { ...((devices.find((d: DesignDevice) => d.id === deviceId)?.properties ?? {}) as Record<string, unknown>), fov_angle: fovAngle } })
+  }, [devices, updateDevice, markSaving])
 
   // Batched undo: called once on drag-end with the original state before drag started
   const handleDragCommit = useCallback((dragState: { deviceId: string; prevAngle: number; prevDist: number; sensorIdx: number } | null) => {
@@ -1166,6 +1171,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
               onRedo={handleRedo}
               floorPlanOpacity={floorPlanOpacity}
               onFovHandleDragged={handleFovDragged}
+              onFovAngleChanged={handleFovAngleChanged}
               fovDisplayMode={fovDisplayMode}
               highlightedPpfTier={highlightedPpfTier}
               onPpfTierClick={setHighlightedPpfTier}

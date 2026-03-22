@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { C } from './constants'
 import { ActionIcons } from './icons'
 
@@ -119,6 +119,8 @@ interface SliderFieldProps {
 
 export function SliderField({ label, value, unit, min, max, warning, fieldKey, onChangeSave }: SliderFieldProps) {
   const [localVal, setLocalVal] = useState(value)
+  // Sync local state when prop changes (e.g. from undo, drag handle, or external update)
+  useEffect(() => { setLocalVal(value) }, [value])
   const pct = max > min ? ((localVal - min) / (max - min)) * 100 : 0
 
   return (

@@ -104,6 +104,7 @@ interface CanvasAreaProps {
   onRedo?: () => void
   floorPlanOpacity?: number
   onFovHandleDragged?: (deviceId: string, targetDistanceFt: number) => void
+  onFovAngleChanged?: (deviceId: string, fovAngle: number) => void
   fovDisplayMode?: 'simple' | 'ppf' | 'dori'
   highlightedPpfTier?: string | null
   onPpfTierClick?: (tier: string | null) => void
@@ -124,7 +125,7 @@ export function CanvasArea({
   onDeviceCopy, onDeviceDelete, onCableCreated, onToolChange, onScaleCalibrated, onFloorPlanError,
   pendingDeviceName,
   onDeviceDrop, snapToGrid, hiddenCategories, onUndo, onRedo, floorPlanOpacity,
-  onFovHandleDragged, fovDisplayMode = 'simple', highlightedPpfTier, onPpfTierClick,
+  onFovHandleDragged, onFovAngleChanged, fovDisplayMode = 'simple', highlightedPpfTier, onPpfTierClick,
   onSensorRotated,
   mdfIdfs = [], onMdfIdfPlaced, onMdfIdfMoved, onMdfIdfDeleted,
   walls = [], onWallCreated, onWallDeleted,
@@ -282,8 +283,8 @@ export function CanvasArea({
           const did = (opt.target as unknown as Record<string, unknown>).deviceId as string
           if (did) { isDraggingRef.current = true; draggingDeviceIdRef.current = did }
         }
-        // Left-click on empty space = pan (IPVM/Axis behavior)
-        if (evt.button === 0 && !opt.target) {
+        // Left-click on empty space = pan only in select mode (tools like 'place' need empty-space clicks)
+        if (evt.button === 0 && !opt.target && activeToolRef.current === 'select') {
           isPanning = true; lastPanX = evt.clientX; lastPanY = evt.clientY
           if (container) container.style.cursor = 'grabbing'
           onSelectDevice(null)
@@ -979,6 +980,36 @@ export function CanvasArea({
             ;(handle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
             canvas.add(handle);
             fovHandleMap.current.set(key, handle);
+
+            // ---- FOV angle edge handles (IPVM-style — drag to widen/narrow cone) ----
+            if (onFovAngleChanged && deviceId === selectedDeviceId) {
+              const edgeR = outerR * 0.7; // place handles at 70% of cone length
+              const leftAngle = rotRad - halfAngle;
+              const rightAngle = rotRad + halfAngle;
+              const makeEdgeHandle = (angle: number, side: 'left' | 'right') => {
+                const ex = device.position_x + Math.cos(angle) * edgeR;
+                const ey = device.position_y + Math.sin(angle) * edgeR;
+                const edgeKey = `${deviceId}_${idx}_fov_${side}`;
+                const edgeHandle = new fabric.Rect({
+                  left: ex, top: ey, width: 8, height: 8,
+                  fill: 'rgba(34,197,94,0.9)',
+                  stroke: '#fff', strokeWidth: 1.5,
+                  originX: 'center', originY: 'center', selectable: true, evented: true,
+                  hasControls: false, hasBorders: false, hoverCursor: 'ew-resize', moveCursor: 'ew-resize',
+                  angle: angle * (180 / Math.PI) + 45,
+                });
+                ;(edgeHandle as unknown as Record<string, unknown>).__fovEdgeHandle = true;
+                ;(edgeHandle as unknown as Record<string, unknown>).__fovEdgeSide = side;
+                ;(edgeHandle as unknown as Record<string, unknown>).__fovDeviceId = deviceId;
+                ;(edgeHandle as unknown as Record<string, unknown>).__fovDeviceCx = device.position_x;
+                ;(edgeHandle as unknown as Record<string, unknown>).__fovDeviceCy = device.position_y;
+                ;(edgeHandle as unknown as Record<string, unknown>).__fovRotRad = rotRad;
+                canvas.add(edgeHandle);
+                fovHandleMap.current.set(edgeKey, edgeHandle);
+              };
+              makeEdgeHandle(leftAngle, 'left');
+              makeEdgeHandle(rightAngle, 'right');
+            }
           });
         }
       }
@@ -1027,6 +1058,27 @@ export function CanvasArea({
     const movingHandler = (e: { target?: FabricObject }) => {
       const obj = e.target; if (!obj) return
       const rec = obj as unknown as Record<string, unknown>
+
+      // FOV edge handle drag — changes FOV angle
+      if (rec.__fovEdgeHandle) {
+        const now = Date.now()
+        if (now - fovDragThrottleRef.current < 16) return
+        fovDragThrottleRef.current = now
+        const deviceId = rec.__fovDeviceId as string
+        const cx = rec.__fovDeviceCx as number
+        const cy = rec.__fovDeviceCy as number
+        const rotRad = rec.__fovRotRad as number
+        // Compute angle from device center to handle position
+        const dx = (obj.left ?? 0) - cx, dy = (obj.top ?? 0) - cy
+        const handleAngle = Math.atan2(dy, dx)
+        // Difference from rotation axis = half the FOV angle
+        let diff = Math.abs(handleAngle - rotRad)
+        if (diff > Math.PI) diff = 2 * Math.PI - diff
+        const newFovDeg = Math.round(Math.min(180, Math.max(5, diff * 2 * (180 / Math.PI))))
+        onFovAngleChanged?.(deviceId, newFovDeg)
+        return
+      }
+
       if (!rec.__fovHandle) return
       const now = Date.now()
       if (now - fovDragThrottleRef.current < 16) return // throttle to ~60fps
@@ -1073,7 +1125,7 @@ export function CanvasArea({
     const modifiedHandler = (e: { target?: FabricObject }) => {
       const obj = e.target; if (!obj) return
       const rec = obj as unknown as Record<string, unknown>
-      if (!rec.__fovHandle) return
+      if (!rec.__fovHandle && !rec.__fovEdgeHandle) return
       // Signal drag end to parent for undo batching
       onDragCommit?.(fovDragStartRef.current)
       fovDragStartRef.current = null
@@ -1086,7 +1138,7 @@ export function CanvasArea({
       canvas.off('object:modified', modifiedHandler)
       canvas.off('mouse:down', coneClickHandler)
     }
-  }, [fabricReady, onFovHandleDragged, onDeviceRotated, onSensorRotated, scalePxPerFt, devices, onDragCommit])
+  }, [fabricReady, onFovHandleDragged, onFovAngleChanged, onDeviceRotated, onSensorRotated, scalePxPerFt, devices, onDragCommit])
 
   // ---- PPF at Cursor Tooltip ----
   useEffect(() => {

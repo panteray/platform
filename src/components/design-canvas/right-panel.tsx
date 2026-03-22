@@ -524,8 +524,9 @@ export function RightPanel({
           <Section title="FOV Calculation" defaultOpen={true}>
             <Field label="PPF at Target" value={ppf || '\u2014'} color={ppfColor} />
             <Field label="DORI" value={prop(d, 'dori', '\u2014')} />
-            <Field label="H-FOV" value={prop(d, 'h_fov', 0) ? prop(d, 'h_fov', 0) + '\u00B0' : '\u2014'} />
-            <Field label="V-FOV" value={prop(d, 'v_fov', 0) ? prop(d, 'v_fov', 0) + '\u00B0' : '\u2014'} />
+            <SliderField label="FOV Angle" value={prop(d, 'fov_angle', 90)} unit={'\u00B0'} min={5} max={180} fieldKey="fov_angle" onChangeSave={saveSlider} />
+            <Field label="H-FOV (calc)" value={prop(d, 'h_fov', 0) ? prop(d, 'h_fov', 0) + '\u00B0' : '\u2014'} />
+            <Field label="V-FOV (calc)" value={prop(d, 'v_fov', 0) ? prop(d, 'v_fov', 0) + '\u00B0' : '\u2014'} />
             <Field label="Scene Width" value={prop(d, 'scene_width', 0) ? prop(d, 'scene_width', 0) + ' ft' : '\u2014'} />
 
             {/* PPF Quality Reference Chart */}
