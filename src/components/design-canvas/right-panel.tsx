@@ -543,6 +543,114 @@ export function RightPanel({
           </Section>
         )}
 
+        {/* ---- CCTV: DORI Scene Requirements (face-quality previews) ---- */}
+        {isCctv(cat) && (() => {
+          const targetDist = prop(d, 'target_distance', 30) as number
+          const resW = prop(d, 'resolution_w', 0) as number
+          const sensorW = prop(d, 'sensor_size_mm', 0) as number
+          const focalLen = prop(d, 'focal_length', 0) as number
+          const doriTiers = [
+            { key: 'D', label: 'Detect', ppf: 10, color: '#ef4444', desc: 'Moving object visible' },
+            { key: 'O', label: 'Observe', ppf: 25, color: '#f59e0b', desc: 'Visible characteristics' },
+            { key: 'R', label: 'Recognize', ppf: 63, color: '#3b82f6', desc: 'Face recognizable' },
+            { key: 'I', label: 'Identify', ppf: 125, color: '#22c55e', desc: 'Face identification' },
+          ] as const
+
+          // Compute max distance for each DORI tier
+          function maxDistForPpf(targetPpf: number): number | null {
+            if (!resW || !sensorW || !focalLen || resW <= 0) return null
+            // PPF = (resW * focalLen) / (sensorW * distFt)
+            // distFt = (resW * focalLen) / (sensorW * targetPpf)
+            return Math.round((resW * focalLen) / (sensorW * targetPpf))
+          }
+
+          return (
+            <Section title="Scene Requirements (DORI)" defaultOpen={true}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {doriTiers.map(tier => {
+                  const maxDist = maxDistForPpf(tier.ppf)
+                  const isActive = ppf >= tier.ppf
+                  // Simple pixel grid to represent face quality
+                  const gridSize = tier.key === 'D' ? 3 : tier.key === 'O' ? 5 : tier.key === 'R' ? 7 : 9
+                  return (
+                    <div key={tier.key} style={{
+                      padding: '8px', borderRadius: 6,
+                      background: isActive ? `${tier.color}10` : C.bgActive,
+                      border: `1px solid ${isActive ? `${tier.color}40` : C.borderSubtle}`,
+                      opacity: isActive ? 1 : 0.5,
+                      transition: 'all 0.3s',
+                    }}>
+                      {/* Face pixel grid */}
+                      <div style={{
+                        display: 'flex', justifyContent: 'center', marginBottom: 6,
+                      }}>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: `repeat(${gridSize}, 1fr)`,
+                          gap: 1, width: 28, height: 28,
+                        }}>
+                          {Array.from({ length: gridSize * gridSize }, (_, i) => {
+                            // Simple face pattern based on grid position
+                            const row = Math.floor(i / gridSize)
+                            const col = i % gridSize
+                            const cx = (gridSize - 1) / 2
+                            const cy = (gridSize - 1) / 2
+                            const dist = Math.sqrt((row - cy) ** 2 + (col - cx) ** 2)
+                            const maxR = gridSize / 2
+                            const inFace = dist < maxR * 0.95
+                            const isSkinTone = inFace && (dist > maxR * 0.4)
+                            return (
+                              <div key={i} style={{
+                                aspectRatio: '1',
+                                borderRadius: 0.5,
+                                background: !inFace ? 'transparent' :
+                                  isSkinTone ? `${tier.color}60` : `${tier.color}90`,
+                              }} />
+                            )
+                          })}
+                        </div>
+                      </div>
+                      {/* Tier label */}
+                      <div style={{
+                        fontSize: 10, fontWeight: 700, textAlign: 'center',
+                        color: isActive ? tier.color : C.textDim,
+                      }}>
+                        {tier.label}
+                      </div>
+                      <div style={{
+                        fontSize: 8, textAlign: 'center', color: C.textDim, marginTop: 1,
+                      }}>
+                        {tier.ppf}+ ppf
+                      </div>
+                      {/* Max distance */}
+                      {maxDist !== null && (
+                        <div style={{
+                          fontSize: 9, textAlign: 'center', color: isActive ? C.text : C.textDim,
+                          marginTop: 3, fontFamily: "'IBM Plex Mono', monospace",
+                        }}>
+                          ≤ {maxDist} ft
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {/* Active tier indicator */}
+              <div style={{
+                marginTop: 8, padding: '4px 8px',
+                background: ppf >= 125 ? '#22c55e10' : ppf >= 63 ? '#3b82f610' : ppf >= 25 ? '#f59e0b10' : ppf >= 10 ? '#ef444410' : C.bgActive,
+                border: `1px solid ${ppf >= 125 ? '#22c55e40' : ppf >= 63 ? '#3b82f640' : ppf >= 25 ? '#f59e0b40' : ppf >= 10 ? '#ef444440' : C.borderSubtle}`,
+                borderRadius: 4, fontSize: 10, fontWeight: 600, textAlign: 'center',
+                color: ppf >= 125 ? '#22c55e' : ppf >= 63 ? '#3b82f6' : ppf >= 25 ? '#f59e0b' : ppf >= 10 ? '#ef4444' : C.textDim,
+              }}>
+                Current: {ppf} PPF @ {targetDist}ft — {
+                  ppf >= 125 ? 'Identification' : ppf >= 63 ? 'Recognition' : ppf >= 25 ? 'Observation' : ppf >= 10 ? 'Detection' : 'Below DORI'
+                }
+              </div>
+            </Section>
+          )
+        })()}
+
         {/* ---- CCTV: Programming ---- */}
         {isCctv(cat) && (
           <Section title="Programming" defaultOpen={false}>
