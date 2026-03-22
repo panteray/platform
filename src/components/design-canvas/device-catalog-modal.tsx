@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { X, Search, Star, Clock, Cctv } from 'lucide-react'
+import { X, Search, Star, Clock } from 'lucide-react'
 import { C } from './constants'
 import type { DeviceSearchResult } from '@/types/database'
 
@@ -109,32 +109,6 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
 
-  /* Generic camera placement */
-  function handleSelectGeneric() {
-    const generic: DeviceSearchResult = {
-      id: 'generic_camera',
-      vendor: 'Generic',
-      model: 'Generic Camera',
-      category: category || 'cctv',
-      subcategory: 'dome',
-      resolution: '2MP',
-      ndaa_compliant: false,
-      partnumber: null,
-      wattage: null,
-      poe_standard: null,
-      manufacturer_id: null,
-      specs: {
-        fov_angle: 90,
-        target_distance: 30,
-        focal_length: 2.8,
-        sensor_width: 5.6,
-        resolution_w: 1920,
-        resolution_h: 1080,
-        install_height: 9,
-      },
-    }
-    onSelect(generic)
-  }
 
   // Derived
   const brands = useMemo(() => {
@@ -204,7 +178,7 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
           padding: '12px 20px', borderBottom: `1px solid ${C.border}`,
           display: 'flex', flexDirection: 'column', gap: 10, background: C.bgSurface,
         }}>
-          {/* Row 1: Search + Generic Camera */}
+          {/* Search */}
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ flex: 1, position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: C.textMuted }} />
@@ -216,18 +190,6 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
                   outline: 'none', fontFamily: 'inherit',
                 }} />
             </div>
-
-            {/* Generic Camera button */}
-            <button onClick={handleSelectGeneric} style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '6px 12px', fontSize: 11, fontWeight: 600,
-              background: '#374151', border: `1px solid ${C.border}`,
-              borderRadius: 4, color: '#fff', cursor: 'pointer', fontFamily: 'inherit',
-              whiteSpace: 'nowrap',
-            }}>
-              <Cctv size={13} />
-              Select Generic Camera
-            </button>
           </div>
 
           {/* Row 2: Resolution + Form Type Icons + Range Sliders */}
