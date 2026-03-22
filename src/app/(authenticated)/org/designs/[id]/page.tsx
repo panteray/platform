@@ -32,7 +32,7 @@ export default function DesignDetailPage() {
 
   if (userLoading) {
     return (
-      <div className="-m-6 h-[calc(100vh-48px)] flex items-center justify-center bg-[#0f1117]">
+      <div className="-m-6 h-[calc(100vh-48px)] flex items-center justify-center bg-[#09090b]">
         <p className="text-sm text-zinc-500">Loading...</p>
       </div>
     )
@@ -40,7 +40,7 @@ export default function DesignDetailPage() {
 
   if (!hasAccess) {
     return (
-      <div className="-m-6 h-[calc(100vh-48px)] flex items-center justify-center bg-[#0f1117]">
+      <div className="-m-6 h-[calc(100vh-48px)] flex items-center justify-center bg-[#09090b]">
         <p className="text-sm text-zinc-500">Access denied.</p>
       </div>
     )
@@ -51,7 +51,7 @@ export default function DesignDetailPage() {
     return (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 50,
-        background: '#0f1117',
+        background: '#09090b',
         display: 'flex', flexDirection: 'column',
       }}>
         <DesignCanvas designId={id} onNavigateDashboard={() => setActiveTab('dashboard')} />
@@ -65,14 +65,14 @@ export default function DesignDetailPage() {
       {/* Tab bar */}
       <div style={{
         display: 'flex', alignItems: 'flex-end', gap: 2, padding: '0 16px',
-        borderBottom: '1px solid #2a2d3a', flexShrink: 0,
+        borderBottom: '1px solid #27272a', flexShrink: 0,
       }}>
         <button
           onClick={() => setActiveTab('dashboard')}
           style={{
             ...TAB_STYLE_BASE,
-            background: '#161922',
-            color: '#e4e6eb',
+            background: '#18181b',
+            color: '#fafafa',
             borderBottom: '2px solid #3b82f6',
           }}
         >
@@ -83,7 +83,7 @@ export default function DesignDetailPage() {
           style={{
             ...TAB_STYLE_BASE,
             background: 'transparent',
-            color: '#5c6078',
+            color: '#71717a',
             borderBottom: '2px solid transparent',
           }}
         >

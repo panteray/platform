@@ -424,7 +424,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
                   transition: 'all 0.12s',
                 }}>
                 {SIDEBAR_ICONS[tab.id]}
-                <span style={{ marginTop: 1 }}>{tab.label.length > 5 ? tab.label.slice(0, 5) : tab.label}</span>
+                <span style={{ marginTop: 1, maxWidth: 46, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.label}</span>
               </button>
             )
           })}
