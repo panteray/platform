@@ -25,10 +25,9 @@ export async function GET(
 
   if (!design) return NextResponse.json({ error: 'Design not found' }, { status: 404 })
 
-  // Join device_library_items to enrich device properties with library specs
   let query = admin
     .from('design_devices')
-    .select('*, device_library_items(specs)')
+    .select('*')
     .eq('design_id', designId)
     .order('created_at', { ascending: true })
 
@@ -36,23 +35,38 @@ export async function GET(
     query = query.eq('area_id', areaId)
   }
 
-  const { data: devices, error } = await query
+  const { data: rawDevices, error } = await query
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Merge library specs into properties (device props take precedence)
-  const enriched = (devices ?? []).map((d: Record<string, unknown>) => {
-    const librarySpecs = (d.device_library_items as Record<string, unknown> | null)?.specs as Record<string, unknown> | null
-    if (librarySpecs && typeof librarySpecs === 'object') {
-      const deviceProps = (d.properties ?? {}) as Record<string, unknown>
-      d.properties = { ...librarySpecs, ...deviceProps }
-    }
-    // Remove the join artifact from the response
-    delete d.device_library_items
-    return d
-  })
+  const devices = (rawDevices ?? []) as Record<string, unknown>[]
 
-  return NextResponse.json({ devices: enriched })
+  // Enrich with library specs (no FK constraint, so separate query)
+  const libraryIds = devices
+    .map((d) => d.device_library_item_id as string | null)
+    .filter((id): id is string => !!id)
+
+  if (libraryIds.length > 0) {
+    const { data: libraryItems } = await admin
+      .from('device_library_items')
+      .select('id, specs')
+      .in('id', [...new Set(libraryIds)])
+
+    if (libraryItems) {
+      const specsMap = new Map(
+        libraryItems.map((li: { id: string; specs: Record<string, unknown> | null }) => [li.id, li.specs])
+      )
+      for (const d of devices) {
+        const libSpecs = specsMap.get(d.device_library_item_id as string)
+        if (libSpecs && typeof libSpecs === 'object') {
+          const deviceProps = (d.properties ?? {}) as Record<string, unknown>
+          d.properties = { ...libSpecs, ...deviceProps }
+        }
+      }
+    }
+  }
+
+  return NextResponse.json({ devices })
 }
 
 // POST /api/org/designs/[id]/devices

@@ -798,6 +798,7 @@ export function CanvasArea({
       const fabric = await import('fabric');
       // Tier 2: suppress per-object renders during batch add
       canvas.renderOnAddRemove = false;
+      try {
       const wallSegments: Array<{ p1: {x:number,y:number}, p2: {x:number,y:number} }> = [];
       for (const w of walls || []) {
         if (w.points && w.points.length >= 2) {
@@ -983,8 +984,10 @@ export function CanvasArea({
       for (const [, objs] of fovObjectMap.current) {
         for (const o of objs) canvas.sendObjectToBack(o)
       }
-      // Restore per-object rendering and single paint
-      canvas.renderOnAddRemove = true;
+      } finally {
+        // ALWAYS restore per-object rendering, even if renderFovCones throws
+        canvas.renderOnAddRemove = true;
+      }
       canvas.requestRenderAll();
     }
     void renderFovCones();
