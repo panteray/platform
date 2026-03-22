@@ -166,6 +166,7 @@ export function CanvasArea({
   const deviceObjectMap = useRef(new Map<string, FabricObject>())
   const cableObjectMap = useRef(new Map<string, FabricObject>())
   const isDraggingRef = useRef(false)
+  const isDraggingFovHandleRef = useRef(false)
   const BASE_ICON_PX = 20 // constant screen-pixel size for device icons (IPVM-style small markers)
 
   // Helper: update zoom ref + throttled display + rescale icons (no React re-render per tick)
@@ -303,6 +304,7 @@ export function CanvasArea({
           if (container) container.style.cursor = activeToolRef.current === 'pan' ? 'grab' : spaceHeld ? 'grab' : 'default'
         }
         if (isDraggingRef.current) { isDraggingRef.current = false; draggingDeviceIdRef.current = null }
+        if (isDraggingFovHandleRef.current) { isDraggingFovHandleRef.current = false }
       })
 
       // Selection bridging
@@ -761,6 +763,8 @@ export function CanvasArea({
     // IPVM-style: always show FOV cone for the SELECTED camera, even if global FOV is off
     const hasSelectedFov = selectedDeviceId && fovData.has(selectedDeviceId)
     if (isDraggingRef.current) { canvas.renderAll(); return }
+    // Skip full FOV re-render while dragging a handle — Fabric manages handle position during drag
+    if (isDraggingFovHandleRef.current) { return }
     if (!showFovCones && !hasSelectedFov) { canvas.renderAll(); return }
 
     function getRayIntersection(o: {x:number,y:number}, d: {x:number,y:number}, a: {x:number,y:number}, b: {x:number,y:number}) {
@@ -990,10 +994,12 @@ export function CanvasArea({
   useEffect(() => {
     if (!fabricRef.current || !fabricReady || !onFovHandleDragged) return
     const canvas = fabricRef.current
-    const handler = (e: { target?: FabricObject }) => {
+    const movingHandler = (e: { target?: FabricObject }) => {
       const obj = e.target; if (!obj) return
       const rec = obj as unknown as Record<string, unknown>
       if (!rec.__fovHandle) return
+      // Mark handle drag in progress — prevents FOV effect from destroying handles mid-drag
+      isDraggingFovHandleRef.current = true
       const deviceId = rec.__fovDeviceId as string
       const cx = rec.__fovDeviceCx as number
       const cy = rec.__fovDeviceCy as number
@@ -1005,7 +1011,6 @@ export function CanvasArea({
       let angleDeg = angleRad * (180 / Math.PI)
       if (angleDeg < 0) angleDeg += 360
       
-      // Update in real-time for immediate feedback (though throttle/debounce could be added if heavy)
       if (distFt > 1) onFovHandleDragged(deviceId, Math.round(distFt))
       
       const sensorIdx = rec.__fovSensorIndex as number
@@ -1015,13 +1020,20 @@ export function CanvasArea({
         onSensorRotated?.(deviceId, sensorIdx, Math.round(angleDeg))
       }
     }
-    canvas.on('object:moving', handler)
-    canvas.on('object:modified', handler)
-    return () => { 
-      canvas.off('object:moving', handler)
-      canvas.off('object:modified', handler)
+    const modifiedHandler = (e: { target?: FabricObject }) => {
+      const obj = e.target; if (!obj) return
+      const rec = obj as unknown as Record<string, unknown>
+      if (!rec.__fovHandle) return
+      // Handle drag ended — clear ref so FOV effect can re-render cones at new position
+      isDraggingFovHandleRef.current = false
     }
-  }, [fabricReady, onFovHandleDragged, onDeviceRotated, scalePxPerFt])
+    canvas.on('object:moving', movingHandler)
+    canvas.on('object:modified', modifiedHandler)
+    return () => { 
+      canvas.off('object:moving', movingHandler)
+      canvas.off('object:modified', modifiedHandler)
+    }
+  }, [fabricReady, onFovHandleDragged, onDeviceRotated, onSensorRotated, scalePxPerFt])
 
   // ---- PPF at Cursor Tooltip ----
   useEffect(() => {

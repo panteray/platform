@@ -30,13 +30,14 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
   const [loading, setLoading] = useState(false)
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null)
   const [selectedForm, setSelectedForm] = useState('')
+  const [selectedRes, setSelectedRes] = useState('')
   const [ndaaOnly, setNdaaOnly] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const doFetch = useCallback(async (q: string, ndaa: boolean) => {
     setLoading(true)
-    const params = new URLSearchParams({ limit: '200' })
+    const params = new URLSearchParams({ limit: '500' })
     if (category) params.set('category', category)
     if (q.trim()) params.set('q', q.trim())
     if (ndaa) params.set('ndaa_compliant', 'true')
@@ -50,6 +51,7 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
     setQuery('')
     setSelectedBrand(null)
     setSelectedForm('')
+    setSelectedRes('')
     setResults([])
     doFetch('', ndaaOnly)
     setTimeout(() => searchRef.current?.focus(), 100)
@@ -89,9 +91,20 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
           if (!sub.includes('multisensor') && !sub.includes('multi')) return false
         } else if (!sub.includes(selectedForm)) return false
       }
+      if (selectedRes) {
+        const specs = (r.specs ?? {}) as Record<string, unknown>
+        const res = ((specs.resolution as string) || r.resolution || '').toLowerCase()
+        if (selectedRes === '2mp') { if (!res.includes('2mp') && !res.includes('1080')) return false }
+        else if (selectedRes === '3mp') { if (!res.includes('3mp')) return false }
+        else if (selectedRes === '4mp') { if (!res.includes('4mp')) return false }
+        else if (selectedRes === '5mp') { if (!res.includes('5mp')) return false }
+        else if (selectedRes === '6mp') { if (!res.includes('6mp')) return false }
+        else if (selectedRes === '8mp') { if (!res.includes('8mp') && !res.includes('4k') && !res.includes('uhd')) return false }
+        else if (selectedRes === '12mp+') { if (!res.includes('12mp') && !res.includes('16mp') && !res.includes('32mp') && !res.includes('8k')) return false }
+      }
       return true
     })
-  }, [results, selectedBrand, selectedForm])
+  }, [results, selectedBrand, selectedForm, selectedRes])
 
   return (
     <div style={{
@@ -171,6 +184,25 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
               )
             })}
           </div>
+
+          {/* Resolution filter */}
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontSize: 10, color: C.textDim, marginRight: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Resolution</span>
+            {['', '2mp', '3mp', '4mp', '5mp', '6mp', '8mp', '12mp+'].map((r) => {
+              const active = selectedRes === r
+              const label = r === '' ? 'All' : r === '8mp' ? '4K/8MP' : r.toUpperCase()
+              return (
+                <button key={r} onClick={() => setSelectedRes(active ? '' : r)}
+                  style={{
+                    padding: '4px 10px', fontSize: 11,
+                    border: `1px solid ${active ? ACCENT : C.border}`,
+                    borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit',
+                    background: active ? `${ACCENT}20` : C.bgActive,
+                    color: active ? ACCENT : C.textMuted,
+                  }}>{label}</button>
+              )
+            })}
+          </div>
         </div>
 
         {/* Three-Column Body */}
@@ -226,6 +258,7 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
               <div style={{ width: '100%', padding: 16, background: C.bg, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <InfoLine label="Brand" value={selectedBrand || 'Any'} />
                 <InfoLine label="Form" value={selectedForm ? FORM_TYPES.find(f => f.id === selectedForm)?.label || 'Any' : 'Any'} />
+                <InfoLine label="Resolution" value={selectedRes ? (selectedRes === '8mp' ? '4K/8MP' : selectedRes.toUpperCase()) : 'Any'} />
                 <InfoLine label="NDAA" value={ndaaOnly ? 'Only NDAA' : 'Any'} />
                 {query && <InfoLine label="Search" value={`"${query}"`} />}
               </div>
