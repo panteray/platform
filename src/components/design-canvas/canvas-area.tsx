@@ -105,7 +105,7 @@ interface CanvasAreaProps {
   floorPlanOpacity?: number
   onFovHandleDragged?: (deviceId: string, targetDistanceFt: number) => void
   onFovAngleChanged?: (deviceId: string, fovAngle: number) => void
-  fovDisplayMode?: 'simple' | 'ppf' | 'dori'
+  fovDisplayMode?: 'simple' | 'ppf' | 'dori' | 'heatmap'
   highlightedPpfTier?: string | null
   onPpfTierClick?: (tier: string | null) => void
   mdfIdfs?: DesignMdfIdf[]
@@ -897,8 +897,11 @@ export function CanvasArea({
             return pathStr + ' Z';
           }
 
-          if (fovDisplayMode === 'simple') {
-            const coneColor = data.colorHex || '#29b6f6';
+          if (fovDisplayMode === 'simple' || fovDisplayMode === 'heatmap') {
+            const isHeatmap = fovDisplayMode === 'heatmap'
+            const coneColor = isHeatmap ? '#22c55e' : (data.colorHex || '#29b6f6');
+            const coneOpacity = isHeatmap ? 0.18 : 0.15;
+            const strokeColor = isHeatmap ? 'rgba(34,197,94,0.4)' : coneColor;
             const maxTier = data.tiers.reduce((a, b) => b.distanceFt > a.distanceFt ? b : a, data.tiers[0]);
             const r = maxTier.distanceFt * (scalePxPerFt || 10);
             if (r > outerR) outerR = r;
@@ -907,7 +910,7 @@ export function CanvasArea({
 
             const isSelectedCone = deviceId === selectedDeviceId;
             const outerPath = new fabric.Path(buildConePath(cx, cy, r), {
-              fill: coneColor, opacity: 0.15,
+              fill: coneColor, opacity: coneOpacity,
               selectable: false, evented: isSelectedCone,
               hoverCursor: isSelectedCone ? 'crosshair' : 'default',
             });
@@ -918,12 +921,12 @@ export function CanvasArea({
 
             const innerR = r * 0.35;
             const innerPath = new fabric.Path(buildConePath(cx, cy, innerR), {
-              fill: coneColor, opacity: 0.10, selectable: false, evented: false,
+              fill: coneColor, opacity: isHeatmap ? 0.12 : 0.10, selectable: false, evented: false,
             });
             canvas.add(innerPath); objects.push(innerPath);
 
             const strokePath = new fabric.Path(buildConePath(cx, cy, r), {
-              fill: 'transparent', stroke: coneColor, strokeWidth: 1, opacity: 0.35,
+              fill: 'transparent', stroke: strokeColor, strokeWidth: isHeatmap ? 1.5 : 1, opacity: isHeatmap ? 0.6 : 0.35,
               selectable: false, evented: false,
             });
             canvas.add(strokePath); objects.push(strokePath);

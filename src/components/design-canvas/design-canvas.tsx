@@ -60,7 +60,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
   const [activeView, setActiveView] = useState<DesignView>('all')
   const [showFovCones, setShowFovCones] = useState(true)
   const [showDeviceLibrary, setShowDeviceLibrary] = useState(false)
-  const [fovDisplayMode, setFovDisplayMode] = useState<'simple' | 'ppf' | 'dori'>('simple')
+  const [fovDisplayMode, setFovDisplayMode] = useState<'simple' | 'ppf' | 'dori' | 'heatmap'>('simple')
   const [highlightedPpfTier, setHighlightedPpfTier] = useState<string | null>(null)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
   const [floorPlanError, setFloorPlanError] = useState<string | null>(null)
@@ -969,9 +969,9 @@ export function DesignCanvas({ designId, onNavigateDashboard }: DesignCanvasProp
           {showFovCones ? <Eye size={12} /> : <EyeOff size={12} />} <span>FOV</span>
         </button>
         {showFovCones && (
-          <button onClick={() => setFovDisplayMode(fovDisplayMode === 'simple' ? 'ppf' : fovDisplayMode === 'ppf' ? 'dori' : 'simple')}
-            style={toolBtn(fovDisplayMode !== 'simple', C.green)} title="FOV mode: Simple / PPF / DORI">
-            <span style={{ fontSize: 9, fontWeight: 600 }}>{fovDisplayMode === 'simple' ? 'FOV' : fovDisplayMode === 'dori' ? 'DORI' : 'PPF'}</span>
+          <button onClick={() => setFovDisplayMode(fovDisplayMode === 'simple' ? 'ppf' : fovDisplayMode === 'ppf' ? 'dori' : fovDisplayMode === 'dori' ? 'heatmap' : 'simple')}
+            style={toolBtn(fovDisplayMode !== 'simple', C.green)} title="FOV mode: Simple / PPF / DORI / Heatmap">
+            <span style={{ fontSize: 9, fontWeight: 600 }}>{fovDisplayMode === 'simple' ? 'FOV' : fovDisplayMode === 'dori' ? 'DORI' : fovDisplayMode === 'heatmap' ? 'HEAT' : 'PPF'}</span>
           </button>
         )}
         <button onClick={() => setShowGrid(!showGrid)} style={toolBtn(showGrid)} title="Toggle Grid (G)">

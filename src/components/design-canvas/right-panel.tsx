@@ -272,6 +272,116 @@ export function RightPanel({
           <Field label="Location Description" value={prop(d, 'location_description', '')} editable fieldKey="location_description" onBlurSave={saveFieldFromBlur} />
         </Section>
 
+        {/* ---- CCTV: Scene Configurator (Axis/Hanwha-style) ---- */}
+        {isCctv(cat) && (
+          <Section title="Scene Configurator" defaultOpen={true}>
+            {/* FOV Presets */}
+            <SubLabel text="FOV Preset" />
+            <div style={{ display: 'flex', gap: 3, marginBottom: 10, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Tele', angle: 15, icon: '🔭' },
+                { label: 'Normal', angle: 50, icon: '📷' },
+                { label: 'Wide', angle: 90, icon: '🌐' },
+                { label: 'Panoramic', angle: 120, icon: '🔲' },
+              ].map((preset) => {
+                const currentAngle = prop(d, 'fov_angle', 90)
+                const isActive = currentAngle === preset.angle
+                return (
+                  <button key={preset.label}
+                    onClick={() => saveProp('fov_angle', preset.angle)}
+                    style={{
+                      flex: 1, padding: '6px 4px', fontSize: 9, fontWeight: 600, fontFamily: 'inherit',
+                      background: isActive ? C.accentSubtle : C.bgActive,
+                      color: isActive ? C.accent : C.textDim,
+                      border: isActive ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
+                      borderRadius: 4, cursor: 'pointer', textAlign: 'center',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                    }}
+                  >
+                    <span style={{ fontSize: 12 }}>{preset.icon}</span>
+                    {preset.label}
+                    <span style={{ fontSize: 7, opacity: 0.6 }}>{preset.angle}°</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Lighting Conditions */}
+            <SubLabel text="Lighting" />
+            <div style={{ display: 'flex', gap: 3, marginBottom: 10, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Day', value: 'daylight', color: '#f59e0b' },
+                { label: 'Low', value: 'low_light', color: '#6366f1' },
+                { label: 'None', value: 'no_light', color: '#1e293b' },
+                { label: 'Back', value: 'backlight', color: '#ef4444' },
+              ].map((cond) => {
+                const current = prop(d, 'lighting_condition', 'daylight')
+                const isActive = current === cond.value
+                return (
+                  <button key={cond.value}
+                    onClick={() => saveProp('lighting_condition', cond.value)}
+                    style={{
+                      flex: 1, padding: '4px 6px', fontSize: 8, fontWeight: 600, fontFamily: 'inherit',
+                      background: isActive ? `${cond.color}20` : C.bgActive,
+                      color: isActive ? cond.color : C.textDim,
+                      border: isActive ? `1px solid ${cond.color}60` : `1px solid ${C.border}`,
+                      borderRadius: 3, cursor: 'pointer',
+                    }}
+                  >
+                    {cond.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Corridor Mode */}
+            <SubLabel text="Orientation" />
+            <div style={{ display: 'flex', gap: 3, marginBottom: 10 }}>
+              {[
+                { label: 'Normal', value: 'normal' },
+                { label: 'Corridor', value: 'corridor' },
+              ].map((mode) => {
+                const current = prop(d, 'orientation_mode', 'normal')
+                const isActive = current === mode.value
+                return (
+                  <button key={mode.value}
+                    onClick={() => saveProp('orientation_mode', mode.value)}
+                    style={{
+                      flex: 1, padding: '5px 8px', fontSize: 9, fontWeight: 600, fontFamily: 'inherit',
+                      background: isActive ? C.accentSubtle : C.bgActive,
+                      color: isActive ? C.accent : C.textDim,
+                      border: isActive ? `1px solid ${C.accent}` : `1px solid ${C.border}`,
+                      borderRadius: 4, cursor: 'pointer',
+                    }}
+                  >
+                    {mode.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Target Height */}
+            <SliderField label="Target Height" value={prop(d, 'target_height', 5.67)} unit="ft" min={0} max={12} fieldKey="target_height" onChangeSave={saveSlider} />
+
+            {/* IR Range indicator */}
+            {prop(d, 'ir_range', '') && (() => {
+              const lightCond = String(prop(d, 'lighting_condition', 'daylight'))
+              const isIRActive = lightCond === 'no_light'
+              return (
+                <div style={{
+                  marginTop: 6, padding: '4px 8px',
+                  background: isIRActive ? 'rgba(34,197,94,0.08)' : C.bgActive,
+                  border: `1px solid ${isIRActive ? 'rgba(34,197,94,0.3)' : C.borderSubtle}`,
+                  borderRadius: 4, fontSize: 9,
+                  color: isIRActive ? C.green : C.textDim,
+                }}>
+                  IR Range: {prop(d, 'ir_range', '')} — {isIRActive ? 'Active' : 'Standby'}
+                </div>
+              )
+            })()}
+          </Section>
+        )}
+
         {/* ---- PLACEMENT (all categories) ---- */}
         <Section title="Placement" defaultOpen={true}>
           <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
