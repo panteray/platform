@@ -284,9 +284,26 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
 
   const handleDeviceSelected = useCallback(async (item: DeviceSearchResult) => {
     setShowCatalog(false)
-    const autoLabel = getNextLabel(item.category)
+
+    // Derive specific camera type from subcategory for correct icon matching
+    // e.g., subcategory="dome" → category="dome" instead of generic "cctv"
+    let effectiveCategory = item.category
+    if (item.category === 'cctv' && item.subcategory) {
+      const sub = item.subcategory.toLowerCase()
+      if (sub.includes('dome')) effectiveCategory = 'dome'
+      else if (sub.includes('bullet')) effectiveCategory = 'bullet'
+      else if (sub.includes('turret')) effectiveCategory = 'turret'
+      else if (sub.includes('ptz')) effectiveCategory = 'ptz'
+      else if (sub.includes('fisheye')) effectiveCategory = 'fisheye'
+      else if (sub.includes('multisensor') || sub.includes('multi-sensor') || sub.includes('multi_sensor')) {
+        effectiveCategory = sub.includes('dual') ? 'multisensor_dual' : 'multisensor_quad'
+      }
+      else if (sub.includes('box') || sub.includes('covert')) effectiveCategory = 'box'
+    }
+
+    const autoLabel = getNextLabel(effectiveCategory)
     const dev = await addDevice({
-      design_id: designId, area_id: activeAreaId, category: item.category,
+      design_id: designId, area_id: activeAreaId, category: effectiveCategory,
       label: `${autoLabel} — ${item.vendor} ${item.model}`,
       position_x: 400, position_y: 300,
       rotation: 0, properties: item.specs ?? {},
