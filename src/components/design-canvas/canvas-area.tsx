@@ -82,6 +82,39 @@ function resolveCanvasColor(varName: string, fallback = '#09090b'): string {
 /* ─── Camera categories ─── */
 const CAM_CATS = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual']
 
+/* ─── Wall–FOV clipping helper: clip polygon against a wall segment ─── */
+function clipFovByWalls(
+  pts: Array<{ x: number; y: number }>,
+  walls: Array<{ id: string; points: Array<{ x: number; y: number }> }>,
+  cx: number, cy: number,
+): Array<{ x: number; y: number }> {
+  // For each wall segment, clip points that are "behind" the wall from the camera's perspective
+  let clipped = [...pts]
+  for (const wall of walls) {
+    for (let w = 0; w < wall.points.length - 1; w++) {
+      const wa = wall.points[w], wb = wall.points[w + 1]
+      const wallDx = wb.x - wa.x, wallDy = wb.y - wa.y
+      // Which side is the camera on?
+      const camSide = (wallDx * (cy - wa.y) - wallDy * (cx - wa.x))
+      clipped = clipped.map(p => {
+        const pSide = (wallDx * (p.y - wa.y) - wallDy * (p.x - wa.x))
+        // If point is on opposite side of wall from camera, project it onto the wall
+        if (camSide * pSide < 0) {
+          // Ray from camera through p, intersect with wall segment
+          const dx = p.x - cx, dy = p.y - cy
+          const denom = dx * wallDy - dy * wallDx
+          if (Math.abs(denom) > 0.001) {
+            const t = ((wa.x - cx) * wallDy - (wa.y - cy) * wallDx) / denom
+            if (t > 0) return { x: cx + dx * t, y: cy + dy * t }
+          }
+        }
+        return p
+      })
+    }
+  }
+  return clipped
+}
+
 export function CanvasArea({
   designId, areaId, floorPlan, devices, cables, showGrid, activeTool,
   selectedDeviceId, showFovCones, fovData, scalePxPerFt,
@@ -91,6 +124,7 @@ export function CanvasArea({
   onFovHandleDragged, onFovAngleChanged, onCanvasClick, onCableCreated,
   mdfIdfs, onMdfIdfPlaced, onDragCommit, onZoomChange,
   onFloorPlanError, hiddenCategories, zoomToPointRef,
+  walls, onWallCreated, onWallDeleted,
 }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -139,8 +173,14 @@ export function CanvasArea({
   const devObjs = useRef(new Map<string, FabricObject>())
   const fovObjs = useRef(new Map<string, FabricObject[]>())
   const handleObjs = useRef(new Map<string, FabricObject>())
+  const wallObjs = useRef<FabricObject[]>([])
+  const mdfObjs = useRef(new Map<string, FabricObject[]>())
   const gridObj = useRef<FabricObject | null>(null)
   const fpObj = useRef<FabricObject | null>(null)
+
+  // Wall drawing state
+  const wallPts = useRef<Array<{ x: number; y: number }>>([])
+  const wallPreviewObjs = useRef<FabricObject[]>([])
 
   // Throttle for real-time drag
   const lastDragT = useRef(0)
@@ -287,6 +327,10 @@ export function CanvasArea({
         switch (toolRef.current) {
           case 'place': onCanvasClick?.(x, y); break
           case 'mdf_idf': onMdfIdfPlaced?.(x, y); break
+          case 'wall':
+            // Wall drawing: click to add points, double-click/Enter to finish
+            wallPts.current.push({ x, y })
+            break
           case 'cable':
             // Routing state: add waypoint
             if (cableState.current === 'routing') {
@@ -324,6 +368,32 @@ export function CanvasArea({
           panOrigin.current = { x: e.clientX, y: e.clientY }
           c.requestRenderAll()
           return
+        }
+
+        // Wall live preview
+        if (toolRef.current === 'wall' && wallPts.current.length > 0) {
+          const pt = c.getScenePoint(e)
+          for (const obj of wallPreviewObjs.current) c.remove(obj)
+          wallPreviewObjs.current = []
+          const allPts = [...wallPts.current, { x: pt.x, y: pt.y }]
+          import('fabric').then(fm => {
+            const line = new fm.Polyline(allPts, {
+              fill: 'transparent', stroke: '#333', strokeWidth: 3,
+              selectable: false, evented: false, opacity: 0.7,
+            })
+            c.add(line); wallPreviewObjs.current.push(line)
+            // Dots at placed points
+            for (const wp of wallPts.current) {
+              const dot = new fm.Circle({
+                left: wp.x, top: wp.y, radius: 4,
+                fill: '#333', stroke: '#fff', strokeWidth: 1.5,
+                originX: 'center', originY: 'center',
+                selectable: false, evented: false,
+              })
+              c.add(dot); wallPreviewObjs.current.push(dot)
+            }
+            c.requestRenderAll()
+          })
         }
 
         // Cable live preview
@@ -475,7 +545,30 @@ export function CanvasArea({
         !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
         onDeviceDelete?.(selRef.current)
       }
+      if (e.key === 'Enter') {
+        // Finish wall drawing if in progress
+        if (wallPts.current.length >= 2) {
+          onWallCreated?.(wallPts.current)
+          wallPts.current = []
+          if (fcRef.current) {
+            for (const obj of wallPreviewObjs.current) fcRef.current.remove(obj)
+            wallPreviewObjs.current = []
+            fcRef.current.requestRenderAll()
+          }
+          return
+        }
+      }
       if (e.key === 'Escape') {
+        // Cancel wall drawing
+        if (wallPts.current.length > 0) {
+          wallPts.current = []
+          if (fcRef.current) {
+            for (const obj of wallPreviewObjs.current) fcRef.current.remove(obj)
+            wallPreviewObjs.current = []
+            fcRef.current.requestRenderAll()
+          }
+          return
+        }
         // Cancel cable routing if in progress
         if (cableState.current === 'routing') {
           cableState.current = 'pick_source'
@@ -495,7 +588,7 @@ export function CanvasArea({
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
-  }, [onDeviceDelete, onSelectDevice, onToolChange])
+  }, [onDeviceDelete, onSelectDevice, onToolChange, onWallCreated])
 
   // ════════════════════════════════════════════════════════════════
   // RESIZE
@@ -715,7 +808,10 @@ export function CanvasArea({
           // IPVM: inner tiers darker (higher PPF), outer tiers lighter
           const gradOpacity = tier.opacity * (1 + (data.tiers.length - 1 - t) * 0.15)
 
-          const cone = new fm.Polygon(pts, {
+          // IPVM-style wall clipping: clip FOV polygon points behind walls
+          const clippedPts = walls && walls.length > 0 ? clipFovByWalls(pts, walls, cx, cy) : pts
+
+          const cone = new fm.Polygon(clippedPts, {
             fill: fillColor, opacity: Math.min(0.7, gradOpacity),
             // IPVM: dark solid stroke on outermost cone border
             stroke: t === 0 ? 'rgba(0,0,0,0.35)' : 'transparent',
@@ -827,7 +923,122 @@ export function CanvasArea({
       for (const [, h] of handleObjs.current) c.bringObjectToFront(h)
       c.requestRenderAll()
     })()
-  }, [fovData, devices, showFovCones, selectedDeviceId, scalePxPerFt, ready, fovDisplayMode, hiddenCategories, onFovAngleChanged])
+  }, [fovData, devices, showFovCones, selectedDeviceId, scalePxPerFt, ready, fovDisplayMode, hiddenCategories, onFovAngleChanged, walls])
+
+  // ════════════════════════════════════════════════════════════════
+  // WALLS — IPVM-style dark polylines
+  // ════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!fcRef.current || !ready) return
+    const c = fcRef.current
+    for (const o of wallObjs.current) c.remove(o)
+    wallObjs.current = []
+    if (!walls || walls.length === 0) { c.requestRenderAll(); return }
+
+    ;(async () => {
+      const fm = await import('fabric')
+      for (const wall of walls) {
+        if (wall.points.length < 2) continue
+        // Wall line — dark thick stroke (IPVM: solid black)
+        const wLine = new fm.Polyline(wall.points, {
+          fill: 'transparent', stroke: '#222', strokeWidth: 3,
+          selectable: false, evented: false, opacity: 0.85,
+        })
+        c.add(wLine); wallObjs.current.push(wLine)
+
+        // Endpoint dots
+        for (const pt of [wall.points[0], wall.points[wall.points.length - 1]]) {
+          const dot = new fm.Circle({
+            left: pt.x, top: pt.y, radius: 3.5,
+            fill: '#444', stroke: '#fff', strokeWidth: 1.5,
+            originX: 'center', originY: 'center',
+            selectable: false, evented: false,
+          })
+          c.add(dot); wallObjs.current.push(dot)
+        }
+      }
+      // Z-order: walls above floor plan but below devices
+      for (const o of wallObjs.current) {
+        c.bringObjectToFront(o)
+      }
+      for (const [, o] of devObjs.current) c.bringObjectToFront(o)
+      for (const [, h] of handleObjs.current) c.bringObjectToFront(h)
+      c.requestRenderAll()
+    })()
+  }, [walls, ready])
+
+  // ════════════════════════════════════════════════════════════════
+  // MDF/IDF RENDERING — IPVM-style rack icons + dashed cable lines
+  // ════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!fcRef.current || !ready) return
+    const c = fcRef.current
+    for (const [, arr] of mdfObjs.current) for (const o of arr) c.remove(o)
+    mdfObjs.current.clear()
+    if (!mdfIdfs || mdfIdfs.length === 0) { c.requestRenderAll(); return }
+
+    ;(async () => {
+      const fm = await import('fabric')
+      const MDF_COLORS = ['#22c55e', '#3b82f6', '#f97316', '#a855f7', '#ef4444', '#14b8a6']
+
+      for (let mi = 0; mi < mdfIdfs.length; mi++) {
+        const mdf = mdfIdfs[mi]
+        const objs: FabricObject[] = []
+        const mdfColor = MDF_COLORS[mi % MDF_COLORS.length]
+
+        // Rack icon SVG (IPVM-style green server rack)
+        const rackSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect x="6" y="4" width="20" height="24" rx="2" fill="${mdfColor}" opacity="0.9"/><rect x="9" y="8" width="14" height="3" rx="1" fill="#fff" opacity="0.6"/><rect x="9" y="13" width="14" height="3" rx="1" fill="#fff" opacity="0.6"/><rect x="9" y="18" width="14" height="3" rx="1" fill="#fff" opacity="0.6"/><circle cx="20" cy="9.5" r="1" fill="#22c55e"/><circle cx="20" cy="14.5" r="1" fill="#22c55e"/><circle cx="20" cy="19.5" r="1" fill="#22c55e"/></svg>`
+
+        try {
+          const res = await fm.loadSVGFromString(rackSvg)
+          const ico = fm.util.groupSVGElements(res.objects.filter(Boolean) as FabricObject[], res.options)
+          // Label below icon
+          const lbl = new fm.FabricText(mdf.name || 'MDF', {
+            left: 0, top: 20, fontSize: 10, fill: C.text,
+            fontFamily: "'IBM Plex Sans', sans-serif", originX: 'center', originY: 'top',
+            fontWeight: '600',
+          })
+          const group = new fm.Group([ico, lbl], {
+            left: mdf.position_x, top: mdf.position_y,
+            originX: 'center', originY: 'center',
+            hasControls: false, hasBorders: false,
+            selectable: true, evented: true,
+            hoverCursor: 'move', moveCursor: 'move',
+          })
+          const rec = group as unknown as Record<string, unknown>
+          rec.__mdfId = mdf.id
+          c.add(group); objs.push(group)
+        } catch { /* ok */ }
+
+        // Draw dashed cable lines from MDF to all devices with cables (IPVM-style)
+        // Derive connections from cables that reference devices near MDF
+        for (const dev of devices) {
+          const hasCable = cables.some(cb =>
+            (cb.from_device_id === dev.id && cb.to_device_id === mdf.id) ||
+            (cb.from_device_id === mdf.id && cb.to_device_id === dev.id)
+          )
+          if (!hasCable) continue
+          const cable = new fm.Line(
+            [mdf.position_x, mdf.position_y, dev.position_x, dev.position_y],
+            {
+              stroke: mdfColor, strokeWidth: 1.5,
+              strokeDashArray: [8, 5], selectable: false, evented: false,
+              opacity: 0.5,
+            }
+          )
+          c.add(cable); objs.push(cable)
+        }
+
+        mdfObjs.current.set(mdf.id, objs)
+      }
+
+      // Z-order: MDF icons on top
+      for (const [, arr] of mdfObjs.current) for (const o of arr) c.bringObjectToFront(o)
+      for (const [, o] of devObjs.current) c.bringObjectToFront(o)
+      for (const [, h] of handleObjs.current) c.bringObjectToFront(h)
+      c.requestRenderAll()
+    })()
+  }, [mdfIdfs, devices, ready])
 
   // ════════════════════════════════════════════════════════════════
   // CABLES
@@ -975,6 +1186,7 @@ export function CanvasArea({
         {activeTool === 'pan' && 'Drag to pan the canvas'}
         {activeTool === 'scale' && `Click ${scalePts.length === 0 ? 'first' : scalePts.length === 1 ? 'second' : ''} point`}
         {activeTool === 'cable' && 'Click device to start cable • Click waypoints • Click device to end • Esc to cancel'}
+        {activeTool === 'wall' && 'Click to place wall points • Enter to finish • Esc to cancel'}
         {activeTool === 'mdf_idf' && 'Click to place MDF/IDF'}
         {activeTool === 'measure' && 'Click two points to measure'}
         {activeTool === 'place' && 'Click to place device'}
