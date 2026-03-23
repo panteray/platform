@@ -74,6 +74,7 @@ interface Props {
   showIrRange?: boolean
   hiddenPpfZones?: Set<string>
   showBlindSpot?: boolean
+  onWallSelected?: (id: string) => void
   zoomToPointRef?: React.MutableRefObject<((x: number, y: number) => void) | null>
 }
 
@@ -129,7 +130,7 @@ export function CanvasArea({
   mdfIdfs, onMdfIdfPlaced, onMdfIdfDeleted, onDragCommit, onZoomChange,
   onFloorPlanError, hiddenCategories, zoomToPointRef,
   walls, onWallCreated, onWallDeleted, onMdfSelected,
-  showIrRange, hiddenPpfZones, showBlindSpot,
+  showIrRange, hiddenPpfZones, showBlindSpot, onWallSelected,
 }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -334,6 +335,28 @@ export function CanvasArea({
             onToolChange?.('select')
           }
           return
+        }
+
+        // Check if click is near a wall segment
+        if (onWallSelected && walls && walls.length > 0) {
+          const pt = c.getScenePoint(e)
+          const threshold = 10
+          for (const wall of walls) {
+            for (let i = 1; i < wall.points.length; i++) {
+              const p1 = wall.points[i - 1], p2 = wall.points[i]
+              // Point-to-segment distance
+              const dx = p2.x - p1.x, dy = p2.y - p1.y
+              const len2 = dx * dx + dy * dy
+              if (len2 === 0) continue
+              const t = Math.max(0, Math.min(1, ((pt.x - p1.x) * dx + (pt.y - p1.y) * dy) / len2))
+              const projX = p1.x + t * dx, projY = p1.y + t * dy
+              const dist = Math.sqrt((pt.x - projX) ** 2 + (pt.y - projY) ** 2)
+              if (dist < threshold) {
+                onWallSelected(wall.id)
+                return
+              }
+            }
+          }
         }
 
         // Click on empty canvas → tool actions or start panning

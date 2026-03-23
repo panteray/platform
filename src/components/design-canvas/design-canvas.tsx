@@ -35,6 +35,7 @@ import { CanvasArea, type DeviceFovData } from './canvas-area'
 import { LeftPanel } from './left-panel'
 import { RightPanel } from './right-panel'
 import { MdfRightPanel } from './mdf-right-panel'
+import { WallRightPanel } from './wall-right-panel'
 import { DeviceCatalogModal } from './device-catalog-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { getFovConeTiers } from '@/lib/calculators'
@@ -87,11 +88,12 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   const [floorPlanOpacity, setFloorPlanOpacity] = useState(0.6)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
-  const [walls, setWalls] = useState<Array<{ id: string; points: Array<{ x: number; y: number }> }>>([])
+  const [walls, setWalls] = useState<Array<{ id: string; points: Array<{ x: number; y: number }>; wallType?: string; heightFt?: number; opacity?: number; color?: string }>>([])
   const [selectedMdfId, setSelectedMdfId] = useState<string | null>(null)
   const [showIrRange, setShowIrRange] = useState(true)
   const [hiddenPpfZones, setHiddenPpfZones] = useState<Set<string>>(new Set())
   const [showBlindSpot, setShowBlindSpot] = useState(false)
+  const [selectedWallId, setSelectedWallId] = useState<string | null>(null)
 
   /* ── Canvas ref for zoom-to-device ── */
   const canvasRef = useRef<{ zoomToDevice?: (devId: string) => void } | null>(null)
@@ -635,11 +637,12 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
             setWalls(prev => [...prev, { id: crypto.randomUUID(), points: pts }])
             toast.success('Wall created')
           }}
-          onWallDeleted={(id) => setWalls(prev => prev.filter(w => w.id !== id))}
+          onWallDeleted={(id) => { setWalls(prev => prev.filter(w => w.id !== id)); if (selectedWallId === id) setSelectedWallId(null) }}
           onMdfSelected={(id) => { setSelectedMdfId(id); setSelectedDeviceId(null) }}
           showIrRange={showIrRange}
           hiddenPpfZones={hiddenPpfZones}
           showBlindSpot={showBlindSpot}
+          onWallSelected={(id) => { setSelectedWallId(id); setSelectedDeviceId(null); setSelectedMdfId(null) }}
         />
 
         {/* ── RIGHT PANEL (300px, overlay) ── */}
@@ -691,6 +694,30 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
                   await deleteCable(cableId)
                 }}
                 onStartCableFromMdf={() => { setActiveTool('cable'); setSelectedMdfId(null) }}
+              />
+            </div>
+          )
+        })()}
+
+        {/* ── WALL RIGHT PANEL ── */}
+        {!selectedDevice && !selectedMdfId && selectedWallId && (() => {
+          const selectedWall = walls.find(w => w.id === selectedWallId)
+          if (!selectedWall) return null
+          return (
+            <div style={{
+              position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 10,
+              boxShadow: '-4px 0 20px rgba(0,0,0,0.5)',
+            }}>
+              <WallRightPanel
+                wall={selectedWall}
+                onClose={() => setSelectedWallId(null)}
+                onUpdateWall={(id, updates) => {
+                  setWalls(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w))
+                }}
+                onDelete={(id) => {
+                  setWalls(prev => prev.filter(w => w.id !== id))
+                  setSelectedWallId(null)
+                }}
               />
             </div>
           )
