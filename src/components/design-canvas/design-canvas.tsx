@@ -331,11 +331,31 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
     }
 
     const autoLabel = getNextLabel(effectiveCategory)
+
+    // Merge top-level catalog fields into properties so specs populate in right panel
+    const catalogSpecs: Record<string, unknown> = { ...(item.specs ?? {}) }
+    if (item.resolution) {
+      const [w, h] = item.resolution.split('x').map(Number)
+      if (w && h) { catalogSpecs.resolution_w = w; catalogSpecs.resolution_h = h }
+      catalogSpecs.resolution = item.resolution
+    }
+    if (item.poe_standard) catalogSpecs.poe_standard = item.poe_standard
+    if (item.wattage != null) catalogSpecs.wattage = item.wattage
+    if (item.ndaa_compliant != null) catalogSpecs.ndaa_compliant = item.ndaa_compliant
+    if (item.vendor) catalogSpecs.vendor = item.vendor
+    if (item.model) catalogSpecs.model = item.model
+    if (item.partnumber) catalogSpecs.partnumber = item.partnumber
+    // FPS comes as its own field (e.g. '30fps')
+    if (item.fps) {
+      const fpsNum = parseInt(item.fps, 10)
+      if (fpsNum) catalogSpecs.fps = fpsNum
+    }
+
     const dev = await addDevice({
       design_id: designId, area_id: activeAreaId, category: effectiveCategory,
       label: `${autoLabel} — ${item.vendor} ${item.model}`,
       position_x: 400, position_y: 300,
-      rotation: 0, properties: item.specs ?? {},
+      rotation: 0, properties: catalogSpecs,
       device_library_item_id: item.id,
     })
     if (dev) {

@@ -978,6 +978,7 @@ export interface DeviceSearchResult {
   model: string
   partnumber: string | null
   resolution: string | null
+  fps: string | null
   ndaa_compliant: boolean | null
   specs: Record<string, unknown> | null
   wattage: number | null

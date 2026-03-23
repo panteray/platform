@@ -410,12 +410,17 @@ export function RightPanel({
             <Section title="Device Specs" defaultOpen>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
                 {[
+                  ['Vendor', props.vendor || '—'],
+                  ['Model', props.model || '—'],
+                  ['Part #', props.partnumber || '—'],
+                  ['Max Res', props.resolution_w ? `${props.resolution_w}×${props.resolution_h}` : (props.resolution ? String(props.resolution) : '—')],
+                  ['FPS', props.fps ? `${props.fps}fps` : '—'],
+                  ['PoE', props.poe_standard || '—'],
+                  ['Power', props.wattage ? `${props.wattage}W` : (props.max_power ? `${props.max_power}W` : '—')],
+                  ['NDAA', props.ndaa_compliant === true ? '✓ Yes' : props.ndaa_compliant === false ? '✗ No' : '—'],
                   ['Sensor', props.sensor_size ? `${props.sensor_size}"` : '—'],
                   ['IR Range', props.ir_range ? `${props.ir_range}ft` : '—'],
-                  ['PoE', props.poe_standard || '—'],
-                  ['Max Power', props.max_power ? `${props.max_power}W` : '—'],
                   ['IP Rating', props.ip_rating || '—'],
-                  ['Max Res', props.resolution_w ? `${props.resolution_w}×${props.resolution_h}` : '—'],
                 ].map(([k, v]) => (
                   <div key={k as string} style={{ fontSize: 10 }}>
                     <span style={{ color: C.textDim }}>{k as string}: </span>
