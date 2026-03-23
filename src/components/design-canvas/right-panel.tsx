@@ -15,7 +15,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react'
-import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react'
+import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, Crosshair } from 'lucide-react'
 import { C } from './constants'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
 
@@ -65,6 +65,12 @@ interface Props {
   scalePxPerFt: number
   onChangeModel?: (id: string) => void
   mdfIdfs?: DesignMdfIdf[]
+  showIrRange?: boolean
+  onToggleIrRange?: (show: boolean) => void
+  hiddenPpfZones?: Set<string>
+  onTogglePpfZone?: (zone: string) => void
+  showBlindSpot?: boolean
+  onToggleBlindSpot?: (show: boolean) => void
 }
 
 /* ─── Slider+Input Combo (Hanwha pattern) ─── */
@@ -221,8 +227,104 @@ function ElevationDiagram({ installHeight, tiltAngle, targetDist, fovAngle }: {
   )
 }
 
+/* ─── Blind Spot Side-View Diagram ─── */
+function BlindSpotDiagram({ installHeight, tiltAngle, fovAngle }: {
+  installHeight: number; tiltAngle: number; fovAngle: number
+}) {
+  const W = 248, H = 120
+  const PAD_L = 20, PAD_R = 14, PAD_T = 10, PAD_B = 18
+  const drawW = W - PAD_L - PAD_R
+  const drawH = H - PAD_T - PAD_B
+
+  const maxVert = installHeight * 1.2
+  const maxHoriz = installHeight * 2    // show enough horizontal to see blind spot + some FOV
+  const scaleX = drawW / maxHoriz
+  const scaleY = drawH / maxVert
+
+  const groundY = PAD_T + drawH
+  const camX = PAD_L + installHeight * 0.3 * scaleX   // camera slightly right of left edge
+  const camY = groundY - installHeight * scaleY
+
+  // Vertical FOV ≈ hFOV * 0.75
+  const vFovHalf = (fovAngle * 0.75 / 2) * Math.PI / 180
+  const tiltRad = tiltAngle * Math.PI / 180
+  const upperAngle = tiltRad - vFovHalf
+  const lowerAngle = tiltRad + vFovHalf
+
+  // Blind spot = area from directly below camera to where the lower FOV edge hits ground
+  // Lower edge angle from horizontal: lowerAngle
+  // Distance from camera base to where lower FOV hits ground
+  const blindDist = lowerAngle < Math.PI / 2 ? installHeight * Math.tan(Math.PI / 2 - lowerAngle) : 0
+
+  // Upper edge distance (where the upper FOV edge hits ground)
+  const upperDist = upperAngle < Math.PI / 2 ? installHeight * Math.tan(Math.PI / 2 - upperAngle) : installHeight * 3
+
+  // FOV cone endpoints on ground
+  const coneLen = Math.max(upperDist, 30)
+  const fovUpX = camX + Math.cos(upperAngle) * coneLen * scaleX * 0.5
+  const fovUpY = camY + Math.sin(upperAngle) * coneLen * scaleX * 0.5
+  const fovLowX = camX + Math.cos(lowerAngle) * coneLen * scaleX * 0.5
+  const fovLowY = camY + Math.sin(lowerAngle) * coneLen * scaleX * 0.5
+
+  const blindEndX = camX + blindDist * scaleX
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', borderRadius: 4, background: C.bgActive }}>
+      {/* Ground */}
+      <line x1={PAD_L} y1={groundY} x2={W - PAD_R} y2={groundY} stroke={C.border} strokeWidth={1.5} />
+
+      {/* Camera vertical line */}
+      <line x1={camX} y1={groundY} x2={camX} y2={camY} stroke={C.textDim} strokeWidth={0.5} strokeDasharray="3,3" />
+
+      {/* Blind spot fill (orange) */}
+      {blindDist > 0 && (
+        <rect
+          x={camX} y={groundY - 4}
+          width={Math.max(0, blindEndX - camX)} height={4}
+          fill="#f97316" opacity={0.5} rx={1}
+        />
+      )}
+
+      {/* Blind spot area label */}
+      {blindDist > 0 && (
+        <>
+          <line x1={camX} y1={groundY + 6} x2={blindEndX} y2={groundY + 6}
+            stroke="#f97316" strokeWidth={1} />
+          <text x={(camX + blindEndX) / 2} y={groundY + 14} fontSize={7} fill="#f97316"
+            fontFamily="'IBM Plex Mono', monospace" textAnchor="middle" fontWeight={700}>
+            {blindDist.toFixed(1)}ft
+          </text>
+        </>
+      )}
+
+      {/* FOV cone */}
+      <polygon
+        points={`${camX},${camY} ${Math.min(fovUpX, W - PAD_R)},${Math.min(fovUpY, groundY)} ${Math.min(fovLowX, W - PAD_R)},${Math.min(fovLowY, groundY)}`}
+        fill={C.accent} opacity={0.12} stroke={C.accent} strokeWidth={0.5} strokeOpacity={0.4}
+      />
+
+      {/* Camera icon */}
+      <rect x={camX - 5} y={camY - 3} width={10} height={6} rx={1.5} fill={C.accent} />
+      <polygon points={`${camX + 5},${camY - 1.5} ${camX + 8},${camY} ${camX + 5},${camY + 1.5}`}
+        fill={C.accent} />
+
+      {/* "Blind Spot" label */}
+      {blindDist > 0 && (
+        <text x={camX + 4} y={groundY - 8} fontSize={6.5} fill="#f97316"
+          fontFamily="'IBM Plex Mono', monospace" fontWeight={600}>
+          blind spot
+        </text>
+      )}
+    </svg>
+  )
+}
+
 /* ─── Component ─── */
-export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDelete, scalePxPerFt, mdfIdfs }: Props) {
+export function RightPanel({
+  device, onClose, onUpdateDevice, onDuplicate, onDelete, scalePxPerFt, mdfIdfs,
+  showIrRange = true, onToggleIrRange, hiddenPpfZones, onTogglePpfZone,
+  showBlindSpot = false, onToggleBlindSpot,
+}: Props) {
   const props = (device.properties ?? {}) as Record<string, unknown>
   const isCamera = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(device.category)
 
@@ -457,6 +559,161 @@ export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDel
                 fovAngle={fovAngle}
               />
             </div>
+
+            {/* ── Advanced Lens / IR ── */}
+            <Section title="Advanced Lens / IR">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* IR Range Toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Crosshair size={12} style={{ color: '#ef4444' }} />
+                    <span style={{ fontSize: 10, fontWeight: 600, color: C.text }}>IR Range Line</span>
+                    {props.ir_range ? (
+                      <span style={{ fontSize: 9, color: C.textDim, fontFamily: 'monospace' }}>
+                        {String(props.ir_range)}ft
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    onClick={() => onToggleIrRange?.(!showIrRange)}
+                    style={{
+                      width: 36, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer',
+                      background: showIrRange ? '#ef4444' : C.bgActive,
+                      position: 'relative', transition: 'background 0.2s',
+                    }}
+                  >
+                    <div style={{
+                      width: 14, height: 14, borderRadius: '50%', background: '#fff',
+                      position: 'absolute', top: 2,
+                      left: showIrRange ? 20 : 2,
+                      transition: 'left 0.2s',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                    }} />
+                  </button>
+                </div>
+
+                {/* PPF Zone Visibility */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.text, marginBottom: 4 }}>PPF Zones</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {[
+                      { zone: 'identification', label: 'Identification', color: '#22c55e', ppf: '76+ PPF' },
+                      { zone: 'recognition', label: 'Recognition / LPR', color: '#eab308', ppf: '38–75 PPF' },
+                      { zone: 'observation', label: 'Observation', color: '#f97316', ppf: '19–37 PPF' },
+                      { zone: 'detection', label: 'Detection', color: '#ef4444', ppf: '8–18 PPF' },
+                    ].map(z => {
+                      const hidden = hiddenPpfZones?.has(z.zone) ?? false
+                      return (
+                        <button
+                          key={z.zone}
+                          onClick={() => onTogglePpfZone?.(z.zone)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px',
+                            background: hidden ? 'transparent' : `${z.color}10`,
+                            border: `1px solid ${hidden ? C.border : z.color + '30'}`,
+                            borderRadius: 4, cursor: 'pointer', width: '100%',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          {hidden ? <EyeOff size={10} style={{ color: C.textDim }} /> : <Eye size={10} style={{ color: z.color }} />}
+                          <div style={{
+                            width: 8, height: 8, borderRadius: 2,
+                            background: hidden ? C.bgActive : z.color,
+                            opacity: hidden ? 0.5 : 1,
+                          }} />
+                          <span style={{ fontSize: 9, fontWeight: 600, color: hidden ? C.textDim : z.color, flex: 1, textAlign: 'left' }}>
+                            {z.label}
+                          </span>
+                          <span style={{ fontSize: 8, color: C.textDim, fontFamily: 'monospace' }}>{z.ppf}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Lens Info */}
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px',
+                  padding: '6px 8px', background: C.bgActive, borderRadius: 4,
+                  border: `1px solid ${C.border}`,
+                }}>
+                  {[
+                    ['Focal', `${focalLength}mm`],
+                    ['FOV', `${fovAngle}°`],
+                    ['Sensor', props.sensor_size ? `${props.sensor_size}"` : '—'],
+                    ['IR', props.ir_range ? `${props.ir_range}ft` : 'N/A'],
+                  ].map(([k, v]) => (
+                    <div key={k as string} style={{ fontSize: 9 }}>
+                      <span style={{ color: C.textDim }}>{k as string}: </span>
+                      <span style={{ color: C.text, fontWeight: 600, fontFamily: 'monospace' }}>{v as string}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Section>
+
+            {/* ── Blind Spot ── */}
+            <Section title="Blind Spot">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: C.text }}>Show Blind Spot on Canvas</span>
+                  <button
+                    onClick={() => onToggleBlindSpot?.(!showBlindSpot)}
+                    style={{
+                      width: 36, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer',
+                      background: showBlindSpot ? C.accent : C.bgActive,
+                      position: 'relative', transition: 'background 0.2s',
+                    }}
+                  >
+                    <div style={{
+                      width: 14, height: 14, borderRadius: '50%', background: '#fff',
+                      position: 'absolute', top: 2,
+                      left: showBlindSpot ? 20 : 2,
+                      transition: 'left 0.2s',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                    }} />
+                  </button>
+                </div>
+
+                {/* Blind Spot Side Diagram */}
+                <BlindSpotDiagram
+                  installHeight={installHeight}
+                  tiltAngle={tiltAngle}
+                  fovAngle={fovAngle}
+                />
+
+                {/* Computed values */}
+                {(() => {
+                  const vFovHalf = (fovAngle * 0.75 / 2) * Math.PI / 180
+                  const tiltRad = tiltAngle * Math.PI / 180
+                  const lowerAngle = tiltRad + vFovHalf
+                  const blindRadius = lowerAngle < Math.PI / 2 ? installHeight * Math.tan(Math.PI / 2 - lowerAngle) : 0
+                  return (
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px',
+                      padding: '6px 8px', background: C.bgActive, borderRadius: 4,
+                      border: `1px solid ${C.border}`,
+                    }}>
+                      <div style={{ fontSize: 9 }}>
+                        <span style={{ color: C.textDim }}>Height: </span>
+                        <span style={{ color: C.text, fontWeight: 600, fontFamily: 'monospace' }}>{installHeight}ft</span>
+                      </div>
+                      <div style={{ fontSize: 9 }}>
+                        <span style={{ color: C.textDim }}>Tilt: </span>
+                        <span style={{ color: C.text, fontWeight: 600, fontFamily: 'monospace' }}>{tiltAngle}°</span>
+                      </div>
+                      <div style={{ fontSize: 9, gridColumn: '1 / -1' }}>
+                        <span style={{ color: C.textDim }}>Blind Spot Radius: </span>
+                        <span style={{ color: '#f97316', fontWeight: 700, fontFamily: 'monospace' }}>
+                          {blindRadius > 0 ? `${blindRadius.toFixed(1)}ft` : 'None'}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            </Section>
 
             {/* ── Device Specs (read-only) ── */}
             <Section title="Device Specs">
