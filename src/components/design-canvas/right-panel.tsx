@@ -15,9 +15,9 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react'
-import { X, Copy, Trash2 } from 'lucide-react'
+import { X, Copy, Trash2, Cable } from 'lucide-react'
 import { C } from './constants'
-import type { DesignDevice } from '@/types/database'
+import type { DesignDevice, DesignMdfIdf } from '@/types/database'
 
 /* ─── Props ─── */
 interface Props {
@@ -28,6 +28,7 @@ interface Props {
   onDelete: (id: string) => void
   scalePxPerFt: number
   onChangeModel?: (id: string) => void
+  mdfIdfs?: DesignMdfIdf[]
 }
 
 /* ─── Slider+Input Combo (Hanwha pattern) ─── */
@@ -84,8 +85,108 @@ function ParamRow({ label, value, min, max, step, unit, onChange }: {
   )
 }
 
+/* ─── Elevation View SVG (side-profile) ─── */
+function ElevationDiagram({ installHeight, tiltAngle, targetDist, fovAngle }: {
+  installHeight: number; tiltAngle: number; targetDist: number; fovAngle: number
+}) {
+  const W = 248, H = 140
+  const PAD_L = 30, PAD_R = 14, PAD_T = 14, PAD_B = 22
+  const drawW = W - PAD_L - PAD_R
+  const drawH = H - PAD_T - PAD_B
+
+  // Scale to fit: max of installHeight and targetDist
+  const personH = 5.5 // ft
+  const maxVert = Math.max(installHeight, personH) * 1.15
+  const maxHoriz = Math.max(targetDist, 5) * 1.1
+  const scaleX = drawW / maxHoriz
+  const scaleY = drawH / maxVert
+
+  const groundY = PAD_T + drawH
+  const camX = PAD_L
+  const camY = groundY - installHeight * scaleY
+
+  // Target point
+  const targetX = PAD_L + targetDist * scaleX
+  const targetY = groundY
+
+  // FOV cone from side view (using vertical FOV ≈ fovAngle * 0.75)
+  const vFovHalf = (fovAngle * 0.75 / 2) * Math.PI / 180
+  const tiltRad = tiltAngle * Math.PI / 180
+  const coneLen = targetDist * scaleX
+
+  // Upper and lower edges of FOV cone
+  const upperAngle = tiltRad - vFovHalf
+  const lowerAngle = tiltRad + vFovHalf
+  const cone1X = camX + Math.cos(upperAngle) * coneLen
+  const cone1Y = camY + Math.sin(upperAngle) * coneLen
+  const cone2X = camX + Math.cos(lowerAngle) * coneLen
+  const cone2Y = camY + Math.sin(lowerAngle) * coneLen
+
+  // Person silhouette at target
+  const personTop = groundY - personH * scaleY
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', borderRadius: 4, background: C.bgActive }}>
+      {/* Grid lines */}
+      <line x1={PAD_L} y1={groundY} x2={W - PAD_R} y2={groundY} stroke={C.border} strokeWidth={1.5} />
+      <line x1={PAD_L} y1={PAD_T} x2={PAD_L} y2={groundY} stroke={C.border} strokeWidth={0.5} strokeDasharray="3,3" />
+
+      {/* FOV cone (translucent triangle) */}
+      <polygon
+        points={`${camX},${camY} ${cone1X},${Math.min(cone1Y, groundY)} ${cone2X},${Math.min(cone2Y, groundY)}`}
+        fill={C.accent} opacity={0.12} stroke={C.accent} strokeWidth={0.5} strokeOpacity={0.4}
+      />
+
+      {/* Cone center line (dashed) */}
+      <line x1={camX} y1={camY} x2={targetX} y2={groundY}
+        stroke={C.accent} strokeWidth={0.5} strokeDasharray="4,3" opacity={0.5} />
+
+      {/* Camera icon (small rect + triangle) */}
+      <rect x={camX - 6} y={camY - 4} width={12} height={8} rx={1.5}
+        fill={C.accent} stroke="none" />
+      <polygon points={`${camX + 6},${camY - 2} ${camX + 10},${camY} ${camX + 6},${camY + 2}`}
+        fill={C.accent} />
+
+      {/* Person silhouette at target distance */}
+      <line x1={targetX} y1={groundY} x2={targetX} y2={personTop}
+        stroke="#22c55e" strokeWidth={1.5} strokeLinecap="round" />
+      <circle cx={targetX} cy={personTop - 3} r={3} fill="#22c55e" />
+
+      {/* Height dimension line (left side) */}
+      <line x1={PAD_L - 8} y1={groundY} x2={PAD_L - 8} y2={camY}
+        stroke={C.textDim} strokeWidth={0.5} markerStart="url(#arrowUp)" markerEnd="url(#arrowDown)" />
+      <text x={2} y={(groundY + camY) / 2 + 3} fontSize={7} fill={C.textMuted}
+        fontFamily="'IBM Plex Mono', monospace" textAnchor="start">
+        {installHeight}ft
+      </text>
+
+      {/* Distance label (bottom) */}
+      <line x1={camX} y1={groundY + 10} x2={targetX} y2={groundY + 10}
+        stroke={C.textDim} strokeWidth={0.5} />
+      <text x={(camX + targetX) / 2} y={groundY + 18} fontSize={7} fill={C.textMuted}
+        fontFamily="'IBM Plex Mono', monospace" textAnchor="middle">
+        {targetDist}ft
+      </text>
+
+      {/* Person height label */}
+      <text x={targetX + 8} y={(groundY + personTop) / 2 + 3} fontSize={6.5} fill="#22c55e"
+        fontFamily="'IBM Plex Mono', monospace">
+        {personH}ft
+      </text>
+
+      {/* Tilt label */}
+      {tiltAngle !== 0 && (
+        <text x={camX + 16} y={camY - 8} fontSize={7} fill={C.accent}
+          fontFamily="'IBM Plex Mono', monospace">
+          {tiltAngle}°
+        </text>
+      )}
+    </svg>
+  )
+}
+
 /* ─── Component ─── */
-export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDelete, scalePxPerFt }: Props) {
+export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDelete, scalePxPerFt, mdfIdfs }: Props) {
   const props = (device.properties ?? {}) as Record<string, unknown>
   const isCamera = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(device.category)
 
@@ -198,6 +299,17 @@ export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDel
                 })}
               </div>
             </div>
+
+            {/* ── Elevation View (side-profile SVG) ── */}
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>Elevation View</div>
+              <ElevationDiagram
+                installHeight={installHeight}
+                tiltAngle={tiltAngle}
+                targetDist={targetDist}
+                fovAngle={fovAngle}
+              />
+            </div>
           </>
         )}
 
@@ -217,13 +329,37 @@ export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDel
           />
         </div>
 
-        {/* Position (read-only) */}
+        {/* Position + Auto Cable Distance */}
         <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Position</div>
            <div style={{ display: 'flex', gap: 8, fontSize: 11, color: C.textMuted, fontFamily: 'monospace' }}>
             <span>X: {device.position_x}</span>
             <span>Y: {device.position_y}</span>
           </div>
+
+          {/* Auto cable distance to nearest MDF/IDF */}
+          {mdfIdfs && mdfIdfs.length > 0 && (() => {
+            let nearest = Infinity
+            let nearestName = ''
+            for (const node of mdfIdfs) {
+              const dx = device.position_x - node.position_x
+              const dy = device.position_y - node.position_y
+              const distPx = Math.sqrt(dx * dx + dy * dy)
+              const distFt = distPx / (scalePxPerFt || 10)
+              if (distFt < nearest) { nearest = distFt; nearestName = node.name || 'MDF/IDF' }
+            }
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '6px 8px', background: C.bgActive, borderRadius: 4, border: `1px solid ${C.border}` }}>
+                <Cable size={12} style={{ color: C.accent, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 10, color: C.textDim }}>Est. cable to {nearestName}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: 'monospace' }}>
+                    {Math.round(nearest)} ft
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       </div>
 

@@ -575,6 +575,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
               onDuplicate={handleDeviceCopy}
               onDelete={handleDeviceDelete}
               scalePxPerFt={scalePxPerFt}
+              mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
             />
           </div>
         )}
