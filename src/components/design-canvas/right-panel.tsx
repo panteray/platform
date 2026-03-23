@@ -15,9 +15,45 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react'
-import { X, Copy, Trash2, Cable } from 'lucide-react'
+import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react'
 import { C } from './constants'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
+
+/* ─── 48 Color Palette ─── */
+const COLOR_PALETTE = [
+  '#ef4444','#f97316','#f59e0b','#eab308','#84cc16','#22c55e',
+  '#14b8a6','#06b6d4','#0ea5e9','#3b82f6','#6366f1','#8b5cf6',
+  '#a855f7','#d946ef','#ec4899','#f43f5e','#dc2626','#ea580c',
+  '#d97706','#ca8a04','#65a30d','#16a34a','#0d9488','#0891b2',
+  '#0284c7','#2563eb','#4f46e5','#7c3aed','#9333ea','#c026d3',
+  '#db2777','#e11d48','#991b1b','#9a3412','#92400e','#854d0e',
+  '#3f6212','#166534','#115e59','#155e75','#075985','#1e40af',
+  '#3730a3','#5b21b6','#6b21a8','#86198f','#9d174d','#9f1239',
+]
+
+/* ─── Collapsible Section ─── */
+function Section({ title, defaultOpen = false, children }: {
+  title: string; defaultOpen?: boolean; children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
+      <button onClick={() => setOpen(!open)} style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+        padding: '8px 16px', background: 'none', border: 'none',
+        color: C.text, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+        fontFamily: 'inherit', textAlign: 'left',
+      }}>
+        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        {title}
+      </button>
+      {open && <div style={{ padding: '0 16px 10px' }}>{children}</div>}
+    </div>
+  )
+}
+
+/* ─── Mount Types ─── */
+const MOUNT_TYPES = ['Ceiling', 'Wall', 'Pole', 'Pendant'] as const
 
 /* ─── Props ─── */
 interface Props {
@@ -242,9 +278,57 @@ export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDel
             }} />
         </div>
 
-        {/* Camera-specific sliders */}
+        {/* ── Color Picker ── */}
+        <div style={{ padding: '8px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Color</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+            {COLOR_PALETTE.map(c => (
+              <button key={c} onClick={() => onUpdateDevice(device.id, { color_hex: c })}
+                style={{
+                  width: 16, height: 16, borderRadius: 3, background: c, border: 'none', cursor: 'pointer',
+                  outline: (device as unknown as Record<string, unknown>).color_hex === c ? '2px solid #fff' : 'none',
+                  outlineOffset: 1,
+                }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Camera-specific sections */}
         {isCamera && (
           <>
+            {/* ── Mount Type ── */}
+            <div style={{ padding: '8px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Mount Type</div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {MOUNT_TYPES.map(mt => {
+                  const active = (props.mount_type || 'Ceiling') === mt
+                  return (
+                    <button key={mt} onClick={() => updateProp('mount_type', mt)}
+                      style={{
+                        flex: 1, padding: '5px 0', fontSize: 9, fontWeight: 600,
+                        borderRadius: 4, border: `1px solid ${active ? C.accent : C.border}`,
+                        background: active ? `${C.accent}20` : 'transparent',
+                        color: active ? C.accent : C.textMuted, cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}>
+                      {mt}
+                    </button>
+                  )
+                })}
+              </div>
+              {installHeight > 12 && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 4, marginTop: 6,
+                  padding: '4px 8px', borderRadius: 4,
+                  background: '#f59e0b15', border: '1px solid #f59e0b30',
+                }}>
+                  <AlertTriangle size={12} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                  <span style={{ fontSize: 9, fontWeight: 600, color: '#f59e0b' }}>LIFT REQUIRED — {installHeight}ft</span>
+                </div>
+              )}
+            </div>
+
+          {/* Camera-specific sliders */}
             <div style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
               <ParamRow label="Focal Length" value={focalLength}
                 min={1} max={300} step={0.5} unit="mm"
@@ -298,6 +382,28 @@ export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDel
                   )
                 })}
               </div>
+
+              {/* PPF Quality Reference Chart */}
+              <div style={{ marginTop: 8 }}>
+                {[
+                  { ppf: '100+', label: 'Facial Recognition', color: '#22c55e' },
+                  { ppf: '76–99', label: 'Identification', color: '#22c55e' },
+                  { ppf: '38–75', label: 'Recognition / LPR', color: '#eab308' },
+                  { ppf: '19–37', label: 'Observation', color: '#f97316' },
+                  { ppf: '8–18', label: 'Detection', color: '#ef4444' },
+                  { ppf: '4–7', label: 'Monitor (general)', color: '#ef444480' },
+                  { ppf: '0–3', label: 'Monitor Only', color: '#ef444450' },
+                ].map((row, i) => (
+                  <div key={i} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '2px 6px', fontSize: 8, borderRadius: 2,
+                    background: i === 0 ? `${row.color}15` : 'transparent',
+                  }}>
+                    <span style={{ color: row.color, fontWeight: 600, fontFamily: 'monospace', width: 36 }}>{row.ppf}</span>
+                    <span style={{ color: C.textDim, flex: 1, textAlign: 'right' }}>{row.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* ── Elevation View (side-profile SVG) ── */}
@@ -310,6 +416,115 @@ export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDel
                 fovAngle={fovAngle}
               />
             </div>
+
+            {/* ── Device Specs (read-only) ── */}
+            <Section title="Device Specs">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
+                {[
+                  ['Sensor', props.sensor_size ? `${props.sensor_size}"` : '—'],
+                  ['IR Range', props.ir_range ? `${props.ir_range}ft` : '—'],
+                  ['PoE', props.poe_standard || '—'],
+                  ['Max Power', props.max_power ? `${props.max_power}W` : '—'],
+                  ['IP Rating', props.ip_rating || '—'],
+                  ['Max Res', props.resolution_w ? `${props.resolution_w}×${props.resolution_h}` : '—'],
+                ].map(([k, v]) => (
+                  <div key={k as string} style={{ fontSize: 10 }}>
+                    <span style={{ color: C.textDim }}>{k as string}: </span>
+                    <span style={{ color: C.text, fontWeight: 600, fontFamily: 'monospace' }}>{v as string}</span>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            {/* ── Wiring ── */}
+            <Section title="Wiring">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[
+                  { key: 'cable_type', label: 'Cable Type', ph: 'Cat6, Cat6a…' },
+                  { key: 'switch_assignment', label: 'Switch', ph: 'SW-01' },
+                  { key: 'port_assignment', label: 'Port', ph: 'Port 1' },
+                  { key: 'cable_length', label: 'Cable Length (ft)', ph: '125' },
+                ].map(f => (
+                  <div key={f.key}>
+                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>{f.label}</div>
+                    <input value={String(props[f.key] || '')} placeholder={f.ph}
+                      onChange={e => updateProp(f.key, e.target.value)}
+                      style={{
+                        width: '100%', padding: '4px 8px', background: C.bgActive,
+                        border: `1px solid ${C.border}`, borderRadius: 3,
+                        color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none',
+                      }} />
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            {/* ── Recording / Programming ── */}
+            <Section title="Recording">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {/* Codec */}
+                <div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Codec</div>
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    {['H.264', 'H.264+', 'H.265'].map(c => {
+                      const active = (props.codec || 'H.265') === c
+                      return (
+                        <button key={c} onClick={() => updateProp('codec', c)}
+                          style={{
+                            flex: 1, padding: '3px 0', fontSize: 9, fontWeight: 500,
+                            borderRadius: 3, border: `1px solid ${active ? C.accent : C.border}`,
+                            background: active ? `${C.accent}20` : 'transparent',
+                            color: active ? C.accent : C.textMuted, cursor: 'pointer',
+                            fontFamily: 'inherit',
+                          }}>{c}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+                {/* Recording Mode */}
+                <div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Recording Mode</div>
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    {['Continuous', 'Motion', 'Motion+Obj', 'None'].map(m => {
+                      const active = (props.recording_mode || 'Continuous') === m
+                      return (
+                        <button key={m} onClick={() => updateProp('recording_mode', m)}
+                          style={{
+                            flex: 1, padding: '3px 0', fontSize: 8, fontWeight: 500,
+                            borderRadius: 3, border: `1px solid ${active ? C.accent : C.border}`,
+                            background: active ? `${C.accent}20` : 'transparent',
+                            color: active ? C.accent : C.textMuted, cursor: 'pointer',
+                            fontFamily: 'inherit',
+                          }}>{m}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+                {/* FPS + Retention */}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>FPS</div>
+                    <input type="number" value={Number(props.recording_fps) || 15}
+                      onChange={e => updateProp('recording_fps', Number(e.target.value))}
+                      style={{
+                        width: '100%', padding: '4px 8px', background: C.bgActive,
+                        border: `1px solid ${C.border}`, borderRadius: 3,
+                        color: C.text, fontSize: 10, fontFamily: 'monospace', outline: 'none',
+                      }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Retention (days)</div>
+                    <input type="number" value={Number(props.retention_days) || 30}
+                      onChange={e => updateProp('retention_days', Number(e.target.value))}
+                      style={{
+                        width: '100%', padding: '4px 8px', background: C.bgActive,
+                        border: `1px solid ${C.border}`, borderRadius: 3,
+                        color: C.text, fontSize: 10, fontFamily: 'monospace', outline: 'none',
+                      }} />
+                  </div>
+                </div>
+              </div>
+            </Section>
           </>
         )}
 
