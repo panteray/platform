@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyDesignAccess } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+const CAMERA_SUBCATS = new Set(['dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'])
+
 // GET /api/org/designs/[id]/devices/[deviceId]
 export async function GET(
   _request: NextRequest,
@@ -72,6 +74,14 @@ export async function PATCH(
     return NextResponse.json({ error: 'No updatable fields' }, { status: 400 })
   }
 
+  // Map camera subcategories to valid DB enum
+  if (allowed.category && CAMERA_SUBCATS.has(allowed.category as string)) {
+    const subCat = allowed.category as string
+    allowed.category = 'cctv'
+    const existingProps = (allowed.properties ?? {}) as Record<string, unknown>
+    allowed.properties = { ...existingProps, sub_category: subCat }
+  }
+
   allowed.updated_at = new Date().toISOString()
 
   const { data: device, error } = await admin
@@ -83,5 +93,12 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ device })
+  // Restore effective subcategory for frontend
+  const result = device as Record<string, unknown>
+  const devProps = (result.properties ?? {}) as Record<string, unknown>
+  if (devProps.sub_category && typeof devProps.sub_category === 'string') {
+    result.category = devProps.sub_category
+  }
+
+  return NextResponse.json({ device: result })
 }

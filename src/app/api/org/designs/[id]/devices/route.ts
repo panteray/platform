@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyDesignAccess } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Camera subcategories that the frontend sends but aren't in the DB enum
+const CAMERA_SUBCATS = new Set(['dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'])
+
 // GET /api/org/designs/[id]/devices?area_id=xxx
 export async function GET(
   request: NextRequest,
@@ -66,6 +69,14 @@ export async function GET(
     }
   }
 
+  // Restore effective subcategory from properties.sub_category → category
+  for (const d of devices) {
+    const props = (d.properties ?? {}) as Record<string, unknown>
+    if (props.sub_category && typeof props.sub_category === 'string') {
+      d.category = props.sub_category
+    }
+  }
+
   return NextResponse.json({ devices })
 }
 
@@ -106,6 +117,14 @@ export async function POST(
     label = `${prefix}-${String(num).padStart(3, '0')}`
   }
 
+  // Map camera subcategories to the valid DB enum 'cctv'
+  let dbCategory = body.category || 'other'
+  let properties = body.properties || {}
+  if (CAMERA_SUBCATS.has(dbCategory)) {
+    properties = { ...properties, sub_category: dbCategory }
+    dbCategory = 'cctv'
+  }
+
   const { data: device, error } = await admin
     .from('design_devices')
     .insert({
@@ -114,7 +133,7 @@ export async function POST(
       area_id: body.area_id || null,
       canvas_id: body.canvas_id || null,
       device_library_item_id: body.device_library_item_id || null,
-      category: body.category || 'other',
+      category: dbCategory,
       label,
       position_x: body.position_x ?? 0,
       position_y: body.position_y ?? 0,
@@ -123,7 +142,7 @@ export async function POST(
       mount_type: body.mount_type || null,
       color_hex: body.color_hex || null,
       rotation: body.rotation ?? 0,
-      properties: body.properties || {},
+      properties,
       asset_type: body.asset_type || 'capital',
       billing_type: body.billing_type || 'one_time',
       recurring_cost: body.recurring_cost ?? 0,
@@ -134,7 +153,14 @@ export async function POST(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ device }, { status: 201 })
+  // Restore effective subcategory for frontend
+  const result = device as Record<string, unknown>
+  const deviceProps = (result.properties ?? {}) as Record<string, unknown>
+  if (deviceProps.sub_category && typeof deviceProps.sub_category === 'string') {
+    result.category = deviceProps.sub_category
+  }
+
+  return NextResponse.json({ device: result }, { status: 201 })
 }
 
 // DELETE /api/org/designs/[id]/devices?device_id=xxx
