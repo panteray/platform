@@ -616,13 +616,10 @@ export function CanvasArea({
           if (svgStr) {
             const res = await fm.loadSVGFromString(svgStr)
             const ico = fm.util.groupSVGElements(res.objects.filter(Boolean) as FabricObject[], res.options)
-            const lbl = new fm.FabricText(dev.label || '', {
-              left: 0, top: 22, fontSize: 10, fill: C.textMuted,
-              fontFamily: "'IBM Plex Sans', sans-serif", originX: 'center', originY: 'top',
-            })
-            obj = new fm.Group([ico, lbl], {
+            // IPVM-style: small icon, no label cluttering the canvas
+            obj = new fm.Group([ico], {
               left: dev.position_x, top: dev.position_y,
-              originX: 'center', originY: 'center', scaleX: 0.6, scaleY: 0.6,
+              originX: 'center', originY: 'center', scaleX: 0.35, scaleY: 0.35,
               hasControls: false, hasBorders: false, lockRotation: true,
               selectable: true, evented: true,
               hoverCursor: 'move', moveCursor: 'move',
@@ -683,13 +680,28 @@ export function CanvasArea({
         const halfAng = (data.hFov / 2) * Math.PI / 180
         const rotRad = (dev.rotation || 0) * Math.PI / 180
 
-        // Draw tiers (outermost first)
+        // PTZ pan circle — IPVM-style large gray circle showing 360° range
+        if (dev.category === 'ptz') {
+          const panR = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
+          if (panR > 5) {
+            const panCircle = new fm.Circle({
+              left: cx, top: cy, radius: panR,
+              fill: 'rgba(128,128,128,0.12)', stroke: 'rgba(128,128,128,0.25)',
+              strokeWidth: 1, originX: 'center', originY: 'center',
+              selectable: false, evented: false,
+            })
+            c.add(panCircle)
+            objects.push(panCircle)
+          }
+        }
+
+        // Draw tiers (outermost first, IPVM-style graduated opacity)
         for (let t = 0; t < data.tiers.length; t++) {
           const tier = data.tiers[t]
           const r = tier.distanceFt * (scalePxPerFt || 10)
           if (r < 2) continue
 
-          // Build cone polygon
+          // Build cone polygon (24-step arc)
           const steps = 24
           const pts: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
           for (let i = 0; i <= steps; i++) {
@@ -700,16 +712,29 @@ export function CanvasArea({
           let fillColor = data.colorHex || C.accent
           if (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') fillColor = tier.color
 
+          // IPVM: inner tiers darker (higher PPF), outer tiers lighter
+          const gradOpacity = tier.opacity * (1 + (data.tiers.length - 1 - t) * 0.15)
+
           const cone = new fm.Polygon(pts, {
-            fill: fillColor, opacity: tier.opacity,
-            stroke: t === 0 ? fillColor : 'transparent',
-            strokeWidth: t === 0 ? 1 : 0,
-            strokeDashArray: t === 0 ? [4, 4] : undefined,
-            strokeOpacity: 0.3,
+            fill: fillColor, opacity: Math.min(0.7, gradOpacity),
+            // IPVM: dark solid stroke on outermost cone border
+            stroke: t === 0 ? 'rgba(0,0,0,0.35)' : 'transparent',
+            strokeWidth: t === 0 ? 1.5 : 0,
             selectable: false, evented: false,
           })
           c.add(cone)
           objects.push(cone)
+        }
+
+        // ── RED CENTERLINE (IPVM-style) ──
+        const outerRForLine = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
+        if (outerRForLine > 5) {
+          const centerLine = new fm.Line(
+            [cx, cy, cx + Math.cos(rotRad) * outerRForLine, cy + Math.sin(rotRad) * outerRForLine],
+            { stroke: '#e53e3e', strokeWidth: 2, selectable: false, evented: false, opacity: 0.85 }
+          )
+          c.add(centerLine)
+          objects.push(centerLine)
         }
 
         // ── HANDLES (selected device only) ──
@@ -744,14 +769,28 @@ export function CanvasArea({
             })
             c.add(dLabel); objects.push(dLabel)
 
-            // Handles 2 & 3: Angle (orange circles at cone edge)
+            // IPVM-style: Person silhouette icon on centerline above distance handle
+            const personSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="18" viewBox="0 0 12 18"><circle cx="6" cy="3" r="2.5" fill="#333"/><path d="M2 7h8l-1.5 6H7l-.5 5h-1L5 13H3.5z" fill="#333"/></svg>`
+            try {
+              const pRes = await fm.loadSVGFromString(personSvg)
+              const personIcon = fm.util.groupSVGElements(pRes.objects.filter(Boolean) as FabricObject[], pRes.options)
+              personIcon.set({
+                left: dh_x + Math.cos(rotRad - Math.PI / 2) * 14,
+                top: dh_y + Math.sin(rotRad - Math.PI / 2) * 14,
+                originX: 'center', originY: 'center',
+                scaleX: 0.8, scaleY: 0.8,
+                selectable: false, evented: false,
+              })
+              c.add(personIcon); objects.push(personIcon)
+            } catch { /* ok */ }
+
+            // IPVM-style HAoV handles: black circles with white border at arc corners
             if (onFovAngleChanged) {
-              const edgeR = outerR * 0.85
               for (const side of [-1, 1]) {
                 const a = rotRad + side * halfAng
                 const handle = new fm.Circle({
-                  left: cx + Math.cos(a) * edgeR, top: cy + Math.sin(a) * edgeR,
-                  radius: 6, fill: '#f97316', stroke: '#fff', strokeWidth: 2,
+                  left: cx + Math.cos(a) * outerR, top: cy + Math.sin(a) * outerR,
+                  radius: 5.5, fill: '#222', stroke: '#fff', strokeWidth: 2,
                   originX: 'center', originY: 'center',
                   selectable: true, evented: true,
                   hasControls: false, hasBorders: false,
@@ -768,7 +807,7 @@ export function CanvasArea({
               const aLabel = new fm.FabricText(`${Math.round(data.hFov)}°`, {
                 left: cx + Math.cos(rotRad) * outerR * 0.4,
                 top: cy + Math.sin(rotRad) * outerR * 0.4 - 12,
-                fontSize: 10, fontWeight: '600', fill: '#f97316',
+                fontSize: 10, fontWeight: '600', fill: '#e53e3e',
                 fontFamily: "'IBM Plex Mono', monospace",
                 originX: 'center', originY: 'center',
                 selectable: false, evented: false,
