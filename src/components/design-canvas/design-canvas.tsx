@@ -34,6 +34,7 @@ import { C, PPF_CHART, type CanvasTool, type IconTabId, ICON_TABS } from './cons
 import { CanvasArea, type DeviceFovData } from './canvas-area'
 import { LeftPanel } from './left-panel'
 import { RightPanel } from './right-panel'
+import { MdfRightPanel } from './mdf-right-panel'
 import { DeviceCatalogModal } from './device-catalog-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { getFovConeTiers } from '@/lib/calculators'
@@ -71,7 +72,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
     setActiveAreaId, setSelectedDeviceId,
     addArea, updateArea, deleteArea, uploadFloorPlan,
     addDevice, updateDevice, deleteDevice,
-    addCable, addInfrastructure, updateInfrastructure, deleteInfrastructure,
+    addCable, deleteCable, addInfrastructure, updateInfrastructure, deleteInfrastructure,
   } = state
 
   /* ── UI state ── */
@@ -87,6 +88,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
   const [walls, setWalls] = useState<Array<{ id: string; points: Array<{ x: number; y: number }> }>>([])
+  const [selectedMdfId, setSelectedMdfId] = useState<string | null>(null)
 
   /* ── Canvas ref for zoom-to-device ── */
   const canvasRef = useRef<{ zoomToDevice?: (devId: string) => void } | null>(null)
@@ -580,7 +582,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           showFovCones={showFov}
           fovData={fovData}
           scalePxPerFt={scalePxPerFt}
-          onSelectDevice={handleSelectDevice}
+          onSelectDevice={(id) => { handleSelectDevice(id); setSelectedMdfId(null) }}
           onDeviceMoved={handleDeviceMoved}
           onDeviceRotated={handleDeviceRotated}
           onDeviceCopy={handleDeviceCopy}
@@ -609,6 +611,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
             toast.success('Wall created')
           }}
           onWallDeleted={(id) => setWalls(prev => prev.filter(w => w.id !== id))}
+          onMdfSelected={(id) => { setSelectedMdfId(id); setSelectedDeviceId(null) }}
         />
 
         {/* ── RIGHT PANEL (300px, overlay) ── */}
@@ -628,6 +631,32 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
             />
           </div>
         )}
+
+        {/* ── MDF RIGHT PANEL ── */}
+        {!selectedDevice && selectedMdfId && (() => {
+          const selectedMdf = mdfIdfs.find(m => m.id === selectedMdfId)
+          if (!selectedMdf) return null
+          return (
+            <div style={{
+              position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 10,
+              boxShadow: '-4px 0 20px rgba(0,0,0,0.5)',
+            }}>
+              <MdfRightPanel
+                mdf={selectedMdf}
+                cables={areaCables}
+                devices={areaDevices}
+                scalePxPerFt={scalePxPerFt}
+                onClose={() => setSelectedMdfId(null)}
+                onDelete={async (id) => { await deleteInfrastructure(id); setSelectedMdfId(null) }}
+                onUpdateMdf={async (id, updates) => { await updateInfrastructure(id, updates) }}
+                onDisconnectDevice={async (cableId) => {
+                  await deleteCable(cableId)
+                }}
+                onStartCableFromMdf={() => { setActiveTool('cable'); setSelectedMdfId(null) }}
+              />
+            </div>
+          )
+        })()}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════

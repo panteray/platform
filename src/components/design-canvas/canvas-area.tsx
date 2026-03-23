@@ -70,6 +70,7 @@ interface Props {
   onMdfIdfMoved?: (id: string, x: number, y: number) => void
   onMdfIdfDeleted?: (id: string) => void
   onShow3dPreview?: (device: DesignDevice) => void
+  onMdfSelected?: (id: string) => void
   zoomToPointRef?: React.MutableRefObject<((x: number, y: number) => void) | null>
 }
 
@@ -124,7 +125,7 @@ export function CanvasArea({
   onFovHandleDragged, onFovAngleChanged, onCanvasClick, onCableCreated,
   mdfIdfs, onMdfIdfPlaced, onMdfIdfDeleted, onDragCommit, onZoomChange,
   onFloorPlanError, hiddenCategories, zoomToPointRef,
-  walls, onWallCreated, onWallDeleted,
+  walls, onWallCreated, onWallDeleted, onMdfSelected,
 }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -320,6 +321,12 @@ export function CanvasArea({
           }
           if (rec.__devId) {
             onSelectDevice(rec.__devId as string)
+            onToolChange?.('select')
+            return
+          }
+          // Click on MDF icon → select MDF
+          if (rec.__mdfId) {
+            onMdfSelected?.(rec.__mdfId as string)
             onToolChange?.('select')
           }
           return
