@@ -27,7 +27,7 @@ import {
   Download, MousePointer, Hand, Ruler, Trash2, Cable, Server,
   CircleDot, ChevronDown, X, Layers, Cctv, DoorOpen,
   Wifi, Speaker, Activity, MoreHorizontal, Crosshair,
-  Square, Settings, Maximize2, ZoomIn, ZoomOut, LockKeyhole, Locate,
+  Square, Settings, Maximize2, ZoomIn, ZoomOut, LockKeyhole, Locate, Fence,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { C, PPF_CHART, type CanvasTool, type IconTabId, ICON_TABS } from './constants'
@@ -86,6 +86,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   const [floorPlanOpacity, setFloorPlanOpacity] = useState(0.6)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
+  const [walls, setWalls] = useState<Array<{ id: string; points: Array<{ x: number; y: number }> }>>([])
 
   /* ── Canvas ref for zoom-to-device ── */
   const canvasRef = useRef<{ zoomToDevice?: (devId: string) => void } | null>(null)
@@ -426,6 +427,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           { id: 'scale' as CanvasTool, icon: <Crosshair size={13} />, label: 'Scale' },
           { id: 'cable' as CanvasTool, icon: <Cable size={13} />, label: 'Cable' },
           { id: 'mdf_idf' as CanvasTool, icon: <Server size={13} />, label: 'MDF/IDF' },
+          { id: 'wall' as CanvasTool, icon: <Fence size={13} />, label: 'Wall' },
         ].map(t => (
           <button key={t.id} onClick={() => setActiveTool(t.id)}
             title={t.label}
@@ -581,6 +583,12 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           onDragCommit={() => {}}
           hiddenCategories={hiddenCategories}
           zoomToPointRef={zoomToPointRef}
+          walls={walls}
+          onWallCreated={(pts) => {
+            setWalls(prev => [...prev, { id: crypto.randomUUID(), points: pts }])
+            toast.success('Wall created')
+          }}
+          onWallDeleted={(id) => setWalls(prev => prev.filter(w => w.id !== id))}
         />
 
         {/* ── RIGHT PANEL (300px, overlay) ── */}

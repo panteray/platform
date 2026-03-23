@@ -698,32 +698,86 @@ export function CanvasArea({
     ;(async () => {
       const fm = await import('fabric')
 
+      // Camera type → PNG image mapping
+      const CAT_TO_PNG: Record<string, string> = {
+        dome: '/devices/camera-types/dome.png',
+        bullet: '/devices/camera-types/bullet.png',
+        ptz: '/devices/camera-types/ptz.png',
+        fisheye: '/devices/camera-types/fisheye.png',
+        multisensor_quad: '/devices/camera-types/multisensor.png',
+        multisensor_dual: '/devices/camera-types/multisensor_dual.png',
+        turret: '/devices/camera-types/turret.png',
+        box: '/devices/camera-types/box.png',
+      }
+      const ICON_SIZE = 28 // px on canvas
+
       for (const dev of devices) {
         if (hiddenCategories?.has(dev.category)) continue
         const isSel = dev.id === selectedDeviceId
-        const iconKey = CATEGORY_TO_ICON[dev.category] || 'generic'
-        const svgStr = DEVICE_SVG_STRINGS[iconKey]
+        const pngUrl = CAT_TO_PNG[dev.category]
 
         try {
           let obj: FabricObject
-          if (svgStr) {
-            const res = await fm.loadSVGFromString(svgStr)
-            const ico = fm.util.groupSVGElements(res.objects.filter(Boolean) as FabricObject[], res.options)
-            // IPVM-style: small icon, no label cluttering the canvas
-            obj = new fm.Group([ico], {
-              left: dev.position_x, top: dev.position_y,
-              originX: 'center', originY: 'center', scaleX: 0.35, scaleY: 0.35,
-              hasControls: false, hasBorders: false, lockRotation: true,
-              selectable: true, evented: true,
-              hoverCursor: 'move', moveCursor: 'move',
-            })
+
+          if (pngUrl) {
+            // Use real camera PNG photo
+            try {
+              const img = await fm.FabricImage.fromURL(pngUrl, { crossOrigin: 'anonymous' })
+              const scale = ICON_SIZE / Math.max(img.width || 64, img.height || 64)
+              img.set({
+                left: dev.position_x, top: dev.position_y,
+                originX: 'center', originY: 'center',
+                scaleX: scale, scaleY: scale,
+                hasControls: false, hasBorders: false, lockRotation: true,
+                selectable: true, evented: true,
+                hoverCursor: 'move', moveCursor: 'move',
+              })
+              obj = img
+            } catch {
+              // PNG failed, fall back to SVG
+              const iconKey = CATEGORY_TO_ICON[dev.category] || 'generic'
+              const svgStr = DEVICE_SVG_STRINGS[iconKey]
+              if (svgStr) {
+                const res = await fm.loadSVGFromString(svgStr)
+                const ico = fm.util.groupSVGElements(res.objects.filter(Boolean) as FabricObject[], res.options)
+                obj = new fm.Group([ico], {
+                  left: dev.position_x, top: dev.position_y,
+                  originX: 'center', originY: 'center', scaleX: 0.4, scaleY: 0.4,
+                  hasControls: false, hasBorders: false, lockRotation: true,
+                  selectable: true, evented: true,
+                  hoverCursor: 'move', moveCursor: 'move',
+                })
+              } else {
+                obj = new fm.Circle({
+                  left: dev.position_x, top: dev.position_y, radius: 10, fill: C.accent,
+                  originX: 'center', originY: 'center',
+                  hasControls: false, hasBorders: false,
+                  selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move',
+                })
+              }
+            }
           } else {
-            obj = new fm.Circle({
-              left: dev.position_x, top: dev.position_y, radius: 8, fill: C.accent,
-              originX: 'center', originY: 'center',
-              hasControls: false, hasBorders: false,
-              selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move',
-            })
+            // No PNG for this category — use SVG icon
+            const iconKey = CATEGORY_TO_ICON[dev.category] || 'generic'
+            const svgStr = DEVICE_SVG_STRINGS[iconKey]
+            if (svgStr) {
+              const res = await fm.loadSVGFromString(svgStr)
+              const ico = fm.util.groupSVGElements(res.objects.filter(Boolean) as FabricObject[], res.options)
+              obj = new fm.Group([ico], {
+                left: dev.position_x, top: dev.position_y,
+                originX: 'center', originY: 'center', scaleX: 0.4, scaleY: 0.4,
+                hasControls: false, hasBorders: false, lockRotation: true,
+                selectable: true, evented: true,
+                hoverCursor: 'move', moveCursor: 'move',
+              })
+            } else {
+              obj = new fm.Circle({
+                left: dev.position_x, top: dev.position_y, radius: 10, fill: C.accent,
+                originX: 'center', originY: 'center',
+                hasControls: false, hasBorders: false,
+                selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move',
+              })
+            }
           }
 
           // Tag for event handling
@@ -735,7 +789,7 @@ export function CanvasArea({
 
           c.add(obj)
           devObjs.current.set(dev.id, obj)
-        } catch { /* SVG parse failed */ }
+        } catch { /* icon load failed */ }
       }
 
       // Z-order: devices on top of cones
