@@ -188,7 +188,7 @@ export function CanvasArea({
         const e = o.e as MouseEvent
         setCtxMenu(p => ({ ...p, show: false }))
 
-        // Middle-click / Space / Pan tool → start panning
+        // Middle-click / Space → start panning
         if (e.button === 1 || spaceDown.current || toolRef.current === 'pan') {
           panning.current = true
           panOrigin.current = { x: e.clientX, y: e.clientY }
@@ -208,18 +208,24 @@ export function CanvasArea({
           return
         }
 
-        // Left-click on fabric object → select device
+        // Left-click on fabric object → select device or allow handle drag
         const target = o.target
         if (target) {
           const rec = target as unknown as Record<string, unknown>
-          if (rec.__devId && !rec.__fovDist && !rec.__fovEdge) {
+          // Handle objects: allow Fabric default drag (don't return early)
+          if (rec.__fovDist || rec.__fovEdge) {
+            // Just select the device so handles stay visible
+            onSelectDevice(rec.__devId as string)
+            return  // Let Fabric handle the drag natively
+          }
+          if (rec.__devId) {
             onSelectDevice(rec.__devId as string)
             onToolChange?.('select')
           }
           return
         }
 
-        // Click on empty canvas → tool actions or deselect
+        // Click on empty canvas → tool actions or start panning
         const pt = c.getScenePoint(e)
         const x = Math.round(pt.x), y = Math.round(pt.y)
         switch (toolRef.current) {
@@ -234,7 +240,13 @@ export function CanvasArea({
               return next.length > 2 ? [{ x, y }] : next
             })
             break
-          default: onSelectDevice(null); break
+          default:
+            // Default: deselect + start panning on empty canvas
+            onSelectDevice(null)
+            panning.current = true
+            panOrigin.current = { x: e.clientX, y: e.clientY }
+            c.setCursor('grabbing')
+            break
         }
       })
 
@@ -805,7 +817,7 @@ export function CanvasArea({
         background: 'rgba(0,0,0,0.75)', color: C.textMuted,
         pointerEvents: 'none', zIndex: 20,
       }}>
-        {activeTool === 'select' && !selectedDeviceId && 'Click device to select • Space+drag to pan • Scroll to zoom'}
+        {activeTool === 'select' && !selectedDeviceId && 'Click device to select • Drag empty area to pan • Scroll to zoom'}
         {activeTool === 'select' && selectedDeviceId && 'Drag device to move • Drag handles to adjust FOV • Del to remove'}
         {activeTool === 'pan' && 'Drag to pan the canvas'}
         {activeTool === 'scale' && `Click ${scalePts.length === 0 ? 'first' : scalePts.length === 1 ? 'second' : ''} point`}
