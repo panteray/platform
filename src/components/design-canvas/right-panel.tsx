@@ -278,6 +278,47 @@ export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDel
             }} />
         </div>
 
+        {/* Device Status */}
+        <div style={{ padding: '8px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Status</div>
+          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+            {['New', 'Existing Keep', 'Existing Remove', 'Relocate'].map(s => {
+              const active = (props.status || 'New') === s
+              return (
+                <button key={s} onClick={() => updateProp('status', s)}
+                  style={{
+                    padding: '4px 8px', fontSize: 9, fontWeight: 600,
+                    borderRadius: 3, border: `1px solid ${active ? C.accent : C.border}`,
+                    background: active ? `${C.accent}20` : 'transparent',
+                    color: active ? C.accent : C.textMuted, cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}>{s}</button>
+              )
+            })}
+          </div>
+          {/* Condition — only for existing devices */}
+          {String(props.status || '').includes('Existing') && (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Condition</div>
+              <div style={{ display: 'flex', gap: 3 }}>
+                {['Good', 'Fair', 'Poor', 'Unknown'].map(c => {
+                  const condColors: Record<string, string> = { Good: '#22c55e', Fair: '#eab308', Poor: '#ef4444', Unknown: '#6b7280' }
+                  const active = (props.condition || 'Unknown') === c
+                  return (
+                    <button key={c} onClick={() => updateProp('condition', c)}
+                      style={{
+                        flex: 1, padding: '3px 0', fontSize: 8, fontWeight: 600,
+                        borderRadius: 3, border: `1px solid ${active ? condColors[c] : C.border}`,
+                        background: active ? `${condColors[c]}20` : 'transparent',
+                        color: active ? condColors[c] : C.textMuted, cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}>{c}</button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
         {/* ── Color Picker ── */}
         <div style={{ padding: '8px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Color</div>
@@ -528,6 +569,119 @@ export function RightPanel({ device, onClose, onUpdateDevice, onDuplicate, onDel
           </>
         )}
 
+        {/* ── Access Control Panel ── */}
+        {['access_control', 'door', 'door_controller', 'card_reader', 'electric_strike', 'maglock'].includes(device.category) && (
+          <>
+            <Section title="Door Configuration" defaultOpen>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Door Type */}
+                <div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Door Type</div>
+                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                    {['Standard', 'ADA Auto-Operator', 'Mantrap', 'Mantrap + ADA'].map(t => {
+                      const active = (props.door_type || 'Standard') === t
+                      return (
+                        <button key={t} onClick={() => updateProp('door_type', t)}
+                          style={{
+                            padding: '3px 6px', fontSize: 8, fontWeight: 600,
+                            borderRadius: 3, border: `1px solid ${active ? C.accent : C.border}`,
+                            background: active ? `${C.accent}20` : 'transparent',
+                            color: active ? C.accent : C.textMuted, cursor: 'pointer',
+                            fontFamily: 'inherit',
+                          }}>{t}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+                {/* Lock Type */}
+                <div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Lock Type</div>
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    {['Electric Strike', 'Magnetic Lock', 'Electrified Hardware'].map(t => {
+                      const active = (props.lock_type || 'Electric Strike') === t
+                      return (
+                        <button key={t} onClick={() => updateProp('lock_type', t)}
+                          style={{
+                            flex: 1, padding: '3px 0', fontSize: 8, fontWeight: 600,
+                            borderRadius: 3, border: `1px solid ${active ? C.accent : C.border}`,
+                            background: active ? `${C.accent}20` : 'transparent',
+                            color: active ? C.accent : C.textMuted, cursor: 'pointer',
+                            fontFamily: 'inherit',
+                          }}>{t}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+                {/* Reader In / Reader Out */}
+                {[
+                  { key: 'reader_in_type', label: 'Reader In' },
+                  { key: 'reader_out_type', label: 'Reader Out' },
+                ].map(r => (
+                  <div key={r.key}>
+                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>{r.label}</div>
+                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                      {(r.key === 'reader_out_type' ? ['None'] : []).concat(['Proximity', 'Smart Card', 'Biometric', 'Keypad', 'Mobile']).map(t => {
+                        const active = (props[r.key] || (r.key === 'reader_out_type' ? 'None' : 'Proximity')) === t
+                        return (
+                          <button key={t} onClick={() => updateProp(r.key, t)}
+                            style={{
+                              padding: '3px 6px', fontSize: 8, fontWeight: 600,
+                              borderRadius: 3, border: `1px solid ${active ? C.accent : C.border}`,
+                              background: active ? `${C.accent}20` : 'transparent',
+                              color: active ? C.accent : C.textMuted, cursor: 'pointer',
+                              fontFamily: 'inherit',
+                            }}>{t}</button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {/* Boolean toggles: REX, Door Contact, Auto-Operator */}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[
+                    { key: 'rex', label: 'REX' },
+                    { key: 'door_contact', label: 'Door Contact' },
+                    { key: 'auto_operator', label: 'Auto-Operator' },
+                  ].map(toggle => {
+                    const on = props[toggle.key] === true
+                    return (
+                      <button key={toggle.key} onClick={() => updateProp(toggle.key, !on)}
+                        style={{
+                          flex: 1, padding: '4px 0', fontSize: 8, fontWeight: 600,
+                          borderRadius: 3, border: `1px solid ${on ? '#22c55e' : C.border}`,
+                          background: on ? '#22c55e20' : 'transparent',
+                          color: on ? '#22c55e' : C.textMuted, cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}>{toggle.label}: {on ? 'Yes' : 'No'}</button>
+                    )
+                  })}
+                </div>
+              </div>
+            </Section>
+
+            {/* Wiring for access control */}
+            <Section title="Wiring">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[
+                  { key: 'cable_type', label: 'Cable Type', ph: 'Cat6, 22/4…' },
+                  { key: 'controller_assignment', label: 'Controller', ph: 'CTRL-001' },
+                  { key: 'cable_length', label: 'Cable Length (ft)', ph: '125' },
+                ].map(f => (
+                  <div key={f.key}>
+                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>{f.label}</div>
+                    <input value={String(props[f.key] || '')} placeholder={f.ph}
+                      onChange={e => updateProp(f.key, e.target.value)}
+                      style={{
+                        width: '100%', padding: '4px 8px', background: C.bgActive,
+                        border: `1px solid ${C.border}`, borderRadius: 3,
+                        color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none',
+                      }} />
+                  </div>
+                ))}
+              </div>
+            </Section>
+          </>
+        )}
         {/* Notes */}
         <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Notes</div>

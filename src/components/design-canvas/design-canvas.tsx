@@ -261,11 +261,32 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
     deleteDevice(id)
   }, [deleteDevice, pushUndo])
 
+  // Auto-label prefix by category
+  const LABEL_PREFIX: Record<string, string> = {
+    cctv: 'CAM', dome: 'CAM', bullet: 'CAM', turret: 'CAM', ptz: 'PTZ',
+    fisheye: 'FE', multisensor_quad: 'MS', multisensor_dual: 'MS',
+    access_control: 'ACS', door: 'DR', door_controller: 'CTRL',
+    card_reader: 'RDR', electric_strike: 'ES', maglock: 'ML',
+    network: 'NET', switch: 'SW', access_switch: 'SW', rack: 'MDF',
+    nvr: 'NVR', router: 'RTR', firewall: 'FW', wireless_ap: 'AP',
+    bridge: 'PTP', server: 'SVR', monitor: 'MON', patch_panel: 'PP',
+    av: 'AV', speaker: 'SPK', intercom: 'INT',
+    vape_environmental: 'ENV', other: 'DEV',
+  }
+
+  const getNextLabel = useCallback((category: string) => {
+    const prefix = LABEL_PREFIX[category] || 'DEV'
+    const sameCategory = devices.filter(d => (LABEL_PREFIX[d.category] || 'DEV') === prefix)
+    const seq = String(sameCategory.length + 1).padStart(3, '0')
+    return `${prefix}-${seq}`
+  }, [devices])
+
   const handleDeviceSelected = useCallback(async (item: DeviceSearchResult) => {
     setShowCatalog(false)
+    const autoLabel = getNextLabel(item.category)
     const dev = await addDevice({
       design_id: designId, area_id: activeAreaId, category: item.category,
-      label: `${item.vendor} ${item.model}`,
+      label: `${autoLabel} — ${item.vendor} ${item.model}`,
       position_x: 400, position_y: 300,
       rotation: 0, properties: item.specs ?? {},
       device_library_item_id: item.id,
@@ -274,7 +295,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
       setSelectedDeviceId(dev.id)
       setActiveTool('select')
     }
-  }, [addDevice, designId, activeAreaId, setSelectedDeviceId])
+  }, [addDevice, designId, activeAreaId, setSelectedDeviceId, getNextLabel])
 
   const handleUpdateDevice = useCallback((id: string, updates: Record<string, unknown>) => {
     updateDevice(id, updates)
