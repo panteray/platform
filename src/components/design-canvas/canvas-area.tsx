@@ -71,6 +71,9 @@ interface Props {
   onMdfIdfDeleted?: (id: string) => void
   onShow3dPreview?: (device: DesignDevice) => void
   onMdfSelected?: (id: string) => void
+  showIrRange?: boolean
+  hiddenPpfZones?: Set<string>
+  showBlindSpot?: boolean
   zoomToPointRef?: React.MutableRefObject<((x: number, y: number) => void) | null>
 }
 
@@ -126,6 +129,7 @@ export function CanvasArea({
   mdfIdfs, onMdfIdfPlaced, onMdfIdfDeleted, onDragCommit, onZoomChange,
   onFloorPlanError, hiddenCategories, zoomToPointRef,
   walls, onWallCreated, onWallDeleted, onMdfSelected,
+  showIrRange, hiddenPpfZones, showBlindSpot,
 }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -855,10 +859,19 @@ export function CanvasArea({
         }
 
         // Draw tiers (outermost first, IPVM-style graduated opacity)
+        // Map tier colors → zone names for filtering
+        const colorToZone: Record<string, string> = {
+          '#22c55e': 'identification', '#eab308': 'recognition',
+          '#f97316': 'observation', '#ef4444': 'detection',
+        }
         for (let t = 0; t < data.tiers.length; t++) {
           const tier = data.tiers[t]
           const r = tier.distanceFt * (scalePxPerFt || 10)
           if (r < 2) continue
+
+          // Skip hidden PPF zones
+          const zoneName = colorToZone[tier.color]
+          if (zoneName && hiddenPpfZones?.has(zoneName)) continue
 
           // Build cone polygon (24-step arc)
           const steps = 24
@@ -888,15 +901,35 @@ export function CanvasArea({
           objects.push(cone)
         }
 
-        // ── RED CENTERLINE (IPVM-style) ──
-        const outerRForLine = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
-        if (outerRForLine > 5) {
-          const centerLine = new fm.Line(
-            [cx, cy, cx + Math.cos(rotRad) * outerRForLine, cy + Math.sin(rotRad) * outerRForLine],
-            { stroke: '#e53e3e', strokeWidth: 2, selectable: false, evented: false, opacity: 0.85 }
-          )
-          c.add(centerLine)
-          objects.push(centerLine)
+        // ── RED CENTERLINE (IPVM-style) — gated by showIrRange ──
+        if (showIrRange !== false) {
+          const outerRForLine = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
+          if (outerRForLine > 5) {
+            const centerLine = new fm.Line(
+              [cx, cy, cx + Math.cos(rotRad) * outerRForLine, cy + Math.sin(rotRad) * outerRForLine],
+              { stroke: '#e53e3e', strokeWidth: 2, selectable: false, evented: false, opacity: 0.85 }
+            )
+            c.add(centerLine)
+            objects.push(centerLine)
+          }
+        }
+
+        // ── BLIND SPOT CIRCLE (orange dashed) ──
+        if (showBlindSpot && data.blindSpotFt && data.blindSpotFt > 0) {
+          const blindR = data.blindSpotFt * (scalePxPerFt || 10)
+          if (blindR > 2) {
+            const blindCircle = new fm.Circle({
+              left: cx, top: cy, radius: blindR,
+              fill: 'rgba(249,115,22,0.08)',
+              stroke: '#f97316', strokeWidth: 1.5,
+              strokeDashArray: [4, 3],
+              originX: 'center', originY: 'center',
+              selectable: false, evented: false,
+              opacity: 0.7,
+            })
+            c.add(blindCircle)
+            objects.push(blindCircle)
+          }
         }
 
         // ── HANDLES (selected device only) ──
@@ -989,7 +1022,7 @@ export function CanvasArea({
       for (const [, h] of handleObjs.current) c.bringObjectToFront(h)
       c.requestRenderAll()
     })()
-  }, [fovData, devices, showFovCones, selectedDeviceId, scalePxPerFt, ready, fovDisplayMode, hiddenCategories, onFovAngleChanged, walls])
+  }, [fovData, devices, showFovCones, selectedDeviceId, scalePxPerFt, ready, fovDisplayMode, hiddenCategories, onFovAngleChanged, walls, showIrRange, hiddenPpfZones, showBlindSpot])
 
   // ════════════════════════════════════════════════════════════════
   // WALLS — IPVM-style dark polylines

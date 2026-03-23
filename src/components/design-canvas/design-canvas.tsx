@@ -89,6 +89,9 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
   const [walls, setWalls] = useState<Array<{ id: string; points: Array<{ x: number; y: number }> }>>([])
   const [selectedMdfId, setSelectedMdfId] = useState<string | null>(null)
+  const [showIrRange, setShowIrRange] = useState(true)
+  const [hiddenPpfZones, setHiddenPpfZones] = useState<Set<string>>(new Set())
+  const [showBlindSpot, setShowBlindSpot] = useState(false)
 
   /* ── Canvas ref for zoom-to-device ── */
   const canvasRef = useRef<{ zoomToDevice?: (devId: string) => void } | null>(null)
@@ -612,6 +615,9 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           }}
           onWallDeleted={(id) => setWalls(prev => prev.filter(w => w.id !== id))}
           onMdfSelected={(id) => { setSelectedMdfId(id); setSelectedDeviceId(null) }}
+          showIrRange={showIrRange}
+          hiddenPpfZones={hiddenPpfZones}
+          showBlindSpot={showBlindSpot}
         />
 
         {/* ── RIGHT PANEL (300px, overlay) ── */}
@@ -628,6 +634,16 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
               onDelete={handleDeviceDelete}
               scalePxPerFt={scalePxPerFt}
               mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
+              showIrRange={showIrRange}
+              onToggleIrRange={setShowIrRange}
+              hiddenPpfZones={hiddenPpfZones}
+              onTogglePpfZone={(zone) => setHiddenPpfZones(prev => {
+                const next = new Set(prev)
+                next.has(zone) ? next.delete(zone) : next.add(zone)
+                return next
+              })}
+              showBlindSpot={showBlindSpot}
+              onToggleBlindSpot={setShowBlindSpot}
             />
           </div>
         )}
