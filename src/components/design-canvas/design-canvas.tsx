@@ -621,7 +621,20 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           floorPlanOpacity={floorPlanOpacity}
           fovDisplayMode={fovMode}
           onCanvasClick={() => {}}
-          onCableCreated={async (cable) => { await addCable({ ...cable, design_id: designId, area_id: activeAreaId }) }}
+          onCableCreated={async (cable) => {
+            // Route MDF IDs to mdf_idf_id instead of from/to_device_id (FK constraint)
+            const mdfIds = new Set(mdfIdfs.map(m => m.id))
+            const payload: Record<string, unknown> = { ...cable, design_id: designId, area_id: activeAreaId }
+            if (mdfIds.has(cable.from_device_id)) {
+              payload.mdf_idf_id = cable.from_device_id
+              delete payload.from_device_id
+            }
+            if (cable.to_device_id && mdfIds.has(cable.to_device_id)) {
+              payload.mdf_idf_id = cable.to_device_id
+              delete payload.to_device_id
+            }
+            await addCable(payload)
+          }}
           mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
           onMdfIdfPlaced={async (x, y) => {
             await addInfrastructure({ design_id: designId, area_id: activeAreaId, name: 'MDF', position_x: x, position_y: y })

@@ -265,30 +265,34 @@ export function CanvasArea({
           return
         }
 
-        // ── CABLE TOOL: clicking on a device ──
+        // ── CABLE TOOL: clicking on a device or MDF/IDF ──
         const target = o.target
         if (toolRef.current === 'cable' && target) {
           const rec = target as unknown as Record<string, unknown>
-          const devId = rec.__devId as string | undefined
-          if (devId) {
+          const endpointId = (rec.__devId || rec.__mdfId) as string | undefined
+          if (endpointId) {
             if (cableState.current === 'idle' || cableState.current === 'pick_source') {
-              // Start cable from this device
+              // Start cable from this device/MDF
               cableState.current = 'routing'
-              cableSourceId.current = devId
+              cableSourceId.current = endpointId
               cableWaypoints.current = []
               return
             }
-            if (cableState.current === 'routing' && devId !== cableSourceId.current) {
-              // Complete cable: from source → waypoints → this device
+            if (cableState.current === 'routing' && endpointId !== cableSourceId.current) {
+              // Complete cable: from source → waypoints → this device/MDF
+              // Find position of source (could be device or MDF)
               const srcDev = devsRef.current.find(d => d.id === cableSourceId.current)
-              const endDev = devsRef.current.find(d => d.id === devId)
-              if (srcDev && endDev) {
-                // Calculate total cable length in feet
-                const allPts = [
-                  { x: srcDev.position_x, y: srcDev.position_y },
-                  ...cableWaypoints.current,
-                  { x: endDev.position_x, y: endDev.position_y },
-                ]
+              const srcMdf = mdfIdfs?.find(m => m.id === cableSourceId.current)
+              const endDev = devsRef.current.find(d => d.id === endpointId)
+              const endMdf = mdfIdfs?.find(m => m.id === endpointId)
+              const srcPos = srcDev
+                ? { x: srcDev.position_x, y: srcDev.position_y }
+                : srcMdf ? { x: srcMdf.position_x, y: srcMdf.position_y } : null
+              const endPos = endDev
+                ? { x: endDev.position_x, y: endDev.position_y }
+                : endMdf ? { x: endMdf.position_x, y: endMdf.position_y } : null
+              if (srcPos && endPos) {
+                const allPts = [srcPos, ...cableWaypoints.current, endPos]
                 let totalPx = 0
                 for (let i = 1; i < allPts.length; i++) {
                   totalPx += Math.hypot(allPts[i].x - allPts[i - 1].x, allPts[i].y - allPts[i - 1].y)
@@ -296,7 +300,7 @@ export function CanvasArea({
                 const ft = scalePxPerFt > 0 ? Math.round(totalPx / scalePxPerFt) : 0
                 onCableCreated?.({
                   from_device_id: cableSourceId.current!,
-                  to_device_id: devId,
+                  to_device_id: endpointId,
                   waypoints: cableWaypoints.current,
                   length_ft: ft,
                 })
@@ -551,6 +555,9 @@ export function CanvasArea({
           const angle = Math.round(Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360
           onFovHandleDragged?.(id, distFt)
           onDeviceRotated?.(id, angle)
+          // Rotate the device icon to match FOV direction
+          const devObj = devObjs.current.get(id)
+          if (devObj) { devObj.set({ angle }); devObj.setCoords() }
           return
         }
 
@@ -564,6 +571,36 @@ export function CanvasArea({
           if (diff > Math.PI) diff = 2 * Math.PI - diff
           const fov = Math.round(Math.min(180, Math.max(5, diff * 2 * 180 / Math.PI)))
           onFovAngleChanged?.(id, fov)
+          return
+        }
+
+        // Device icon drag → move FOV cones in sync
+        if (rec.__devId && !rec.__fovDist && !rec.__fovEdge) {
+          const devId = rec.__devId as string
+          const newX = obj.left ?? 0, newY = obj.top ?? 0
+          // Calculate delta from device's original state position
+          const dev = devsRef.current.find(d => d.id === devId)
+          if (dev) {
+            const deltaX = newX - dev.position_x
+            const deltaY = newY - dev.position_y
+            // Move all FOV objects belonging to this device
+            const fovArr = fovObjs.current.get(devId)
+            if (fovArr) {
+              for (const fObj of fovArr) {
+                const fRec = fObj as unknown as Record<string, unknown>
+                const origX = (fRec.__origLeft as number) ?? dev.position_x
+                const origY = (fRec.__origTop as number) ?? dev.position_y
+                // Store original position on first move
+                if (fRec.__origLeft === undefined) {
+                  fRec.__origLeft = fObj.left ?? dev.position_x
+                  fRec.__origTop = fObj.top ?? dev.position_y
+                }
+                fObj.set({ left: origX + deltaX, top: origY + deltaY })
+                fObj.setCoords()
+              }
+            }
+          }
+          c.requestRenderAll()
           return
         }
       })
@@ -767,6 +804,7 @@ export function CanvasArea({
                 left: dev.position_x, top: dev.position_y,
                 originX: 'center', originY: 'center',
                 scaleX: scale, scaleY: scale,
+                angle: dev.rotation ?? 0,
                 hasControls: false, hasBorders: false, lockRotation: true,
                 selectable: true, evented: true,
                 hoverCursor: 'move', moveCursor: 'move',
@@ -782,6 +820,7 @@ export function CanvasArea({
                 obj = new fm.Group([ico], {
                   left: dev.position_x, top: dev.position_y,
                   originX: 'center', originY: 'center', scaleX: 0.4, scaleY: 0.4,
+                  angle: dev.rotation ?? 0,
                   hasControls: false, hasBorders: false, lockRotation: true,
                   selectable: true, evented: true,
                   hoverCursor: 'move', moveCursor: 'move',
@@ -805,6 +844,7 @@ export function CanvasArea({
               obj = new fm.Group([ico], {
                 left: dev.position_x, top: dev.position_y,
                 originX: 'center', originY: 'center', scaleX: 0.4, scaleY: 0.4,
+                angle: dev.rotation ?? 0,
                 hasControls: false, hasBorders: false, lockRotation: true,
                 selectable: true, evented: true,
                 hoverCursor: 'move', moveCursor: 'move',

@@ -322,6 +322,7 @@ function BlindSpotDiagram({ installHeight, tiltAngle, fovAngle }: {
 /* ─── Component ─── */
 export function RightPanel({
   device, onClose, onUpdateDevice, onDuplicate, onDelete, scalePxPerFt, mdfIdfs,
+  onChangeModel,
   showIrRange = true, onToggleIrRange, hiddenPpfZones, onTogglePpfZone,
   showBlindSpot = false, onToggleBlindSpot,
 }: Props) {
@@ -346,24 +347,64 @@ export function RightPanel({
       display: 'flex', flexDirection: 'column',
       fontFamily: "'Inter', 'Segoe UI', sans-serif", overflow: 'hidden',
     }}>
-      {/* ── Header ── */}
+      {/* ── Header (IPVM-style) ── */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px',
-        borderBottom: `1px solid ${C.border}`,
+        padding: '14px 16px 10px', borderBottom: `1px solid ${C.border}`,
       }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
-            {device.label || 'Device'}
+        {/* Top row: name + actions */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 14, fontWeight: 700, color: C.text,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {device.label || 'Device'}
+            </div>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginTop: 3,
+            }}>
+              <span style={{
+                fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+                background: `${C.accent}20`, color: C.accent, letterSpacing: 0.5,
+                textTransform: 'uppercase',
+              }}>
+                {device.category.replace(/_/g, ' ')}
+              </span>
+              {props.resolution_w ? (
+                <span style={{ fontSize: 10, color: C.textDim }}>
+                  {String(props.resolution_w)}×{String(props.resolution_h || '?')}
+                </span>
+              ) : null}
+            </div>
           </div>
-          <div style={{ fontSize: 10, color: C.textDim, marginTop: 2 }}>
-            {device.category.replace(/_/g, ' ').toUpperCase()}
-            {props.resolution_w ? ` • ${props.resolution_w}×${props.resolution_h || '?'}` : ''}
+          {/* Action icons */}
+          <div style={{ display: 'flex', gap: 2 }}>
+            <button onClick={() => onDuplicate(device.id)} title="Duplicate"
+              style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 4, borderRadius: 4 }}>
+              <Copy size={14} />
+            </button>
+            <button onClick={() => onDelete(device.id)} title="Delete"
+              style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4, borderRadius: 4 }}>
+              <Trash2 size={14} />
+            </button>
+            <button onClick={onClose} title="Close"
+              style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 4, borderRadius: 4 }}>
+              <X size={14} />
+            </button>
           </div>
         </div>
-        <button onClick={onClose}
-          style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 4 }}>
-          <X size={16} />
-        </button>
+        {/* Model selector link (IPVM-style) */}
+        {isCamera && (
+          <button onClick={() => onChangeModel?.(device.id)}
+            style={{
+              marginTop: 8, width: '100%', padding: '6px 10px', fontSize: 10,
+              color: C.accent, background: `${C.accent}08`, border: `1px dashed ${C.accent}40`,
+              borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+              textAlign: 'left',
+            }}>
+            {String(props.model_name || 'Select Model →')}
+          </button>
+        )}
       </div>
 
       {/* ── Properties ── */}
