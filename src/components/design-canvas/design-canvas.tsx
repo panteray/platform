@@ -27,7 +27,7 @@ import {
   Download, MousePointer, Hand, Ruler, Trash2, Cable, Server,
   CircleDot, ChevronDown, X, Layers, Cctv, DoorOpen,
   Wifi, Speaker, Activity, MoreHorizontal, Crosshair,
-  Square, Settings, Maximize2, ZoomIn, ZoomOut, LockKeyhole,
+  Square, Settings, Maximize2, ZoomIn, ZoomOut, LockKeyhole, Locate,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { C, PPF_CHART, type CanvasTool, type IconTabId, ICON_TABS } from './constants'
@@ -85,6 +85,40 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   const [fovMode, setFovMode] = useState<'simple' | 'ppf' | 'dori'>('simple')
   const [floorPlanOpacity, setFloorPlanOpacity] = useState(0.6)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
+
+  /* ── Canvas ref for zoom-to-device ── */
+  const canvasRef = useRef<{ zoomToDevice?: (devId: string) => void } | null>(null)
+  const zoomToPointRef = useRef<((x: number, y: number) => void) | null>(null)
+
+  const handleZoomToDevice = useCallback((devId: string) => {
+    const dev = devices.find(d => d.id === devId)
+    if (!dev || !zoomToPointRef.current) return
+    zoomToPointRef.current(dev.position_x, dev.position_y)
+  }, [devices])
+
+  /* ── Layer toggle helper ── */
+  const CATEGORY_MAP: Record<string, string[]> = {
+    camera: ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'],
+    door: ['access_control'],
+    network: ['network'],
+    av: ['av'],
+    sensors: ['vape_environmental'],
+    other: ['other'],
+  }
+  const toggleCategoryVisibility = useCallback((tabId: string) => {
+    const cats = CATEGORY_MAP[tabId] || []
+    setHiddenCategories(prev => {
+      const next = new Set(prev)
+      const allHidden = cats.every(c => next.has(c))
+      if (allHidden) {
+        for (const c of cats) next.delete(c)
+      } else {
+        for (const c of cats) next.add(c)
+      }
+      return next
+    })
+  }, [])
 
   /* ── Undo/Redo ── */
   const undoStack = useRef<Array<DesignDevice[]>>([])
@@ -435,23 +469,48 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
         }}>
           {ICON_TABS.map(tab => {
             const active = activeCategory === tab.id
+            const cats = CATEGORY_MAP[tab.id] || []
+            const isHidden = cats.length > 0 && cats.every(c => hiddenCategories.has(c))
+            const isLayersTab = tab.id === 'layers'
             return (
-              <button key={tab.id}
-                onClick={() => setActiveCategory(tab.id)}
-                title={tab.label}
-                style={{
-                  width: 40, height: 40,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  gap: 1, border: active ? `1px solid ${C.accent}` : '1px solid transparent',
-                  borderRadius: 6,
-                  background: active ? C.accentSubtle : 'transparent',
-                  color: active ? C.accent : C.textDim,
-                  cursor: 'pointer', fontSize: 8, fontWeight: 500, fontFamily: 'inherit',
-                  transition: 'all 0.12s',
-                }}>
-                {SIDEBAR_ICONS[tab.id]}
-                <span style={{ marginTop: 1, maxWidth: 46, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.label}</span>
-              </button>
+              <div key={tab.id} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <button
+                  onClick={() => setActiveCategory(tab.id)}
+                  title={tab.label}
+                  style={{
+                    width: 40, height: 40,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    gap: 1, border: active ? `1px solid ${C.accent}` : '1px solid transparent',
+                    borderRadius: 6,
+                    background: active ? C.accentSubtle : 'transparent',
+                    color: isHidden ? C.textDim + '44' : active ? C.accent : C.textDim,
+                    cursor: 'pointer', fontSize: 8, fontWeight: 500, fontFamily: 'inherit',
+                    transition: 'all 0.12s',
+                    opacity: isHidden ? 0.4 : 1,
+                  }}>
+                  {SIDEBAR_ICONS[tab.id]}
+                  <span style={{ marginTop: 1, maxWidth: 46, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.label}</span>
+                </button>
+                {/* Eye toggle for non-layers tabs */}
+                {!isLayersTab && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleCategoryVisibility(tab.id) }}
+                    title={isHidden ? `Show ${tab.label}` : `Hide ${tab.label}`}
+                    style={{
+                      width: 16, height: 16, padding: 0, border: 'none',
+                      background: 'transparent', cursor: 'pointer',
+                      color: isHidden ? '#ef4444' : C.textDim,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      marginTop: -2, marginBottom: 2, opacity: 0.6,
+                      transition: 'opacity 0.1s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = '0.6')}
+                  >
+                    {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
+                  </button>
+                )}
+              </div>
             )
           })}
         </div>
@@ -464,6 +523,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
             onSelect={handleSelectDevice}
             onAddDevice={() => setShowCatalog(true)}
             onDeleteDevice={handleDeviceDelete}
+            onZoomToDevice={handleZoomToDevice}
           />
         )}
 
@@ -498,6 +558,8 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
             await addInfrastructure({ design_id: designId, area_id: activeAreaId, name: 'MDF', position_x: x, position_y: y })
           }}
           onDragCommit={() => {}}
+          hiddenCategories={hiddenCategories}
+          zoomToPointRef={zoomToPointRef}
         />
 
         {/* ── RIGHT PANEL (300px, overlay) ── */}

@@ -7,7 +7,7 @@
  */
 
 import React from 'react'
-import { Plus, Trash2, Cctv, DoorOpen, Network, Speaker, Cpu, Box } from 'lucide-react'
+import { Plus, Trash2, Cctv, DoorOpen, Network, Speaker, Cpu, Box, Locate } from 'lucide-react'
 import { C } from './constants'
 import type { DesignDevice } from '@/types/database'
 
@@ -29,9 +29,10 @@ interface Props {
   onSelect: (id: string | null) => void
   onAddDevice: () => void
   onDeleteDevice: (id: string) => void
+  onZoomToDevice?: (id: string) => void
 }
 
-export function LeftPanel({ devices, selectedId, onSelect, onAddDevice, onDeleteDevice }: Props) {
+export function LeftPanel({ devices, selectedId, onSelect, onAddDevice, onDeleteDevice, onZoomToDevice }: Props) {
   // Group devices by category
   const groups = React.useMemo(() => {
     const map = new Map<string, DesignDevice[]>()
@@ -120,9 +121,23 @@ export function LeftPanel({ devices, selectedId, onSelect, onAddDevice, onDelete
                     }}
                     onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
                     onMouseLeave={e => (e.currentTarget.style.opacity = '0.4')}
+                    title="Delete"
                   >
                     <Trash2 size={12} />
                   </button>
+                  {onZoomToDevice && (
+                    <button onClick={e => { e.stopPropagation(); onSelect(d.id); onZoomToDevice(d.id) }}
+                      style={{
+                        background: 'none', border: 'none', color: C.accent,
+                        cursor: 'pointer', padding: 2, opacity: 0.4, transition: 'opacity 0.1s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                      onMouseLeave={e => (e.currentTarget.style.opacity = '0.4')}
+                      title="Zoom to device"
+                    >
+                      <Locate size={12} />
+                    </button>
+                  )}
                 </div>
               )
             })}

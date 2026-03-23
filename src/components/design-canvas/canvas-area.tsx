@@ -70,6 +70,7 @@ interface Props {
   onMdfIdfMoved?: (id: string, x: number, y: number) => void
   onMdfIdfDeleted?: (id: string) => void
   onShow3dPreview?: (device: DesignDevice) => void
+  zoomToPointRef?: React.MutableRefObject<((x: number, y: number) => void) | null>
 }
 
 /* ─── Resolve CSS variable to computed value (needed for <canvas> 2D context) ─── */
@@ -89,7 +90,7 @@ export function CanvasArea({
   onDeviceCopy, onDeviceDelete, onToolChange, onScaleCalibrated,
   onFovHandleDragged, onFovAngleChanged, onCanvasClick, onCableCreated,
   mdfIdfs, onMdfIdfPlaced, onDragCommit, onZoomChange,
-  onFloorPlanError, hiddenCategories,
+  onFloorPlanError, hiddenCategories, zoomToPointRef,
 }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -104,6 +105,23 @@ export function CanvasArea({
   useEffect(() => { selRef.current = selectedDeviceId }, [selectedDeviceId])
   const devsRef = useRef(devices)
   useEffect(() => { devsRef.current = devices }, [devices])
+
+  // Expose zoom-to-point function via ref
+  useEffect(() => {
+    if (!zoomToPointRef) return
+    zoomToPointRef.current = (x: number, y: number) => {
+      const c = fcRef.current
+      if (!c) return
+      const vpt = c.viewportTransform!
+      const zoom = vpt[0] || 1
+      const canvasW = c.getWidth()
+      const canvasH = c.getHeight()
+      vpt[4] = canvasW / 2 - x * zoom
+      vpt[5] = canvasH / 2 - y * zoom
+      c.requestRenderAll()
+    }
+    return () => { if (zoomToPointRef) zoomToPointRef.current = null }
+  }, [zoomToPointRef, ready])
 
   // Pan state
   const panning = useRef(false)
