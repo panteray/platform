@@ -106,6 +106,13 @@ export function CanvasArea({
   const devsRef = useRef(devices)
   useEffect(() => { devsRef.current = devices }, [devices])
 
+  // Cable draw state machine: idle → pick_source → routing → complete
+  const cableState = useRef<'idle' | 'pick_source' | 'routing'>('idle')
+  const cableSourceId = useRef<string | null>(null)
+  const cableWaypoints = useRef<Array<{ x: number; y: number }>>([])
+  const cablePreviewObjs = useRef<FabricObject[]>([])
+  const cableMousePt = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+
   // Expose zoom-to-point function via ref
   useEffect(() => {
     if (!zoomToPointRef) return
@@ -208,8 +215,57 @@ export function CanvasArea({
           return
         }
 
-        // Left-click on fabric object → select device or allow handle drag
+        // ── CABLE TOOL: clicking on a device ──
         const target = o.target
+        if (toolRef.current === 'cable' && target) {
+          const rec = target as unknown as Record<string, unknown>
+          const devId = rec.__devId as string | undefined
+          if (devId) {
+            if (cableState.current === 'idle' || cableState.current === 'pick_source') {
+              // Start cable from this device
+              cableState.current = 'routing'
+              cableSourceId.current = devId
+              cableWaypoints.current = []
+              return
+            }
+            if (cableState.current === 'routing' && devId !== cableSourceId.current) {
+              // Complete cable: from source → waypoints → this device
+              const srcDev = devsRef.current.find(d => d.id === cableSourceId.current)
+              const endDev = devsRef.current.find(d => d.id === devId)
+              if (srcDev && endDev) {
+                // Calculate total cable length in feet
+                const allPts = [
+                  { x: srcDev.position_x, y: srcDev.position_y },
+                  ...cableWaypoints.current,
+                  { x: endDev.position_x, y: endDev.position_y },
+                ]
+                let totalPx = 0
+                for (let i = 1; i < allPts.length; i++) {
+                  totalPx += Math.hypot(allPts[i].x - allPts[i - 1].x, allPts[i].y - allPts[i - 1].y)
+                }
+                const ft = scalePxPerFt > 0 ? Math.round(totalPx / scalePxPerFt) : 0
+                onCableCreated?.({
+                  from_device_id: cableSourceId.current!,
+                  to_device_id: devId,
+                  waypoints: cableWaypoints.current,
+                  length_ft: ft,
+                })
+              }
+              // Reset cable state
+              cableState.current = 'pick_source'
+              cableSourceId.current = null
+              cableWaypoints.current = []
+              // Clear preview
+              for (const obj of cablePreviewObjs.current) c.remove(obj)
+              cablePreviewObjs.current = []
+              c.requestRenderAll()
+              return
+            }
+          }
+          return
+        }
+
+        // Left-click on fabric object → select device or allow handle drag
         if (target) {
           const rec = target as unknown as Record<string, unknown>
           // Handle objects: allow Fabric default drag (don't return early)
@@ -231,6 +287,12 @@ export function CanvasArea({
         switch (toolRef.current) {
           case 'place': onCanvasClick?.(x, y); break
           case 'mdf_idf': onMdfIdfPlaced?.(x, y); break
+          case 'cable':
+            // Routing state: add waypoint
+            if (cableState.current === 'routing') {
+              cableWaypoints.current.push({ x, y })
+            }
+            break
           case 'scale':
             setScalePts(prev => {
               const next = [...prev, { x, y }]
@@ -250,7 +312,7 @@ export function CanvasArea({
         }
       })
 
-      // ── MOUSE MOVE (pan + PPF tooltip) ──
+      // ── MOUSE MOVE (pan + cable preview + PPF tooltip) ──
       c.on('mouse:move', (o: any) => {
         const e = o.e as MouseEvent
 
@@ -261,6 +323,44 @@ export function CanvasArea({
           vpt[5] += e.clientY - panOrigin.current.y
           panOrigin.current = { x: e.clientX, y: e.clientY }
           c.requestRenderAll()
+          return
+        }
+
+        // Cable live preview
+        if (toolRef.current === 'cable' && cableState.current === 'routing' && cableSourceId.current) {
+          const pt = c.getScenePoint(e)
+          cableMousePt.current = { x: pt.x, y: pt.y }
+          // Clear old preview
+          for (const obj of cablePreviewObjs.current) c.remove(obj)
+          cablePreviewObjs.current = []
+          const srcDev = devsRef.current.find(d => d.id === cableSourceId.current)
+          if (srcDev) {
+            const allPts = [
+              { x: srcDev.position_x, y: srcDev.position_y },
+              ...cableWaypoints.current,
+              { x: pt.x, y: pt.y },
+            ]
+            import('fabric').then(fm => {
+              const line = new fm.Polyline(allPts, {
+                fill: 'transparent', stroke: '#0ea5e9', strokeWidth: 2,
+                strokeDashArray: [8, 4], selectable: false, evented: false,
+                opacity: 0.8,
+              })
+              // Draw dots at waypoints
+              const dots: FabricObject[] = []
+              for (const wp of cableWaypoints.current) {
+                const dot = new fm.Circle({
+                  left: wp.x - 3, top: wp.y - 3, radius: 3,
+                  fill: '#0ea5e9', stroke: '#fff', strokeWidth: 1,
+                  selectable: false, evented: false,
+                })
+                dots.push(dot)
+              }
+              c.add(line, ...dots)
+              cablePreviewObjs.current = [line, ...dots]
+              c.requestRenderAll()
+            })
+          }
           return
         }
 
@@ -375,7 +475,21 @@ export function CanvasArea({
         !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
         onDeviceDelete?.(selRef.current)
       }
-      if (e.key === 'Escape') { onSelectDevice(null); onToolChange?.('select') }
+      if (e.key === 'Escape') {
+        // Cancel cable routing if in progress
+        if (cableState.current === 'routing') {
+          cableState.current = 'pick_source'
+          cableSourceId.current = null
+          cableWaypoints.current = []
+          if (fcRef.current) {
+            for (const obj of cablePreviewObjs.current) fcRef.current.remove(obj)
+            cablePreviewObjs.current = []
+            fcRef.current.requestRenderAll()
+          }
+          return
+        }
+        onSelectDevice(null); onToolChange?.('select')
+      }
     }
     const up = (e: KeyboardEvent) => { if (e.key === ' ') spaceDown.current = false }
     window.addEventListener('keydown', down)
@@ -821,7 +935,7 @@ export function CanvasArea({
         {activeTool === 'select' && selectedDeviceId && 'Drag device to move • Drag handles to adjust FOV • Del to remove'}
         {activeTool === 'pan' && 'Drag to pan the canvas'}
         {activeTool === 'scale' && `Click ${scalePts.length === 0 ? 'first' : scalePts.length === 1 ? 'second' : ''} point`}
-        {activeTool === 'cable' && 'Click device to start cable'}
+        {activeTool === 'cable' && 'Click device to start cable • Click waypoints • Click device to end • Esc to cancel'}
         {activeTool === 'mdf_idf' && 'Click to place MDF/IDF'}
         {activeTool === 'measure' && 'Click two points to measure'}
         {activeTool === 'place' && 'Click to place device'}
