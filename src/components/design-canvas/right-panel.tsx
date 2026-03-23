@@ -14,21 +14,15 @@
  *   Actions (Duplicate / Delete)
  */
 
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback } from 'react'
 import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, Crosshair } from 'lucide-react'
 import { C } from './constants'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
 
 /* ─── 48 Color Palette ─── */
 const COLOR_PALETTE = [
-  '#ef4444','#f97316','#f59e0b','#eab308','#84cc16','#22c55e',
-  '#14b8a6','#06b6d4','#0ea5e9','#3b82f6','#6366f1','#8b5cf6',
-  '#a855f7','#d946ef','#ec4899','#f43f5e','#dc2626','#ea580c',
-  '#d97706','#ca8a04','#65a30d','#16a34a','#0d9488','#0891b2',
-  '#0284c7','#2563eb','#4f46e5','#7c3aed','#9333ea','#c026d3',
-  '#db2777','#e11d48','#991b1b','#9a3412','#92400e','#854d0e',
-  '#3f6212','#166534','#115e59','#155e75','#075985','#1e40af',
-  '#3730a3','#5b21b6','#6b21a8','#86198f','#9d174d','#9f1239',
+  '#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899',
+  '#dc2626','#ea580c','#ca8a04','#16a34a','#0891b2','#2563eb','#7c3aed','#db2777',
 ]
 
 /* ─── Collapsible Section ─── */
@@ -73,249 +67,17 @@ interface Props {
   onToggleBlindSpot?: (show: boolean) => void
 }
 
-/* ─── Slider+Input Combo (Hanwha pattern) ─── */
-function ParamRow({ label, value, min, max, step, unit, onChange }: {
-  label: string; value: number; min: number; max: number; step: number; unit: string
-  onChange: (v: number) => void
+/* ─── Read-only Stat Row ─── */
+function StatRow({ label, value, unit, color }: {
+  label: string; value: string | number; unit?: string; color?: string
 }) {
-  const [local, setLocal] = useState(value)
-  useEffect(() => { setLocal(value) }, [value])
-
-  const commit = (v: number) => {
-    const clamped = Math.max(min, Math.min(max, v))
-    setLocal(clamped)
-    onChange(clamped)
-  }
-
   return (
-    <div style={{ padding: '8px 16px' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>{label}</div>
-      <input type="range" min={min} max={max} step={step} value={local}
-        onChange={e => setLocal(Number(e.target.value))}
-        onMouseUp={() => commit(local)}
-        onTouchEnd={() => commit(local)}
-        style={{
-          width: '100%', height: 4, appearance: 'none', background: C.bgActive,
-          borderRadius: 2, outline: 'none', cursor: 'pointer',
-          accentColor: C.accent,
-        }} />
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 6 }}>
-        <div style={{
-          display: 'flex', alignItems: 'center',
-          background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 6,
-          overflow: 'hidden',
-        }}>
-          <button onClick={() => commit(local - step)}
-            style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>−</button>
-          <input type="number" value={local} step={step} min={min} max={max}
-            onChange={e => setLocal(Number(e.target.value))}
-            onBlur={() => commit(local)}
-            onKeyDown={e => { if (e.key === 'Enter') commit(local) }}
-            style={{
-              width: 60, textAlign: 'center', background: 'transparent',
-              border: 'none', borderLeft: `1px solid ${C.border}`,
-              borderRight: `1px solid ${C.border}`,
-              color: C.text, fontFamily: "monospace",
-              outline: 'none', padding: '4px 0',
-            }} />
-          <span style={{ padding: '0 6px', fontSize: 10, color: C.textDim, minWidth: 20 }}>{unit}</span>
-          <button onClick={() => commit(local + step)}
-            style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>+</button>
-        </div>
-      </div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+      <span style={{ fontSize: 10, color: C.textDim }}>{label}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, fontFamily: 'monospace', color: color || C.text }}>
+        {value}{unit ? <span style={{ fontSize: 9, color: C.textDim, marginLeft: 2 }}>{unit}</span> : null}
+      </span>
     </div>
-  )
-}
-
-/* ─── Elevation View SVG (side-profile) ─── */
-function ElevationDiagram({ installHeight, tiltAngle, targetDist, fovAngle }: {
-  installHeight: number; tiltAngle: number; targetDist: number; fovAngle: number
-}) {
-  const W = 248, H = 140
-  const PAD_L = 30, PAD_R = 14, PAD_T = 14, PAD_B = 22
-  const drawW = W - PAD_L - PAD_R
-  const drawH = H - PAD_T - PAD_B
-
-  // Scale to fit: max of installHeight and targetDist
-  const personH = 5.5 // ft
-  const maxVert = Math.max(installHeight, personH) * 1.15
-  const maxHoriz = Math.max(targetDist, 5) * 1.1
-  const scaleX = drawW / maxHoriz
-  const scaleY = drawH / maxVert
-
-  const groundY = PAD_T + drawH
-  const camX = PAD_L
-  const camY = groundY - installHeight * scaleY
-
-  // Target point
-  const targetX = PAD_L + targetDist * scaleX
-  const targetY = groundY
-
-  // FOV cone from side view (using vertical FOV ≈ fovAngle * 0.75)
-  const vFovHalf = (fovAngle * 0.75 / 2) * Math.PI / 180
-  const tiltRad = tiltAngle * Math.PI / 180
-  const coneLen = targetDist * scaleX
-
-  // Upper and lower edges of FOV cone
-  const upperAngle = tiltRad - vFovHalf
-  const lowerAngle = tiltRad + vFovHalf
-  const cone1X = camX + Math.cos(upperAngle) * coneLen
-  const cone1Y = camY + Math.sin(upperAngle) * coneLen
-  const cone2X = camX + Math.cos(lowerAngle) * coneLen
-  const cone2Y = camY + Math.sin(lowerAngle) * coneLen
-
-  // Person silhouette at target
-  const personTop = groundY - personH * scaleY
-
-  return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', borderRadius: 4, background: C.bgActive }}>
-      {/* Grid lines */}
-      <line x1={PAD_L} y1={groundY} x2={W - PAD_R} y2={groundY} stroke={C.border} strokeWidth={1.5} />
-      <line x1={PAD_L} y1={PAD_T} x2={PAD_L} y2={groundY} stroke={C.border} strokeWidth={0.5} strokeDasharray="3,3" />
-
-      {/* FOV cone (translucent triangle) */}
-      <polygon
-        points={`${camX},${camY} ${cone1X},${Math.min(cone1Y, groundY)} ${cone2X},${Math.min(cone2Y, groundY)}`}
-        fill={C.accent} opacity={0.12} stroke={C.accent} strokeWidth={0.5} strokeOpacity={0.4}
-      />
-
-      {/* Cone center line (dashed) */}
-      <line x1={camX} y1={camY} x2={targetX} y2={groundY}
-        stroke={C.accent} strokeWidth={0.5} strokeDasharray="4,3" opacity={0.5} />
-
-      {/* Camera icon (small rect + triangle) */}
-      <rect x={camX - 6} y={camY - 4} width={12} height={8} rx={1.5}
-        fill={C.accent} stroke="none" />
-      <polygon points={`${camX + 6},${camY - 2} ${camX + 10},${camY} ${camX + 6},${camY + 2}`}
-        fill={C.accent} />
-
-      {/* Person silhouette at target distance */}
-      <line x1={targetX} y1={groundY} x2={targetX} y2={personTop}
-        stroke="#22c55e" strokeWidth={1.5} strokeLinecap="round" />
-      <circle cx={targetX} cy={personTop - 3} r={3} fill="#22c55e" />
-
-      {/* Height dimension line (left side) */}
-      <line x1={PAD_L - 8} y1={groundY} x2={PAD_L - 8} y2={camY}
-        stroke={C.textDim} strokeWidth={0.5} markerStart="url(#arrowUp)" markerEnd="url(#arrowDown)" />
-      <text x={2} y={(groundY + camY) / 2 + 3} fontSize={7} fill={C.textMuted}
-        fontFamily="'IBM Plex Mono', monospace" textAnchor="start">
-        {installHeight}ft
-      </text>
-
-      {/* Distance label (bottom) */}
-      <line x1={camX} y1={groundY + 10} x2={targetX} y2={groundY + 10}
-        stroke={C.textDim} strokeWidth={0.5} />
-      <text x={(camX + targetX) / 2} y={groundY + 18} fontSize={7} fill={C.textMuted}
-        fontFamily="'IBM Plex Mono', monospace" textAnchor="middle">
-        {targetDist}ft
-      </text>
-
-      {/* Person height label */}
-      <text x={targetX + 8} y={(groundY + personTop) / 2 + 3} fontSize={6.5} fill="#22c55e"
-        fontFamily="'IBM Plex Mono', monospace">
-        {personH}ft
-      </text>
-
-      {/* Tilt label */}
-      {tiltAngle !== 0 && (
-        <text x={camX + 16} y={camY - 8} fontSize={7} fill={C.accent}
-          fontFamily="'IBM Plex Mono', monospace">
-          {tiltAngle}°
-        </text>
-      )}
-    </svg>
-  )
-}
-
-/* ─── Blind Spot Side-View Diagram ─── */
-function BlindSpotDiagram({ installHeight, tiltAngle, fovAngle }: {
-  installHeight: number; tiltAngle: number; fovAngle: number
-}) {
-  const W = 248, H = 120
-  const PAD_L = 20, PAD_R = 14, PAD_T = 10, PAD_B = 18
-  const drawW = W - PAD_L - PAD_R
-  const drawH = H - PAD_T - PAD_B
-
-  const maxVert = installHeight * 1.2
-  const maxHoriz = installHeight * 2    // show enough horizontal to see blind spot + some FOV
-  const scaleX = drawW / maxHoriz
-  const scaleY = drawH / maxVert
-
-  const groundY = PAD_T + drawH
-  const camX = PAD_L + installHeight * 0.3 * scaleX   // camera slightly right of left edge
-  const camY = groundY - installHeight * scaleY
-
-  // Vertical FOV ≈ hFOV * 0.75
-  const vFovHalf = (fovAngle * 0.75 / 2) * Math.PI / 180
-  const tiltRad = tiltAngle * Math.PI / 180
-  const upperAngle = tiltRad - vFovHalf
-  const lowerAngle = tiltRad + vFovHalf
-
-  // Blind spot = area from directly below camera to where the lower FOV edge hits ground
-  // Lower edge angle from horizontal: lowerAngle
-  // Distance from camera base to where lower FOV hits ground
-  const blindDist = lowerAngle < Math.PI / 2 ? installHeight * Math.tan(Math.PI / 2 - lowerAngle) : 0
-
-  // Upper edge distance (where the upper FOV edge hits ground)
-  const upperDist = upperAngle < Math.PI / 2 ? installHeight * Math.tan(Math.PI / 2 - upperAngle) : installHeight * 3
-
-  // FOV cone endpoints on ground
-  const coneLen = Math.max(upperDist, 30)
-  const fovUpX = camX + Math.cos(upperAngle) * coneLen * scaleX * 0.5
-  const fovUpY = camY + Math.sin(upperAngle) * coneLen * scaleX * 0.5
-  const fovLowX = camX + Math.cos(lowerAngle) * coneLen * scaleX * 0.5
-  const fovLowY = camY + Math.sin(lowerAngle) * coneLen * scaleX * 0.5
-
-  const blindEndX = camX + blindDist * scaleX
-
-  return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', borderRadius: 4, background: C.bgActive }}>
-      {/* Ground */}
-      <line x1={PAD_L} y1={groundY} x2={W - PAD_R} y2={groundY} stroke={C.border} strokeWidth={1.5} />
-
-      {/* Camera vertical line */}
-      <line x1={camX} y1={groundY} x2={camX} y2={camY} stroke={C.textDim} strokeWidth={0.5} strokeDasharray="3,3" />
-
-      {/* Blind spot fill (orange) */}
-      {blindDist > 0 && (
-        <rect
-          x={camX} y={groundY - 4}
-          width={Math.max(0, blindEndX - camX)} height={4}
-          fill="#f97316" opacity={0.5} rx={1}
-        />
-      )}
-
-      {/* Blind spot area label */}
-      {blindDist > 0 && (
-        <>
-          <line x1={camX} y1={groundY + 6} x2={blindEndX} y2={groundY + 6}
-            stroke="#f97316" strokeWidth={1} />
-          <text x={(camX + blindEndX) / 2} y={groundY + 14} fontSize={7} fill="#f97316"
-            fontFamily="'IBM Plex Mono', monospace" textAnchor="middle" fontWeight={700}>
-            {blindDist.toFixed(1)}ft
-          </text>
-        </>
-      )}
-
-      {/* FOV cone */}
-      <polygon
-        points={`${camX},${camY} ${Math.min(fovUpX, W - PAD_R)},${Math.min(fovUpY, groundY)} ${Math.min(fovLowX, W - PAD_R)},${Math.min(fovLowY, groundY)}`}
-        fill={C.accent} opacity={0.12} stroke={C.accent} strokeWidth={0.5} strokeOpacity={0.4}
-      />
-
-      {/* Camera icon */}
-      <rect x={camX - 5} y={camY - 3} width={10} height={6} rx={1.5} fill={C.accent} />
-      <polygon points={`${camX + 5},${camY - 1.5} ${camX + 8},${camY} ${camX + 5},${camY + 1.5}`}
-        fill={C.accent} />
-
-      {/* "Blind Spot" label */}
-      {blindDist > 0 && (
-        <text x={camX + 4} y={groundY - 8} fontSize={6.5} fill="#f97316"
-          fontFamily="'IBM Plex Mono', monospace" fontWeight={600}>
-          blind spot
-        </text>
-      )}
-    </svg>
   )
 }
 
@@ -480,7 +242,7 @@ export function RightPanel({
         {/* Camera-specific sections */}
         {isCamera && (
           <>
-            {/* ── Mount Type ── */}
+            {/* ── Mount Type + Height ── */}
             <div style={{ padding: '8px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Mount Type</div>
               <div style={{ display: 'flex', gap: 4 }}>
@@ -500,58 +262,47 @@ export function RightPanel({
                   )
                 })}
               </div>
-              {installHeight > 12 && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 4, marginTop: 6,
-                  padding: '4px 8px', borderRadius: 4,
-                  background: '#f59e0b15', border: '1px solid #f59e0b30',
-                }}>
-                  <AlertTriangle size={12} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                  <span style={{ fontSize: 9, fontWeight: 600, color: '#f59e0b' }}>LIFT REQUIRED — {installHeight}ft</span>
-                </div>
-              )}
+              {/* Mount Height (read-only from canvas) */}
+              <div style={{
+                marginTop: 8, padding: '6px 10px', background: C.bgActive,
+                borderRadius: 4, border: `1px solid ${C.border}`,
+              }}>
+                <StatRow label="Mount Height" value={installHeight} unit="ft" />
+                {/* Mount Calculator Output */}
+                {installHeight > 12 && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 4, marginTop: 4,
+                    padding: '4px 8px', borderRadius: 4,
+                    background: '#f59e0b15', border: '1px solid #f59e0b30',
+                  }}>
+                    <AlertTriangle size={12} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                    <span style={{ fontSize: 9, fontWeight: 600, color: '#f59e0b' }}>LIFT REQUIRED — {installHeight}ft</span>
+                  </div>
+                )}
+                {installHeight <= 12 && (
+                  <div style={{ fontSize: 9, color: '#22c55e', fontWeight: 600, marginTop: 2 }}>✓ Standard ladder access</div>
+                )}
+              </div>
             </div>
 
-          {/* Camera-specific sliders */}
-            <div style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
-              <ParamRow label="Focal Length" value={focalLength}
-                min={1} max={300} step={0.5} unit="mm"
-                onChange={v => updateProp('focal_length', v)} />
-            </div>
-
-            <div style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
-              <ParamRow label="Target Distance" value={targetDist}
-                min={1} max={500} step={1} unit="ft"
-                onChange={v => updateProp('target_distance', v)} />
-            </div>
-
-            <div style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
-              <ParamRow label="Installation Height" value={installHeight}
-                min={1} max={60} step={0.5} unit="ft"
-                onChange={v => updateProp('install_height', v)} />
-            </div>
-
-            <div style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
-              <ParamRow label="Tilt Angle" value={tiltAngle}
-                min={-90} max={90} step={1} unit="°"
-                onChange={v => updateProp('tilt_angle', v)} />
-            </div>
-
-            <div style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
-              <ParamRow label="FOV Angle" value={fovAngle}
-                min={5} max={180} step={1} unit="°"
-                onChange={v => updateProp('fov_angle', v)} />
-            </div>
-
-            <div style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
-              <ParamRow label="Camera Rotation" value={rotation}
-                min={0} max={360} step={1} unit="°"
-                onChange={v => onUpdateDevice(device.id, { rotation: v })} />
+            {/* ── Canvas Readout (read-only values from canvas state) ── */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Canvas State</div>
+              <div style={{
+                padding: '6px 10px', background: C.bgActive,
+                borderRadius: 4, border: `1px solid ${C.border}`,
+              }}>
+                <StatRow label="Focal Length" value={focalLength} unit="mm" />
+                <StatRow label="Target Distance" value={targetDist} unit="ft" />
+                <StatRow label="FOV Angle" value={fovAngle} unit="°" />
+                <StatRow label="Tilt Angle" value={tiltAngle} unit="°" />
+                <StatRow label="Rotation" value={rotation} unit="°" />
+              </div>
             </div>
 
             {/* DORI at target distance */}
-            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>Quality at Target</div>
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Quality at Target</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
                 {['Detection', 'Observation', 'Recognition', 'Identification'].map((tier, i) => {
                   const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e']
@@ -566,39 +317,6 @@ export function RightPanel({
                   )
                 })}
               </div>
-
-              {/* PPF Quality Reference Chart */}
-              <div style={{ marginTop: 8 }}>
-                {[
-                  { ppf: '100+', label: 'Facial Recognition', color: '#22c55e' },
-                  { ppf: '76–99', label: 'Identification', color: '#22c55e' },
-                  { ppf: '38–75', label: 'Recognition / LPR', color: '#eab308' },
-                  { ppf: '19–37', label: 'Observation', color: '#f97316' },
-                  { ppf: '8–18', label: 'Detection', color: '#ef4444' },
-                  { ppf: '4–7', label: 'Monitor (general)', color: '#ef444480' },
-                  { ppf: '0–3', label: 'Monitor Only', color: '#ef444450' },
-                ].map((row, i) => (
-                  <div key={i} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '2px 6px', fontSize: 8, borderRadius: 2,
-                    background: i === 0 ? `${row.color}15` : 'transparent',
-                  }}>
-                    <span style={{ color: row.color, fontWeight: 600, fontFamily: 'monospace', width: 36 }}>{row.ppf}</span>
-                    <span style={{ color: C.textDim, flex: 1, textAlign: 'right' }}>{row.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Elevation View (side-profile SVG) ── */}
-            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>Elevation View</div>
-              <ElevationDiagram
-                installHeight={installHeight}
-                tiltAngle={tiltAngle}
-                targetDist={targetDist}
-                fovAngle={fovAngle}
-              />
             </div>
 
             {/* ── Advanced Lens / IR ── */}
@@ -671,93 +389,11 @@ export function RightPanel({
                     })}
                   </div>
                 </div>
-
-                {/* Lens Info */}
-                <div style={{
-                  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px',
-                  padding: '6px 8px', background: C.bgActive, borderRadius: 4,
-                  border: `1px solid ${C.border}`,
-                }}>
-                  {[
-                    ['Focal', `${focalLength}mm`],
-                    ['FOV', `${fovAngle}°`],
-                    ['Sensor', props.sensor_size ? `${props.sensor_size}"` : '—'],
-                    ['IR', props.ir_range ? `${props.ir_range}ft` : 'N/A'],
-                  ].map(([k, v]) => (
-                    <div key={k as string} style={{ fontSize: 9 }}>
-                      <span style={{ color: C.textDim }}>{k as string}: </span>
-                      <span style={{ color: C.text, fontWeight: 600, fontFamily: 'monospace' }}>{v as string}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
             </Section>
 
-            {/* ── Blind Spot ── */}
-            <Section title="Blind Spot">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {/* Toggle */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: C.text }}>Show Blind Spot on Canvas</span>
-                  <button
-                    onClick={() => onToggleBlindSpot?.(!showBlindSpot)}
-                    style={{
-                      width: 36, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer',
-                      background: showBlindSpot ? C.accent : C.bgActive,
-                      position: 'relative', transition: 'background 0.2s',
-                    }}
-                  >
-                    <div style={{
-                      width: 14, height: 14, borderRadius: '50%', background: '#fff',
-                      position: 'absolute', top: 2,
-                      left: showBlindSpot ? 20 : 2,
-                      transition: 'left 0.2s',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                    }} />
-                  </button>
-                </div>
-
-                {/* Blind Spot Side Diagram */}
-                <BlindSpotDiagram
-                  installHeight={installHeight}
-                  tiltAngle={tiltAngle}
-                  fovAngle={fovAngle}
-                />
-
-                {/* Computed values */}
-                {(() => {
-                  const vFovHalf = (fovAngle * 0.75 / 2) * Math.PI / 180
-                  const tiltRad = tiltAngle * Math.PI / 180
-                  const lowerAngle = tiltRad + vFovHalf
-                  const blindRadius = lowerAngle < Math.PI / 2 ? installHeight * Math.tan(Math.PI / 2 - lowerAngle) : 0
-                  return (
-                    <div style={{
-                      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px',
-                      padding: '6px 8px', background: C.bgActive, borderRadius: 4,
-                      border: `1px solid ${C.border}`,
-                    }}>
-                      <div style={{ fontSize: 9 }}>
-                        <span style={{ color: C.textDim }}>Height: </span>
-                        <span style={{ color: C.text, fontWeight: 600, fontFamily: 'monospace' }}>{installHeight}ft</span>
-                      </div>
-                      <div style={{ fontSize: 9 }}>
-                        <span style={{ color: C.textDim }}>Tilt: </span>
-                        <span style={{ color: C.text, fontWeight: 600, fontFamily: 'monospace' }}>{tiltAngle}°</span>
-                      </div>
-                      <div style={{ fontSize: 9, gridColumn: '1 / -1' }}>
-                        <span style={{ color: C.textDim }}>Blind Spot Radius: </span>
-                        <span style={{ color: '#f97316', fontWeight: 700, fontFamily: 'monospace' }}>
-                          {blindRadius > 0 ? `${blindRadius.toFixed(1)}ft` : 'None'}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-            </Section>
-
-            {/* ── Device Specs (read-only) ── */}
-            <Section title="Device Specs">
+            {/* ── Device Specs (read-only, always open) ── */}
+            <Section title="Device Specs" defaultOpen>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
                 {[
                   ['Sensor', props.sensor_size ? `${props.sensor_size}"` : '—'],
@@ -1028,31 +664,6 @@ export function RightPanel({
             )
           })()}
         </div>
-      </div>
-
-      {/* ── Actions Footer ── */}
-      <div style={{
-        display: 'flex', gap: 8, padding: '12px 16px',
-        borderTop: `1px solid ${C.border}`,
-      }}>
-        <button onClick={() => onDuplicate(device.id)}
-          style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-            padding: '8px 0', background: C.bgActive, border: `1px solid ${C.border}`,
-            borderRadius: 6, color: C.text, fontSize: 11, fontWeight: 600,
-            cursor: 'pointer', fontFamily: 'inherit',
-          }}>
-          <Copy size={12} /> Duplicate
-        </button>
-        <button onClick={() => onDelete(device.id)}
-          style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-            padding: '8px 0', background: '#ef444415', border: `1px solid #ef444440`,
-            borderRadius: 6, color: C.red, fontSize: 11, fontWeight: 600,
-            cursor: 'pointer', fontFamily: 'inherit',
-          }}>
-          <Trash2 size={12} /> Delete
-        </button>
       </div>
     </div>
   )
