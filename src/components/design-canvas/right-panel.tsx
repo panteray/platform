@@ -102,6 +102,20 @@ export function RightPanel({
   const fovAngle = Number(props.fov_angle) || 90
   const rotation = device.rotation || 0
 
+  // Compute nearest MDF distance for cable auto-populate
+  const estCableFt = (() => {
+    if (!mdfIdfs || mdfIdfs.length === 0) return 0
+    let nearest = Infinity
+    for (const node of mdfIdfs) {
+      const dx = device.position_x - node.position_x
+      const dy = device.position_y - node.position_y
+      const distPx = Math.sqrt(dx * dx + dy * dy)
+      const distFt = distPx / (scalePxPerFt || 10)
+      if (distFt < nearest) nearest = distFt
+    }
+    return nearest === Infinity ? 0 : Math.round(nearest)
+  })()
+
   return (
     <div style={{
       width: 280, height: '100%', background: C.bgPanel,
@@ -418,7 +432,7 @@ export function RightPanel({
                   { key: 'cable_type', label: 'Cable Type', ph: 'Cat6, Cat6a…' },
                   { key: 'switch_assignment', label: 'Switch', ph: 'SW-01' },
                   { key: 'port_assignment', label: 'Port', ph: 'Port 1' },
-                  { key: 'cable_length', label: 'Cable Length (ft)', ph: '125' },
+                  { key: 'cable_length', label: 'Cable Length (ft)', ph: estCableFt > 0 ? `~${estCableFt} (auto)` : '125' },
                 ].map(f => (
                   <div key={f.key}>
                     <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>{f.label}</div>

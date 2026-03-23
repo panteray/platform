@@ -322,79 +322,90 @@ export function CanvasArea({
         // Left-click on fabric object → select device or allow handle drag
         if (target) {
           const rec = target as unknown as Record<string, unknown>
-          // Handle objects: allow Fabric default drag (don't return early)
           if (rec.__fovDist || rec.__fovEdge) {
-            // Just select the device so handles stay visible
+            // FOV handles: select device, then fall through so Fabric starts native drag
             onSelectDevice(rec.__devId as string)
-            return  // Let Fabric handle the drag natively
-          }
-          if (rec.__devId) {
+          } else if (rec.__devId) {
+            // Device icon: select + switch tool, then fall through for native drag
             onSelectDevice(rec.__devId as string)
             onToolChange?.('select')
-            return
-          }
-          // Click on MDF icon → select MDF
-          if (rec.__mdfId) {
+          } else if (rec.__mdfId) {
             onMdfSelected?.(rec.__mdfId as string)
             onToolChange?.('select')
+            return
+          } else {
+            return  // Unknown target type — don't process further
           }
-          return
-        }
+          // For device/FOV: DON'T return — let Fabric handle native drag
+        } else {
+          // ── No target hit: wall check + tool actions ──
 
-        // Check if click is near a wall segment
-        if (onWallSelected && walls && walls.length > 0) {
+          // Check if click is near a wall segment
+          if (onWallSelected && walls && walls.length > 0) {
+            const pt = c.getScenePoint(e)
+            const threshold = 10
+            for (const wall of walls) {
+              for (let i = 1; i < wall.points.length; i++) {
+                const p1 = wall.points[i - 1], p2 = wall.points[i]
+                // Point-to-segment distance
+                const dx = p2.x - p1.x, dy = p2.y - p1.y
+                const len2 = dx * dx + dy * dy
+                if (len2 === 0) continue
+                const t = Math.max(0, Math.min(1, ((pt.x - p1.x) * dx + (pt.y - p1.y) * dy) / len2))
+                const projX = p1.x + t * dx, projY = p1.y + t * dy
+                const dist = Math.sqrt((pt.x - projX) ** 2 + (pt.y - projY) ** 2)
+                if (dist < threshold) {
+                  onWallSelected(wall.id)
+                  return
+                }
+              }
+            }
+          }
+
+          // Click on empty canvas → tool actions or start panning
           const pt = c.getScenePoint(e)
-          const threshold = 10
-          for (const wall of walls) {
-            for (let i = 1; i < wall.points.length; i++) {
-              const p1 = wall.points[i - 1], p2 = wall.points[i]
-              // Point-to-segment distance
-              const dx = p2.x - p1.x, dy = p2.y - p1.y
-              const len2 = dx * dx + dy * dy
-              if (len2 === 0) continue
-              const t = Math.max(0, Math.min(1, ((pt.x - p1.x) * dx + (pt.y - p1.y) * dy) / len2))
-              const projX = p1.x + t * dx, projY = p1.y + t * dy
-              const dist = Math.sqrt((pt.x - projX) ** 2 + (pt.y - projY) ** 2)
-              if (dist < threshold) {
-                onWallSelected(wall.id)
-                return
+          const x = Math.round(pt.x), y = Math.round(pt.y)
+          switch (toolRef.current) {
+            case 'place': onCanvasClick?.(x, y); break
+            case 'mdf_idf': onMdfIdfPlaced?.(x, y); break
+            case 'wall':
+              // Wall drawing: click to add points, double-click/Enter to finish
+              wallPts.current.push({ x, y })
+              break
+            case 'cable':
+              // Routing state: add waypoint
+              if (cableState.current === 'routing') {
+                cableWaypoints.current.push({ x, y })
               }
-            }
+              break
+            case 'scale':
+              setScalePts(prev => {
+                const next = [...prev, { x, y }]
+                if (next.length >= 2) {
+                  setScalePopup({ show: true, x: e.clientX, y: e.clientY })
+                }
+                return next.length > 2 ? [{ x, y }] : next
+              })
+              break
+            default:
+              // Default: deselect + start panning on empty canvas
+              onSelectDevice(null)
+              panning.current = true
+              panOrigin.current = { x: e.clientX, y: e.clientY }
+              c.setCursor('grabbing')
+              break
           }
         }
+      })
 
-        // Click on empty canvas → tool actions or start panning
-        const pt = c.getScenePoint(e)
-        const x = Math.round(pt.x), y = Math.round(pt.y)
-        switch (toolRef.current) {
-          case 'place': onCanvasClick?.(x, y); break
-          case 'mdf_idf': onMdfIdfPlaced?.(x, y); break
-          case 'wall':
-            // Wall drawing: click to add points, double-click/Enter to finish
-            wallPts.current.push({ x, y })
-            break
-          case 'cable':
-            // Routing state: add waypoint
-            if (cableState.current === 'routing') {
-              cableWaypoints.current.push({ x, y })
-            }
-            break
-          case 'scale':
-            setScalePts(prev => {
-              const next = [...prev, { x, y }]
-              if (next.length >= 2) {
-                setScalePopup({ show: true, x: e.clientX, y: e.clientY })
-              }
-              return next.length > 2 ? [{ x, y }] : next
-            })
-            break
-          default:
-            // Default: deselect + start panning on empty canvas
-            onSelectDevice(null)
-            panning.current = true
-            panOrigin.current = { x: e.clientX, y: e.clientY }
-            c.setCursor('grabbing')
-            break
+      // ── DOUBLE-CLICK: finish wall drawing ──
+      c.on('mouse:dblclick', () => {
+        if (toolRef.current === 'wall' && wallPts.current.length >= 2) {
+          onWallCreated?.(wallPts.current)
+          wallPts.current = []
+          for (const obj of wallPreviewObjs.current) c.remove(obj)
+          wallPreviewObjs.current = []
+          c.requestRenderAll()
         }
       })
 
@@ -1183,12 +1194,15 @@ export function CanvasArea({
         } catch { /* ok */ }
 
         // Draw dashed cable lines from MDF to all devices with cables (IPVM-style)
-        // Derive connections from cables that reference devices near MDF
         for (const dev of devices) {
-          const hasCable = cables.some(cb =>
-            (cb.from_device_id === dev.id && cb.to_device_id === mdf.id) ||
-            (cb.from_device_id === mdf.id && cb.to_device_id === dev.id)
-          )
+          const hasCable = cables.some(cb => {
+            const cbRec = cb as unknown as Record<string, unknown>
+            return (
+              (cb.from_device_id === dev.id && (cb.to_device_id === mdf.id || cbRec.mdf_idf_id === mdf.id)) ||
+              (cb.from_device_id === mdf.id && cb.to_device_id === dev.id) ||
+              (cb.to_device_id === dev.id && cbRec.mdf_idf_id === mdf.id)
+            )
+          })
           if (!hasCable) continue
           const cable = new fm.Line(
             [mdf.position_x, mdf.position_y, dev.position_x, dev.position_y],
@@ -1222,8 +1236,12 @@ export function CanvasArea({
     ;(async () => {
       const fm = await import('fabric')
       for (const cable of cables) {
+        const cRec = cable as unknown as Record<string, unknown>
         const from = devices.find(d => d.id === cable.from_device_id)
-        const to = cable.to_device_id ? devices.find(d => d.id === cable.to_device_id) : null
+          || mdfIdfs?.find(m => m.id === cable.from_device_id)
+        const to = cable.to_device_id
+          ? (devices.find(d => d.id === cable.to_device_id) || mdfIdfs?.find(m => m.id === cable.to_device_id))
+          : (cRec.mdf_idf_id ? mdfIdfs?.find(m => m.id === cRec.mdf_idf_id) : null)
         if (!from) continue
         const pts = [{ x: from.position_x, y: from.position_y }]
         if (cable.waypoints) for (const wp of cable.waypoints) pts.push(wp)
