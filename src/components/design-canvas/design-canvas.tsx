@@ -210,12 +210,34 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
         ]
       }
 
+      // Multi-sensor: compute per-sensor rotation offsets
+      let sensorAngles: number[] | undefined
+      if (cat === 'multisensor_dual') {
+        const base = d.rotation || 0
+        const angles = (props.sensor_angles as number[] | undefined)
+        sensorAngles = angles && angles.length === 2 ? angles : [base - 45, base + 45]
+      } else if (cat === 'multisensor_quad') {
+        const base = d.rotation || 0
+        const angles = (props.sensor_angles as number[] | undefined)
+        sensorAngles = angles && angles.length === 4 ? angles : [base, base + 90, base + 180, base + 270]
+      }
+
+      // Blind spot: compute from install height, tilt, and vertical FOV
+      const installHeight = Number(props.install_height) || 9
+      const tiltAngle = Number(props.tilt_angle) || 0
+      const vFovHalf = (hFov * 0.75 / 2) * Math.PI / 180
+      const tiltRad = tiltAngle * Math.PI / 180
+      const lowerAngle = tiltRad + vFovHalf
+      const blindSpotFt = lowerAngle < Math.PI / 2 ? installHeight * Math.tan(Math.PI / 2 - lowerAngle) : 0
+
       map.set(d.id, {
         hFov, rotation: d.rotation || 0, tiers,
+        sensorAngles,
         resolutionW: resW || undefined,
         sensorW: sensorW || undefined,
         focalLength: focalLength || undefined,
         colorHex: d.color_hex || undefined,
+        blindSpotFt: blindSpotFt > 0 ? blindSpotFt : undefined,
       })
     }
     return map

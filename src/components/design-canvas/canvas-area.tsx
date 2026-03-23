@@ -858,61 +858,69 @@ export function CanvasArea({
           }
         }
 
-        // Draw tiers (outermost first, IPVM-style graduated opacity)
-        // Map tier colors → zone names for filtering
-        const colorToZone: Record<string, string> = {
-          '#22c55e': 'identification', '#eab308': 'recognition',
-          '#f97316': 'observation', '#ef4444': 'detection',
-        }
-        for (let t = 0; t < data.tiers.length; t++) {
-          const tier = data.tiers[t]
-          const r = tier.distanceFt * (scalePxPerFt || 10)
-          if (r < 2) continue
+        // Sensor angles: multi-sensor cameras render one cone per sensor
+        const sensorRotations = data.sensorAngles && data.sensorAngles.length > 1
+          ? data.sensorAngles
+          : [(dev.rotation || 0)]
 
-          // Skip hidden PPF zones
-          const zoneName = colorToZone[tier.color]
-          if (zoneName && hiddenPpfZones?.has(zoneName)) continue
+        for (const sensorRot of sensorRotations) {
+          const sRotRad = sensorRot * Math.PI / 180
 
-          // Build cone polygon (24-step arc)
-          const steps = 24
-          const pts: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
-          for (let i = 0; i <= steps; i++) {
-            const a = rotRad - halfAng + (2 * halfAng * i / steps)
-            pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
+          // Draw tiers (outermost first, IPVM-style graduated opacity)
+          // Map tier colors → zone names for filtering
+          const colorToZone: Record<string, string> = {
+            '#22c55e': 'identification', '#eab308': 'recognition',
+            '#f97316': 'observation', '#ef4444': 'detection',
+          }
+          for (let t = 0; t < data.tiers.length; t++) {
+            const tier = data.tiers[t]
+            const r = tier.distanceFt * (scalePxPerFt || 10)
+            if (r < 2) continue
+
+            // Skip hidden PPF zones
+            const zoneName = colorToZone[tier.color]
+            if (zoneName && hiddenPpfZones?.has(zoneName)) continue
+
+            // Build cone polygon (24-step arc)
+            const steps = 24
+            const pts: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
+            for (let i = 0; i <= steps; i++) {
+              const a = sRotRad - halfAng + (2 * halfAng * i / steps)
+              pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
+            }
+
+            let fillColor = data.colorHex || C.accent
+            if (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') fillColor = tier.color
+
+            // IPVM: inner tiers darker (higher PPF), outer tiers lighter
+            const gradOpacity = tier.opacity * (1 + (data.tiers.length - 1 - t) * 0.15)
+
+            // IPVM-style wall clipping: clip FOV polygon points behind walls
+            const clippedPts = walls && walls.length > 0 ? clipFovByWalls(pts, walls, cx, cy) : pts
+
+            const cone = new fm.Polygon(clippedPts, {
+              fill: fillColor, opacity: Math.min(0.7, gradOpacity),
+              stroke: t === 0 ? 'rgba(0,0,0,0.35)' : 'transparent',
+              strokeWidth: t === 0 ? 1.5 : 0,
+              selectable: false, evented: false,
+            })
+            c.add(cone)
+            objects.push(cone)
           }
 
-          let fillColor = data.colorHex || C.accent
-          if (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') fillColor = tier.color
-
-          // IPVM: inner tiers darker (higher PPF), outer tiers lighter
-          const gradOpacity = tier.opacity * (1 + (data.tiers.length - 1 - t) * 0.15)
-
-          // IPVM-style wall clipping: clip FOV polygon points behind walls
-          const clippedPts = walls && walls.length > 0 ? clipFovByWalls(pts, walls, cx, cy) : pts
-
-          const cone = new fm.Polygon(clippedPts, {
-            fill: fillColor, opacity: Math.min(0.7, gradOpacity),
-            // IPVM: dark solid stroke on outermost cone border
-            stroke: t === 0 ? 'rgba(0,0,0,0.35)' : 'transparent',
-            strokeWidth: t === 0 ? 1.5 : 0,
-            selectable: false, evented: false,
-          })
-          c.add(cone)
-          objects.push(cone)
-        }
-
-        // ── RED CENTERLINE (IPVM-style) — gated by showIrRange ──
-        if (showIrRange !== false) {
-          const outerRForLine = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
-          if (outerRForLine > 5) {
-            const centerLine = new fm.Line(
-              [cx, cy, cx + Math.cos(rotRad) * outerRForLine, cy + Math.sin(rotRad) * outerRForLine],
-              { stroke: '#e53e3e', strokeWidth: 2, selectable: false, evented: false, opacity: 0.85 }
-            )
-            c.add(centerLine)
-            objects.push(centerLine)
+          // ── RED CENTERLINE (IPVM-style) — gated by showIrRange ──
+          if (showIrRange !== false) {
+            const outerRForLine = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
+            if (outerRForLine > 5) {
+              const centerLine = new fm.Line(
+                [cx, cy, cx + Math.cos(sRotRad) * outerRForLine, cy + Math.sin(sRotRad) * outerRForLine],
+                { stroke: '#e53e3e', strokeWidth: 2, selectable: false, evented: false, opacity: 0.85 }
+              )
+              c.add(centerLine)
+              objects.push(centerLine)
+            }
           }
-        }
+        } // end sensorRotations loop
 
         // ── BLIND SPOT CIRCLE (orange dashed) ──
         if (showBlindSpot && data.blindSpotFt && data.blindSpotFt > 0) {
