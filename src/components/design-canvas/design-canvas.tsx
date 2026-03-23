@@ -597,6 +597,9 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           onMdfIdfPlaced={async (x, y) => {
             await addInfrastructure({ design_id: designId, area_id: activeAreaId, name: 'MDF', position_x: x, position_y: y })
           }}
+          onMdfIdfDeleted={async (id) => {
+            await deleteInfrastructure(id)
+          }}
           onDragCommit={() => {}}
           hiddenCategories={hiddenCategories}
           zoomToPointRef={zoomToPointRef}

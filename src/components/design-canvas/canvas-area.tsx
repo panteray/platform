@@ -122,7 +122,7 @@ export function CanvasArea({
   onSelectDevice, onDeviceMoved, onDeviceRotated,
   onDeviceCopy, onDeviceDelete, onToolChange, onScaleCalibrated,
   onFovHandleDragged, onFovAngleChanged, onCanvasClick, onCableCreated,
-  mdfIdfs, onMdfIdfPlaced, onDragCommit, onZoomChange,
+  mdfIdfs, onMdfIdfPlaced, onMdfIdfDeleted, onDragCommit, onZoomChange,
   onFloorPlanError, hiddenCategories, zoomToPointRef,
   walls, onWallCreated, onWallDeleted,
 }: Props) {
@@ -186,7 +186,7 @@ export function CanvasArea({
   const lastDragT = useRef(0)
 
   // Context menu
-  const [ctxMenu, setCtxMenu] = useState({ show: false, x: 0, y: 0, id: '' })
+  const [ctxMenu, setCtxMenu] = useState<{ show: boolean; x: number; y: number; id: string; type: 'device' | 'mdf' | 'wall' }>({ show: false, x: 0, y: 0, id: '', type: 'device' })
 
   // Scale calibration
   const [scalePts, setScalePts] = useState<Array<{ x: number; y: number }>>([])
@@ -244,12 +244,16 @@ export function CanvasArea({
           return
         }
 
-        // Right-click → context menu
+        // Right-click → context menu (devices, MDFs, walls)
         if (e.button === 2) {
           const target = c.findTarget(e)
           const rec = target as unknown as Record<string, unknown> | null
           if (rec?.__devId) {
-            setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__devId as string })
+            setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__devId as string, type: 'device' })
+          } else if (rec?.__mdfId) {
+            setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__mdfId as string, type: 'mdf' })
+          } else if (rec?.__wallId) {
+            setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__wallId as string, type: 'wall' })
           }
           e.preventDefault()
           return
@@ -997,8 +1001,10 @@ export function CanvasArea({
         // Wall line — dark thick stroke (IPVM: solid black)
         const wLine = new fm.Polyline(wall.points, {
           fill: 'transparent', stroke: '#222', strokeWidth: 3,
-          selectable: false, evented: false, opacity: 0.85,
+          selectable: false, evented: true, opacity: 0.85,
+          hoverCursor: 'pointer',
         })
+        ;(wLine as unknown as Record<string, unknown>).__wallId = wall.id
         c.add(wLine); wallObjs.current.push(wLine)
 
         // Endpoint dots
@@ -1287,21 +1293,32 @@ export function CanvasArea({
         </div>
       )}
 
-      {/* Context menu */}
+      {/* Context menu — works for devices, MDFs, and walls */}
       {ctxMenu.show && (
         <div style={{
           position: 'fixed', left: ctxMenu.x, top: ctxMenu.y,
           background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
           padding: 4, zIndex: 100, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 130,
         }}>
-          {[
-            { label: 'Duplicate', fn: () => onDeviceCopy?.(ctxMenu.id) },
-            { label: 'Delete', fn: () => onDeviceDelete?.(ctxMenu.id), danger: true },
-          ].map(i => (
+          {/* Type label */}
+          <div style={{ padding: '4px 12px 2px', fontSize: 10, color: C.textDim, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {ctxMenu.type === 'device' ? 'Camera' : ctxMenu.type === 'mdf' ? 'MDF/IDF' : 'Wall'}
+          </div>
+          {([
+            ...(ctxMenu.type === 'device' ? [{ label: 'Duplicate', fn: () => onDeviceCopy?.(ctxMenu.id) }] : []),
+            {
+              label: 'Delete', danger: true,
+              fn: () => {
+                if (ctxMenu.type === 'device') onDeviceDelete?.(ctxMenu.id)
+                else if (ctxMenu.type === 'mdf') onMdfIdfDeleted?.(ctxMenu.id)
+                else if (ctxMenu.type === 'wall') onWallDeleted?.(ctxMenu.id)
+              },
+            },
+          ] as Array<{ label: string; fn: () => void; danger?: boolean }>).map(i => (
             <button key={i.label} onClick={() => { i.fn(); setCtxMenu(p => ({ ...p, show: false })) }}
               style={{
                 display: 'block', width: '100%', padding: '6px 12px', background: 'transparent',
-                border: 'none', textAlign: 'left', color: (i as { danger?: boolean }).danger ? C.red : C.text,
+                border: 'none', textAlign: 'left', color: i.danger ? C.red : C.text,
                 fontSize: 12, cursor: 'pointer', borderRadius: 4, fontFamily: 'inherit',
               }}
               onMouseEnter={e => (e.currentTarget.style.background = C.bgHover)}
