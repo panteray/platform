@@ -700,6 +700,7 @@ export function CanvasArea({
 
       // Camera type → PNG image mapping
       const CAT_TO_PNG: Record<string, string> = {
+        cctv: '/devices/camera-types/dome.png',
         dome: '/devices/camera-types/dome.png',
         bullet: '/devices/camera-types/bullet.png',
         ptz: '/devices/camera-types/ptz.png',
