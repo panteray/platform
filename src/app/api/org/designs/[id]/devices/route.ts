@@ -52,19 +52,43 @@ export async function GET(
   if (libraryIds.length > 0) {
     const { data: libraryItems } = await admin
       .from('device_library_items')
-      .select('id, specs')
+      .select('id, vendor, model, partnumber, resolution, fps, poe_standard, wattage, ndaa_compliant, specs')
       .in('id', [...new Set(libraryIds)])
 
     if (libraryItems) {
-      const specsMap = new Map(
-        libraryItems.map((li: { id: string; specs: Record<string, unknown> | null }) => [li.id, li.specs])
+      const libMap = new Map(
+        libraryItems.map((li: Record<string, unknown>) => [li.id as string, li])
       )
       for (const d of devices) {
-        const libSpecs = specsMap.get(d.device_library_item_id as string)
-        if (libSpecs && typeof libSpecs === 'object') {
-          const deviceProps = (d.properties ?? {}) as Record<string, unknown>
-          d.properties = { ...libSpecs, ...deviceProps }
+        const libItem = libMap.get(d.device_library_item_id as string)
+        if (!libItem) continue
+
+        // Start with JSONB specs as base
+        const libSpecs = (libItem.specs && typeof libItem.specs === 'object'
+          ? libItem.specs
+          : {}) as Record<string, unknown>
+
+        // Merge top-level catalog fields so Device Specs section is always populated
+        const catalogFields: Record<string, unknown> = {}
+        if (libItem.vendor) catalogFields.vendor = libItem.vendor
+        if (libItem.model) catalogFields.model = libItem.model
+        if (libItem.partnumber) catalogFields.partnumber = libItem.partnumber
+        if (libItem.poe_standard) catalogFields.poe_standard = libItem.poe_standard
+        if (libItem.wattage != null) catalogFields.wattage = libItem.wattage
+        if (libItem.ndaa_compliant != null) catalogFields.ndaa_compliant = libItem.ndaa_compliant
+        if (libItem.resolution) {
+          catalogFields.resolution = libItem.resolution
+          const [w, h] = (libItem.resolution as string).split('x').map(Number)
+          if (w && h) { catalogFields.resolution_w = w; catalogFields.resolution_h = h }
         }
+        if (libItem.fps) {
+          const fpsNum = parseInt(libItem.fps as string, 10)
+          if (fpsNum) catalogFields.fps = fpsNum
+        }
+
+        // Priority: device's own properties > catalog top-level > library specs JSON
+        const deviceProps = (d.properties ?? {}) as Record<string, unknown>
+        d.properties = { ...libSpecs, ...catalogFields, ...deviceProps }
       }
     }
   }
