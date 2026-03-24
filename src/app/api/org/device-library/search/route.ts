@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const category = url.searchParams.get('category') ?? ''
   const ndaaParam = url.searchParams.get('ndaa_compliant')
   const limitParam = url.searchParams.get('limit')
-  const limit = limitParam ? Math.min(parseInt(limitParam, 10) || 50, 500) : 50
+  const limit = limitParam ? Math.min(parseInt(limitParam, 10) || 50, 5000) : 50
 
   const admin = createAdminClient()
 

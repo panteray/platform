@@ -78,7 +78,7 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
 
   const doFetch = useCallback(async (q: string) => {
     setLoading(true)
-    const params = new URLSearchParams({ limit: '500' })
+    const params = new URLSearchParams({ limit: '5000' })
     if (category) params.set('category', category)
     if (q.trim()) params.set('q', q.trim())
     try {
