@@ -11,18 +11,42 @@ interface DeviceCatalogModalProps {
   onSelect: (device: DeviceSearchResult) => void
 }
 
-const FORM_TYPES: { id: string; label: string }[] = [
-  { id: '', label: 'All' },
-  { id: 'box', label: 'Box' },
-  { id: 'bullet', label: 'Bullet' },
-  { id: 'covert', label: 'Covert' },
-  { id: 'cube', label: 'Cube' },
-  { id: 'dome', label: 'Dome' },
-  { id: 'ptz', label: 'PTZ' },
-  { id: 'turret', label: 'Turret' },
-  { id: 'fisheye', label: 'Fisheye' },
-  { id: 'multisensor', label: 'Multi' },
-]
+const FORM_TYPES_MAP: Record<string, { id: string; label: string }[]> = {
+  cctv: [
+    { id: '', label: 'All' },
+    { id: 'box', label: 'Box' },
+    { id: 'bullet', label: 'Bullet' },
+    { id: 'covert', label: 'Covert' },
+    { id: 'cube', label: 'Cube' },
+    { id: 'dome', label: 'Dome' },
+    { id: 'ptz', label: 'PTZ' },
+    { id: 'turret', label: 'Turret' },
+    { id: 'fisheye', label: 'Fisheye' },
+    { id: 'multisensor', label: 'Multi' },
+  ],
+  access_control: [
+    { id: '', label: 'All' },
+    { id: 'reader', label: 'Reader' },
+    { id: 'controller', label: 'Controller' },
+    { id: 'maglock', label: 'Maglock' },
+    { id: 'strike', label: 'Strike' },
+    { id: 'rex', label: 'REX' },
+  ],
+  network: [
+    { id: '', label: 'All' },
+    { id: 'switch', label: 'Switch' },
+    { id: 'router', label: 'Router' },
+    { id: 'wap', label: 'WAP' },
+    { id: 'firewall', label: 'Firewall' },
+  ],
+  av: [
+    { id: '', label: 'All' },
+    { id: 'display', label: 'Display' },
+    { id: 'speaker', label: 'Speaker' },
+    { id: 'microphone', label: 'Mic' },
+    { id: 'amplifier', label: 'Amp' },
+  ]
+}
 
 /* SVG camera silhouette icons — actual camera form factor shapes */
 function FormIcon({ type, color }: { type: string; color: string }) {
@@ -68,8 +92,9 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
   const [loading, setLoading] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const FORM_TYPES = FORM_TYPES_MAP[category] || FORM_TYPES_MAP.cctv
   const [addForm, setAddForm] = useState({
-    vendor: '', model: '', subcategory: 'dome', resolution: '4MP',
+    vendor: '', model: '', subcategory: FORM_TYPES[1]?.id || 'other', resolution: '4MP',
     focal_length: 2.8, sensor_width: 5.14, fov_angle: 90, ir_range: 30, ndaa_compliant: false
   })
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null)
@@ -124,19 +149,20 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          category: 'cctv',
+          category: category,
           vendor: addForm.vendor,
           model: addForm.model,
           subcategory: addForm.subcategory,
-          resolution: addForm.resolution,
+          resolution: category === 'cctv' ? addForm.resolution : null,
           ndaa_compliant: addForm.ndaa_compliant,
-          fps: 30, wattage: 15, poe_standard: 'PoE+',
-          specs: {
+          fps: category === 'cctv' ? 30 : null, 
+          wattage: 15, poe_standard: 'PoE+',
+          specs: category === 'cctv' ? {
             focal_length: Number(addForm.focal_length),
             sensor_width: Number(addForm.sensor_width),
             fov_angle: Number(addForm.fov_angle),
             ir_range: Number(addForm.ir_range)
-          }
+          } : {}
         })
       })
       if (!res.ok) throw new Error('Failed to create device')
@@ -502,6 +528,7 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
               )}
             </div>
           </div>
+        </div>
         </>
         )}
       </div>

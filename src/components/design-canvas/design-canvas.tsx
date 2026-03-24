@@ -881,7 +881,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
       {/* ═══════ DEVICE CATALOG MODAL ═══════ */}
       {showCatalog && (
         <DeviceCatalogModal
-          category="cctv"
+          category={activeCategory === 'door' ? 'access_control' : activeCategory === 'network' ? 'network' : activeCategory === 'av' ? 'av' : 'cctv'}
           onClose={() => setShowCatalog(false)}
           onSelect={handleDeviceSelected}
         />
