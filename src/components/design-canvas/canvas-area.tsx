@@ -62,11 +62,12 @@ interface Props {
   onFloorPlanError?: (msg: string) => void
   onZoomChange?: (zoom: number) => void
   walls?: Array<{ id: string; points: Array<{ x: number; y: number }> }>
-  onWallCreated?: (points: Array<{ x: number; y: number }>) => void
-  onSensorRotated?: (id: string, index: number, angle: number) => void
-  onUndo?: () => void; onRedo?: () => void
-  snapToGrid?: boolean
+  onWallCreated?: (pts: Array<{ x: number; y: number }>) => void
   onWallDeleted?: (id: string) => void
+  onDeviceUpdateProp?: (id: string, prop: string, val: any) => void
+  onUndo?: () => void
+  onRedo?: () => void
+  snapToGrid?: boolean
   onMdfIdfMoved?: (id: string, x: number, y: number) => void
   onMdfIdfDeleted?: (id: string) => void
   onShow3dPreview?: (device: DesignDevice) => void
@@ -131,6 +132,7 @@ export function CanvasArea({
   onFloorPlanError, hiddenCategories, zoomToPointRef,
   walls, onWallCreated, onWallDeleted, onMdfSelected,
   showIrRange, hiddenPpfZones, showBlindSpot, onWallSelected,
+  onDeviceUpdateProp, onUndo, onRedo,
 }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -240,6 +242,26 @@ export function CanvasArea({
       c.on('mouse:down', (o: any) => {
         const e = o.e as MouseEvent
         setCtxMenu(p => ({ ...p, show: false }))
+
+        // 1D. Context menu intercept (right click)
+        if (e.button === 2) {
+          const target = c.findTarget(e, false)
+          e.preventDefault()
+          if (target) {
+            const rec = target as unknown as Record<string, unknown>
+            if (rec.__devId) {
+              setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__devId as string, type: 'device' })
+              onSelectDevice(rec.__devId as string)
+            } else if (rec.__mdfId) {
+              setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__mdfId as string, type: 'mdf' })
+              onMdfSelected?.(rec.__mdfId as string)
+            } else if (rec.__wallId) {
+              setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__wallId as string, type: 'wall' })
+              onWallSelected?.(rec.__wallId as string)
+            }
+          }
+          return
+        }
 
         // Middle-click / Space → start panning
         if (e.button === 1 || spaceDown.current || toolRef.current === 'pan') {
@@ -540,11 +562,22 @@ export function CanvasArea({
       c.on('object:modified', (o: any) => {
         const obj = o.target; if (!obj) return
         const rec = obj as unknown as Record<string, unknown>
-        if (rec.__devId && !rec.__fovDist && !rec.__fovEdge) {
-          onDeviceMoved?.(rec.__devId as string, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
+        const id = rec.__devId as string
+
+        if (id && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing) {
+          onDeviceMoved?.(id, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
         }
-        if (rec.__fovDist || rec.__fovEdge) {
+        if (rec.__fovDist && rec.__tempDistFt !== undefined) {
+          onFovHandleDragged?.(id, rec.__tempDistFt as number)
+          onDeviceRotated?.(id, rec.__tempDistRot as number)
           onDragCommit?.(null)
+        }
+        if (rec.__fovEdge && rec.__tempFov !== undefined) {
+          onFovAngleChanged?.(id, rec.__tempFov as number)
+          onDragCommit?.(null)
+        }
+        if (rec.__rotRing && rec.__tempRot !== undefined) {
+          onDeviceRotated?.(id, rec.__tempRot as number)
         }
       })
 
@@ -559,34 +592,124 @@ export function CanvasArea({
         // FOV distance handle
         if (rec.__fovDist) {
           const id = rec.__devId as string
-          const cx = rec.__cx as number, cy = rec.__cy as number
+          const cx = Math.round(rec.__cx as number), cy = Math.round(rec.__cy as number)
           const dx = (obj.left ?? 0) - cx, dy = (obj.top ?? 0) - cy
           const distPx = Math.sqrt(dx * dx + dy * dy)
           const distFt = Math.max(1, Math.round(distPx / (scalePxPerFt || 10)))
           const angle = Math.round(Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360
-          onFovHandleDragged?.(id, distFt)
-          onDeviceRotated?.(id, angle)
-          // Rotate the device icon to match FOV direction
+          
+          rec.__tempDistFt = distFt
+          rec.__tempDistRot = angle
+          
           const devObj = devObjs.current.get(id)
           if (devObj) { devObj.set({ angle }); devObj.setCoords() }
+          
+          // Fluid rotation + distance stretch for FOV Cones natively without DB hit
+          const fArr = fovObjs.current.get(id)
+          const data = fovData.get(id)
+          if (fArr && data) {
+             const halfAng = (data.hFov / 2) * Math.PI / 180
+             const baseRotRad = angle * Math.PI / 180
+             // Calculate scale based on the original target distance vs current
+             const origTargetPx = data.tiers && data.tiers.length > 0 ? (data.tiers[0].distanceFt * (scalePxPerFt || 10)) : 300
+             const scaleDist = distPx / Math.max(2, origTargetPx)
+
+             fArr.forEach(fo => {
+                if ((fo as any).__isFovPoly) {
+                   const poly = fo as any
+                   const r = (poly.__tierRadius ?? 300) * scaleDist
+                   const sRotRad = baseRotRad + (poly.__sRotOffset ?? 0)
+                   const steps = 24
+                   const pts: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
+                   for (let i = 0; i <= steps; i++) {
+                     const a = sRotRad - halfAng + (2 * halfAng * i / steps)
+                     pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
+                   }
+                   poly.set({ points: pts })
+                } else if ((fo as any).__isFovLabel) {
+                   // Optional: drag labels too (simplistically hiding for now is fine, or leave them)
+                }
+             })
+          }
+          c.requestRenderAll()
           return
         }
 
         // FOV angle handle
         if (rec.__fovEdge) {
           const id = rec.__devId as string
-          const cx = rec.__cx as number, cy = rec.__cy as number
+          const cx = Math.round(rec.__cx as number), cy = Math.round(rec.__cy as number)
           const rotRad = rec.__rotRad as number
           const dx = (obj.left ?? 0) - cx, dy = (obj.top ?? 0) - cy
           let diff = Math.abs(Math.atan2(dy, dx) - rotRad)
           if (diff > Math.PI) diff = 2 * Math.PI - diff
           const fov = Math.round(Math.min(180, Math.max(5, diff * 2 * 180 / Math.PI)))
-          onFovAngleChanged?.(id, fov)
+          
+          rec.__tempFov = fov
+          
+          const fArr = fovObjs.current.get(id)
+          const data = fovData.get(id)
+          if (fArr && data) {
+             const halfAng = (fov / 2) * Math.PI / 180
+             fArr.forEach(fo => {
+                if ((fo as any).__isFovPoly) {
+                   const poly = fo as any
+                   const r = poly.__tierRadius ?? 300
+                   const sRotRad = rotRad + (poly.__sRotOffset ?? 0)
+                   const steps = 24
+                   const pts: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
+                   for (let i = 0; i <= steps; i++) {
+                     const a = sRotRad - halfAng + (2 * halfAng * i / steps)
+                     pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
+                   }
+                   poly.set({ points: pts })
+                }
+             })
+          }
+          c.requestRenderAll()
+          return
+        }
+
+        // 1C. Rotation ring drag
+        if (rec.__rotRing) {
+          const id = rec.__devId as string
+          const cx = Math.round(rec.__cx as number)
+          const cy = Math.round(rec.__cy as number)
+          const dx = (obj.left ?? cx) - cx, dy = (obj.top ?? cy) - cy
+          let angle = Math.atan2(dy, dx) * 180 / Math.PI
+          if (angle < 0) angle += 360
+          
+          rec.__tempRot = Math.round(angle)
+          
+          const devObj = devObjs.current.get(id)
+          if (devObj) { devObj.set({ angle }); devObj.setCoords() }
+          
+          const fArr = fovObjs.current.get(id)
+          const data = fovData.get(id)
+          if (fArr && data) {
+             const halfAng = (data.hFov / 2) * Math.PI / 180
+             const baseRotRad = angle * Math.PI / 180
+             fArr.forEach(fo => {
+                if ((fo as any).__isFovPoly) {
+                   const poly = fo as any
+                   const r = poly.__tierRadius ?? 300
+                   const sRotRad = baseRotRad + (poly.__sRotOffset ?? 0)
+                   const steps = 24
+                   const pts: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
+                   for (let i = 0; i <= steps; i++) {
+                     const a = sRotRad - halfAng + (2 * halfAng * i / steps)
+                     pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
+                   }
+                   poly.set({ points: pts })
+                }
+             })
+          }
+          c.requestRenderAll()
           return
         }
 
         // Device icon drag → move FOV cones in sync
-        if (rec.__devId && !rec.__fovDist && !rec.__fovEdge) {
+        if (rec.__devId && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing) {
           const devId = rec.__devId as string
           const newX = obj.left ?? 0, newY = obj.top ?? 0
           // Calculate delta from device's original state position
@@ -626,10 +749,28 @@ export function CanvasArea({
   // ════════════════════════════════════════════════════════════════
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      
       if (e.key === ' ') { spaceDown.current = true; e.preventDefault() }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selRef.current &&
-        !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selRef.current) {
         onDeviceDelete?.(selRef.current)
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault(); if (selRef.current) onDeviceCopy?.(selRef.current)
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault(); onUndo?.()
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+        e.preventDefault(); onRedo?.()
+      }
+      if (e.key.toLowerCase() === 'r' && selRef.current) {
+        const d = devsRef.current.find(x => x.id === selRef.current)
+        if (d) onDeviceRotated?.(selRef.current, ((d.rotation || 0) + 15) % 360)
+      }
+      if (e.key.toLowerCase() === 'f' && fcRef.current) {
+        fcRef.current.setViewportTransform([1, 0, 0, 1, 0, 0])
+        onZoomChange?.(1)
       }
       if (e.key === 'Enter') {
         // Finish wall drawing if in progress
@@ -978,8 +1119,31 @@ export function CanvasArea({
               strokeWidth: t === 0 ? 1.5 : 0,
               selectable: false, evented: false,
             })
+            // Cache optical attributes for fluid 60FPS drag
+            ;(cone as any).__isFovPoly = true
+            ;(cone as any).__tierRadius = r
+            ;(cone as any).__sRotOffset = sRotRad - rotRad
+
             c.add(cone)
             objects.push(cone)
+
+            // Priority 1B: On-Canvas DORI Zone Labels
+            if (devId === selectedDeviceId && (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') && zoneName) {
+              const prevR = t < data.tiers.length - 1 ? data.tiers[t+1].distanceFt * (scalePxPerFt || 10) : 0
+              const midR = prevR + (r - prevR) / 2
+              const labelText = zoneName === 'identification' ? 'ID' : zoneName === 'recognition' ? 'REC' : zoneName === 'observation' ? 'OBS' : 'DET'
+              const textObj = new fm.FabricText(labelText, {
+                left: cx + Math.cos(sRotRad) * midR,
+                top: cy + Math.sin(sRotRad) * midR,
+                fontSize: 10, fontWeight: '700', fill: '#ffffff',
+                fontFamily: 'sans-serif', textAlign: 'center',
+                shadow: new (fm as any).Shadow({ color: 'rgba(0,0,0,0.8)', blur: 2 }),
+                originX: 'center', originY: 'center',
+                selectable: false, evented: false
+              })
+              c.add(textObj)
+              objects.push(textObj)
+            }
           }
 
           // ── RED CENTERLINE (IPVM-style) — gated by showIrRange ──
@@ -1424,26 +1588,37 @@ export function CanvasArea({
 
       {/* Context menu — works for devices, MDFs, and walls */}
       {ctxMenu.show && (
-        <div style={{
+        <div 
+          onClick={e => e.stopPropagation()}
+          onContextMenu={e => e.stopPropagation()}
+          style={{
           position: 'fixed', left: ctxMenu.x, top: ctxMenu.y,
           background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
-          padding: 4, zIndex: 100, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 130,
+          padding: 4, zIndex: 100, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 160,
         }}>
           {/* Type label */}
           <div style={{ padding: '4px 12px 2px', fontSize: 10, color: C.textDim, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
             {ctxMenu.type === 'device' ? 'Camera' : ctxMenu.type === 'mdf' ? 'MDF/IDF' : 'Wall'}
           </div>
           {([
-            ...(ctxMenu.type === 'device' ? [{ label: 'Duplicate', fn: () => onDeviceCopy?.(ctxMenu.id) }] : []),
+            ...(ctxMenu.type === 'device' ? [
+              { label: '📋 Duplicate', fn: () => onDeviceCopy?.(ctxMenu.id) },
+              { label: '🔄 Reset FOV', fn: () => {
+                 onDeviceUpdateProp?.(ctxMenu.id, '__resetDori', true)
+              }}
+            ] : []),
+            ...(ctxMenu.type === 'device' ? [{ label: '─', divider: true as const, fn: () => {} }] : []),
             {
-              label: 'Delete', danger: true,
+              label: '🗑 Delete', danger: true,
               fn: () => {
                 if (ctxMenu.type === 'device') onDeviceDelete?.(ctxMenu.id)
                 else if (ctxMenu.type === 'mdf') onMdfIdfDeleted?.(ctxMenu.id)
                 else if (ctxMenu.type === 'wall') onWallDeleted?.(ctxMenu.id)
               },
             },
-          ] as Array<{ label: string; fn: () => void; danger?: boolean }>).map(i => (
+          ] as Array<{ label: string; fn: () => void; danger?: boolean; divider?: boolean }>)
+            .filter(i => !i.divider)
+            .map(i => (
             <button key={i.label} onClick={() => { i.fn(); setCtxMenu(p => ({ ...p, show: false })) }}
               style={{
                 display: 'block', width: '100%', padding: '6px 12px', background: 'transparent',

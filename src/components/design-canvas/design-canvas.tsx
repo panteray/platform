@@ -137,6 +137,47 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
     redoStack.current = []
   }, [devices])
 
+  const handleUndo = useCallback(() => {
+    // Basic stub logic: requires DB or context integration for full rollback
+    console.log('[DesignCanvas] Undo requested')
+  }, [])
+  const handleRedo = useCallback(() => {
+    // Basic stub logic
+    console.log('[DesignCanvas] Redo requested')
+  }, [])
+
+  const handleDeviceUpdateProp = useCallback((id: string, prop: string, val: any) => {
+    const dev = devices.find(d => d.id === id)
+    if (!dev) return
+    const p = (dev.properties ?? {}) as Record<string, unknown>
+
+    if (prop === '__resetDori') {
+       // Deep copy properties and strip overridden optics to restore hardware baseline
+       const libSpecs = (dev.libraryItem?.specs ?? {}) as Record<string, unknown>
+       const newP = { ...p }
+       delete newP.focal_length
+       delete newP.fov_angle
+       delete newP.sensor_width
+       delete newP.resolution_w
+
+       // Retrieve original hardware specifications (or standard defaults)
+       const sw = Number(libSpecs.sensor_w) || 5.14
+       const rw = Number(libSpecs.resolution_w) || 1920
+       const fl = Number(libSpecs.focal_length) || Number(libSpecs.focal_length_min) || 2.8
+
+       // Recalculate Max Recognize Distance (PPF 38 threshold equivalent to mathematical reality)
+       // sceneW = rw/38 -> distMm = (fl * (rw/38 * 304.8))/(2*sw)
+       const recDistFt = Math.max(10, Math.round((fl * rw / 38) / (2 * sw)))
+
+       newP.target_distance = recDistFt
+       updateDevice(id, { properties: newP })
+       return
+    }
+
+    const merged = { ...p, [prop]: val }
+    updateDevice(id, { properties: merged })
+  }, [devices, updateDevice])
+
   /* ── Derived data ── */
   const activeFloorPlan = useMemo(() =>
     floorPlans.find(fp => fp.area_id === activeAreaId) ?? null
@@ -269,7 +310,13 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   const handleFovAngleChanged = useCallback((id: string, angle: number) => {
     const dev = devices.find(d => d.id === id)
     if (!dev) return
-    const merged = { ...((dev.properties ?? {}) as Record<string, unknown>), fov_angle: angle }
+    const p = (dev.properties ?? {}) as Record<string, unknown>
+    // Translate dragged angle back to an optical focal length so DORI engine doesn't fight it and snap back!
+    const sw = Number(p.sensor_width) || 5.14
+    const angRad = angle * (Math.PI / 180)
+    const newFl = sw / (2 * Math.tan(angRad / 2))
+    
+    const merged = { ...p, fov_angle: angle, focal_length: Math.round(newFl * 10) / 10 }
     updateDevice(id, { properties: merged })
   }, [devices, updateDevice])
 
@@ -633,6 +680,9 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           onDeviceMoved={handleDeviceMoved}
           onDeviceRotated={handleDeviceRotated}
           onDeviceCopy={handleDeviceCopy}
+          onDeviceUpdateProp={handleDeviceUpdateProp}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
           onDeviceDelete={handleDeviceDelete}
           onToolChange={setActiveTool}
           onScaleCalibrated={setScalePxPerFt}
