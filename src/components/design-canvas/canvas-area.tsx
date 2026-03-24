@@ -625,20 +625,14 @@ export function CanvasArea({
                      const a = sRotRad - halfAng + (2 * halfAng * i / steps)
                      pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
                    }
-                   const newPoly = new (poly as any).constructor(pts, {
-                     fill: poly.fill, opacity: poly.opacity,
-                     stroke: poly.stroke, strokeWidth: poly.strokeWidth,
-                     selectable: false, evented: false
-                   })
-                   ;(newPoly as any).__isFovPoly = true
-                   ;(newPoly as any).__tierRadius = poly.__tierRadius
-                   ;(newPoly as any).__sRotOffset = poly.__sRotOffset
-                   const zIndex = c.getObjects().indexOf(poly)
-                   c.remove(poly)
-                   // @ts-ignore
-                   if (typeof c.insertAt === 'function') c.insertAt(newPoly, Math.max(0, zIndex), false)
-                   else { c.add(newPoly); newPoly.moveTo(Math.max(0, zIndex)) }
-                   fArr[fArr.indexOf(fo)] = newPoly
+                   poly.set({ points: pts })
+                   if (typeof poly._calcDimensions === 'function') poly._calcDimensions()
+                   
+                   const xs = pts.map(p => p.x), ys = pts.map(p => p.y)
+                   const centerX = (Math.min(...xs) + Math.max(...xs)) / 2
+                   const centerY = (Math.min(...ys) + Math.max(...ys)) / 2
+                   poly.set({ left: centerX, top: centerY })
+                   poly.setCoords()
                 } else if ((fo as any).__isFovLabel) {
                    // Optional: drag labels too (simplistically hiding for now is fine, or leave them)
                 }
@@ -675,20 +669,14 @@ export function CanvasArea({
                      const a = sRotRad - halfAng + (2 * halfAng * i / steps)
                      pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
                    }
-                   const newPoly = new (poly as any).constructor(pts, {
-                     fill: poly.fill, opacity: poly.opacity,
-                     stroke: poly.stroke, strokeWidth: poly.strokeWidth,
-                     selectable: false, evented: false
-                   })
-                   ;(newPoly as any).__isFovPoly = true
-                   ;(newPoly as any).__tierRadius = poly.__tierRadius
-                   ;(newPoly as any).__sRotOffset = poly.__sRotOffset
-                   const zIndex = c.getObjects().indexOf(poly)
-                   c.remove(poly)
-                   // @ts-ignore
-                   if (typeof c.insertAt === 'function') c.insertAt(newPoly, Math.max(0, zIndex), false)
-                   else { c.add(newPoly); newPoly.moveTo(Math.max(0, zIndex)) }
-                   fArr[fArr.indexOf(fo)] = newPoly
+                   poly.set({ points: pts })
+                   if (typeof poly._calcDimensions === 'function') poly._calcDimensions()
+                   
+                   const xs = pts.map(p => p.x), ys = pts.map(p => p.y)
+                   const centerX = (Math.min(...xs) + Math.max(...xs)) / 2
+                   const centerY = (Math.min(...ys) + Math.max(...ys)) / 2
+                   poly.set({ left: centerX, top: centerY })
+                   poly.setCoords()
                 }
              })
           }
@@ -726,20 +714,14 @@ export function CanvasArea({
                      const a = sRotRad - halfAng + (2 * halfAng * i / steps)
                      pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
                    }
-                   const newPoly = new (poly as any).constructor(pts, {
-                     fill: poly.fill, opacity: poly.opacity,
-                     stroke: poly.stroke, strokeWidth: poly.strokeWidth,
-                     selectable: false, evented: false
-                   })
-                   ;(newPoly as any).__isFovPoly = true
-                   ;(newPoly as any).__tierRadius = poly.__tierRadius
-                   ;(newPoly as any).__sRotOffset = poly.__sRotOffset
-                   const zIndex = c.getObjects().indexOf(poly)
-                   c.remove(poly)
-                   // @ts-ignore
-                   if (typeof c.insertAt === 'function') c.insertAt(newPoly, Math.max(0, zIndex), false)
-                   else { c.add(newPoly); newPoly.moveTo(Math.max(0, zIndex)) }
-                   fArr[fArr.indexOf(fo)] = newPoly
+                   poly.set({ points: pts })
+                   if (typeof poly._calcDimensions === 'function') poly._calcDimensions()
+                   
+                   const xs = pts.map(p => p.x), ys = pts.map(p => p.y)
+                   const centerX = (Math.min(...xs) + Math.max(...xs)) / 2
+                   const centerY = (Math.min(...ys) + Math.max(...ys)) / 2
+                   poly.set({ left: centerX, top: centerY })
+                   poly.setCoords()
                 }
              })
           }
@@ -1152,7 +1134,12 @@ export function CanvasArea({
             // IPVM-style wall clipping: clip FOV polygon points behind walls
             const clippedPts = walls && walls.length > 0 ? clipFovByWalls(pts, walls, cx, cy) : pts
 
+            const minX = Math.min(...clippedPts.map(p=>p.x)), maxX = Math.max(...clippedPts.map(p=>p.x))
+            const minY = Math.min(...clippedPts.map(p=>p.y)), maxY = Math.max(...clippedPts.map(p=>p.y))
             const cone = new fm.Polygon(clippedPts, {
+              left: minX + (maxX - minX) / 2,
+              top: minY + (maxY - minY) / 2,
+              originX: 'center', originY: 'center',
               fill: fillColor, opacity: Math.min(0.7, gradOpacity),
               stroke: t === 0 ? 'rgba(0,0,0,0.35)' : 'transparent',
               strokeWidth: t === 0 ? 1.5 : 0,
