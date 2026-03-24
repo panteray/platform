@@ -66,6 +66,12 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<DeviceSearchResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [isAdding, setIsAdding] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [addForm, setAddForm] = useState({
+    vendor: '', model: '', subcategory: 'dome', resolution: '4MP',
+    focal_length: 2.8, sensor_width: 5.14, fov_angle: 90, ir_range: 30, ndaa_compliant: false
+  })
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null)
   const [selectedForm, setSelectedForm] = useState('')
   const [selectedRes, setSelectedRes] = useState('')
@@ -108,6 +114,40 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
+
+  async function handleAddDevice(e: React.FormEvent) {
+    e.preventDefault()
+    if (!addForm.vendor || !addForm.model) return alert('Vendor and Model are required.')
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/org/device-library/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: 'cctv',
+          vendor: addForm.vendor,
+          model: addForm.model,
+          subcategory: addForm.subcategory,
+          resolution: addForm.resolution,
+          ndaa_compliant: addForm.ndaa_compliant,
+          fps: 30, wattage: 15, poe_standard: 'PoE+',
+          specs: {
+            focal_length: Number(addForm.focal_length),
+            sensor_width: Number(addForm.sensor_width),
+            fov_angle: Number(addForm.fov_angle),
+            ir_range: Number(addForm.ir_range)
+          }
+        })
+      })
+      if (!res.ok) throw new Error('Failed to create device')
+      const json = await res.json()
+      onSelect(json.item)
+    } catch (err) {
+      alert('Error creating custom device')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
 
   // Derived
@@ -163,17 +203,105 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
           background: HEADER_BG, padding: '10px 20px',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
-          <span style={{ color: '#fff', fontSize: 15, fontWeight: 600 }}>Select Camera Model</span>
-          <button onClick={onClose} style={{
-            background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
-            width: 28, height: 28, borderRadius: 4, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <X size={16} />
-          </button>
+          <span style={{ color: '#fff', fontSize: 15, fontWeight: 600 }}>
+            {isAdding ? 'Add Custom Device' : 'Select Camera Model'}
+          </span>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {!isAdding ? (
+              <button onClick={() => setIsAdding(true)} style={{
+                background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff',
+                padding: '4px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600
+              }}>+ Add Device</button>
+            ) : (
+              <button onClick={() => setIsAdding(false)} style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.4)', color: '#fff',
+                padding: '3px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600
+              }}>Cancel</button>
+            )}
+            <button onClick={onClose} style={{
+              background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
+              width: 28, height: 28, borderRadius: 4, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
-        {/* ═══ FILTERS BAR ═══ */}
+        {isAdding ? (
+          /* ═══ ADD DEVICE FORM ═══ */
+          <div style={{ flex: 1, padding: 30, overflow: 'auto', background: C.bgPanel }}>
+            <form onSubmit={handleAddDevice} style={{ maxWidth: 600, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 600, color: C.textDim }}>
+                  Vendor (Brand) *
+                  <input required value={addForm.vendor} onChange={e => setAddForm({...addForm, vendor: e.target.value})}
+                    style={{ padding: '8px 12px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text }} />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 600, color: C.textDim }}>
+                  Model *
+                  <input required value={addForm.model} onChange={e => setAddForm({...addForm, model: e.target.value})}
+                    style={{ padding: '8px 12px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text }} />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 600, color: C.textDim }}>
+                  Form Factor
+                  <select value={addForm.subcategory} onChange={e => setAddForm({...addForm, subcategory: e.target.value})}
+                    style={{ padding: '8px 12px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontFamily: 'inherit' }}>
+                    {FORM_TYPES.filter(f=>f.id).map(ft => <option key={ft.id} value={ft.id}>{ft.label}</option>)}
+                  </select>
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 600, color: C.textDim }}>
+                  Resolution
+                  <input value={addForm.resolution} onChange={e => setAddForm({...addForm, resolution: e.target.value})}
+                    placeholder="e.g. 4MP, 4K, 1080p, 12MP"
+                    style={{ padding: '8px 12px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text }} />
+                </label>
+              </div>
+
+              <div style={{ fontSize: 14, fontWeight: 600, color: ACCENT, marginTop: 10, borderBottom: `1px solid ${C.borderSubtle}`, paddingBottom: 8 }}>Optical Specifications (DORI)</div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 600, color: C.textDim }}>
+                  Focal Length (mm)
+                  <input type="number" step="0.1" required value={addForm.focal_length} onChange={e => setAddForm({...addForm, focal_length: Number(e.target.value)})}
+                    style={{ padding: '8px 12px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text }} />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 600, color: C.textDim }}>
+                  Sensor Width (mm)
+                  <input type="number" step="0.1" required value={addForm.sensor_width} onChange={e => setAddForm({...addForm, sensor_width: Number(e.target.value)})}
+                    style={{ padding: '8px 12px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text }} />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 600, color: C.textDim }}>
+                  Max FOV Angle (°)
+                  <input type="number" step="1" required value={addForm.fov_angle} onChange={e => setAddForm({...addForm, fov_angle: Number(e.target.value)})}
+                    style={{ padding: '8px 12px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text }} />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 600, color: C.textDim }}>
+                   IR Range (m)
+                  <input type="number" step="1" required value={addForm.ir_range} onChange={e => setAddForm({...addForm, ir_range: Number(e.target.value)})}
+                    style={{ padding: '8px 12px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text }} />
+                </label>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, color: C.text, marginTop: 10 }}>
+                <input type="checkbox" checked={addForm.ndaa_compliant} onChange={e => setAddForm({...addForm, ndaa_compliant: e.target.checked})}
+                  style={{ width: 16, height: 16, accentColor: C.green }} />
+                NDAA Compliant
+              </label>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+                <button type="submit" disabled={submitting} style={{
+                  padding: '10px 24px', background: ACCENT, color: '#fff', border: 'none',
+                  borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: submitting ? 'wait' : 'pointer', fontFamily: 'inherit'
+                }}>
+                  {submitting ? 'Saving...' : 'Add Device & Place on Map'}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : (
+          <>
+            {/* ═══ FILTERS BAR ═══ */}
         <div style={{
           padding: '12px 20px', borderBottom: `1px solid ${C.border}`,
           display: 'flex', flexDirection: 'column', gap: 10, background: C.bgSurface,
@@ -374,7 +502,8 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
               )}
             </div>
           </div>
-        </div>
+        </>
+        )}
       </div>
     </div>
   )
