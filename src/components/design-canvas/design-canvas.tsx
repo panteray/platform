@@ -153,7 +153,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
 
     if (prop === '__resetDori') {
        // Deep copy properties and strip overridden optics to restore hardware baseline
-       const libSpecs = (dev.libraryItem?.specs ?? {}) as Record<string, unknown>
+       const libSpecs = ((dev as any).libraryItem?.specs ?? {}) as Record<string, unknown>
        const newP = { ...p }
        delete newP.focal_length
        delete newP.fov_angle
