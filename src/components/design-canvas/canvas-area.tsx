@@ -625,7 +625,18 @@ export function CanvasArea({
                      const a = sRotRad - halfAng + (2 * halfAng * i / steps)
                      pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
                    }
-                   poly.set({ points: pts })
+                   const newPoly = new (poly as any).constructor(pts, {
+                     fill: poly.fill, opacity: poly.opacity,
+                     stroke: poly.stroke, strokeWidth: poly.strokeWidth,
+                     selectable: false, evented: false
+                   })
+                   ;(newPoly as any).__isFovPoly = true
+                   ;(newPoly as any).__tierRadius = poly.__tierRadius
+                   ;(newPoly as any).__sRotOffset = poly.__sRotOffset
+                   c.remove(poly)
+                   c.add(newPoly)
+                   c.sendObjectToBack(newPoly) // keep cones under handles
+                   fArr[fArr.indexOf(fo)] = newPoly
                 } else if ((fo as any).__isFovLabel) {
                    // Optional: drag labels too (simplistically hiding for now is fine, or leave them)
                 }
