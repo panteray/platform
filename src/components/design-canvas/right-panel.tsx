@@ -14,7 +14,7 @@
  *   Actions (Duplicate / Delete)
  */
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, Crosshair } from 'lucide-react'
 import { C } from './constants'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
@@ -88,7 +88,7 @@ export function RightPanel({
   showIrRange = true, onToggleIrRange, hiddenPpfZones, onTogglePpfZone,
   showBlindSpot = false, onToggleBlindSpot,
 }: Props) {
-  const props = (device.properties ?? {}) as Record<string, unknown>
+  const props = useMemo(() => (device.properties ?? {}) as Record<string, unknown>, [device.properties])
   const isCamera = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(device.category)
 
   const updateProp = useCallback((key: string, value: unknown) => {

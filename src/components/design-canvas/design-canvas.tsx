@@ -55,6 +55,29 @@ const SIDEBAR_ICONS: Record<IconTabId, React.ReactNode> = {
   other: <MoreHorizontal size={18} />,
 }
 
+/* ─── Layer category mapping (stable module-scope constant) ─── */
+const CATEGORY_MAP: Record<string, string[]> = {
+  camera: ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'],
+  door: ['access_control'],
+  network: ['network'],
+  av: ['av'],
+  sensors: ['vape_environmental'],
+  other: ['other'],
+}
+
+/* ─── Device label prefix map (stable module-scope constant) ─── */
+const LABEL_PREFIX: Record<string, string> = {
+  cctv: 'CAM', dome: 'CAM', bullet: 'CAM', turret: 'CAM', ptz: 'PTZ',
+  fisheye: 'FE', multisensor_quad: 'MS', multisensor_dual: 'MS',
+  access_control: 'ACS', door: 'DR', door_controller: 'CTRL',
+  card_reader: 'RDR', electric_strike: 'ES', maglock: 'ML',
+  network: 'NET', switch: 'SW', access_switch: 'SW', rack: 'MDF',
+  nvr: 'NVR', router: 'RTR', firewall: 'FW', wireless_ap: 'AP',
+  bridge: 'PTP', server: 'SVR', monitor: 'MON', patch_panel: 'PP',
+  av: 'AV', speaker: 'SPK', intercom: 'INT',
+  vape_environmental: 'ENV', other: 'DEV',
+}
+
 /* ─── Page tabs (Hanwha-style top nav) ─── */
 const PAGE_TABS = [
   { id: 'maps', label: 'Maps' },
@@ -105,15 +128,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
     zoomToPointRef.current(dev.position_x, dev.position_y)
   }, [devices])
 
-  /* ── Layer toggle helper ── */
-  const CATEGORY_MAP: Record<string, string[]> = {
-    camera: ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'],
-    door: ['access_control'],
-    network: ['network'],
-    av: ['av'],
-    sensors: ['vape_environmental'],
-    other: ['other'],
-  }
   const toggleCategoryVisibility = useCallback((tabId: string) => {
     const cats = CATEGORY_MAP[tabId] || []
     setHiddenCategories(prev => {
@@ -339,18 +353,6 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   }, [deleteDevice, pushUndo])
 
   // Auto-label prefix by category
-  const LABEL_PREFIX: Record<string, string> = {
-    cctv: 'CAM', dome: 'CAM', bullet: 'CAM', turret: 'CAM', ptz: 'PTZ',
-    fisheye: 'FE', multisensor_quad: 'MS', multisensor_dual: 'MS',
-    access_control: 'ACS', door: 'DR', door_controller: 'CTRL',
-    card_reader: 'RDR', electric_strike: 'ES', maglock: 'ML',
-    network: 'NET', switch: 'SW', access_switch: 'SW', rack: 'MDF',
-    nvr: 'NVR', router: 'RTR', firewall: 'FW', wireless_ap: 'AP',
-    bridge: 'PTP', server: 'SVR', monitor: 'MON', patch_panel: 'PP',
-    av: 'AV', speaker: 'SPK', intercom: 'INT',
-    vape_environmental: 'ENV', other: 'DEV',
-  }
-
   const getNextLabel = useCallback((category: string) => {
     const prefix = LABEL_PREFIX[category] || 'DEV'
     const sameCategory = devices.filter(d => (LABEL_PREFIX[d.category] || 'DEV') === prefix)

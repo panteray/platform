@@ -836,7 +836,7 @@ export function CanvasArea({
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
-  }, [onDeviceDelete, onSelectDevice, onToolChange, onWallCreated])
+  }, [onDeviceDelete, onSelectDevice, onToolChange, onWallCreated, onDeviceCopy, onDeviceRotated, onUndo, onRedo, onZoomChange])
 
   // ════════════════════════════════════════════════════════════════
   // RESIZE
@@ -871,7 +871,7 @@ export function CanvasArea({
         c.requestRenderAll()
       } catch { onFloorPlanError?.('Failed to load floor plan') }
     })()
-  }, [floorPlan?.file_url, floorPlanOpacity, ready])
+  }, [floorPlan?.file_url, floorPlanOpacity, ready, onFloorPlanError])
 
   // ════════════════════════════════════════════════════════════════
   // GRID
@@ -1414,7 +1414,7 @@ export function CanvasArea({
       for (const [, h] of handleObjs.current) c.bringObjectToFront(h)
       c.requestRenderAll()
     })()
-  }, [mdfIdfs, devices, ready])
+  }, [mdfIdfs, devices, ready, cables])
 
   // ════════════════════════════════════════════════════════════════
   // CABLES
@@ -1444,7 +1444,7 @@ export function CanvasArea({
       }
       c.requestRenderAll()
     })()
-  }, [cables, devices, ready])
+  }, [cables, devices, ready, mdfIdfs])
 
   // ════════════════════════════════════════════════════════════════
   // SCALE VISUAL MARKERS (green endpoints + dashed line)
