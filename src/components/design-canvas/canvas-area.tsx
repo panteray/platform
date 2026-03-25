@@ -570,16 +570,15 @@ export function CanvasArea({
         // Release FOV drag suppression guard after a short delay
         // to allow the DB write → useEffect re-render to happen cleanly
         if (isDraggingFov.current) {
-          // Clear cached scale factors so next drag starts fresh
+          // Clear origLeft/origTop for device move tracking
           const fArr = fovObjs.current.get(id)
           if (fArr) {
             for (const fo of fArr) {
               const fRec = fo as unknown as Record<string, unknown>
-              delete fRec.__origScale
-              delete fRec.__origDistPx
+              delete fRec.__origLeft
+              delete fRec.__origTop
             }
           }
-          // Delay releasing the guard so the commit + useEffect fires in correct order
           setTimeout(() => { isDraggingFov.current = false }, 100)
         }
 
@@ -608,7 +607,7 @@ export function CanvasArea({
         if (now - lastDragT.current < 16) return
         lastDragT.current = now
 
-        // FOV distance handle — IPVM-style: use native scaleX/scaleY on existing polygons
+        // FOV distance handle — live vertex recalculation for visual feedback
         if (rec.__fovDist) {
           isDraggingFov.current = true
           const id = rec.__devId as string
@@ -624,24 +623,37 @@ export function CanvasArea({
           const devObj = devObjs.current.get(id)
           if (devObj) { devObj.set({ angle }); devObj.setCoords() }
           
-          // Native Fabric scale transform (no polygon reconstruction)
+          // Recalculate FOV cone vertices for live preview
           const fArr = fovObjs.current.get(id)
-          if (fArr) {
-            const rotRad = angle * Math.PI / 180
-            for (const fo of fArr) {
-              const fRec = fo as unknown as Record<string, unknown>
-              if (fRec.__isFovPoly) {
-                // Cache original scale factor on first move
-                if (fRec.__origScale === undefined) {
-                  fRec.__origScale = (fo as any).scaleX ?? 1
-                  fRec.__origDistPx = fRec.__tierRadius as number
+          const data = fovDataRef.current.get(id)
+          if (fArr && data) {
+             const halfAng = (data.hFov / 2) * Math.PI / 180
+             const baseRotRad = angle * Math.PI / 180
+             const origTargetPx = data.tiers && data.tiers.length > 0 ? (data.tiers[0].distanceFt * (scalePxRef.current || 10)) : 300
+             const scaleDist = distPx / Math.max(2, origTargetPx)
+
+             for (const fo of fArr) {
+                const fRec = fo as unknown as Record<string, unknown>
+                if (fRec.__isFovPoly) {
+                   const poly = fo as any
+                   const r = ((fRec.__tierRadius as number) ?? 300) * scaleDist
+                   const sRotRad = baseRotRad + ((fRec.__sRotOffset as number) ?? 0)
+                   const steps = 24
+                   const pts: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
+                   for (let i = 0; i <= steps; i++) {
+                     const a = sRotRad - halfAng + (2 * halfAng * i / steps)
+                     pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
+                   }
+                   poly.set({ points: pts })
+                   if (typeof poly._calcDimensions === 'function') poly._calcDimensions()
+                   
+                   const xs = pts.map((p: {x:number;y:number}) => p.x), ys = pts.map((p: {x:number;y:number}) => p.y)
+                   const centerX = (Math.min(...xs) + Math.max(...xs)) / 2
+                   const centerY = (Math.min(...ys) + Math.max(...ys)) / 2
+                   poly.set({ left: centerX, top: centerY })
+                   poly.setCoords()
                 }
-                const origDistPx = fRec.__origDistPx as number
-                const scaleFactor = origDistPx > 0 ? distPx / origDistPx : 1
-                fo.set({ scaleX: scaleFactor, scaleY: scaleFactor, angle: angle - 90 })
-                fo.setCoords()
-              }
-            }
+             }
           }
           c.requestRenderAll()
           return
