@@ -15,7 +15,7 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react'
-import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, Crosshair } from 'lucide-react'
+import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, Crosshair, Lock, Unlock } from 'lucide-react'
 import { C } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { BlindSpotDiagram } from './blind-spot-diagram'
@@ -172,7 +172,7 @@ export function RightPanel({
   const rotation = device.rotation || 0
 
   // Compute hFov and blind spot for diagram
-  const sensorW = Number(props.sensor_width) || 0
+  const sensorW = Number(props.sensor_w) || Number(props.sensor_width) || 0
   const hFov = sensorW > 0 && focalLength > 0
     ? 2 * Math.atan(sensorW / (2 * focalLength)) * (180 / Math.PI)
     : fovAngle
@@ -332,6 +332,117 @@ export function RightPanel({
           </div>
         </div>
 
+        {/* ── Multi-Sensor Lock + Head Controls (IPVM-style) ── */}
+        {(device.category === 'multisensor_quad' || device.category === 'multisensor_dual') && (
+          <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+            {/* Lock Camera toggle — IPVM: locks position so only imagers rotate */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: 8, padding: '6px 8px', background: props.locked ? '#22c55e15' : C.bgActive,
+              borderRadius: 4, border: `1px solid ${props.locked ? '#22c55e40' : C.border}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {props.locked ? <Lock size={12} style={{ color: '#22c55e' }} /> : <Unlock size={12} style={{ color: C.textMuted }} />}
+                <span style={{ fontSize: 10, fontWeight: 600, color: props.locked ? '#22c55e' : C.textMuted }}>
+                  {props.locked ? 'Camera Locked' : 'Lock Camera'}
+                </span>
+              </div>
+              <button
+                onClick={() => updateProp('locked', !props.locked)}
+                style={{
+                  padding: '2px 8px', fontSize: 9, fontWeight: 600,
+                  background: props.locked ? '#22c55e20' : 'transparent',
+                  border: `1px solid ${props.locked ? '#22c55e' : C.border}`,
+                  borderRadius: 3, color: props.locked ? '#22c55e' : C.textMuted,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                {props.locked ? 'Unlock' : 'Lock'}
+              </button>
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>
+              Sensor Heads ({device.category === 'multisensor_quad' ? 4 : 2})
+            </div>
+            {(() => {
+              const sensorCount = device.category === 'multisensor_quad' ? 4 : 2
+              const base = rotation
+              const defaultAngles = device.category === 'multisensor_quad'
+                ? [base, base + 90, base + 180, base + 270]
+                : [base - 45, base + 45]
+              const angles = (props.sensor_angles as number[] | undefined) || defaultAngles
+              const sensorColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {Array.from({ length: sensorCount }, (_, i) => {
+                    const angle = angles[i] ?? defaultAngles[i]
+                    const normalizedAngle = ((angle % 360) + 360) % 360
+                    return (
+                      <div key={i} style={{
+                        padding: '6px 8px', background: C.bgActive, borderRadius: 4,
+                        border: `1px solid ${sensorColors[i]}30`,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{
+                              width: 8, height: 8, borderRadius: '50%',
+                              background: sensorColors[i], display: 'inline-block',
+                            }} />
+                            <span style={{ fontSize: 10, fontWeight: 700, color: sensorColors[i] }}>
+                              S{i + 1}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <input
+                              type="number"
+                              value={Math.round(normalizedAngle)}
+                              min={0} max={360} step={1}
+                              onChange={e => {
+                                const newAngles = [...angles]
+                                newAngles[i] = Number(e.target.value)
+                                updateProp('sensor_angles', newAngles)
+                              }}
+                              style={{
+                                width: 44, padding: '2px 4px', background: C.bgPanel,
+                                border: `1px solid ${C.border}`, borderRadius: 3,
+                                color: C.text, fontSize: 10, fontFamily: 'monospace',
+                                outline: 'none', textAlign: 'right',
+                              }}
+                            />
+                            <span style={{ fontSize: 9, color: C.textDim }}>°</span>
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          value={normalizedAngle}
+                          min={0} max={360} step={1}
+                          onChange={e => {
+                            const newAngles = [...angles]
+                            newAngles[i] = Number(e.target.value)
+                            updateProp('sensor_angles', newAngles)
+                          }}
+                          style={{ width: '100%', accentColor: sensorColors[i], height: 12 }}
+                        />
+                      </div>
+                    )
+                  })}
+                  {/* Reset to default arrangement */}
+                  <button
+                    onClick={() => updateProp('sensor_angles', defaultAngles)}
+                    style={{
+                      padding: '4px 0', fontSize: 9, fontWeight: 600,
+                      background: 'transparent', border: `1px solid ${C.border}`,
+                      borderRadius: 3, color: C.textMuted, cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    Reset to Default Layout
+                  </button>
+                </div>
+              )
+            })()}
+          </div>
+        )}
+
         {/* Camera-specific sections */}
         {isCamera && (
           <>
@@ -388,7 +499,8 @@ export function RightPanel({
                 const ip = perImagerProps[selectedImagerIdx] || {}
                 const imagerDist = ip.distance || targetDist
                 const imagerHfov = ip.hfov || fovAngle
-                const imagerColor = ip.color || device.color_hex || '#4a90d9'
+                const sensorDefaultColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
+                const imagerColor = ip.color || sensorDefaultColors[selectedImagerIdx % sensorDefaultColors.length]
 
                 const updateImagerProp = (key: string, value: unknown) => {
                   const arr = [...(perImagerProps.length >= imagerCount ? perImagerProps : Array.from({ length: imagerCount }, (_, i) => perImagerProps[i] || {}))]
@@ -446,7 +558,8 @@ export function RightPanel({
                     {Array.from({ length: imagerCount }, (_, i) => {
                       const ip = perImagerProps[i] || {}
                       const dist = ip.distance || targetDist
-                      const color = ip.color || device.color_hex || '#4a90d9'
+                      const sensorDefaultColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
+                      const color = ip.color || sensorDefaultColors[i % sensorDefaultColors.length]
                       return (
                         <button key={i}
                           onClick={() => onSelectImager?.(i)}
@@ -496,7 +609,7 @@ export function RightPanel({
             />
 
             {/* ── Simulated View button ── */}
-            {Number(props.resolution_w) > 0 && Number(props.sensor_width) > 0 && focalLength > 0 && onShowSimulatedView && (
+            {Number(props.resolution_w) > 0 && sensorW > 0 && focalLength > 0 && onShowSimulatedView && (
               <div style={{ padding: '6px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
                 <button
                   onClick={onShowSimulatedView}
@@ -553,10 +666,12 @@ export function RightPanel({
                   <div style={{ fontSize: 10, fontWeight: 600, color: C.text, marginBottom: 4 }}>PPF Zones</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                     {[
-                      { zone: 'identification', label: 'Identification', color: '#22c55e', ppf: '76+ PPF' },
+                      { zone: 'inspection', label: 'Inspection', color: '#8b5cf6', ppf: '305+ PPF' },
+                      { zone: 'identification', label: 'Identification', color: '#22c55e', ppf: '76–304 PPF' },
                       { zone: 'recognition', label: 'Recognition / LPR', color: '#eab308', ppf: '38–75 PPF' },
                       { zone: 'observation', label: 'Observation', color: '#f97316', ppf: '19–37 PPF' },
                       { zone: 'detection', label: 'Detection', color: '#ef4444', ppf: '8–18 PPF' },
+                      { zone: 'monitor', label: 'Monitor', color: '#6b7280', ppf: '4–7 PPF' },
                     ].map(z => {
                       const hidden = hiddenPpfZones?.has(z.zone) ?? false
                       return (

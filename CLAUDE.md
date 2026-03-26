@@ -18,6 +18,38 @@ Physical security design platform. Next.js 15 App Router + React 19 + Supabase (
 - `src/components/design-canvas/polygon-clip.ts` — Wall occlusion
 - `src/lib/calculators/fov-dori.ts` — DORI/PPF calculator (DO NOT CHANGE without understanding IEC 62676-4)
 
+## Multi-Sensor Camera Architecture
+Multi-sensor cameras (`multisensor_quad`, `multisensor_dual`) work like IPVM — each sensor head is an independent camera:
+- **Per-sensor rotation**: Each sensor has its own rotation angle stored in `properties.sensor_angles` (number array)
+- **Default angles**: Dual = `[base-45, base+45]`, Quad = `[base, base+90, base+180, base+270]`
+- **Per-sensor FOV cones**: Each sensor renders its own cone polygon with own DORI tiers, centerline, and labels
+- **Per-sensor handles**: Each sensor gets distance handle, angle handles, and rotation ring (all per-imager)
+- **Per-sensor drag**: Dragging a sensor's distance/angle handle ONLY affects that sensor's cone
+- **Per-sensor persistence**: Handle changes persist to `properties.per_imager_props[sIdx]` (not global)
+- **__sensorIdx tagging**: Each cone polygon is tagged with `__sensorIdx` for precise drag targeting
+- **Right panel controls**: Sensor Heads section with per-sensor rotation sliders + Imager navigation
+- **perImagerData**: Always generated for multi-sensor cameras (provides per-sensor tiers, hFov, color)
+- **Shared specs**: All sensors share same optics (focal length, sensor width, resolution) — rotation/distance/angle differ
+- **Sensor colors**: S1=#3b82f6, S2=#22c55e, S3=#f97316, S4=#a855f7 (module constant `SENSOR_COLORS`)
+- **Lock Camera** (IPVM): `properties.locked` prevents device drag, only imagers rotate
+- **IPVM behavior**: Each imager is independently adjustable (distance, FOV width, rotation). Entire camera moves as one assembly. IPVM supports 2–5 imagers per multi-sensor camera.
+- **180/360 panoramic**: Uses circle circumference formula (2*pi*r) not triangle-based cone — different from standard multi-sensor
+
+## Non-Camera Coverage Boundaries (System Surveyor)
+- Speakers and environmental/vape sensors get circular coverage zones on canvas
+- Configurable via `properties.coverage_radius` (ft)
+- Default: speakers=25ft (#8b5cf6), vape_environmental=15ft (#14b8a6)
+- Uses same FOV rendering pipeline with 360° hFov and single opacity tier
+
+## Industry Research (IPVM / Hanwha DesignPro / Axis Site Designer)
+- All major tools use Google Maps as foundation with FOV cones rendered on the map
+- IPVM: Google Maps + map polygons (lat/lng) with DORI color tiers, wall occlusion
+- Hanwha DesignPro: Google Maps + FOV cones + PPF zones + 3D preview
+- Axis Site Designer: Google Maps + FOV visualization + 3D preview
+- Our implementation: Fabric.js canvas + Google Maps as synchronized satellite backdrop
+- FOV data computation logic in design-canvas.tsx is correct and reusable
+- `fov-dori.ts` calculator engine is production-quality IEC 62676-4 implementation
+
 ## Critical Rules
 - **Never use IBM Plex fonts** — use Inter for UI, system monospace for code/numbers
 - FOV polygons use LOCAL coordinates (0,0 = apex), never absolute canvas coordinates
