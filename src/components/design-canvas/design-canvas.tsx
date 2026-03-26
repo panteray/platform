@@ -38,7 +38,8 @@ import { MdfRightPanel } from './mdf-right-panel'
 import { WallRightPanel } from './wall-right-panel'
 import { DeviceCatalogModal } from './device-catalog-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
-import { getFovConeTiers } from '@/lib/calculators'
+import { getFovConeTiers, calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
+import { SimulatedView } from './simulated-view'
 import type { DesignDevice, DeviceSearchResult } from '@/types/database'
 
 /* ─── Props ─── */
@@ -102,6 +103,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   /* ── UI state ── */
   const [activeTool, setActiveTool] = useState<CanvasTool>('select')
   const [activeTab, setActiveTab] = useState<string>('maps')
+  const [selectedImagerIdx, setSelectedImagerIdx] = useState<number | null>(null)
   const [activeCategory, setActiveCategory] = useState<IconTabId>('camera')
   const [showGrid, setShowGrid] = useState(true)
   const [showFov, setShowFov] = useState(true)
@@ -117,6 +119,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   const [hiddenPpfZones, setHiddenPpfZones] = useState<Set<string>>(new Set())
   const [showBlindSpot, setShowBlindSpot] = useState(false)
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null)
+  const [showSimulatedView, setShowSimulatedView] = useState(false)
 
   /* ── Canvas ref for zoom-to-device ── */
   const canvasRef = useRef<{ zoomToDevice?: (devId: string) => void } | null>(null)
@@ -257,7 +260,8 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           distanceFt: Math.min(t.distanceFt, targetDist),
           color: t.color,
           // Graduated opacity: outermost=faintest, innermost=densest
-          opacity: [0.06, 0.10, 0.14, 0.20][i] ?? 0.10,
+          // 6-tier graduated opacity: monitor(outermost) → inspection(innermost)
+          opacity: [0.04, 0.06, 0.09, 0.12, 0.15, 0.20][i] ?? 0.10,
         }))
       } else {
         // Fallback: 4 proportional tiers with graduated opacity
@@ -289,6 +293,41 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
       const lowerAngle = tiltRad + vFovHalf
       const blindSpotFt = lowerAngle < Math.PI / 2 ? installHeight * Math.tan(Math.PI / 2 - lowerAngle) : 0
 
+      // Per-imager property overrides (for multisensor cameras)
+      const perImagerRaw = props.per_imager_props as Array<{ distance?: number; hfov?: number; color?: string }> | undefined
+      let perImagerData: Array<{ tiers: typeof tiers; hFov: number; colorHex?: string }> | undefined
+      if (perImagerRaw && perImagerRaw.length > 0 && sensorAngles && sensorAngles.length > 1) {
+        perImagerData = sensorAngles.map((_, idx) => {
+          const imagerProps = perImagerRaw[idx] || {}
+          const imagerDist = imagerProps.distance || targetDist
+          const imagerHFov = imagerProps.hfov || hFov
+          const imagerColor = imagerProps.color || d.color_hex || deviceColor
+
+          let imagerTiers: typeof tiers
+          if (hasFullSpecs) {
+            const doriTiers = getFovConeTiers({
+              resolutionW: resW, resolutionH: Number(props.resolution_h) || Math.round(resW * 9 / 16),
+              sensorW, sensorH: Number(props.sensor_height) || sensorW * 0.75,
+              focalLength, mountHeight: installHeight, targetDistance: imagerDist,
+            })
+            imagerTiers = doriTiers.map((t, i) => ({
+              distanceFt: Math.min(t.distanceFt, imagerDist),
+              color: t.color,
+              // 6-tier graduated opacity: monitor(outermost) → inspection(innermost)
+              opacity: [0.04, 0.06, 0.09, 0.12, 0.15, 0.20][i] ?? 0.10,
+            }))
+          } else {
+            imagerTiers = [
+              { distanceFt: imagerDist, color: imagerColor, opacity: 0.06 },
+              { distanceFt: imagerDist * 0.7, color: imagerColor, opacity: 0.10 },
+              { distanceFt: imagerDist * 0.45, color: imagerColor, opacity: 0.14 },
+              { distanceFt: imagerDist * 0.2, color: imagerColor, opacity: 0.20 },
+            ]
+          }
+          return { tiers: imagerTiers, hFov: imagerHFov, colorHex: imagerColor }
+        })
+      }
+
       map.set(d.id, {
         hFov, rotation: d.rotation || 0, tiers,
         sensorAngles,
@@ -297,6 +336,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
         focalLength: focalLength || undefined,
         colorHex: d.color_hex || undefined,
         blindSpotFt: blindSpotFt > 0 ? blindSpotFt : undefined,
+        perImagerData,
       })
     }
     return map
@@ -773,9 +813,42 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
               })}
               showBlindSpot={showBlindSpot}
               onToggleBlindSpot={setShowBlindSpot}
+              selectedImagerIdx={selectedImagerIdx}
+              onSelectImager={(idx) => setSelectedImagerIdx(idx)}
+              onDisconnectCable={async (deviceId) => {
+                const toDelete = areaCables.filter(
+                  c => c.from_device_id === deviceId || c.to_device_id === deviceId
+                )
+                for (const c of toDelete) await deleteCable(c.id)
+              }}
+              onShowSimulatedView={() => setShowSimulatedView(true)}
             />
           </div>
         )}
+
+        {/* ── SIMULATED VIEW OVERLAY ── */}
+        {showSimulatedView && selectedDevice && (() => {
+          const devProps = (selectedDevice.properties ?? {}) as Record<string, unknown>
+          const resW = Number(devProps.resolution_w) || 0
+          const senW = Number(devProps.sensor_width) || 0
+          const fl = Number(devProps.focal_length) || 4
+          const td = Number(devProps.target_distance) || 30
+          const ih = Number(devProps.install_height) || 9
+          const ppf = (resW > 0 && senW > 0 && fl > 0) ? calculatePpfAtDistance(resW, senW, fl, td) : 0
+          const dori = ppf > 0 ? classifyDori(ppf) : 'none' as const
+          return (
+            <SimulatedView
+              resolutionW={resW}
+              sensorW={senW}
+              focalLength={fl}
+              targetDistFt={td}
+              installHeight={ih}
+              ppf={ppf}
+              dori={dori}
+              onClose={() => setShowSimulatedView(false)}
+            />
+          )
+        })()}
 
         {/* ── MDF RIGHT PANEL ── */}
         {!selectedDevice && selectedMdfId && (() => {

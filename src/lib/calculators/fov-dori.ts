@@ -66,17 +66,23 @@ export interface FovDoriOutput {
   maxObservationDistFt: number;
   /** Maximum detection distance */
   maxDetectionDistFt: number;
+  /** Maximum inspection distance (305 PPF forensic detail) */
+  maxInspectionDistFt: number;
+  /** Maximum monitor distance (4 PPF scene awareness) */
+  maxMonitorDistFt: number;
 }
 
-export type DoriClassification = 'identification' | 'recognition' | 'observation' | 'detection' | 'none';
+export type DoriClassification = 'inspection' | 'identification' | 'recognition' | 'observation' | 'detection' | 'monitor' | 'none';
 
 // ---- DORI PPF Thresholds (IEC 62676-4) ----
 
 const DORI_THRESHOLDS = {
+  inspection: 305,      // PPF >= 305: forensic-level detail (IEC 62676-4)
   identification: 76,   // PPF >= 76: identify a person
   recognition: 38,      // PPF >= 38: recognize a known person
   observation: 19,       // PPF >= 19: observe activity
   detection: 8,          // PPF >= 8: detect presence
+  monitor: 4,            // PPF >= 4: general scene awareness
 };
 
 // ---- Constants ----
@@ -152,10 +158,12 @@ export function calculateFovDori(input: FovDoriInput): FovDoriOutput {
     : 0;
 
   // 8. Max distances per DORI tier
+  const maxInspectionDistFt = calculateMaxDistance(resolutionW, sensorW, focalLength, DORI_THRESHOLDS.inspection);
   const maxIdentificationDistFt = calculateMaxDistance(resolutionW, sensorW, focalLength, DORI_THRESHOLDS.identification);
   const maxRecognitionDistFt = calculateMaxDistance(resolutionW, sensorW, focalLength, DORI_THRESHOLDS.recognition);
   const maxObservationDistFt = calculateMaxDistance(resolutionW, sensorW, focalLength, DORI_THRESHOLDS.observation);
   const maxDetectionDistFt = calculateMaxDistance(resolutionW, sensorW, focalLength, DORI_THRESHOLDS.detection);
+  const maxMonitorDistFt = calculateMaxDistance(resolutionW, sensorW, focalLength, DORI_THRESHOLDS.monitor);
 
   return {
     hFov: round(hFov),
@@ -171,6 +179,8 @@ export function calculateFovDori(input: FovDoriInput): FovDoriOutput {
     maxRecognitionDistFt: round(maxRecognitionDistFt),
     maxObservationDistFt: round(maxObservationDistFt),
     maxDetectionDistFt: round(maxDetectionDistFt),
+    maxInspectionDistFt: round(maxInspectionDistFt),
+    maxMonitorDistFt: round(maxMonitorDistFt),
   };
 }
 
@@ -200,16 +210,22 @@ export function getFovConeTiers(
 
   return [
     {
+      tier: 'monitor' as DoriClassification,
+      distanceFt: calculateMaxDistance(resolutionW, sensorW, focalLength, DORI_THRESHOLDS.monitor),
+      color: '#6b7280',
+      opacity: 0.04,
+    },
+    {
       tier: 'detection',
       distanceFt: calculateMaxDistance(resolutionW, sensorW, focalLength, DORI_THRESHOLDS.detection),
       color: '#ef4444',
-      opacity: 0.08,
+      opacity: 0.06,
     },
     {
       tier: 'observation',
       distanceFt: calculateMaxDistance(resolutionW, sensorW, focalLength, DORI_THRESHOLDS.observation),
       color: '#f97316',
-      opacity: 0.10,
+      opacity: 0.09,
     },
     {
       tier: 'recognition',
@@ -222,6 +238,12 @@ export function getFovConeTiers(
       distanceFt: calculateMaxDistance(resolutionW, sensorW, focalLength, DORI_THRESHOLDS.identification),
       color: '#22c55e',
       opacity: 0.15,
+    },
+    {
+      tier: 'inspection' as DoriClassification,
+      distanceFt: calculateMaxDistance(resolutionW, sensorW, focalLength, DORI_THRESHOLDS.inspection),
+      color: '#8b5cf6',
+      opacity: 0.20,
     },
   ];
 }
@@ -332,10 +354,12 @@ export function validateFovInput(partial: FovDoriInputPartial): FovValidation {
 // ---- Public helpers ----
 
 export function classifyDori(ppf: number): DoriClassification {
+  if (ppf >= DORI_THRESHOLDS.inspection) return 'inspection';
   if (ppf >= DORI_THRESHOLDS.identification) return 'identification';
   if (ppf >= DORI_THRESHOLDS.recognition) return 'recognition';
   if (ppf >= DORI_THRESHOLDS.observation) return 'observation';
   if (ppf >= DORI_THRESHOLDS.detection) return 'detection';
+  if (ppf >= DORI_THRESHOLDS.monitor) return 'monitor';
   return 'none';
 }
 

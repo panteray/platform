@@ -35,19 +35,23 @@ export function PersonPreview({ ppf, distanceFt, cameraLabel, onClose }: PersonP
   const displayW = pixelsW * cellSize
 
   const doriColors: Record<DoriClassification, string> = {
+    inspection: C.purple,
     identification: C.green,
     recognition: C.yellow,
     observation: C.orange,
     detection: C.red,
+    monitor: C.gray,
     none: '#78716c',
   }
 
   const doriLabels: Record<DoriClassification, string> = {
+    inspection: 'Inspection — forensic-level detail',
     identification: 'Identification — face clearly visible',
     recognition: 'Recognition — known person recognizable',
     observation: 'Observation — activity visible',
     detection: 'Detection — presence detectable',
-    none: 'Monitor Only — insufficient detail',
+    monitor: 'Monitor — general scene awareness',
+    none: 'Below Monitor — insufficient detail',
   }
 
   // Generate the silhouette pixel mask (simplified person shape)

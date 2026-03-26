@@ -38,6 +38,8 @@ const DORI_LABELS: Record<DoriClassification, string> = {
   recognition: 'Recognition',
   observation: 'Observation',
   detection: 'Detection',
+  inspection: 'Inspection',
+  monitor: 'Monitor',
   none: 'Monitor Only',
 }
 
@@ -46,6 +48,8 @@ const DORI_COLORS: Record<DoriClassification, string> = {
   recognition: C.yellow,
   observation: C.orange,
   detection: C.red,
+  inspection: '#8b5cf6',
+  monitor: '#6b7280',
   none: '#78716c',
 }
 

@@ -113,13 +113,15 @@ export function getCableColor(cableType: string): string {
 }
 
 export const PPF_CHART = [
+  { min: 305, label: 'Inspection', color: '#8b5cf6' },
   { min: 100, label: 'Facial Recognition', color: '#22c55e' },
   { min: 76, label: 'Identification', color: '#22c55e' },
   { min: 50, label: 'ID + LPR/ANPR', color: '#eab308' },
   { min: 38, label: 'Recognition', color: '#eab308' },
   { min: 19, label: 'Observation', color: '#f97316' },
   { min: 8, label: 'Detection', color: '#ef4444' },
-  { min: 0, label: 'Monitor Only', color: '#ef4444' },
+  { min: 4, label: 'Monitor', color: '#6b7280' },
+  { min: 0, label: 'Below Monitor', color: '#374151' },
 ] as const
 
 /** Color tokens for dark-themed design canvas */
@@ -141,6 +143,8 @@ export const C = {
   yellow: '#eab308',
   red: '#ef4444',
   orange: '#f97316',
+  purple: '#8b5cf6',
+  gray: '#6b7280',
 } as const
 
 /** Grid dot spacing (px) at zoom 100% */
