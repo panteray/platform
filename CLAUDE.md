@@ -23,13 +23,23 @@ Multi-sensor cameras (`multisensor_quad`, `multisensor_dual`) work like IPVM —
 - **Per-sensor rotation**: Each sensor has its own rotation angle stored in `properties.sensor_angles` (number array)
 - **Default angles**: Dual = `[base-45, base+45]`, Quad = `[base, base+90, base+180, base+270]`
 - **Per-sensor FOV cones**: Each sensor renders its own cone polygon with own DORI tiers, centerline, and labels
-- **Per-sensor handles**: Each sensor gets its own distance handle, angle handles, and rotation ring on canvas
-- **Per-sensor drag**: Dragging a sensor's rotation ring independently adjusts that sensor's angle
-- **Right panel controls**: Sensor Heads section with per-sensor rotation sliders
-- **Shared specs**: All sensors share the same optics (focal length, sensor width, resolution) — only rotation differs
-- **Sensor colors**: S1=#3b82f6, S2=#22c55e, S3=#f97316, S4=#a855f7
+- **Per-sensor handles**: Each sensor gets distance handle, angle handles, and rotation ring (all per-imager)
+- **Per-sensor drag**: Dragging a sensor's distance/angle handle ONLY affects that sensor's cone
+- **Per-sensor persistence**: Handle changes persist to `properties.per_imager_props[sIdx]` (not global)
+- **__sensorIdx tagging**: Each cone polygon is tagged with `__sensorIdx` for precise drag targeting
+- **Right panel controls**: Sensor Heads section with per-sensor rotation sliders + Imager navigation
+- **perImagerData**: Always generated for multi-sensor cameras (provides per-sensor tiers, hFov, color)
+- **Shared specs**: All sensors share same optics (focal length, sensor width, resolution) — rotation/distance/angle differ
+- **Sensor colors**: S1=#3b82f6, S2=#22c55e, S3=#f97316, S4=#a855f7 (module constant `SENSOR_COLORS`)
+- **Lock Camera** (IPVM): `properties.locked` prevents device drag, only imagers rotate
 - **IPVM behavior**: Each imager is independently adjustable (distance, FOV width, rotation). Entire camera moves as one assembly. IPVM supports 2–5 imagers per multi-sensor camera.
 - **180/360 panoramic**: Uses circle circumference formula (2*pi*r) not triangle-based cone — different from standard multi-sensor
+
+## Non-Camera Coverage Boundaries (System Surveyor)
+- Speakers and environmental/vape sensors get circular coverage zones on canvas
+- Configurable via `properties.coverage_radius` (ft)
+- Default: speakers=25ft (#8b5cf6), vape_environmental=15ft (#14b8a6)
+- Uses same FOV rendering pipeline with 360° hFov and single opacity tier
 
 ## Industry Research (IPVM / Hanwha DesignPro / Axis Site Designer)
 - All major tools use Google Maps as foundation with FOV cones rendered on the map
