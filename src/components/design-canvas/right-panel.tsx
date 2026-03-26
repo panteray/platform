@@ -172,7 +172,7 @@ export function RightPanel({
   const rotation = device.rotation || 0
 
   // Compute hFov and blind spot for diagram
-  const sensorW = Number(props.sensor_width) || 0
+  const sensorW = Number(props.sensor_w) || Number(props.sensor_width) || 0
   const hFov = sensorW > 0 && focalLength > 0
     ? 2 * Math.atan(sensorW / (2 * focalLength)) * (180 / Math.PI)
     : fovAngle
@@ -582,7 +582,7 @@ export function RightPanel({
             />
 
             {/* ── Simulated View button ── */}
-            {Number(props.resolution_w) > 0 && Number(props.sensor_width) > 0 && focalLength > 0 && onShowSimulatedView && (
+            {Number(props.resolution_w) > 0 && sensorW > 0 && focalLength > 0 && onShowSimulatedView && (
               <div style={{ padding: '6px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
                 <button
                   onClick={onShowSimulatedView}
@@ -639,10 +639,12 @@ export function RightPanel({
                   <div style={{ fontSize: 10, fontWeight: 600, color: C.text, marginBottom: 4 }}>PPF Zones</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                     {[
-                      { zone: 'identification', label: 'Identification', color: '#22c55e', ppf: '76+ PPF' },
+                      { zone: 'inspection', label: 'Inspection', color: '#8b5cf6', ppf: '305+ PPF' },
+                      { zone: 'identification', label: 'Identification', color: '#22c55e', ppf: '76–304 PPF' },
                       { zone: 'recognition', label: 'Recognition / LPR', color: '#eab308', ppf: '38–75 PPF' },
                       { zone: 'observation', label: 'Observation', color: '#f97316', ppf: '19–37 PPF' },
                       { zone: 'detection', label: 'Detection', color: '#ef4444', ppf: '8–18 PPF' },
+                      { zone: 'monitor', label: 'Monitor', color: '#6b7280', ppf: '4–7 PPF' },
                     ].map(z => {
                       const hidden = hiddenPpfZones?.has(z.zone) ?? false
                       return (

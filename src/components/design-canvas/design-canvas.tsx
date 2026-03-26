@@ -293,21 +293,22 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
       const lowerAngle = tiltRad + vFovHalf
       const blindSpotFt = lowerAngle < Math.PI / 2 ? installHeight * Math.tan(Math.PI / 2 - lowerAngle) : 0
 
-      // Per-imager property overrides (for multisensor cameras)
+      // Per-imager data for multisensor cameras (IPVM: each imager independently adjustable)
       const perImagerRaw = props.per_imager_props as Array<{ distance?: number; hfov?: number; color?: string }> | undefined
+      const sensorColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
       let perImagerData: Array<{ tiers: typeof tiers; hFov: number; colorHex?: string }> | undefined
-      if (perImagerRaw && perImagerRaw.length > 0 && sensorAngles && sensorAngles.length > 1) {
+      if (sensorAngles && sensorAngles.length > 1) {
         perImagerData = sensorAngles.map((_, idx) => {
-          const imagerProps = perImagerRaw[idx] || {}
+          const imagerProps = perImagerRaw?.[idx] || {}
           const imagerDist = imagerProps.distance || targetDist
           const imagerHFov = imagerProps.hfov || hFov
-          const imagerColor = imagerProps.color || d.color_hex || deviceColor
+          const imagerColor = imagerProps.color || sensorColors[idx % sensorColors.length]
 
           let imagerTiers: typeof tiers
           if (hasFullSpecs) {
             const doriTiers = getFovConeTiers({
               resolutionW: resW, resolutionH: Number(props.resolution_h) || Math.round(resW * 9 / 16),
-              sensorW, sensorH: Number(props.sensor_height) || sensorW * 0.75,
+              sensorW, sensorH: Number(props.sensor_h) || Number(props.sensor_height) || sensorW * 0.75,
               focalLength, mountHeight: installHeight, targetDistance: imagerDist,
             })
             imagerTiers = doriTiers.map((t, i) => ({

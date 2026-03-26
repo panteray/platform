@@ -115,7 +115,7 @@ export function BlindSpotDiagram({
             x={camX + Math.min(blindEndX - camX, drawW) / 2}
             y={groundY + 14}
             textAnchor="middle" fontSize={8} fontWeight={600}
-            fill="#f97316" fontFamily="'IBM Plex Mono', monospace"
+            fill="#f97316" fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace"
           >
             {Math.round(blindSpotFt * 10) / 10}ft blind
           </text>
@@ -136,7 +136,7 @@ export function BlindSpotDiagram({
             stroke={C.textMuted} strokeWidth={personW * 0.25} opacity={0.4} />
           {/* Distance label */}
           <text x={0} y={14} textAnchor="middle" fontSize={7}
-            fill={C.textDim} fontFamily="'IBM Plex Mono', monospace">
+            fill={C.textDim} fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace">
             {Math.round(targetDistFt)}ft
           </text>
         </g>
@@ -144,7 +144,7 @@ export function BlindSpotDiagram({
 
       {/* Height label on mount pole */}
       <text x={camX - 8} y={(camY + groundY) / 2} textAnchor="middle"
-        fontSize={7} fill={C.textDim} fontFamily="'IBM Plex Mono', monospace"
+        fontSize={7} fill={C.textDim} fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace"
         transform={`rotate(-90, ${camX - 8}, ${(camY + groundY) / 2})`}>
         {Math.round(installHeight)}ft
       </text>
@@ -165,7 +165,7 @@ export function BlindSpotDiagram({
               fill="none" stroke={C.accent} strokeWidth={0.8} opacity={0.6}
             />
             <text x={camX + arcR + 4} y={camY + 3} fontSize={7}
-              fill={C.accent} fontFamily="'IBM Plex Mono', monospace">
+              fill={C.accent} fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace">
               {Math.round(tiltAngle)}°
             </text>
           </>
