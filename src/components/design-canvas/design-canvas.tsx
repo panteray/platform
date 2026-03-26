@@ -820,6 +820,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
                   setWalls(prev => prev.filter(w => w.id !== id))
                   setSelectedWallId(null)
                 }}
+                scalePxPerFt={scalePxPerFt}
               />
             </div>
           )

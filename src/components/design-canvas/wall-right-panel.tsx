@@ -19,6 +19,7 @@ interface Props {
   onClose: () => void
   onUpdateWall: (id: string, updates: Partial<WallData>) => void
   onDelete: (id: string) => void
+  scalePxPerFt?: number
 }
 
 /* ── Constants ── */
@@ -26,7 +27,7 @@ const WALL_TYPES = ['Solid', 'Glass', 'Partial', 'Fence', 'Curtain']
 const WALL_COLORS = ['#334155', '#64748b', '#0ea5e9', '#22c55e', '#f97316', '#ef4444', '#a855f7', '#ec4899']
 
 /* ── Component ── */
-export function WallRightPanel({ wall, onClose, onUpdateWall, onDelete }: Props) {
+export function WallRightPanel({ wall, onClose, onUpdateWall, onDelete, scalePxPerFt }: Props) {
   const wallType = wall.wallType || 'Solid'
   const heightFt = wall.heightFt ?? 10
   const wallOpacity = wall.opacity ?? 1
@@ -56,7 +57,10 @@ export function WallRightPanel({ wall, onClose, onUpdateWall, onDelete }: Props)
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Wall Properties</div>
           <div style={{ fontSize: 10, color: C.textDim, marginTop: 1 }}>
-            {wall.points.length} points · {Math.round(totalLength)}px
+            {wall.points.length} points · {scalePxPerFt && scalePxPerFt > 0
+              ? `${Math.round(totalLength / scalePxPerFt)} ft`
+              : `${Math.round(totalLength)}px`
+            }
           </div>
         </div>
         <button onClick={onClose}
@@ -175,7 +179,10 @@ export function WallRightPanel({ wall, onClose, onUpdateWall, onDelete }: Props)
                 }}>
                   <span style={{ fontSize: 9, color: C.textDim }}>Segment {i + 1}</span>
                   <span style={{ fontSize: 10, color: C.text, fontWeight: 600, fontFamily: 'monospace' }}>
-                    {Math.round(len)}px
+                    {scalePxPerFt && scalePxPerFt > 0
+                      ? `${Math.round(len / scalePxPerFt)} ft`
+                      : `${Math.round(len)}px`
+                    }
                   </span>
                 </div>
               )
