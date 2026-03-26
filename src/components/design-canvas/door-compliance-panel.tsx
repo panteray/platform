@@ -85,7 +85,7 @@ function CapacityMeter({ label, used, max }: { label: string; used: number; max:
     <div style={{ marginBottom: 6 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: C.textMuted, marginBottom: 2 }}>
         <span>{label}</span>
-        <span style={{ fontFamily: "'IBM Plex Mono'", color: pct >= 100 ? C.red : C.text }}>
+        <span style={{ fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", color: pct >= 100 ? C.red : C.text }}>
           {used} / {max}
         </span>
       </div>

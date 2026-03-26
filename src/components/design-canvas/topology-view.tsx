@@ -337,7 +337,7 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
                     {link.cable_type && <span style={{ fontSize: 9, color: C.textDim }}>{link.cable_type}</span>}
-                    {link.speed && <span style={{ fontSize: 9, color: C.textMuted, fontFamily: "'IBM Plex Mono'" }}>{link.speed}</span>}
+                    {link.speed && <span style={{ fontSize: 9, color: C.textMuted, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{link.speed}</span>}
                     {link.is_trunk && <span style={{ fontSize: 8, padding: '0 4px', borderRadius: 2, background: 'rgba(139,92,246,0.15)', color: '#8b5cf6', fontWeight: 600 }}>TRUNK</span>}
                     {!!(link as unknown as Record<string, unknown>).vlan && <span style={{ fontSize: 8, padding: '0 4px', borderRadius: 2, background: 'rgba(34,197,94,0.15)', color: C.green, fontWeight: 600 }}>VLAN {String((link as unknown as Record<string, unknown>).vlan)}</span>}
                   </div>
@@ -383,10 +383,10 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
                     stroke={lineColor} strokeWidth={isSel ? 2.5 : link.is_trunk ? 2 : 1.5}
                     strokeDasharray={link.is_trunk ? 'none' : '6 3'} />
                   {link.speed && (
-                    <text x={midX} y={midY - 6} textAnchor="middle" fill={isSel ? '#fff' : C.textMuted} fontSize={9} fontFamily="'IBM Plex Mono', monospace">{link.speed}</text>
+                    <text x={midX} y={midY - 6} textAnchor="middle" fill={isSel ? '#fff' : C.textMuted} fontSize={9} fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace">{link.speed}</text>
                   )}
                   {link.cable_type && (
-                    <text x={midX} y={midY + 10} textAnchor="middle" fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace">{link.cable_type}</text>
+                    <text x={midX} y={midY + 10} textAnchor="middle" fill={C.textDim} fontSize={8} fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace">{link.cable_type}</text>
                   )}
                   {/* VLAN tag */}
                   {!!(link as unknown as Record<string, unknown>).vlan && (
@@ -419,13 +419,13 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
                   onClick={(e) => { e.stopPropagation(); handleNodeClick(node.id) }}
                   style={{ cursor: linkMode ? 'crosshair' : dragNode === node.id ? 'grabbing' : 'grab' }}>
                   <NodeShape type={node.node_type} color={color} selected={isSel || isLinkSrc} />
-                  <text x={0} y={3} textAnchor="middle" fill={C.text} fontSize={10} fontWeight={600} fontFamily="'IBM Plex Sans', sans-serif" pointerEvents="none">{node.label}</text>
-                  <text x={0} y={NODE_H / 2 + 12} textAnchor="middle" fill={C.textDim} fontSize={8} fontFamily="'IBM Plex Mono', monospace" pointerEvents="none">{NODE_LABELS[node.node_type] ?? node.node_type}</text>
+                  <text x={0} y={3} textAnchor="middle" fill={C.text} fontSize={10} fontWeight={600} fontFamily="'Inter', 'Segoe UI', sans-serif" pointerEvents="none">{node.label}</text>
+                  <text x={0} y={NODE_H / 2 + 12} textAnchor="middle" fill={C.textDim} fontSize={8} fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace" pointerEvents="none">{NODE_LABELS[node.node_type] ?? node.node_type}</text>
                   {/* Port count badge */}
                   {ports > 0 && (
                     <g transform={`translate(${NODE_W / 2 - 4}, ${-NODE_H / 2 - 4})`}>
                       <circle r={8} fill={C.bgPanel} stroke={color} strokeWidth={1.5} />
-                      <text x={0} y={3} textAnchor="middle" fill={color} fontSize={8} fontWeight={700} fontFamily="'IBM Plex Mono'">{ports}</text>
+                      <text x={0} y={3} textAnchor="middle" fill={color} fontSize={8} fontWeight={700} fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace">{ports}</text>
                     </g>
                   )}
                 </g>
@@ -465,12 +465,12 @@ export function TopologyView({ designId, nodes, links, onAddNode, onUpdateNode, 
                 <div style={{ display: 'flex', gap: 8 }}>
                   <div style={{ flex: 1 }}>
                     <div style={labelStyle}>X</div>
-                    <input type="number" defaultValue={selectedNode.position_x} style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', monospace" }}
+                    <input type="number" defaultValue={selectedNode.position_x} style={{ ...inputStyle, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}
                       onBlur={(e) => onUpdateNode(selectedNode.id, { position_x: Number(e.target.value) })} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={labelStyle}>Y</div>
-                    <input type="number" defaultValue={selectedNode.position_y} style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', monospace" }}
+                    <input type="number" defaultValue={selectedNode.position_y} style={{ ...inputStyle, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}
                       onBlur={(e) => onUpdateNode(selectedNode.id, { position_y: Number(e.target.value) })} />
                   </div>
                 </div>

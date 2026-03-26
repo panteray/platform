@@ -34,7 +34,7 @@ const inputBase: React.CSSProperties = {
   background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3,
   padding: '2px 6px', color: C.text, fontSize: 11, outline: 'none',
 }
-const monoInput: React.CSSProperties = { ...inputBase, fontFamily: "'IBM Plex Mono', monospace" }
+const monoInput: React.CSSProperties = { ...inputBase, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }
 
 export function VlanPlanner({ designId, vlans, onAddVlan, onUpdateVlan, onDeleteVlan }: VlanPlannerProps) {
 
@@ -111,7 +111,7 @@ export function VlanPlanner({ designId, vlans, onAddVlan, onUpdateVlan, onDelete
                       onBlur={(e) => onUpdateVlan(v.id, { subnet: e.target.value })} />
                   </td>
                   <td style={{ padding: cellPad }}>
-                    <span style={{ fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", color: hosts !== null ? C.text : C.textDim }}>
+                    <span style={{ fontSize: 10, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", color: hosts !== null ? C.text : C.textDim }}>
                       {fmtHosts(hosts)}
                     </span>
                   </td>
@@ -153,7 +153,7 @@ export function VlanPlanner({ designId, vlans, onAddVlan, onUpdateVlan, onDelete
                 <td style={{ padding: cellPad, fontSize: 10, color: C.textDim }}>
                   {configured.length} subnet{configured.length !== 1 ? 's' : ''}
                 </td>
-                <td style={{ padding: cellPad, fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", color: C.green }}>
+                <td style={{ padding: cellPad, fontSize: 10, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", color: C.green }}>
                   {fmtHosts(vlans.reduce((sum, v) => sum + (cidrHosts(v.subnet) ?? 0), 0))} total
                 </td>
                 <td colSpan={5} />

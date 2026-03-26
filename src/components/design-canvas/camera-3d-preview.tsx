@@ -177,7 +177,7 @@ export function Camera3dPreview({ device, floorPlan, scalePxPerFt, onClose }: Ca
           }}>
             <div style={{ 
               background: 'rgba(0,0,0,0.7)', padding: '12px 16px', borderRadius: 8,
-              border: '1px solid rgba(255,255,255,0.1)', fontFamily: 'IBM Plex Mono, monospace',
+              border: '1px solid rgba(255,255,255,0.1)', fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
               fontSize: 11, color: '#0f0', textShadow: '0 0 5px #0f0',
               backdropFilter: 'blur(4px)',
             }}>
@@ -188,7 +188,7 @@ export function Camera3dPreview({ device, floorPlan, scalePxPerFt, onClose }: Ca
 
             <div style={{ 
               background: 'rgba(0,0,0,0.7)', padding: '12px 16px', borderRadius: 8,
-              border: '1px solid rgba(255,255,255,0.1)', fontFamily: 'IBM Plex Mono, monospace',
+              border: '1px solid rgba(255,255,255,0.1)', fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
               fontSize: 11, color: '#0f0', textShadow: '0 0 5px #0f0',
               textAlign: 'right', backdropFilter: 'blur(4px)',
             }}>

@@ -103,7 +103,7 @@ export function CameraAdvisor({ onClose }: CameraAdvisorProps) {
   const selectStyle = {
     background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4,
     padding: '4px 8px', fontSize: 11, color: C.text, outline: 'none',
-    fontFamily: "'IBM Plex Mono', monospace", cursor: 'pointer', width: '100%',
+    fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", cursor: 'pointer', width: '100%',
   }
 
   const inputStyle = {
@@ -204,7 +204,7 @@ export function CameraAdvisor({ onClose }: CameraAdvisorProps) {
                   <div style={{ textAlign: 'right' }}>
                     <div style={{
                       fontSize: 16, fontWeight: 800, color: feasible ? C.accent : C.textDim,
-                      fontFamily: "'IBM Plex Mono', monospace",
+                      fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
                     }}>
                       {r.requiredFocalLengthMm}mm
                     </div>

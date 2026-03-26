@@ -60,7 +60,7 @@ function GaugeRing({ label, value, unit, max, color, size = 52 }: {
           x={size / 2} y={size / 2 - 1}
           textAnchor="middle" dominantBaseline="central"
           fill={C.text} fontSize={size < 50 ? 10 : 11} fontWeight="700"
-          fontFamily="'IBM Plex Mono', monospace"
+          fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace"
         >
           {typeof value === 'number' && value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value}
         </text>
@@ -69,7 +69,7 @@ function GaugeRing({ label, value, unit, max, color, size = 52 }: {
           x={size / 2} y={size / 2 + 10}
           textAnchor="middle" dominantBaseline="central"
           fill={C.textDim} fontSize={7}
-          fontFamily="'IBM Plex Mono', monospace"
+          fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace"
         >
           {unit}
         </text>
@@ -94,7 +94,7 @@ function CountBadge({ label, value, color }: { label: string; value: number; col
       background: C.bgActive, border: `1px solid ${C.borderSubtle}`,
     }}>
       {color && <div style={{ width: 5, height: 5, borderRadius: '50%', background: color, flexShrink: 0 }} />}
-      <span style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: "'IBM Plex Mono', monospace" }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>
         {value}
       </span>
       <span style={{ fontSize: 8, color: C.textDim, textTransform: 'uppercase', letterSpacing: 0.4 }}>
@@ -119,7 +119,7 @@ export function RequirementsBar({ requirements, cableEstimate }: RequirementsBar
       display: 'flex', alignItems: 'center', flexWrap: 'wrap',
       minHeight: 44, padding: '6px 12px', gap: 8,
       background: C.bgSurface, borderBottom: `1px solid ${C.border}`, flexShrink: 0,
-      fontFamily: "'IBM Plex Mono', 'SF Mono', monospace",
+      fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace, 'SF Mono', monospace",
     }}>
       {/* Device count badges */}
       {countItems.filter(r => Number(r.value) > 0).map((r) => (

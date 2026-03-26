@@ -225,10 +225,12 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
       if (!['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(cat)) continue
 
       const props = (d.properties ?? {}) as Record<string, unknown>
-      const fovAngle = Number(props.fov_angle) || 90
+      // Default FOV: 90° for most cameras, but for multi-sensor divide coverage
+      const defaultFov = cat === 'multisensor_quad' ? 90 : cat === 'multisensor_dual' ? 90 : cat === 'fisheye' ? 180 : 90
+      const fovAngle = Number(props.fov_angle) || defaultFov
       const targetDist = Number(props.target_distance) || 30
       const focalLength = Number(props.focal_length) || 0
-      const sensorW = Number(props.sensor_width) || 0
+      const sensorW = Number(props.sensor_w) || Number(props.sensor_width) || 0
       const resW = Number(props.resolution_w) || 0
 
       let hFov = fovAngle
@@ -247,7 +249,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           resolutionW: resW,
           resolutionH: Number(props.resolution_h) || Math.round(resW * 9 / 16),
           sensorW,
-          sensorH: Number(props.sensor_height) || sensorW * 0.75,
+          sensorH: Number(props.sensor_h) || Number(props.sensor_height) || sensorW * 0.75,
           focalLength,
           mountHeight: Number(props.install_height) || 9,
           targetDistance: targetDist,
@@ -366,7 +368,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
     if (!dev) return
     const p = (dev.properties ?? {}) as Record<string, unknown>
     // Translate dragged angle back to an optical focal length so DORI engine doesn't fight it and snap back!
-    const sw = Number(p.sensor_width) || 5.14
+    const sw = Number(p.sensor_w) || Number(p.sensor_width) || 5.14
     const angRad = angle * (Math.PI / 180)
     const newFl = sw / (2 * Math.tan(angRad / 2))
     
@@ -948,7 +950,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
             <div style={{ position: 'absolute', left: 0, top: -2, width: 1, height: 8, background: C.accent }} />
             <div style={{ position: 'absolute', right: 0, top: -2, width: 1, height: 8, background: C.accent }} />
           </div>
-          <span style={{ fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", color: C.text }}>
+          <span style={{ fontSize: 10, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", color: C.text }}>
             {(50 / scalePxPerFt).toFixed(0)} ft
           </span>
         </div>

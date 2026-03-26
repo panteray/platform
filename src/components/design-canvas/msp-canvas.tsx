@@ -110,11 +110,11 @@ export function MspCanvas({ designId, onSave }: MspCanvasProps) {
                   </td>
                   <td style={{ padding: '6px 10px' }}>
                     <input type="number" value={line.qty} onChange={(e) => updateLine(line.id, 'qty', Number(e.target.value))}
-                      style={{ width: 50, background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, padding: '2px 4px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', textAlign: 'right' }} />
+                      style={{ width: 50, background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, padding: '2px 4px', color: C.text, fontSize: 11, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", outline: 'none', textAlign: 'right' }} />
                   </td>
                   <td style={{ padding: '6px 10px' }}>
                     <input type="number" value={line.unit_price} onChange={(e) => updateLine(line.id, 'unit_price', Number(e.target.value))}
-                      style={{ width: 80, background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, padding: '2px 4px', color: C.text, fontSize: 11, fontFamily: "'IBM Plex Mono'", outline: 'none', textAlign: 'right' }} />
+                      style={{ width: 80, background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, padding: '2px 4px', color: C.text, fontSize: 11, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", outline: 'none', textAlign: 'right' }} />
                   </td>
                   <td style={{ padding: '6px 10px' }}>
                     <select value={line.billing_cycle} onChange={(e) => updateLine(line.id, 'billing_cycle', e.target.value)}
@@ -124,7 +124,7 @@ export function MspCanvas({ designId, onSave }: MspCanvasProps) {
                       <option value="one_time">One-Time</option>
                     </select>
                   </td>
-                  <td style={{ padding: '6px 10px', fontFamily: "'IBM Plex Mono'", fontWeight: 600, color: C.text }}>
+                  <td style={{ padding: '6px 10px', fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", fontWeight: 600, color: C.text }}>
                     ${(line.qty * line.unit_price).toLocaleString()}
                   </td>
                   <td style={{ padding: '6px 10px' }}>

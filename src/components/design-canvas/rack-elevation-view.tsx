@@ -136,8 +136,8 @@ export function RackElevationView({ designId, racks, infrastructure, onAddRack, 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Stats bar */}
         <div style={{ display: 'flex', gap: 16, padding: '8px 16px', borderBottom: `1px solid ${C.border}`, fontSize: 11, flexShrink: 0, alignItems: 'center' }}>
-          <span style={{ color: C.textDim }}>PoE: <span style={{ fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace", color: aggPoe > 740 ? C.red : C.green }}>{aggPoe}W</span></span>
-          <span style={{ color: C.textDim }}>Power: <span style={{ fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace", color: C.text }}>{aggPower}W</span></span>
+          <span style={{ color: C.textDim }}>PoE: <span style={{ fontWeight: 600, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", color: aggPoe > 740 ? C.red : C.green }}>{aggPoe}W</span></span>
+          <span style={{ color: C.textDim }}>Power: <span style={{ fontWeight: 600, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", color: C.text }}>{aggPower}W</span></span>
           <span style={{ color: C.textDim }}>Devices: <span style={{ fontWeight: 600, color: C.text }}>{aggDevices}</span></span>
           <span style={{ color: C.textDim }}>Racks: <span style={{ fontWeight: 600, color: C.text }}>{mdfIdfRacks.length}</span></span>
           <div style={{ flex: 1 }} />
@@ -157,12 +157,12 @@ export function RackElevationView({ designId, racks, infrastructure, onAddRack, 
                   <div onClick={() => { setSelectedRackId(rack.id); setEditSlotU(null); setAddSlotU(null) }}
                     style={{ fontSize: 11, fontWeight: 600, color: isSel ? C.accent : C.text, marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', padding: '4px 6px', borderRadius: 4, background: isSel ? C.accentSubtle : 'transparent' }}>
                     <span>{rack.rack_name}</span>
-                    <span style={{ fontSize: 9, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace" }}>{stats.usedU}/{rack.total_u}U</span>
+                    <span style={{ fontSize: 9, color: C.textDim, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{stats.usedU}/{rack.total_u}U</span>
                   </div>
                   {/* Per-rack stats */}
                   <div style={{ display: 'flex', gap: 8, fontSize: 9, color: C.textDim, marginBottom: 6, padding: '0 6px' }}>
-                    <span>PoE <span style={{ color: stats.poe > 370 ? C.red : C.green, fontFamily: "'IBM Plex Mono', monospace" }}>{stats.poe}W</span></span>
-                    <span>Power <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{stats.power}W</span></span>
+                    <span>PoE <span style={{ color: stats.poe > 370 ? C.red : C.green, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{stats.poe}W</span></span>
+                    <span>Power <span style={{ fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{stats.power}W</span></span>
                     <span>{stats.devices} dev</span>
                   </div>
                   {/* Rack body */}
@@ -185,17 +185,17 @@ export function RackElevationView({ designId, racks, infrastructure, onAddRack, 
                             style={{ display: 'flex', height: h, borderBottom: `1px solid ${C.borderSubtle}`, background: isSlotSel ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.04)', cursor: 'pointer', transition: 'background 0.1s' }}
                             onMouseEnter={(e) => { if (!isSlotSel) e.currentTarget.style.background = 'rgba(59,130,246,0.08)' }}
                             onMouseLeave={(e) => { if (!isSlotSel) e.currentTarget.style.background = 'rgba(59,130,246,0.04)' }}>
-                            <div style={{ width: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, color: C.textDim, borderRight: `1px solid ${C.borderSubtle}`, fontFamily: "'IBM Plex Mono', monospace", flexShrink: 0 }}>
+                            <div style={{ width: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, color: C.textDim, borderRight: `1px solid ${C.borderSubtle}`, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", flexShrink: 0 }}>
                               {slot.ru_height > 1 ? `${uNum}-${uNum + slot.ru_height - 1}` : uNum}
                             </div>
                             <div style={{ width: 4, background: color, flexShrink: 0 }} />
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 6px', gap: 6, overflow: 'hidden' }}>
                               <span style={{ fontSize: 9, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.device_name || 'Device'}</span>
-                              {slot.ru_height > 1 && <span style={{ fontSize: 7, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace", flexShrink: 0 }}>{slot.ru_height}U</span>}
+                              {slot.ru_height > 1 && <span style={{ fontSize: 7, color: C.textDim, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", flexShrink: 0 }}>{slot.ru_height}U</span>}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 6px', flexShrink: 0 }}>
-                              {(slot.poe_draw_w ?? 0) > 0 && <span style={{ fontSize: 7, color: C.green, fontFamily: "'IBM Plex Mono', monospace" }}>{slot.poe_draw_w}W</span>}
-                              {(slot.power_draw_w ?? 0) > 0 && <span style={{ fontSize: 7, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace" }}>{slot.power_draw_w}W</span>}
+                              {(slot.poe_draw_w ?? 0) > 0 && <span style={{ fontSize: 7, color: C.green, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{slot.poe_draw_w}W</span>}
+                              {(slot.power_draw_w ?? 0) > 0 && <span style={{ fontSize: 7, color: C.textDim, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{slot.power_draw_w}W</span>}
                             </div>
                           </div>
                         )
@@ -209,7 +209,7 @@ export function RackElevationView({ designId, racks, infrastructure, onAddRack, 
                           style={{ display: 'flex', height: U_HEIGHT_PX, borderBottom: `1px solid ${C.borderSubtle}`, cursor: 'pointer', background: isAddTarget ? 'rgba(34,197,94,0.08)' : 'transparent' }}
                           onMouseEnter={(e) => { if (!isAddTarget) e.currentTarget.style.background = C.bgHover }}
                           onMouseLeave={(e) => { if (!isAddTarget) e.currentTarget.style.background = isAddTarget ? 'rgba(34,197,94,0.08)' : 'transparent' }}>
-                          <div style={{ width: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, color: C.textDim, borderRight: `1px solid ${C.borderSubtle}`, fontFamily: "'IBM Plex Mono', monospace" }}>{uNum}</div>
+                          <div style={{ width: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, color: C.textDim, borderRight: `1px solid ${C.borderSubtle}`, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{uNum}</div>
                           <div style={{ flex: 1, padding: '0 6px', display: 'flex', alignItems: 'center' }}>
                             <span style={{ fontSize: 8, color: C.textDim, opacity: 0.3 }}>Empty</span>
                           </div>
@@ -245,7 +245,7 @@ export function RackElevationView({ designId, racks, infrastructure, onAddRack, 
                   </div>
                   <div>
                     <div style={lblStyle}>Total U</div>
-                    <input type="number" defaultValue={selectedRack.total_u} min={1} max={52} style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', monospace" }}
+                    <input type="number" defaultValue={selectedRack.total_u} min={1} max={52} style={{ ...inputStyle, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}
                       onBlur={(e) => { const n = Number(e.target.value); if (n > 0 && n <= 52) onUpdateRack(selectedRack.id, { total_u: n }) }} />
                   </div>
                   <div>
@@ -296,17 +296,17 @@ export function RackElevationView({ designId, racks, infrastructure, onAddRack, 
                   <div style={{ display: 'flex', gap: 8 }}>
                     <div style={{ flex: 1 }}>
                       <div style={lblStyle}>RU Height</div>
-                      <input type="number" value={newRuH} min={1} max={10} onChange={(e) => setNewRuH(Number(e.target.value))} style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', monospace" }} />
+                      <input type="number" value={newRuH} min={1} max={10} onChange={(e) => setNewRuH(Number(e.target.value))} style={{ ...inputStyle, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <div style={{ flex: 1 }}>
                       <div style={lblStyle}>PoE (W)</div>
-                      <input type="number" value={newPoe} min={0} onChange={(e) => setNewPoe(Number(e.target.value))} style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', monospace" }} />
+                      <input type="number" value={newPoe} min={0} onChange={(e) => setNewPoe(Number(e.target.value))} style={{ ...inputStyle, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={lblStyle}>Power (W)</div>
-                      <input type="number" value={newPower} min={0} onChange={(e) => setNewPower(Number(e.target.value))} style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', monospace" }} />
+                      <input type="number" value={newPower} min={0} onChange={(e) => setNewPower(Number(e.target.value))} style={{ ...inputStyle, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }} />
                     </div>
                   </div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: C.text, cursor: 'pointer' }}>
@@ -338,19 +338,19 @@ export function RackElevationView({ designId, racks, infrastructure, onAddRack, 
                     <div style={{ display: 'flex', gap: 8 }}>
                       <div style={{ flex: 1 }}>
                         <div style={lblStyle}>RU Height</div>
-                        <input type="number" defaultValue={slot.ru_height ?? 1} min={1} max={10} style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', monospace" }}
+                        <input type="number" defaultValue={slot.ru_height ?? 1} min={1} max={10} style={{ ...inputStyle, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}
                           onBlur={(e) => handleUpdateSlot(selectedRack, editSlotU, { ru_height: Number(e.target.value) })} />
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <div style={{ flex: 1 }}>
                         <div style={lblStyle}>PoE (W)</div>
-                        <input type="number" defaultValue={slot.poe_draw_w ?? 0} min={0} style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', monospace" }}
+                        <input type="number" defaultValue={slot.poe_draw_w ?? 0} min={0} style={{ ...inputStyle, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}
                           onBlur={(e) => handleUpdateSlot(selectedRack, editSlotU, { poe_draw_w: Number(e.target.value) })} />
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={lblStyle}>Power (W)</div>
-                        <input type="number" defaultValue={slot.power_draw_w ?? 0} min={0} style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', monospace" }}
+                        <input type="number" defaultValue={slot.power_draw_w ?? 0} min={0} style={{ ...inputStyle, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}
                           onBlur={(e) => handleUpdateSlot(selectedRack, editSlotU, { power_draw_w: Number(e.target.value) })} />
                       </div>
                     </div>
