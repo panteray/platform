@@ -624,14 +624,19 @@ export function CanvasArea({
           const maxDist = data.tiers[0]?.distanceFt || 30
           if (distFt > maxDist || distFt < 0.5) continue
 
-          // Check if within FOV angle
+          // Check if within FOV angle (support multi-sensor)
           const halfAng = (data.hFov / 2) * Math.PI / 180
-          const rotRad = (dev.rotation || 0) * Math.PI / 180
-          let cursorAngle = Math.atan2(dy, dx) - rotRad
-          // Normalize to -PI..PI
-          while (cursorAngle > Math.PI) cursorAngle -= 2 * Math.PI
-          while (cursorAngle < -Math.PI) cursorAngle += 2 * Math.PI
-          if (Math.abs(cursorAngle) > halfAng) continue
+          const sensorRots = data.sensorAngles && data.sensorAngles.length > 1
+            ? data.sensorAngles : [(dev.rotation || 0)]
+          let inCone = false
+          for (const sr of sensorRots) {
+            const sRotRad = sr * Math.PI / 180
+            let cursorAngle = Math.atan2(dy, dx) - sRotRad
+            while (cursorAngle > Math.PI) cursorAngle -= 2 * Math.PI
+            while (cursorAngle < -Math.PI) cursorAngle += 2 * Math.PI
+            if (Math.abs(cursorAngle) <= halfAng) { inCone = true; break }
+          }
+          if (!inCone) continue
 
           // Inside FOV cone — compute PPF
           const ppf = calculatePpfAtDistance(data.resolutionW, data.sensorW, data.focalLength, distFt)
@@ -660,7 +665,7 @@ export function CanvasArea({
           isDraggingFov.current = false
         }
 
-        if (id && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing) {
+        if (id && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing && !rec.__sensorRotHandle) {
           onDeviceMoved?.(id, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
         }
         if (rec.__fovDist && rec.__tempDistFt !== undefined) {
@@ -674,6 +679,19 @@ export function CanvasArea({
         }
         if (rec.__rotRing && rec.__tempRot !== undefined) {
           onDeviceRotated?.(id, rec.__tempRot as number)
+        }
+        if (rec.__sensorRotHandle && rec.__tempSensorAngle !== undefined) {
+          // Persist per-sensor rotation via onDeviceUpdateProp
+          const sIdx = rec.__tempSensorIdx as number
+          const newAngle = rec.__tempSensorAngle as number
+          const data = fovDataRef.current.get(id)
+          if (data && onDeviceUpdateProp) {
+            const oldAngles = data.sensorAngles || [data.rotation]
+            const newAngles = [...oldAngles]
+            newAngles[sIdx] = newAngle
+            onDeviceUpdateProp(id, 'sensor_angles', newAngles)
+          }
+          onDragCommit?.(null)
         }
       })
 
@@ -756,6 +774,50 @@ export function CanvasArea({
           return
         }
 
+        // 1C-pre. Per-sensor rotation handle drag (multi-sensor cameras)
+        if (rec.__sensorRotHandle) {
+          isDraggingFov.current = true
+          const id = rec.__devId as string
+          const cx = Math.round(rec.__cx as number)
+          const cy = Math.round(rec.__cy as number)
+          const sIdx = rec.__sensorIdx as number
+          const dx = (obj.left ?? cx) - cx, dy = (obj.top ?? cy) - cy
+          let angle = Math.atan2(dy, dx) * 180 / Math.PI
+          if (angle < 0) angle += 360
+          rec.__tempSensorAngle = Math.round(angle)
+          rec.__tempSensorIdx = sIdx
+
+          // Update the FOV cones for this sensor only
+          const fArr = fovObjs.current.get(id)
+          const data = fovDataRef.current.get(id)
+          if (fArr && data) {
+            const halfAng = (data.hFov / 2) * Math.PI / 180
+            const newSRotRad = angle * Math.PI / 180
+            const baseRotRad = (data.rotation || 0) * Math.PI / 180
+            // Compute the old offset for this sensor to identify its cones
+            const oldAngles = data.sensorAngles || [data.rotation]
+            const oldSRad = (oldAngles[sIdx] || 0) * Math.PI / 180
+            const oldOffset = oldSRad - baseRotRad
+            const newOffset = newSRotRad - baseRotRad
+
+            for (const fo of fArr) {
+              const fRec = fo as unknown as Record<string, unknown>
+              if (fRec.__isFovPoly) {
+                const curOffset = (fRec.__sRotOffset as number) ?? 0
+                // Match cones belonging to this sensor (within small epsilon)
+                if (Math.abs(curOffset - oldOffset) < 0.01) {
+                  const r = (fRec.__tierRadius as number) ?? 300
+                  const pts = buildConePoints(halfAng, newSRotRad, r)
+                  updateFovPolygon(fo, pts, cx, cy)
+                  fRec.__sRotOffset = newOffset
+                }
+              }
+            }
+          }
+          c.requestRenderAll()
+          return
+        }
+
         // 1C. Rotation ring drag
         if (rec.__rotRing) {
           isDraggingFov.current = true
@@ -791,7 +853,7 @@ export function CanvasArea({
         }
 
         // Device icon drag → move FOV cones in sync
-        if (rec.__devId && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing) {
+        if (rec.__devId && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing && !rec.__sensorRotHandle) {
           isDraggingFov.current = true
           const devId = rec.__devId as string
           const newX = obj.left ?? 0, newY = obj.top ?? 0
@@ -1243,78 +1305,114 @@ export function CanvasArea({
         if (devId === selectedDeviceId) {
           const outerR = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
           if (outerR > 5) {
-            // Handle 1: Distance (white circle at arc center)
-            const dh_x = cx + Math.cos(rotRad) * outerR
-            const dh_y = cy + Math.sin(rotRad) * outerR
-            const distHandle = new fm.Circle({
-              left: dh_x, top: dh_y, radius: 7,
-              fill: '#ffffff', stroke: C.accent, strokeWidth: 2.5,
-              originX: 'center', originY: 'center',
-              selectable: true, evented: true,
-              hasControls: false, hasBorders: false,
-              hoverCursor: 'grab', moveCursor: 'grabbing',
-            })
-            const dRec = distHandle as unknown as Record<string, unknown>
-            dRec.__fovDist = true; dRec.__devId = devId
-            dRec.__cx = cx; dRec.__cy = cy
-            c.add(distHandle)
-            handleObjs.current.set(`${devId}_d`, distHandle)
+            const sensorColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
 
-            // Distance label
-            const distFt = Math.round(data.tiers[0].distanceFt)
-            const dLabel = new fm.FabricText(`${distFt}ft`, {
-              left: dh_x + Math.cos(rotRad) * 18, top: dh_y + Math.sin(rotRad) * 18,
-              fontSize: 11, fontWeight: '600', fill: C.accent,
-              fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
-              originX: 'center', originY: 'center',
-              selectable: false, evented: false,
-            })
-            c.add(dLabel); objects.push(dLabel)
+            // For multi-sensor cameras: per-sensor handles (each sensor = independent camera)
+            // For single-sensor cameras: one set of handles on device rotation
+            const handleRotations = isMultiSensor ? sensorRotations : [(dev.rotation || 0)]
 
-            // IPVM-style: Person silhouette icon on centerline above distance handle
-            const personSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="18" viewBox="0 0 12 18"><circle cx="6" cy="3" r="2.5" fill="#333"/><path d="M2 7h8l-1.5 6H7l-.5 5h-1L5 13H3.5z" fill="#333"/></svg>`
-            try {
-              const pRes = await fm.loadSVGFromString(personSvg)
-              const personIcon = fm.util.groupSVGElements(pRes.objects.filter(Boolean) as FabricObject[], pRes.options)
-              personIcon.set({
-                left: dh_x + Math.cos(rotRad - Math.PI / 2) * 14,
-                top: dh_y + Math.sin(rotRad - Math.PI / 2) * 14,
+            for (let hIdx = 0; hIdx < handleRotations.length; hIdx++) {
+              const handleRot = handleRotations[hIdx]
+              const hRotRad = handleRot * Math.PI / 180
+              const sensorSuffix = isMultiSensor ? `_s${hIdx}` : ''
+              const handleColor = isMultiSensor ? sensorColors[hIdx % sensorColors.length] : C.accent
+
+              // Handle: Distance (white circle at arc center for this sensor)
+              const dh_x = cx + Math.cos(hRotRad) * outerR
+              const dh_y = cy + Math.sin(hRotRad) * outerR
+              const distHandle = new fm.Circle({
+                left: dh_x, top: dh_y, radius: isMultiSensor ? 6 : 7,
+                fill: '#ffffff', stroke: handleColor, strokeWidth: 2.5,
                 originX: 'center', originY: 'center',
-                scaleX: 0.8, scaleY: 0.8,
-                selectable: false, evented: false,
+                selectable: true, evented: true,
+                hasControls: false, hasBorders: false,
+                hoverCursor: 'grab', moveCursor: 'grabbing',
               })
-              c.add(personIcon); objects.push(personIcon)
-            } catch { /* ok */ }
+              const dRec = distHandle as unknown as Record<string, unknown>
+              dRec.__fovDist = true; dRec.__devId = devId
+              dRec.__cx = cx; dRec.__cy = cy
+              if (isMultiSensor) { dRec.__sensorIdx = hIdx }
+              c.add(distHandle)
+              handleObjs.current.set(`${devId}_d${sensorSuffix}`, distHandle)
 
-            // IPVM-style HAoV handles: black circles with white border at arc corners
-            if (onFovAngleChanged) {
-              for (const side of [-1, 1]) {
-                const a = rotRad + side * halfAng
-                const handle = new fm.Circle({
-                  left: cx + Math.cos(a) * outerR, top: cy + Math.sin(a) * outerR,
-                  radius: 5.5, fill: '#222', stroke: '#fff', strokeWidth: 2,
-                  originX: 'center', originY: 'center',
-                  selectable: true, evented: true,
-                  hasControls: false, hasBorders: false,
-                  hoverCursor: 'ew-resize', moveCursor: 'ew-resize',
-                })
-                const hRec = handle as unknown as Record<string, unknown>
-                hRec.__fovEdge = true; hRec.__devId = devId
-                hRec.__cx = cx; hRec.__cy = cy; hRec.__rotRad = rotRad
-                c.add(handle)
-                handleObjs.current.set(`${devId}_e${side}`, handle)
-              }
-
-              // Angle label
-              const aLabel = new fm.FabricText(`${Math.round(data.hFov)}°`, {
-                left: cx + Math.cos(rotRad) * outerR * 0.4,
-                top: cy + Math.sin(rotRad) * outerR * 0.4 - 12,
-                fontSize: 10, fontWeight: '600', fill: '#e53e3e',
+              // Distance label
+              const distFt = Math.round(data.tiers[0].distanceFt)
+              const dLabel = new fm.FabricText(`${distFt}ft`, {
+                left: dh_x + Math.cos(hRotRad) * 18, top: dh_y + Math.sin(hRotRad) * 18,
+                fontSize: isMultiSensor ? 9 : 11, fontWeight: '600', fill: handleColor,
                 fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
                 originX: 'center', originY: 'center',
                 selectable: false, evented: false,
               })
-              c.add(aLabel); objects.push(aLabel)
+              c.add(dLabel); objects.push(dLabel)
+
+              // Person silhouette (only for single-sensor or first sensor)
+              if (!isMultiSensor) {
+                const personSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="18" viewBox="0 0 12 18"><circle cx="6" cy="3" r="2.5" fill="#333"/><path d="M2 7h8l-1.5 6H7l-.5 5h-1L5 13H3.5z" fill="#333"/></svg>`
+                try {
+                  const pRes = await fm.loadSVGFromString(personSvg)
+                  const personIcon = fm.util.groupSVGElements(pRes.objects.filter(Boolean) as FabricObject[], pRes.options)
+                  personIcon.set({
+                    left: dh_x + Math.cos(hRotRad - Math.PI / 2) * 14,
+                    top: dh_y + Math.sin(hRotRad - Math.PI / 2) * 14,
+                    originX: 'center', originY: 'center',
+                    scaleX: 0.8, scaleY: 0.8,
+                    selectable: false, evented: false,
+                  })
+                  c.add(personIcon); objects.push(personIcon)
+                } catch { /* ok */ }
+              }
+
+              // Angle handles (HAoV) at arc corners for this sensor
+              if (onFovAngleChanged) {
+                for (const side of [-1, 1]) {
+                  const a = hRotRad + side * halfAng
+                  const handle = new fm.Circle({
+                    left: cx + Math.cos(a) * outerR, top: cy + Math.sin(a) * outerR,
+                    radius: isMultiSensor ? 4.5 : 5.5, fill: '#222', stroke: isMultiSensor ? handleColor : '#fff', strokeWidth: 2,
+                    originX: 'center', originY: 'center',
+                    selectable: true, evented: true,
+                    hasControls: false, hasBorders: false,
+                    hoverCursor: 'ew-resize', moveCursor: 'ew-resize',
+                  })
+                  const hRec = handle as unknown as Record<string, unknown>
+                  hRec.__fovEdge = true; hRec.__devId = devId
+                  hRec.__cx = cx; hRec.__cy = cy; hRec.__rotRad = hRotRad
+                  if (isMultiSensor) { hRec.__sensorIdx = hIdx }
+                  c.add(handle)
+                  handleObjs.current.set(`${devId}_e${side}${sensorSuffix}`, handle)
+                }
+
+                // Angle label
+                const aLabel = new fm.FabricText(`${Math.round(data.hFov)}°`, {
+                  left: cx + Math.cos(hRotRad) * outerR * 0.4,
+                  top: cy + Math.sin(hRotRad) * outerR * 0.4 - 12,
+                  fontSize: isMultiSensor ? 8 : 10, fontWeight: '600', fill: isMultiSensor ? handleColor : '#e53e3e',
+                  fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
+                  originX: 'center', originY: 'center',
+                  selectable: false, evented: false,
+                })
+                c.add(aLabel); objects.push(aLabel)
+              }
+
+              // Per-sensor rotation ring (multi-sensor only — allows independent rotation)
+              if (isMultiSensor && onDeviceUpdateProp) {
+                const ringR = outerR * 0.7
+                const ringHandle = new fm.Circle({
+                  left: cx + Math.cos(hRotRad) * ringR,
+                  top: cy + Math.sin(hRotRad) * ringR,
+                  radius: 5, fill: handleColor, stroke: '#fff', strokeWidth: 1.5,
+                  originX: 'center', originY: 'center',
+                  selectable: true, evented: true,
+                  hasControls: false, hasBorders: false,
+                  hoverCursor: 'crosshair', moveCursor: 'crosshair',
+                })
+                const rRec = ringHandle as unknown as Record<string, unknown>
+                rRec.__sensorRotHandle = true; rRec.__devId = devId
+                rRec.__cx = cx; rRec.__cy = cy; rRec.__sensorIdx = hIdx
+                c.add(ringHandle)
+                handleObjs.current.set(`${devId}_sr${hIdx}`, ringHandle)
+              }
             }
           }
         }

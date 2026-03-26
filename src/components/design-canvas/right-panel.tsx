@@ -332,6 +332,92 @@ export function RightPanel({
           </div>
         </div>
 
+        {/* ── Multi-Sensor Head Controls ── */}
+        {(device.category === 'multisensor_quad' || device.category === 'multisensor_dual') && (
+          <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>
+              Sensor Heads ({device.category === 'multisensor_quad' ? 4 : 2})
+            </div>
+            {(() => {
+              const sensorCount = device.category === 'multisensor_quad' ? 4 : 2
+              const base = rotation
+              const defaultAngles = device.category === 'multisensor_quad'
+                ? [base, base + 90, base + 180, base + 270]
+                : [base - 45, base + 45]
+              const angles = (props.sensor_angles as number[] | undefined) || defaultAngles
+              const sensorColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {Array.from({ length: sensorCount }, (_, i) => {
+                    const angle = angles[i] ?? defaultAngles[i]
+                    const normalizedAngle = ((angle % 360) + 360) % 360
+                    return (
+                      <div key={i} style={{
+                        padding: '6px 8px', background: C.bgActive, borderRadius: 4,
+                        border: `1px solid ${sensorColors[i]}30`,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{
+                              width: 8, height: 8, borderRadius: '50%',
+                              background: sensorColors[i], display: 'inline-block',
+                            }} />
+                            <span style={{ fontSize: 10, fontWeight: 700, color: sensorColors[i] }}>
+                              S{i + 1}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <input
+                              type="number"
+                              value={Math.round(normalizedAngle)}
+                              min={0} max={360} step={1}
+                              onChange={e => {
+                                const newAngles = [...angles]
+                                newAngles[i] = Number(e.target.value)
+                                updateProp('sensor_angles', newAngles)
+                              }}
+                              style={{
+                                width: 44, padding: '2px 4px', background: C.bgPanel,
+                                border: `1px solid ${C.border}`, borderRadius: 3,
+                                color: C.text, fontSize: 10, fontFamily: 'monospace',
+                                outline: 'none', textAlign: 'right',
+                              }}
+                            />
+                            <span style={{ fontSize: 9, color: C.textDim }}>°</span>
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          value={normalizedAngle}
+                          min={0} max={360} step={1}
+                          onChange={e => {
+                            const newAngles = [...angles]
+                            newAngles[i] = Number(e.target.value)
+                            updateProp('sensor_angles', newAngles)
+                          }}
+                          style={{ width: '100%', accentColor: sensorColors[i], height: 12 }}
+                        />
+                      </div>
+                    )
+                  })}
+                  {/* Reset to default arrangement */}
+                  <button
+                    onClick={() => updateProp('sensor_angles', defaultAngles)}
+                    style={{
+                      padding: '4px 0', fontSize: 9, fontWeight: 600,
+                      background: 'transparent', border: `1px solid ${C.border}`,
+                      borderRadius: 3, color: C.textMuted, cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    Reset to Default Layout
+                  </button>
+                </div>
+              )
+            })()}
+          </div>
+        )}
+
         {/* Camera-specific sections */}
         {isCamera && (
           <>
