@@ -231,6 +231,7 @@ export function CanvasArea({
   const cableWaypoints = useRef<Array<{ x: number; y: number }>>([])
   const cablePreviewObjs = useRef<FabricObject[]>([])
   const cableMousePt = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const cableObjs = useRef<FabricObject[]>([])
 
   // Expose zoom-to-point function via ref
   useEffect(() => {
@@ -419,13 +420,14 @@ export function CanvasArea({
                   length_ft: ft,
                 })
               }
-              // Reset cable state
-              cableState.current = 'pick_source'
+              // Reset cable state and return to select mode
+              cableState.current = 'idle'
               cableSourceId.current = null
               cableWaypoints.current = []
               // Clear preview
               for (const obj of cablePreviewObjs.current) c.remove(obj)
               cablePreviewObjs.current = []
+              onToolChange?.('select')
               c.requestRenderAll()
               return
             }
@@ -1619,9 +1621,12 @@ export function CanvasArea({
   useEffect(() => {
     if (!fcRef.current || !ready) return
     const c = fcRef.current
-    // Simple cable lines
+    // Clean up previous cable objects
+    for (const obj of cableObjs.current) c.remove(obj)
+    cableObjs.current = []
     ;(async () => {
       const fm = await import('fabric')
+      const newObjs: FabricObject[] = []
       for (const cable of cables) {
         const cRec = cable as unknown as Record<string, unknown>
         const from = devices.find(d => d.id === cable.from_device_id)
@@ -1637,7 +1642,7 @@ export function CanvasArea({
           fill: 'transparent', stroke: cable.color_hex || '#8b5cf6', strokeWidth: 2,
           strokeDashArray: [6, 3], selectable: false, evented: false, opacity: 0.6,
         })
-        c.add(line)
+        c.add(line); newObjs.push(line)
 
         // Cable length label at midpoint
         if (pts.length >= 2) {
@@ -1655,10 +1660,11 @@ export function CanvasArea({
               selectable: false, evented: false,
               shadow: new (fm as any).Shadow({ color: 'rgba(0,0,0,0.8)', blur: 3, offsetX: 0, offsetY: 1 }),
             } as Record<string, unknown>)
-            c.add(cableLabel)
+            c.add(cableLabel); newObjs.push(cableLabel)
           }
         }
       }
+      cableObjs.current = newObjs
       c.requestRenderAll()
     })()
   }, [cables, devices, ready, mdfIdfs])
