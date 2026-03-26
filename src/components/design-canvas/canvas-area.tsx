@@ -689,7 +689,7 @@ export function CanvasArea({
         if (rec.__fovDist && rec.__tempDistFt !== undefined) {
           const sIdx = rec.__sensorIdx as number | undefined
           if (sIdx !== undefined && onDeviceUpdateProp) {
-            // Multi-sensor: persist to per_imager_props for this sensor only
+            // Multi-sensor: persist distance + rotation in a single update to avoid race condition
             const data = fovDataRef.current.get(id)
             const dev = devsRef.current.find(d => d.id === id)
             const props = (dev?.properties ?? {}) as Record<string, unknown>
@@ -697,14 +697,14 @@ export function CanvasArea({
             const sensorCount = dev?.category === 'multisensor_quad' ? 4 : 2
             const arr = [...(perImagerRaw.length >= sensorCount ? perImagerRaw : Array.from({ length: sensorCount }, (_, i) => perImagerRaw[i] || {}))]
             arr[sIdx] = { ...arr[sIdx], distance: rec.__tempDistFt as number }
-            onDeviceUpdateProp(id, 'per_imager_props', arr)
-            // Also persist the new sensor rotation angle
-            if (data) {
-              const oldAngles = data.sensorAngles || [data.rotation]
-              const newAngles = [...oldAngles]
-              newAngles[sIdx] = rec.__tempDistRot as number
-              onDeviceUpdateProp(id, 'sensor_angles', newAngles)
-            }
+            // Combine per_imager_props + sensor_angles into one update
+            const oldAngles = data?.sensorAngles || [data?.rotation || 0]
+            const newAngles = [...oldAngles]
+            newAngles[sIdx] = rec.__tempDistRot as number
+            // Use a special batch key that handleDeviceUpdateProp can recognize
+            // We'll call updateDevice directly with merged properties
+            const merged = { ...props, per_imager_props: arr, sensor_angles: newAngles }
+            onDeviceUpdateProp(id, '__batch', merged)
           } else {
             onFovHandleDragged?.(id, rec.__tempDistFt as number)
             onDeviceRotated?.(id, rec.__tempDistRot as number)
