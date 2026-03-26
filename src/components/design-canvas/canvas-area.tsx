@@ -80,6 +80,7 @@ interface Props {
   hiddenPpfZones?: Set<string>
   showBlindSpot?: boolean
   onWallSelected?: (id: string) => void
+  onSelectImager?: (idx: number | null) => void
   zoomToPointRef?: React.MutableRefObject<((x: number, y: number) => void) | null>
 }
 
@@ -207,7 +208,7 @@ export function CanvasArea({
   onFloorPlanError, hiddenCategories, zoomToPointRef,
   walls, onWallCreated, onWallDeleted, onMdfSelected,
   showIrRange, hiddenPpfZones, showBlindSpot, onWallSelected,
-  onDeviceUpdateProp, onUndo, onRedo, satelliteConfig,
+  onDeviceUpdateProp, onUndo, onRedo, satelliteConfig, onSelectImager,
 }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -435,9 +436,18 @@ export function CanvasArea({
         // Left-click on fabric object → select device or allow handle drag
         if (target) {
           const rec = target as unknown as Record<string, unknown>
-          if (rec.__fovDist || rec.__fovEdge) {
-            // FOV handles: select device, then fall through so Fabric starts native drag
+          if (rec.__fovDist || rec.__fovEdge || rec.__sensorRotHandle) {
+            // FOV handles: select device + imager, then fall through so Fabric starts native drag
             onSelectDevice(rec.__devId as string)
+            if (rec.__sensorIdx !== undefined) onSelectImager?.(rec.__sensorIdx as number)
+          } else if (rec.__isFovPoly && rec.__devId) {
+            // Click on FOV cone → select device + sensor (Hanwha-style click-on-beam)
+            onSelectDevice(rec.__devId as string)
+            onToolChange?.('select')
+            if (rec.__sensorIdx !== undefined) {
+              onSelectImager?.(rec.__sensorIdx as number)
+            }
+            return  // Don't let Fabric drag the cone
           } else if (rec.__devId) {
             // Device icon: select + switch tool, then fall through for native drag
             onSelectDevice(rec.__devId as string)
@@ -816,7 +826,9 @@ export function CanvasArea({
                    // Multi-sensor: only update cones belonging to this sensor
                    if (sIdx !== undefined && (fRec.__sensorIdx as number) !== sIdx) continue
                    const r = (fRec.__tierRadius as number) ?? 300
-                   const sRotRad = rotRad + ((fRec.__sRotOffset as number) ?? 0)
+                   // For multi-sensor: rotRad IS the sensor rotation (from __rotRad = hRotRad)
+                   // Don't add __sRotOffset — it would double-count the sensor angle
+                   const sRotRad = sIdx !== undefined ? rotRad : rotRad + ((fRec.__sRotOffset as number) ?? 0)
                    const pts = buildConePoints(halfAng, sRotRad, r)
                    updateFovPolygon(fo, pts, cx, cy)
                 }
@@ -1268,14 +1280,18 @@ export function CanvasArea({
               fill: fillColor, opacity: Math.min(0.7, gradOpacity),
               stroke: t === 0 ? (isMultiSensor ? (imagerData?.colorHex || SENSOR_COLORS[sIdx % SENSOR_COLORS.length]) : 'rgba(0,0,0,0.35)') : 'transparent',
               strokeWidth: t === 0 ? (isMultiSensor ? 2.5 : 1.5) : 0,
-              selectable: false, evented: false,
+              selectable: false,
+              // Outermost tier is clickable for cone-click-to-select (Hanwha pattern)
+              evented: t === 0,
+              hoverCursor: t === 0 ? 'pointer' : 'default',
             })
-            // Cache attributes for fluid 60FPS drag
+            // Cache attributes for fluid 60FPS drag and click-to-select
             ;(cone as any).__isFovPoly = true
             ;(cone as any).__tierRadius = r
             ;(cone as any).__sRotOffset = sRotRad - rotRad
             ;(cone as any).__camX = cx
             ;(cone as any).__camY = cy
+            ;(cone as any).__devId = devId
             if (isMultiSensor) (cone as any).__sensorIdx = sIdx
 
             c.add(cone)

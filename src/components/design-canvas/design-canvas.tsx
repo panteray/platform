@@ -809,6 +809,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           hiddenPpfZones={hiddenPpfZones}
           showBlindSpot={showBlindSpot}
           onWallSelected={(id) => { setSelectedWallId(id); setSelectedDeviceId(null); setSelectedMdfId(null) }}
+          onSelectImager={(idx) => setSelectedImagerIdx(idx)}
         />
 
         {/* ── RIGHT PANEL (300px, overlay) ── */}
