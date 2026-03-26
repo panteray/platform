@@ -13,6 +13,9 @@ interface SatelliteMapProps {
 export interface SatelliteMapHandle {
   syncZoom: (googleZoom: number) => void
   panBy: (dxPx: number, dyPx: number) => void
+  /** Sync the map to match Fabric.js viewport transform [scaleX, 0, 0, scaleY, translateX, translateY] */
+  syncTransform: (vpt: number[], canvasWidth: number, canvasHeight: number) => void
+  getMap: () => MapInstance | null
 }
 
 let apiKeyCache: string | null = null
@@ -53,6 +56,7 @@ type MapInstance = {
   getCenter: () => { lat: () => number; lng: () => number }
   getZoom: () => number
   panBy: (x: number, y: number) => void
+  getDiv: () => HTMLElement
 }
 
 export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
@@ -60,6 +64,8 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
     const mapRef = useRef<HTMLDivElement>(null)
     const mapInstanceRef = useRef<MapInstance | null>(null)
     const [error, setError] = useState<string | null>(null)
+    // Store initial config so we can compute offsets during pan sync
+    const originRef = useRef({ lat, lng, zoom })
 
     useImperativeHandle(ref, () => ({
       syncZoom(googleZoom: number) {
@@ -69,6 +75,30 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
       panBy(dxPx: number, dyPx: number) {
         const map = mapInstanceRef.current
         if (map) map.panBy(dxPx, dyPx)
+      },
+      syncTransform(vpt: number[], canvasWidth: number, canvasHeight: number) {
+        const map = mapInstanceRef.current
+        if (!map) return
+        // vpt = [zoom, 0, 0, zoom, panX, panY]
+        const fabricZoom = vpt[0]
+        const panX = vpt[4]
+        const panY = vpt[5]
+
+        // Convert Fabric.js zoom to Google Maps zoom offset
+        // Fabric zoom 1.0 = base Google zoom. Each doubling = +1 Google zoom level
+        const googleZoom = originRef.current.zoom + Math.log2(fabricZoom)
+        map.setZoom(Math.max(1, Math.min(22, googleZoom)))
+
+        // Apply CSS transform to the map container to sync pan position.
+        // This is more responsive than calling map.panTo() on every frame.
+        const el = mapRef.current
+        if (el) {
+          el.style.transform = `translate(${panX}px, ${panY}px) scale(${fabricZoom})`
+          el.style.transformOrigin = '0 0'
+        }
+      },
+      getMap() {
+        return mapInstanceRef.current
       },
     }))
 
@@ -104,7 +134,7 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
             zoom,
             mapTypeId: 'satellite',
             disableDefaultUI: true,
-            gestureHandling: 'cooperative',
+            gestureHandling: 'none',  // Canvas handles all interactions
             keyboardShortcuts: false,
             draggable: false,
             zoomControl: false,
@@ -123,6 +153,7 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
           })
 
           mapInstanceRef.current = map
+          originRef.current = { lat, lng, zoom }
         } catch (err) {
           console.error('Google Maps init failed:', err)
           if (!cancelled) setError('Maps failed to load')
@@ -139,6 +170,7 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
       if (!map) return
       map.setCenter({ lat, lng })
       map.setZoom(zoom)
+      originRef.current = { lat, lng, zoom }
     }, [lat, lng, zoom])
 
     if (error) return <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }} />
@@ -153,6 +185,7 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
           pointerEvents: 'none',
           zIndex: 0,
           display: hidden ? 'none' : 'block',
+          willChange: 'transform',
         }}
       />
     )

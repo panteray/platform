@@ -17,6 +17,7 @@
 import React, { useState, useCallback, useMemo } from 'react'
 import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, Crosshair } from 'lucide-react'
 import { C } from './constants'
+import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
 
 /* ─── 48 Color Palette ─── */
@@ -77,6 +78,64 @@ function StatRow({ label, value, unit, color }: {
       <span style={{ fontSize: 11, fontWeight: 600, fontFamily: 'monospace', color: color || C.text }}>
         {value}{unit ? <span style={{ fontSize: 9, color: C.textDim, marginLeft: 2 }}>{unit}</span> : null}
       </span>
+    </div>
+  )
+}
+
+/* ─── Axis-style real-time DORI feedback ─── */
+function DoriFeedback({ resolutionW, sensorW, focalLength, targetDist }: {
+  resolutionW: number; sensorW: number; focalLength: number; targetDist: number
+}) {
+  const hasSensor = resolutionW > 0 && sensorW > 0 && focalLength > 0
+  const ppf = hasSensor ? calculatePpfAtDistance(resolutionW, sensorW, focalLength, targetDist) : 0
+  const dori = hasSensor ? classifyDori(ppf) : 'none'
+
+  const tiers = [
+    { key: 'detection', label: 'DET', color: '#ef4444', threshold: 8 },
+    { key: 'observation', label: 'OBS', color: '#f97316', threshold: 19 },
+    { key: 'recognition', label: 'REC', color: '#eab308', threshold: 38 },
+    { key: 'identification', label: 'ID', color: '#22c55e', threshold: 76 },
+  ]
+
+  return (
+    <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: C.text }}>Quality at Target</span>
+        {hasSensor && (
+          <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: C.accent }}>
+            {Math.round(ppf)} PPF
+          </span>
+        )}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+        {tiers.map(tier => {
+          const isActive = hasSensor && dori === tier.key
+          const isMet = hasSensor && ppf >= tier.threshold
+          return (
+            <div key={tier.key} style={{
+              padding: '6px 4px', textAlign: 'center', borderRadius: 4,
+              background: isActive ? `${tier.color}30` : isMet ? `${tier.color}10` : 'transparent',
+              border: `1px solid ${isActive ? tier.color : isMet ? `${tier.color}30` : C.border}`,
+              fontSize: 8, fontWeight: 600,
+              color: isActive ? tier.color : isMet ? `${tier.color}90` : C.textDim,
+              lineHeight: 1.2,
+              transition: 'all 0.15s',
+            }}>
+              {tier.label}
+              {hasSensor && (
+                <div style={{ fontSize: 7, fontWeight: 400, marginTop: 2, opacity: 0.7 }}>
+                  {tier.threshold}+
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {!hasSensor && (
+        <div style={{ fontSize: 9, color: C.textDim, marginTop: 4, fontStyle: 'italic' }}>
+          Set sensor specs for DORI analysis
+        </div>
+      )}
     </div>
   )
 }
@@ -314,24 +373,13 @@ export function RightPanel({
               </div>
             </div>
 
-            {/* DORI at target distance */}
-            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Quality at Target</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
-                {['Detection', 'Observation', 'Recognition', 'Identification'].map((tier, i) => {
-                  const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e']
-                  return (
-                    <div key={tier} style={{
-                      padding: '6px 4px', textAlign: 'center', borderRadius: 4,
-                      background: `${colors[i]}15`, border: `1px solid ${colors[i]}30`,
-                      fontSize: 8, fontWeight: 600, color: colors[i], lineHeight: 1.2,
-                    }}>
-                      {tier[0]}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+            {/* DORI at target distance — Axis-style real-time feedback */}
+            <DoriFeedback
+              resolutionW={Number(props.resolution_w) || 0}
+              sensorW={Number(props.sensor_width) || 0}
+              focalLength={focalLength}
+              targetDist={targetDist}
+            />
 
             {/* ── Advanced Lens / IR ── */}
             <Section title="Advanced Lens / IR">

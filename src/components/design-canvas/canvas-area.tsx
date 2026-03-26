@@ -12,8 +12,9 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
-import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON } from './icons'
+import { SatelliteMap, type SatelliteMapHandle } from './satellite-map'
 import { buildConePoints } from './fov-renderer'
+import { createDeviceObject, createMdfObject } from './device-renderer'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignMdfIdf } from '@/types/database'
 
 type FabricCanvas = import('fabric').Canvas
@@ -201,12 +202,13 @@ export function CanvasArea({
   onFloorPlanError, hiddenCategories, zoomToPointRef,
   walls, onWallCreated, onWallDeleted, onMdfSelected,
   showIrRange, hiddenPpfZones, showBlindSpot, onWallSelected,
-  onDeviceUpdateProp, onUndo, onRedo,
+  onDeviceUpdateProp, onUndo, onRedo, satelliteConfig,
 }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const fcRef = useRef<FabricCanvas | null>(null)
+  const satMapRef = useRef<SatelliteMapHandle>(null)
   const [ready, setReady] = useState(false)
 
   // Stable refs for event handlers
@@ -296,12 +298,20 @@ export function CanvasArea({
 
       const { width, height } = containerRef.current.getBoundingClientRect()
       const c = new fm.Canvas(canvasElRef.current, {
-        width, height, backgroundColor: resolveCanvasColor('--canvas-bg'),
+        width, height,
+        backgroundColor: satelliteConfig ? 'transparent' : resolveCanvasColor('--canvas-bg'),
         selection: false, preserveObjectStacking: true,
         stopContextMenu: true, fireRightClick: true,
       })
       fcRef.current = c
       setReady(true)
+
+      // ── Helper: sync satellite map to canvas viewport ──
+      const syncSatMap = () => {
+        if (satMapRef.current) {
+          satMapRef.current.syncTransform(c.viewportTransform!, c.getWidth(), c.getHeight())
+        }
+      }
 
       // ── ZOOM (scroll) ──
       c.on('mouse:wheel', (o: any) => {
@@ -310,6 +320,7 @@ export function CanvasArea({
         z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z))
         c.zoomToPoint(c.getScenePoint(e), z)
         onZoomChange?.(z)
+        syncSatMap()
         c.requestRenderAll()
       })
 
@@ -516,6 +527,7 @@ export function CanvasArea({
           vpt[4] += e.clientX - panOrigin.current.x
           vpt[5] += e.clientY - panOrigin.current.y
           panOrigin.current = { x: e.clientX, y: e.clientY }
+          syncSatMap()
           c.requestRenderAll()
           return
         }
@@ -848,6 +860,9 @@ export function CanvasArea({
       if (e.key.toLowerCase() === 'f' && fcRef.current) {
         fcRef.current.setViewportTransform([1, 0, 0, 1, 0, 0])
         onZoomChange?.(1)
+        if (satMapRef.current) {
+          satMapRef.current.syncTransform([1, 0, 0, 1, 0, 0], fcRef.current.getWidth(), fcRef.current.getHeight())
+        }
       }
       if (e.key === 'Enter') {
         // Finish wall drawing if in progress
@@ -1002,99 +1017,13 @@ export function CanvasArea({
     ;(async () => {
       const fm = await import('fabric')
 
-      // Camera type → PNG image mapping
-      const CAT_TO_PNG: Record<string, string> = {
-        cctv: '/devices/camera-types/dome.png',
-        dome: '/devices/camera-types/dome.png',
-        bullet: '/devices/camera-types/bullet.png',
-        ptz: '/devices/camera-types/ptz.png',
-        fisheye: '/devices/camera-types/fisheye.png',
-        multisensor_quad: '/devices/camera-types/multisensor.png',
-        multisensor_dual: '/devices/camera-types/multisensor_dual.png',
-        turret: '/devices/camera-types/turret.png',
-        box: '/devices/camera-types/box.png',
-      }
-      const ICON_SIZE = 28 // px on canvas
-
       for (const dev of devices) {
         if (hiddenCategories?.has(dev.category)) continue
-        const isSel = dev.id === selectedDeviceId
-        const pngUrl = CAT_TO_PNG[dev.category]
-
         try {
-          let obj: FabricObject
-
-          if (pngUrl) {
-            // Use real camera PNG photo
-            try {
-              const img = await fm.FabricImage.fromURL(pngUrl, { crossOrigin: 'anonymous' })
-              const scale = ICON_SIZE / Math.max(img.width || 64, img.height || 64)
-              img.set({
-                left: dev.position_x, top: dev.position_y,
-                originX: 'center', originY: 'center',
-                scaleX: scale, scaleY: scale,
-                angle: dev.rotation ?? 0,
-                hasControls: false, hasBorders: false, lockRotation: true,
-                selectable: true, evented: true,
-                hoverCursor: 'move', moveCursor: 'move',
-              })
-              obj = img
-            } catch {
-              // PNG failed, fall back to SVG
-              const iconKey = CATEGORY_TO_ICON[dev.category] || 'generic'
-              const svgStr = DEVICE_SVG_STRINGS[iconKey]
-              if (svgStr) {
-                const res = await fm.loadSVGFromString(svgStr)
-                const ico = fm.util.groupSVGElements(res.objects.filter(Boolean) as FabricObject[], res.options)
-                obj = new fm.Group([ico], {
-                  left: dev.position_x, top: dev.position_y,
-                  originX: 'center', originY: 'center', scaleX: 0.4, scaleY: 0.4,
-                  angle: dev.rotation ?? 0,
-                  hasControls: false, hasBorders: false, lockRotation: true,
-                  selectable: true, evented: true,
-                  hoverCursor: 'move', moveCursor: 'move',
-                })
-              } else {
-                obj = new fm.Circle({
-                  left: dev.position_x, top: dev.position_y, radius: 10, fill: C.accent,
-                  originX: 'center', originY: 'center',
-                  hasControls: false, hasBorders: false,
-                  selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move',
-                })
-              }
-            }
-          } else {
-            // No PNG for this category — use SVG icon
-            const iconKey = CATEGORY_TO_ICON[dev.category] || 'generic'
-            const svgStr = DEVICE_SVG_STRINGS[iconKey]
-            if (svgStr) {
-              const res = await fm.loadSVGFromString(svgStr)
-              const ico = fm.util.groupSVGElements(res.objects.filter(Boolean) as FabricObject[], res.options)
-              obj = new fm.Group([ico], {
-                left: dev.position_x, top: dev.position_y,
-                originX: 'center', originY: 'center', scaleX: 0.4, scaleY: 0.4,
-                angle: dev.rotation ?? 0,
-                hasControls: false, hasBorders: false, lockRotation: true,
-                selectable: true, evented: true,
-                hoverCursor: 'move', moveCursor: 'move',
-              })
-            } else {
-              obj = new fm.Circle({
-                left: dev.position_x, top: dev.position_y, radius: 10, fill: C.accent,
-                originX: 'center', originY: 'center',
-                hasControls: false, hasBorders: false,
-                selectable: true, evented: true, hoverCursor: 'move', moveCursor: 'move',
-              })
-            }
-          }
-
-          // Tag for event handling
-          const rec = obj as unknown as Record<string, unknown>
-          rec.__devId = dev.id
-
-          // Selection ring
-          if (isSel) obj.set({ stroke: C.accent, strokeWidth: 2, padding: 4 } as Record<string, unknown>)
-
+          const obj = await createDeviceObject(
+            fm, dev.category, dev.position_x, dev.position_y,
+            dev.rotation ?? 0, dev.id === selectedDeviceId, dev.id,
+          )
           c.add(obj)
           devObjs.current.set(dev.id, obj)
         } catch { /* icon load failed */ }
@@ -1419,28 +1348,9 @@ export function CanvasArea({
         const objs: FabricObject[] = []
         const mdfColor = MDF_COLORS[mi % MDF_COLORS.length]
 
-        // Rack icon SVG (IPVM-style green server rack)
-        const rackSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect x="6" y="4" width="20" height="24" rx="2" fill="${mdfColor}" opacity="0.9"/><rect x="9" y="8" width="14" height="3" rx="1" fill="#fff" opacity="0.6"/><rect x="9" y="13" width="14" height="3" rx="1" fill="#fff" opacity="0.6"/><rect x="9" y="18" width="14" height="3" rx="1" fill="#fff" opacity="0.6"/><circle cx="20" cy="9.5" r="1" fill="#22c55e"/><circle cx="20" cy="14.5" r="1" fill="#22c55e"/><circle cx="20" cy="19.5" r="1" fill="#22c55e"/></svg>`
-
         try {
-          const res = await fm.loadSVGFromString(rackSvg)
-          const ico = fm.util.groupSVGElements(res.objects.filter(Boolean) as FabricObject[], res.options)
-          // Label below icon
-          const lbl = new fm.FabricText(mdf.name || 'MDF', {
-            left: 0, top: 20, fontSize: 10, fill: C.text,
-            fontFamily: "'IBM Plex Sans', sans-serif", originX: 'center', originY: 'top',
-            fontWeight: '600',
-          })
-          const group = new fm.Group([ico, lbl], {
-            left: mdf.position_x, top: mdf.position_y,
-            originX: 'center', originY: 'center',
-            hasControls: false, hasBorders: false,
-            selectable: true, evented: true,
-            hoverCursor: 'move', moveCursor: 'move',
-          })
-          const rec = group as unknown as Record<string, unknown>
-          rec.__mdfId = mdf.id
-          c.add(group); objs.push(group)
+          const mdfObj = await createMdfObject(fm, mdf.name, mdf.position_x, mdf.position_y, mdfColor, mdf.id)
+          c.add(mdfObj); objs.push(mdfObj)
         } catch { /* ok */ }
 
         // Draw dashed cable lines from MDF to all devices with cables (IPVM-style)
@@ -1610,7 +1520,18 @@ export function CanvasArea({
       onDrop={e => { /* drop handler for catalog */ }}
       style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}>
 
-      <canvas ref={canvasElRef} />
+      {/* Satellite map backdrop — rendered behind canvas when configured */}
+      {satelliteConfig && (
+        <SatelliteMap
+          ref={satMapRef}
+          lat={satelliteConfig.lat}
+          lng={satelliteConfig.lng}
+          zoom={satelliteConfig.zoom}
+          opacity={satelliteConfig.opacity}
+        />
+      )}
+
+      <canvas ref={canvasElRef} style={{ position: 'relative', zIndex: 1 }} />
 
       {/* Status bar */}
       <div style={{
