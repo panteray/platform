@@ -28,6 +28,8 @@ Multi-sensor cameras (`multisensor_quad`, `multisensor_dual`) work like IPVM —
 - **Right panel controls**: Sensor Heads section with per-sensor rotation sliders
 - **Shared specs**: All sensors share the same optics (focal length, sensor width, resolution) — only rotation differs
 - **Sensor colors**: S1=#3b82f6, S2=#22c55e, S3=#f97316, S4=#a855f7
+- **IPVM behavior**: Each imager is independently adjustable (distance, FOV width, rotation). Entire camera moves as one assembly. IPVM supports 2–5 imagers per multi-sensor camera.
+- **180/360 panoramic**: Uses circle circumference formula (2*pi*r) not triangle-based cone — different from standard multi-sensor
 
 ## Industry Research (IPVM / Hanwha DesignPro / Axis Site Designer)
 - All major tools use Google Maps as foundation with FOV cones rendered on the map
