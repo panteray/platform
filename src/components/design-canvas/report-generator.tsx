@@ -21,6 +21,8 @@ const DORI_COLORS: Record<DoriClassification, string> = {
   recognition: '#eab308',
   observation: '#f97316',
   detection: '#ef4444',
+  inspection: '#8b5cf6',
+  monitor: '#6b7280',
   none: '#78716c',
 }
 
