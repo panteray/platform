@@ -1,15 +1,140 @@
 {
   "version": 1,
   "skills": {
+    "api-security-best-practices": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "ce16d10df486a28a3ba894d646de3243fc2bf9990f563fc7a9b074fd720e24d5"
+    },
     "browser-use": {
       "source": "browser-use/browser-use",
       "sourceType": "github",
       "computedHash": "f974fac2783f80ac2a1a2cb45d576b5cca55123015dc73db8adfd02277002461"
     },
+    "code-refactoring-tech-debt": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "3b27be0599a955e436777160b94646c77b7ad90eab457b86fcbf4d70c976c4ce"
+    },
+    "code-review-excellence": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "fa411304b6393f0d3e33fc21ebbbe4424e3fc81d677be0c8a655670fb4b7fdcf"
+    },
+    "database-migrations-sql-migrations": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "4894aac3be08f38e7197596f3d5e06ca51152b807093b16294878a69e4492d75"
+    },
+    "e2e-testing": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "f227bc4cd6f5828dd9eb6eee08a9dd3fe3768c160b02058206fc4a7e862b9fbb"
+    },
+    "find-bugs": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "8daa644eb49c0be69622bca8376eb9d3acc41bd030b46a024f690f151a06e646"
+    },
     "frontend-design": {
       "source": "anthropics/claude-code",
       "sourceType": "github",
       "computedHash": "e8118284a6365753790d44bb2758a6032b3af27fa84696428d9233f2be0f4e78"
+    },
+    "javascript-testing-patterns": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "3d5f744e49828ba80815c50273a0304ac1f5aaea2993303ad7f163d6213f3b19"
+    },
+    "nextjs-app-router-patterns": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "9a6b54355a72de0a066cbe7e6d02b5dcd82a2555e9257641ec30423e41a6ddd4"
+    },
+    "nextjs-best-practices": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "8f5b6b588c638139854181f80a241c16575810a3bd45b0983e55078b6aed347a"
+    },
+    "nextjs-supabase-auth": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "a2f83880ed005c12233512b885e0daee510bf7607e997fba9c78a6ad92860d6c"
+    },
+    "performance-optimizer": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "f5f445b94cccee93820f1be775f2578e1e5a481be6ced374c37d9ef879ff93a8"
+    },
+    "postgres-best-practices": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "8fb4352398fc8be20e24e17b98f98abbf47bffb9696b50e2ab5dedcd0875362c"
+    },
+    "postgresql": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "5907e76c03d10c92873d7b6f76f2e6cce8c183a8953affc000300c3c327aa2d3"
+    },
+    "postgresql-optimization": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "743d435727317ca82f55f096905bc763a910ca9f4bcd924e06ee76abb11be4f5"
+    },
+    "radix-ui-design-system": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "75617a658804650f9a52514b265f32a3f24ebf648710af0f16d00f8db6653930"
+    },
+    "react-best-practices": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "cd629cee7ad8c56bbc3b7b0b312ea8efb2eda5d9549cf414749cc259a0701a57"
+    },
+    "react-component-performance": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "0cbb3630e3d3bb6cf160b65e62ca7cea483c93bbed2eeaaadad5b221e0310359"
+    },
+    "react-patterns": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "adf4d735002b35fc8688d041ca3a44b7365cfb5a5646ce23dfed0fa07efa641f"
+    },
+    "security-scanning-security-hardening": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "9d7b880b5a462fdc0484cf8dcbf61304198d9f731b626953b658080ae2119b51"
+    },
+    "shadcn": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "aa7b6cd56dfb0adca59702720270fd0fb1e2b1e97895cc1d08306df3d62f06f0"
+    },
+    "tailwind-design-system": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "fc9c14ba7405ea5207e824856d80d53c29208d4e82323da4a20a7f97707a6c55"
+    },
+    "testing-patterns": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "a026d53c9111e0861cee7f1a2ea19fa1896a2eb4fd093b51b7dcb6338e7f64c7"
+    },
+    "typescript-expert": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "f0f625132cf53116cb27725926e2c99f142861b9063d459938dd85fbf8e2bf61"
+    },
+    "web-performance-optimization": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "8cfc6abf5a7ee700208117ad52b659cf8388a60e84fce18f87de82b39216bf99"
+    },
+    "zod-validation-expert": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "8fd8eb38d99ba483ff3a17389e4db8ade789599cd6d90fdb1a25e9b6d23e2ed3"
     }
   }
 }
