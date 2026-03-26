@@ -526,7 +526,7 @@ export function RightPanel({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: 10, color: C.textMuted }}>Target Distance</span>
-                        <input type="number" value={imagerDist} min={1} max={500}
+                        <input type="number" value={imagerDist} min={1}
                           onChange={e => updateImagerProp('distance', Number(e.target.value))}
                           style={{ width: 60, padding: '2px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, textAlign: 'right' }}
                         />

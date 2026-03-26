@@ -282,12 +282,11 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           targetDistance: targetDist,
         })
         // doriTiers: detection(outermost) → identification(innermost)
-        // Cap outer tier to user's targetDist so cone doesn't exceed the set range
+        // Outermost tier always extends to targetDist (canvas is source of truth)
+        // DORI tiers show capability bands within the user's set range
         tiers = doriTiers.map((t, i) => ({
-          distanceFt: Math.min(t.distanceFt, targetDist),
+          distanceFt: i === 0 ? Math.max(t.distanceFt, targetDist) : t.distanceFt,
           color: t.color,
-          // Graduated opacity: outermost=faintest, innermost=densest
-          // 6-tier graduated opacity: monitor(outermost) → inspection(innermost)
           opacity: [0.04, 0.06, 0.09, 0.12, 0.15, 0.20][i] ?? 0.10,
         }))
       } else {
@@ -339,9 +338,8 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
               focalLength, mountHeight: installHeight, targetDistance: imagerDist,
             })
             imagerTiers = doriTiers.map((t, i) => ({
-              distanceFt: Math.min(t.distanceFt, imagerDist),
+              distanceFt: i === 0 ? Math.max(t.distanceFt, imagerDist) : t.distanceFt,
               color: t.color,
-              // 6-tier graduated opacity: monitor(outermost) → inspection(innermost)
               opacity: [0.04, 0.06, 0.09, 0.12, 0.15, 0.20][i] ?? 0.10,
             }))
           } else {
