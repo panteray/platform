@@ -168,6 +168,12 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
     if (!dev) return
     const p = (dev.properties ?? {}) as Record<string, unknown>
 
+    // Batch update: replace entire properties object at once (avoids race conditions)
+    if (prop === '__batch') {
+      updateDevice(id, { properties: val })
+      return
+    }
+
     if (prop === '__resetDori') {
        // Deep copy properties and strip overridden optics to restore hardware baseline
        const libSpecs = ((dev as any).libraryItem?.specs ?? {}) as Record<string, unknown>
@@ -217,9 +223,30 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   const doorCount = useMemo(() => areaDevices.filter(d => d.category === 'access_control').length, [areaDevices])
   const networkCount = useMemo(() => areaDevices.filter(d => d.category === 'network').length, [areaDevices])
 
-  /* ── FOV data computation ── */
+  /* ── FOV data computation (cameras + non-camera coverage boundaries) ── */
   const fovData = useMemo(() => {
     const map = new Map<string, DeviceFovData>()
+
+    // Non-camera device coverage boundaries (System Surveyor "Boundaries" feature)
+    // Speakers, motion detectors, environmental sensors get circular coverage
+    const NON_CAM_COVERAGE: Record<string, { radiusFt: number; color: string; fov: number }> = {
+      'speaker': { radiusFt: 25, color: '#8b5cf6', fov: 360 },
+      'vape_environmental': { radiusFt: 15, color: '#14b8a6', fov: 360 },
+    }
+    for (const d of areaDevices) {
+      const cat = d.category
+      const coverage = NON_CAM_COVERAGE[cat]
+      if (!coverage) continue
+      const props = (d.properties ?? {}) as Record<string, unknown>
+      const covRadius = Number(props.coverage_radius) || coverage.radiusFt
+      map.set(d.id, {
+        hFov: coverage.fov,
+        rotation: d.rotation || 0,
+        tiers: [{ distanceFt: covRadius, color: coverage.color, opacity: 0.10 }],
+        colorHex: d.color_hex || coverage.color,
+      })
+    }
+
     for (const d of areaDevices) {
       const cat = d.category
       if (!['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(cat)) continue
@@ -255,12 +282,11 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           targetDistance: targetDist,
         })
         // doriTiers: detection(outermost) → identification(innermost)
-        // Cap outer tier to user's targetDist so cone doesn't exceed the set range
+        // Outermost tier always extends to targetDist (canvas is source of truth)
+        // DORI tiers show capability bands within the user's set range
         tiers = doriTiers.map((t, i) => ({
-          distanceFt: Math.min(t.distanceFt, targetDist),
+          distanceFt: i === 0 ? Math.max(t.distanceFt, targetDist) : t.distanceFt,
           color: t.color,
-          // Graduated opacity: outermost=faintest, innermost=densest
-          // 6-tier graduated opacity: monitor(outermost) → inspection(innermost)
           opacity: [0.04, 0.06, 0.09, 0.12, 0.15, 0.20][i] ?? 0.10,
         }))
       } else {
@@ -293,27 +319,27 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
       const lowerAngle = tiltRad + vFovHalf
       const blindSpotFt = lowerAngle < Math.PI / 2 ? installHeight * Math.tan(Math.PI / 2 - lowerAngle) : 0
 
-      // Per-imager property overrides (for multisensor cameras)
+      // Per-imager data for multisensor cameras (IPVM: each imager independently adjustable)
       const perImagerRaw = props.per_imager_props as Array<{ distance?: number; hfov?: number; color?: string }> | undefined
+      const sensorColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
       let perImagerData: Array<{ tiers: typeof tiers; hFov: number; colorHex?: string }> | undefined
-      if (perImagerRaw && perImagerRaw.length > 0 && sensorAngles && sensorAngles.length > 1) {
+      if (sensorAngles && sensorAngles.length > 1) {
         perImagerData = sensorAngles.map((_, idx) => {
-          const imagerProps = perImagerRaw[idx] || {}
+          const imagerProps = perImagerRaw?.[idx] || {}
           const imagerDist = imagerProps.distance || targetDist
           const imagerHFov = imagerProps.hfov || hFov
-          const imagerColor = imagerProps.color || d.color_hex || deviceColor
+          const imagerColor = imagerProps.color || sensorColors[idx % sensorColors.length]
 
           let imagerTiers: typeof tiers
           if (hasFullSpecs) {
             const doriTiers = getFovConeTiers({
               resolutionW: resW, resolutionH: Number(props.resolution_h) || Math.round(resW * 9 / 16),
-              sensorW, sensorH: Number(props.sensor_height) || sensorW * 0.75,
+              sensorW, sensorH: Number(props.sensor_h) || Number(props.sensor_height) || sensorW * 0.75,
               focalLength, mountHeight: installHeight, targetDistance: imagerDist,
             })
             imagerTiers = doriTiers.map((t, i) => ({
-              distanceFt: Math.min(t.distanceFt, imagerDist),
+              distanceFt: i === 0 ? Math.max(t.distanceFt, imagerDist) : t.distanceFt,
               color: t.color,
-              // 6-tier graduated opacity: monitor(outermost) → inspection(innermost)
               opacity: [0.04, 0.06, 0.09, 0.12, 0.15, 0.20][i] ?? 0.10,
             }))
           } else {
@@ -787,6 +813,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           hiddenPpfZones={hiddenPpfZones}
           showBlindSpot={showBlindSpot}
           onWallSelected={(id) => { setSelectedWallId(id); setSelectedDeviceId(null); setSelectedMdfId(null) }}
+          onSelectImager={(idx) => setSelectedImagerIdx(idx)}
         />
 
         {/* ── RIGHT PANEL (300px, overlay) ── */}
