@@ -13,7 +13,6 @@ import { toast } from 'sonner'
 import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { DEVICE_SVG_STRINGS, CATEGORY_TO_ICON } from './icons'
-import { buildConePoints } from './fov-renderer'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignMdfIdf } from '@/types/database'
 
 type FabricCanvas = import('fabric').Canvas
@@ -89,102 +88,34 @@ function resolveCanvasColor(varName: string, fallback = '#09090b'): string {
 /* ─── Camera categories ─── */
 const CAM_CATS = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual']
 
-/**
- * Update a Fabric.js Polygon with new LOCAL-coordinate points (0,0 = apex).
- * Replaces the fragile _calcDimensions() + manual centroid dance.
- *
- * @param poly - Fabric polygon object
- * @param pts  - Points in local coords (apex at 0,0)
- * @param cx   - Canvas X position of the apex
- * @param cy   - Canvas Y position of the apex
- */
-/**
- * Apply canonical z-ordering to all canvas layers.
- * Single source of truth — replaces scattered bringToFront/sendToBack calls.
- */
-function applyZOrder(
-  c: FabricCanvas,
-  gridObj: FabricObject | null,
-  fpObj: FabricObject | null,
-  wallObjs: FabricObject[],
-  fovObjs: Map<string, FabricObject[]>,
-  mdfObjs: Map<string, FabricObject[]>,
-  devObjs: Map<string, FabricObject>,
-  handleObjs: Map<string, FabricObject>,
-) {
-  // Bottom layers first
-  if (gridObj) c.sendObjectToBack(gridObj)
-  if (fpObj) c.sendObjectToBack(fpObj)
-  // FOV cones above floor plan
-  for (const [, arr] of fovObjs) for (const o of arr) c.sendObjectToBack(o)
-  // Walls above cones
-  for (const o of wallObjs) c.bringObjectToFront(o)
-  // MDF cables + icons
-  for (const [, arr] of mdfObjs) for (const o of arr) c.bringObjectToFront(o)
-  // Devices on top of cones/cables
-  for (const [, o] of devObjs) c.bringObjectToFront(o)
-  // Handles on top of everything
-  for (const [, h] of handleObjs) c.bringObjectToFront(h)
-}
-
-function updateFovPolygon(
-  poly: any,
-  pts: Array<{ x: number; y: number }>,
-  cx: number,
-  cy: number,
-) {
-  const xs = pts.map(p => p.x), ys = pts.map(p => p.y)
-  const minX = Math.min(...xs), maxX = Math.max(...xs)
-  const minY = Math.min(...ys), maxY = Math.max(...ys)
-  const offX = (minX + maxX) / 2, offY = (minY + maxY) / 2
-  poly.set({
-    points: pts,
-    pathOffset: { x: offX, y: offY },
-    width: maxX - minX,
-    height: maxY - minY,
-    left: cx + offX,
-    top: cy + offY,
-    dirty: true,
-  })
-  poly.setCoords()
-}
-
-/* ─── Wall–FOV clipping: Sutherland-Hodgman algorithm ─── */
+/* ─── Wall–FOV clipping helper: clip polygon against a wall segment ─── */
 function clipFovByWalls(
   pts: Array<{ x: number; y: number }>,
   walls: Array<{ id: string; points: Array<{ x: number; y: number }> }>,
   cx: number, cy: number,
 ): Array<{ x: number; y: number }> {
-  if (!walls || walls.length === 0 || pts.length < 3) return pts
+  // For each wall segment, clip points that are "behind" the wall from the camera's perspective
   let clipped = [...pts]
   for (const wall of walls) {
     for (let w = 0; w < wall.points.length - 1; w++) {
       const wa = wall.points[w], wb = wall.points[w + 1]
-      const edgeDx = wb.x - wa.x, edgeDy = wb.y - wa.y
+      const wallDx = wb.x - wa.x, wallDy = wb.y - wa.y
       // Which side is the camera on?
-      const camSide = edgeDx * (cy - wa.y) - edgeDy * (cx - wa.x)
-      if (Math.abs(camSide) < 1e-9) continue
-      const side = (p: { x: number; y: number }) =>
-        edgeDx * (p.y - wa.y) - edgeDy * (p.x - wa.x)
-      const isInside = (p: { x: number; y: number }) =>
-        camSide > 0 ? side(p) >= 0 : side(p) <= 0
-      const intersect = (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
-        const s1 = side(p1), s2 = side(p2), t = s1 / (s1 - s2)
-        return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) }
-      }
-      const output: Array<{ x: number; y: number }> = []
-      for (let i = 0; i < clipped.length; i++) {
-        const cur = clipped[i], nxt = clipped[(i + 1) % clipped.length]
-        const curIn = isInside(cur), nxtIn = isInside(nxt)
-        if (curIn) {
-          output.push(cur)
-          if (!nxtIn) output.push(intersect(cur, nxt))
-        } else if (nxtIn) {
-          output.push(intersect(cur, nxt))
+      const camSide = (wallDx * (cy - wa.y) - wallDy * (cx - wa.x))
+      clipped = clipped.map(p => {
+        const pSide = (wallDx * (p.y - wa.y) - wallDy * (p.x - wa.x))
+        // If point is on opposite side of wall from camera, project it onto the wall
+        if (camSide * pSide < 0) {
+          // Ray from camera through p, intersect with wall segment
+          const dx = p.x - cx, dy = p.y - cy
+          const denom = dx * wallDy - dy * wallDx
+          if (Math.abs(denom) > 0.001) {
+            const t = ((wa.x - cx) * wallDy - (wa.y - cy) * wallDx) / denom
+            if (t > 0) return { x: cx + dx * t, y: cy + dy * t }
+          }
         }
-      }
-      clipped = output
-      if (clipped.length < 3) return clipped
+        return p
+      })
     }
   }
   return clipped
@@ -263,10 +194,7 @@ export function CanvasArea({
   const lastDragT = useRef(0)
 
   // FOV drag suppression guard (IPVM pattern: suppress useEffect re-renders during active drag)
-  // Uses a counter instead of a boolean+timeout to avoid race conditions.
-  // Incremented on drag start, decremented on drag end. >0 means drag is active.
   const isDraggingFov = useRef(false)
-  const fovDragGeneration = useRef(0)
 
   // Context menu
   const [ctxMenu, setCtxMenu] = useState<{ show: boolean; x: number; y: number; id: string; type: 'device' | 'mdf' | 'wall' }>({ show: false, x: 0, y: 0, id: '', type: 'device' })
@@ -639,11 +567,19 @@ export function CanvasArea({
         const rec = obj as unknown as Record<string, unknown>
         const id = rec.__devId as string
 
-        // Release FOV drag suppression guard using generation counter.
-        // The FOV useEffect checks generation to skip stale re-renders.
+        // Release FOV drag suppression guard after a short delay
+        // to allow the DB write → useEffect re-render to happen cleanly
         if (isDraggingFov.current) {
-          fovDragGeneration.current++
-          isDraggingFov.current = false
+          // Clear origLeft/origTop for device move tracking
+          const fArr = fovObjs.current.get(id)
+          if (fArr) {
+            for (const fo of fArr) {
+              const fRec = fo as unknown as Record<string, unknown>
+              delete fRec.__origLeft
+              delete fRec.__origTop
+            }
+          }
+          setTimeout(() => { isDraggingFov.current = false }, 100)
         }
 
         if (id && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing) {
@@ -699,10 +635,23 @@ export function CanvasArea({
              for (const fo of fArr) {
                 const fRec = fo as unknown as Record<string, unknown>
                 if (fRec.__isFovPoly) {
+                   const poly = fo as any
                    const r = ((fRec.__tierRadius as number) ?? 300) * scaleDist
                    const sRotRad = baseRotRad + ((fRec.__sRotOffset as number) ?? 0)
-                   const pts = buildConePoints(halfAng, sRotRad, r)
-                   updateFovPolygon(fo, pts, cx, cy)
+                   const steps = 24
+                   const pts: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
+                   for (let i = 0; i <= steps; i++) {
+                     const a = sRotRad - halfAng + (2 * halfAng * i / steps)
+                     pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
+                   }
+                   poly.set({ points: pts })
+                   if (typeof poly._calcDimensions === 'function') poly._calcDimensions()
+                   
+                   const xs = pts.map((p: {x:number;y:number}) => p.x), ys = pts.map((p: {x:number;y:number}) => p.y)
+                   const centerX = (Math.min(...xs) + Math.max(...xs)) / 2
+                   const centerY = (Math.min(...ys) + Math.max(...ys)) / 2
+                   poly.set({ left: centerX, top: centerY })
+                   poly.setCoords()
                 }
              }
           }
@@ -731,10 +680,23 @@ export function CanvasArea({
              for (const fo of fArr) {
                 const fRec = fo as unknown as Record<string, unknown>
                 if (fRec.__isFovPoly) {
-                   const r = (fRec.__tierRadius as number) ?? 300
-                   const sRotRad = rotRad + ((fRec.__sRotOffset as number) ?? 0)
-                   const pts = buildConePoints(halfAng, sRotRad, r)
-                   updateFovPolygon(fo, pts, cx, cy)
+                   const poly = fo as any
+                   const r = poly.__tierRadius ?? 300
+                   const sRotRad = rotRad + (fRec.__sRotOffset as number ?? 0)
+                   const steps = 24
+                   const pts: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
+                   for (let i = 0; i <= steps; i++) {
+                     const a = sRotRad - halfAng + (2 * halfAng * i / steps)
+                     pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
+                   }
+                   poly.set({ points: pts })
+                   if (typeof poly._calcDimensions === 'function') poly._calcDimensions()
+                   
+                   const xs = pts.map((p: {x:number;y:number}) => p.x), ys = pts.map((p: {x:number;y:number}) => p.y)
+                   const centerX = (Math.min(...xs) + Math.max(...xs)) / 2
+                   const centerY = (Math.min(...ys) + Math.max(...ys)) / 2
+                   poly.set({ left: centerX, top: centerY })
+                   poly.setCoords()
                 }
              }
           }
@@ -762,15 +724,27 @@ export function CanvasArea({
           if (fArr && data) {
              const halfAng = (data.hFov / 2) * Math.PI / 180
              const baseRotRad = angle * Math.PI / 180
-             for (const fo of fArr) {
-                const fRec = fo as unknown as Record<string, unknown>
-                if (fRec.__isFovPoly) {
-                   const r = (fRec.__tierRadius as number) ?? 300
-                   const sRotRad = baseRotRad + ((fRec.__sRotOffset as number) ?? 0)
-                   const pts = buildConePoints(halfAng, sRotRad, r)
-                   updateFovPolygon(fo, pts, cx, cy)
+             fArr.forEach(fo => {
+                if ((fo as any).__isFovPoly) {
+                   const poly = fo as any
+                   const r = poly.__tierRadius ?? 300
+                   const sRotRad = baseRotRad + (poly.__sRotOffset ?? 0)
+                   const steps = 24
+                   const pts: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
+                   for (let i = 0; i <= steps; i++) {
+                     const a = sRotRad - halfAng + (2 * halfAng * i / steps)
+                     pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
+                   }
+                   poly.set({ points: pts })
+                   if (typeof poly._calcDimensions === 'function') poly._calcDimensions()
+                   
+                   const xs = pts.map(p => p.x), ys = pts.map(p => p.y)
+                   const centerX = (Math.min(...xs) + Math.max(...xs)) / 2
+                   const centerY = (Math.min(...ys) + Math.max(...ys)) / 2
+                   poly.set({ left: centerX, top: centerY })
+                   poly.setCoords()
                 }
-             }
+             })
           }
           c.requestRenderAll()
           return
@@ -781,32 +755,24 @@ export function CanvasArea({
           isDraggingFov.current = true
           const devId = rec.__devId as string
           const newX = obj.left ?? 0, newY = obj.top ?? 0
+          // Calculate delta from device's original state position
           const dev = devsRef.current.find(d => d.id === devId)
           if (dev) {
             const deltaX = newX - dev.position_x
             const deltaY = newY - dev.position_y
+            // Move all FOV objects belonging to this device
             const fovArr = fovObjs.current.get(devId)
             if (fovArr) {
               for (const fObj of fovArr) {
                 const fRec = fObj as unknown as Record<string, unknown>
-                // For local-coordinate polygons, shift the apex position
-                const camX = (fRec.__camX as number) ?? dev.position_x
-                const camY = (fRec.__camY as number) ?? dev.position_y
-                // Recompute left/top from stored pathOffset + new camera position
-                const po = (fObj as any).pathOffset
-                if (po && fRec.__isFovPoly) {
-                  fObj.set({ left: (camX + deltaX) + po.x, top: (camY + deltaY) + po.y })
-                } else {
-                  // Non-polygon FOV objects (labels, centerlines, circles)
-                  if (fRec.__origLeft === undefined) {
-                    fRec.__origLeft = fObj.left ?? camX
-                    fRec.__origTop = fObj.top ?? camY
-                  }
-                  fObj.set({
-                    left: (fRec.__origLeft as number) + deltaX,
-                    top: (fRec.__origTop as number) + deltaY,
-                  })
+                const origX = (fRec.__origLeft as number) ?? dev.position_x
+                const origY = (fRec.__origTop as number) ?? dev.position_y
+                // Store original position on first move
+                if (fRec.__origLeft === undefined) {
+                  fRec.__origLeft = fObj.left ?? dev.position_x
+                  fRec.__origTop = fObj.top ?? dev.position_y
                 }
+                fObj.set({ left: origX + deltaX, top: origY + deltaY })
                 fObj.setCoords()
               }
             }
@@ -1100,8 +1066,8 @@ export function CanvasArea({
         } catch { /* icon load failed */ }
       }
 
-      // Apply canonical z-ordering
-      applyZOrder(c, gridObj.current, fpObj.current, wallObjs.current, fovObjs.current, mdfObjs.current, devObjs.current, handleObjs.current)
+      // Z-order: devices on top of cones
+      for (const [, o] of devObjs.current) c.bringObjectToFront(o)
       c.requestRenderAll()
     })()
   }, [devices, selectedDeviceId, ready, hiddenCategories])
@@ -1177,8 +1143,13 @@ export function CanvasArea({
             const zoneName = colorToZone[tier.color]
             if (zoneName && hiddenPpfZones?.has(zoneName)) continue
 
-            // Build cone polygon in LOCAL coordinates (0,0 = camera apex)
-            const localPts = buildConePoints(halfAng, sRotRad, r)
+            // Build cone polygon (24-step arc)
+            const steps = 24
+            const pts: Array<{ x: number; y: number }> = [{ x: cx, y: cy }]
+            for (let i = 0; i <= steps; i++) {
+              const a = sRotRad - halfAng + (2 * halfAng * i / steps)
+              pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r })
+            }
 
             let fillColor = data.colorHex || C.accent
             if (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') fillColor = tier.color
@@ -1186,37 +1157,24 @@ export function CanvasArea({
             // IPVM: inner tiers darker (higher PPF), outer tiers lighter
             const gradOpacity = tier.opacity * (1 + (data.tiers.length - 1 - t) * 0.15)
 
-            // Wall clipping: convert local→absolute, clip, convert back
-            let finalPts = localPts
-            if (walls && walls.length > 0) {
-              const absPts = localPts.map(p => ({ x: cx + p.x, y: cy + p.y }))
-              const clipped = clipFovByWalls(absPts, walls, cx, cy)
-              finalPts = clipped.map(p => ({ x: p.x - cx, y: p.y - cy }))
-            }
+            // IPVM-style wall clipping: clip FOV polygon points behind walls
+            const clippedPts = walls && walls.length > 0 ? clipFovByWalls(pts, walls, cx, cy) : pts
 
-            // Create polygon with local coords, position at camera
-            const xs = finalPts.map(p => p.x), ys = finalPts.map(p => p.y)
-            const minX = Math.min(...xs), maxX = Math.max(...xs)
-            const minY = Math.min(...ys), maxY = Math.max(...ys)
-            const offX = (minX + maxX) / 2, offY = (minY + maxY) / 2
-            const cone = new fm.Polygon(finalPts, {
-              left: cx + offX,
-              top: cy + offY,
-              pathOffset: { x: offX, y: offY },
-              width: maxX - minX,
-              height: maxY - minY,
+            const minX = Math.min(...clippedPts.map(p=>p.x)), maxX = Math.max(...clippedPts.map(p=>p.x))
+            const minY = Math.min(...clippedPts.map(p=>p.y)), maxY = Math.max(...clippedPts.map(p=>p.y))
+            const cone = new fm.Polygon(clippedPts, {
+              left: minX + (maxX - minX) / 2,
+              top: minY + (maxY - minY) / 2,
               originX: 'center', originY: 'center',
               fill: fillColor, opacity: Math.min(0.7, gradOpacity),
               stroke: t === 0 ? 'rgba(0,0,0,0.35)' : 'transparent',
               strokeWidth: t === 0 ? 1.5 : 0,
               selectable: false, evented: false,
             })
-            // Cache attributes for fluid 60FPS drag
+            // Cache optical attributes for fluid 60FPS drag
             ;(cone as any).__isFovPoly = true
             ;(cone as any).__tierRadius = r
             ;(cone as any).__sRotOffset = sRotRad - rotRad
-            ;(cone as any).__camX = cx
-            ;(cone as any).__camY = cy
 
             c.add(cone)
             objects.push(cone)
@@ -1354,8 +1312,12 @@ export function CanvasArea({
         fovObjs.current.set(devId, objects)
       }
 
-      // Apply canonical z-ordering
-      applyZOrder(c, gridObj.current, fpObj.current, wallObjs.current, fovObjs.current, mdfObjs.current, devObjs.current, handleObjs.current)
+      // Z-ordering
+      for (const [, arr] of fovObjs.current) for (const o of arr) c.sendObjectToBack(o)
+      if (fpObj.current) c.sendObjectToBack(fpObj.current)
+      if (gridObj.current) c.sendObjectToBack(gridObj.current)
+      for (const [, o] of devObjs.current) c.bringObjectToFront(o)
+      for (const [, h] of handleObjs.current) c.bringObjectToFront(h)
       c.requestRenderAll()
     })()
   }, [fovData, devices, showFovCones, selectedDeviceId, scalePxPerFt, ready, fovDisplayMode, hiddenCategories, onFovAngleChanged, walls, showIrRange, hiddenPpfZones, showBlindSpot])
@@ -1394,8 +1356,12 @@ export function CanvasArea({
           c.add(dot); wallObjs.current.push(dot)
         }
       }
-      // Apply canonical z-ordering
-      applyZOrder(c, gridObj.current, fpObj.current, wallObjs.current, fovObjs.current, mdfObjs.current, devObjs.current, handleObjs.current)
+      // Z-order: walls above floor plan but below devices
+      for (const o of wallObjs.current) {
+        c.bringObjectToFront(o)
+      }
+      for (const [, o] of devObjs.current) c.bringObjectToFront(o)
+      for (const [, h] of handleObjs.current) c.bringObjectToFront(h)
       c.requestRenderAll()
     })()
   }, [walls, ready])
@@ -1468,8 +1434,10 @@ export function CanvasArea({
         mdfObjs.current.set(mdf.id, objs)
       }
 
-      // Apply canonical z-ordering
-      applyZOrder(c, gridObj.current, fpObj.current, wallObjs.current, fovObjs.current, mdfObjs.current, devObjs.current, handleObjs.current)
+      // Z-order: MDF icons on top
+      for (const [, arr] of mdfObjs.current) for (const o of arr) c.bringObjectToFront(o)
+      for (const [, o] of devObjs.current) c.bringObjectToFront(o)
+      for (const [, h] of handleObjs.current) c.bringObjectToFront(h)
       c.requestRenderAll()
     })()
   }, [mdfIdfs, devices, ready, cables])
