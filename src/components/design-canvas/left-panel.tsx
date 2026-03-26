@@ -74,7 +74,7 @@ export function LeftPanel({ devices, selectedId, onSelect, onAddDevice, onDelete
         {devices.length === 0 && (
           <div style={{ padding: 16, textAlign: 'center', color: C.textDim, fontSize: 11 }}>
             No devices placed yet.<br />
-            Click "Add" to browse the catalog.
+            Click &ldquo;Add&rdquo; to browse the catalog.
           </div>
         )}
 
