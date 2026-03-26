@@ -168,6 +168,12 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
     if (!dev) return
     const p = (dev.properties ?? {}) as Record<string, unknown>
 
+    // Batch update: replace entire properties object at once (avoids race conditions)
+    if (prop === '__batch') {
+      updateDevice(id, { properties: val })
+      return
+    }
+
     if (prop === '__resetDori') {
        // Deep copy properties and strip overridden optics to restore hardware baseline
        const libSpecs = ((dev as any).libraryItem?.specs ?? {}) as Record<string, unknown>
