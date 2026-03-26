@@ -15,7 +15,7 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react'
-import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, Crosshair } from 'lucide-react'
+import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, Crosshair, Lock, Unlock } from 'lucide-react'
 import { C } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { BlindSpotDiagram } from './blind-spot-diagram'
@@ -332,9 +332,34 @@ export function RightPanel({
           </div>
         </div>
 
-        {/* ── Multi-Sensor Head Controls ── */}
+        {/* ── Multi-Sensor Lock + Head Controls (IPVM-style) ── */}
         {(device.category === 'multisensor_quad' || device.category === 'multisensor_dual') && (
           <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+            {/* Lock Camera toggle — IPVM: locks position so only imagers rotate */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: 8, padding: '6px 8px', background: props.locked ? '#22c55e15' : C.bgActive,
+              borderRadius: 4, border: `1px solid ${props.locked ? '#22c55e40' : C.border}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {props.locked ? <Lock size={12} style={{ color: '#22c55e' }} /> : <Unlock size={12} style={{ color: C.textMuted }} />}
+                <span style={{ fontSize: 10, fontWeight: 600, color: props.locked ? '#22c55e' : C.textMuted }}>
+                  {props.locked ? 'Camera Locked' : 'Lock Camera'}
+                </span>
+              </div>
+              <button
+                onClick={() => updateProp('locked', !props.locked)}
+                style={{
+                  padding: '2px 8px', fontSize: 9, fontWeight: 600,
+                  background: props.locked ? '#22c55e20' : 'transparent',
+                  border: `1px solid ${props.locked ? '#22c55e' : C.border}`,
+                  borderRadius: 3, color: props.locked ? '#22c55e' : C.textMuted,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                {props.locked ? 'Unlock' : 'Lock'}
+              </button>
+            </div>
             <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>
               Sensor Heads ({device.category === 'multisensor_quad' ? 4 : 2})
             </div>
@@ -474,7 +499,8 @@ export function RightPanel({
                 const ip = perImagerProps[selectedImagerIdx] || {}
                 const imagerDist = ip.distance || targetDist
                 const imagerHfov = ip.hfov || fovAngle
-                const imagerColor = ip.color || device.color_hex || '#4a90d9'
+                const sensorDefaultColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
+                const imagerColor = ip.color || sensorDefaultColors[selectedImagerIdx % sensorDefaultColors.length]
 
                 const updateImagerProp = (key: string, value: unknown) => {
                   const arr = [...(perImagerProps.length >= imagerCount ? perImagerProps : Array.from({ length: imagerCount }, (_, i) => perImagerProps[i] || {}))]
@@ -532,7 +558,8 @@ export function RightPanel({
                     {Array.from({ length: imagerCount }, (_, i) => {
                       const ip = perImagerProps[i] || {}
                       const dist = ip.distance || targetDist
-                      const color = ip.color || device.color_hex || '#4a90d9'
+                      const sensorDefaultColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
+                      const color = ip.color || sensorDefaultColors[i % sensorDefaultColors.length]
                       return (
                         <button key={i}
                           onClick={() => onSelectImager?.(i)}

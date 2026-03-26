@@ -92,6 +92,9 @@ function resolveCanvasColor(varName: string, fallback = '#09090b'): string {
 /* ─── Camera categories ─── */
 const CAM_CATS = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual']
 
+/* ─── Multi-sensor per-imager colors (IPVM-style) ─── */
+const SENSOR_COLORS = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
+
 /**
  * Update a Fabric.js Polygon with new LOCAL-coordinate points (0,0 = apex).
  * Replaces the fragile _calcDimensions() + manual centroid dance.
@@ -666,7 +669,12 @@ export function CanvasArea({
         }
 
         if (id && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing && !rec.__sensorRotHandle) {
-          onDeviceMoved?.(id, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
+          // Skip move persist for locked cameras (IPVM-style lock)
+          const dev = devsRef.current.find(d => d.id === id)
+          const isLocked = dev && (dev.properties as Record<string, unknown> | null)?.locked
+          if (!isLocked) {
+            onDeviceMoved?.(id, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
+          }
         }
         if (rec.__fovDist && rec.__tempDistFt !== undefined) {
           const sIdx = rec.__sensorIdx as number | undefined
@@ -902,6 +910,13 @@ export function CanvasArea({
           const devId = rec.__devId as string
           const newX = obj.left ?? 0, newY = obj.top ?? 0
           const dev = devsRef.current.find(d => d.id === devId)
+          // IPVM-style: locked cameras can't be moved (only imagers rotate)
+          if (dev && (dev.properties as Record<string, unknown> | null)?.locked) {
+            obj.set({ left: dev.position_x, top: dev.position_y })
+            obj.setCoords()
+            c.requestRenderAll()
+            return
+          }
           if (dev) {
             const deltaX = newX - dev.position_x
             const deltaY = newY - dev.position_y
@@ -1224,7 +1239,7 @@ export function CanvasArea({
             // Build cone polygon in LOCAL coordinates (0,0 = camera apex)
             const localPts = buildConePoints(effectiveHalfAng, sRotRad, r)
 
-            let fillColor = data.colorHex || C.accent
+            let fillColor = imagerData?.colorHex || data.colorHex || C.accent
             if (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') fillColor = tier.color
 
             // IPVM: inner tiers darker (higher PPF), outer tiers lighter
@@ -1251,8 +1266,8 @@ export function CanvasArea({
               height: maxY - minY,
               originX: 'center', originY: 'center',
               fill: fillColor, opacity: Math.min(0.7, gradOpacity),
-              stroke: t === 0 ? (isMultiSensor ? `${fillColor}80` : 'rgba(0,0,0,0.35)') : 'transparent',
-              strokeWidth: t === 0 ? (isMultiSensor ? 2 : 1.5) : 0,
+              stroke: t === 0 ? (isMultiSensor ? (imagerData?.colorHex || SENSOR_COLORS[sIdx % SENSOR_COLORS.length]) : 'rgba(0,0,0,0.35)') : 'transparent',
+              strokeWidth: t === 0 ? (isMultiSensor ? 2.5 : 1.5) : 0,
               selectable: false, evented: false,
             })
             // Cache attributes for fluid 60FPS drag
@@ -1286,13 +1301,15 @@ export function CanvasArea({
             }
           }
 
-          // ── Multi-sensor: label each sensor ──
-          if (isMultiSensor && devId === selectedDeviceId) {
-            const labelR = (data.tiers[data.tiers.length - 1]?.distanceFt || 5) * (scalePxPerFt || 10) * 0.5
+          // ── Multi-sensor: label each sensor with its color ──
+          if (isMultiSensor) {
+            const sColor = imagerData?.colorHex || SENSOR_COLORS[sIdx % SENSOR_COLORS.length]
+            const labelR = (effectiveTiers[effectiveTiers.length - 1]?.distanceFt || 5) * (scalePxPerFt || 10) * 0.5
+            const isSelected = devId === selectedDeviceId
             const sLabel = new fm.FabricText(`S${sIdx + 1}`, {
               left: cx + Math.cos(sRotRad) * Math.max(labelR, 20),
               top: cy + Math.sin(sRotRad) * Math.max(labelR, 20),
-              fontSize: 9, fontWeight: '700', fill: '#fff',
+              fontSize: isSelected ? 10 : 8, fontWeight: '700', fill: sColor,
               fontFamily: 'sans-serif',
               shadow: new (fm as any).Shadow({ color: 'rgba(0,0,0,0.9)', blur: 3 }),
               originX: 'center', originY: 'center',
@@ -1302,13 +1319,14 @@ export function CanvasArea({
             objects.push(sLabel)
           }
 
-          // ── RED CENTERLINE (IPVM-style) — gated by showIrRange ──
+          // ── CENTERLINE (IPVM-style) — per-sensor color for multi-sensor ──
           if (showIrRange !== false) {
-            const outerRForLine = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
-            if (outerRForLine > 5) {
+            const sensorOuterRForLine = (effectiveTiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
+            if (sensorOuterRForLine > 5) {
+              const lineColor = isMultiSensor ? (imagerData?.colorHex || SENSOR_COLORS[sIdx % SENSOR_COLORS.length]) : '#e53e3e'
               const centerLine = new fm.Line(
-                [cx, cy, cx + Math.cos(sRotRad) * outerRForLine, cy + Math.sin(sRotRad) * outerRForLine],
-                { stroke: '#e53e3e', strokeWidth: 2, selectable: false, evented: false, opacity: 0.85 }
+                [cx, cy, cx + Math.cos(sRotRad) * sensorOuterRForLine, cy + Math.sin(sRotRad) * sensorOuterRForLine],
+                { stroke: lineColor, strokeWidth: isMultiSensor ? 1.5 : 2, selectable: false, evented: false, opacity: 0.85 }
               )
               c.add(centerLine)
               objects.push(centerLine)
@@ -1351,7 +1369,7 @@ export function CanvasArea({
         if (devId === selectedDeviceId) {
           const outerR = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
           if (outerR > 5) {
-            const sensorColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
+            const sensorColors = SENSOR_COLORS
 
             // For multi-sensor cameras: per-sensor handles (each sensor = independent camera)
             // For single-sensor cameras: one set of handles on device rotation

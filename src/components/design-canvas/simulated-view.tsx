@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useMemo } from 'react'
-import { X } from 'lucide-react'
+import { X, Moon, Sun } from 'lucide-react'
 import { C } from './constants'
 import { classifyDori } from '@/lib/calculators'
 import type { DoriClassification } from '@/lib/calculators'
@@ -88,6 +88,7 @@ export function SimulatedView({
   installHeight, ppf, dori, onClose,
 }: SimulatedViewProps) {
   const [scene, setScene] = useState<SceneKey>('street')
+  const [nightMode, setNightMode] = useState(false)
 
   const hFov = useMemo(() => {
     if (sensorW <= 0 || focalLength <= 0) return 0
@@ -122,7 +123,7 @@ export function SimulatedView({
           <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>
             Simulated View
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <select
               value={scene}
               onChange={(e) => setScene(e.target.value as SceneKey)}
@@ -136,6 +137,22 @@ export function SimulatedView({
                 <option key={k} value={k}>{SCENES[k].label}</option>
               ))}
             </select>
+            {/* Night/IR mode toggle (IPVM feature) */}
+            <button
+              onClick={() => setNightMode(!nightMode)}
+              title={nightMode ? 'Switch to Day Mode' : 'Switch to Night/IR Mode'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 3,
+                padding: '3px 8px', borderRadius: 4,
+                background: nightMode ? '#22c55e20' : C.bgActive,
+                border: `1px solid ${nightMode ? '#22c55e' : C.border}`,
+                color: nightMode ? '#22c55e' : C.textMuted,
+                cursor: 'pointer', fontSize: 9, fontWeight: 600,
+              }}
+            >
+              {nightMode ? <Moon size={11} /> : <Sun size={11} />}
+              {nightMode ? 'IR' : 'Day'}
+            </button>
             <button
               onClick={onClose}
               style={{
@@ -156,19 +173,47 @@ export function SimulatedView({
           {/* Inner element: wider than container, centered, to simulate crop */}
           <div style={{
             width: innerWidth, height: VIEW_H,
-            background: SCENES[scene].gradient,
+            background: nightMode
+              ? 'linear-gradient(180deg, #0a0a0a 0%, #111 40%, #0a0a0a 100%)'
+              : SCENES[scene].gradient,
             position: 'absolute',
             left: (CARD_W - innerWidth) / 2,
             top: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            filter: nightMode ? 'grayscale(100%)' : 'none',
           }}>
             <span style={{
-              fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.15)',
+              fontSize: 18, fontWeight: 700,
+              color: nightMode ? 'rgba(0,255,0,0.08)' : 'rgba(255,255,255,0.15)',
               letterSpacing: 2, textTransform: 'uppercase', userSelect: 'none',
             }}>
               {SCENES[scene].label}
             </span>
           </div>
+
+          {/* Night/IR overlay: green tint + IR hotspot center (IPVM-style) */}
+          {nightMode && (
+            <>
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: 'radial-gradient(ellipse at center, rgba(0,255,0,0.06) 0%, rgba(0,0,0,0.4) 70%, rgba(0,0,0,0.7) 100%)',
+                pointerEvents: 'none',
+              }} />
+              {/* IR illumination range indicator */}
+              <div style={{
+                position: 'absolute', top: 8, left: 8,
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 600, fontFamily: 'monospace',
+                  color: '#22c55e', background: 'rgba(0,0,0,0.7)',
+                  padding: '2px 6px', borderRadius: 3,
+                }}>
+                  IR MODE
+                </span>
+              </div>
+            </>
+          )}
 
           {/* ── PPF + DORI badge (bottom-left) ── */}
           <div style={{

@@ -217,9 +217,30 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   const doorCount = useMemo(() => areaDevices.filter(d => d.category === 'access_control').length, [areaDevices])
   const networkCount = useMemo(() => areaDevices.filter(d => d.category === 'network').length, [areaDevices])
 
-  /* ── FOV data computation ── */
+  /* ── FOV data computation (cameras + non-camera coverage boundaries) ── */
   const fovData = useMemo(() => {
     const map = new Map<string, DeviceFovData>()
+
+    // Non-camera device coverage boundaries (System Surveyor "Boundaries" feature)
+    // Speakers, motion detectors, environmental sensors get circular coverage
+    const NON_CAM_COVERAGE: Record<string, { radiusFt: number; color: string; fov: number }> = {
+      'speaker': { radiusFt: 25, color: '#8b5cf6', fov: 360 },
+      'vape_environmental': { radiusFt: 15, color: '#14b8a6', fov: 360 },
+    }
+    for (const d of areaDevices) {
+      const cat = d.category
+      const coverage = NON_CAM_COVERAGE[cat]
+      if (!coverage) continue
+      const props = (d.properties ?? {}) as Record<string, unknown>
+      const covRadius = Number(props.coverage_radius) || coverage.radiusFt
+      map.set(d.id, {
+        hFov: coverage.fov,
+        rotation: d.rotation || 0,
+        tiers: [{ distanceFt: covRadius, color: coverage.color, opacity: 0.10 }],
+        colorHex: d.color_hex || coverage.color,
+      })
+    }
+
     for (const d of areaDevices) {
       const cat = d.category
       if (!['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(cat)) continue
