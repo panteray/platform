@@ -18,6 +18,7 @@ import React, { useState, useCallback, useMemo } from 'react'
 import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, Crosshair } from 'lucide-react'
 import { C } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
+import { BlindSpotDiagram } from './blind-spot-diagram'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
 
 /* ─── 48 Color Palette ─── */
@@ -66,6 +67,10 @@ interface Props {
   onTogglePpfZone?: (zone: string) => void
   showBlindSpot?: boolean
   onToggleBlindSpot?: (show: boolean) => void
+  onDisconnectCable?: (deviceId: string) => void
+  selectedImagerIdx?: number | null
+  onSelectImager?: (idx: number | null) => void
+  onShowSimulatedView?: () => void
 }
 
 /* ─── Read-only Stat Row ─── */
@@ -91,10 +96,12 @@ function DoriFeedback({ resolutionW, sensorW, focalLength, targetDist }: {
   const dori = hasSensor ? classifyDori(ppf) : 'none'
 
   const tiers = [
+    { key: 'monitor', label: 'MON', color: '#6b7280', threshold: 4 },
     { key: 'detection', label: 'DET', color: '#ef4444', threshold: 8 },
     { key: 'observation', label: 'OBS', color: '#f97316', threshold: 19 },
     { key: 'recognition', label: 'REC', color: '#eab308', threshold: 38 },
     { key: 'identification', label: 'ID', color: '#22c55e', threshold: 76 },
+    { key: 'inspection', label: 'INS', color: '#8b5cf6', threshold: 305 },
   ]
 
   return (
@@ -107,7 +114,7 @@ function DoriFeedback({ resolutionW, sensorW, focalLength, targetDist }: {
           </span>
         )}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 3 }}>
         {tiers.map(tier => {
           const isActive = hasSensor && dori === tier.key
           const isMet = hasSensor && ppf >= tier.threshold
@@ -146,6 +153,9 @@ export function RightPanel({
   onChangeModel,
   showIrRange = true, onToggleIrRange, hiddenPpfZones, onTogglePpfZone,
   showBlindSpot = false, onToggleBlindSpot,
+  onDisconnectCable,
+  selectedImagerIdx, onSelectImager,
+  onShowSimulatedView,
 }: Props) {
   const props = useMemo(() => (device.properties ?? {}) as Record<string, unknown>, [device.properties])
   const isCamera = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(device.category)
@@ -160,6 +170,16 @@ export function RightPanel({
   const tiltAngle = Number(props.tilt_angle) || 0
   const fovAngle = Number(props.fov_angle) || 90
   const rotation = device.rotation || 0
+
+  // Compute hFov and blind spot for diagram
+  const sensorW = Number(props.sensor_width) || 0
+  const hFov = sensorW > 0 && focalLength > 0
+    ? 2 * Math.atan(sensorW / (2 * focalLength)) * (180 / Math.PI)
+    : fovAngle
+  const vFovHalf = (hFov * 0.75 / 2) * Math.PI / 180
+  const tiltRad = tiltAngle * Math.PI / 180
+  const lowerAngle = tiltRad + vFovHalf
+  const blindSpotFt = lowerAngle < Math.PI / 2 ? installHeight * Math.tan(Math.PI / 2 - lowerAngle) : 0
 
   // Compute nearest MDF distance for cable auto-populate
   const estCableFt = (() => {
@@ -358,6 +378,100 @@ export function RightPanel({
               </div>
             </div>
 
+            {/* ── Multi-Sensor Imager Navigation (IPVM-style) ── */}
+            {(device.category === 'multisensor_quad' || device.category === 'multisensor_dual') && (() => {
+              const imagerCount = device.category === 'multisensor_quad' ? 4 : 2
+              const perImagerProps = (props.per_imager_props as Array<{ distance?: number; hfov?: number; color?: string }>) || []
+
+              if (selectedImagerIdx !== null && selectedImagerIdx !== undefined) {
+                // Per-imager detail view
+                const ip = perImagerProps[selectedImagerIdx] || {}
+                const imagerDist = ip.distance || targetDist
+                const imagerHfov = ip.hfov || fovAngle
+                const imagerColor = ip.color || device.color_hex || '#4a90d9'
+
+                const updateImagerProp = (key: string, value: unknown) => {
+                  const arr = [...(perImagerProps.length >= imagerCount ? perImagerProps : Array.from({ length: imagerCount }, (_, i) => perImagerProps[i] || {}))]
+                  arr[selectedImagerIdx] = { ...arr[selectedImagerIdx], [key]: value }
+                  updateProp('per_imager_props', arr)
+                }
+
+                return (
+                  <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+                    <button
+                      onClick={() => onSelectImager?.(null)}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: C.accent, fontSize: 10, fontWeight: 600,
+                        padding: 0, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      ◄ Multi-Imager
+                    </button>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 8 }}>
+                      Imager {selectedImagerIdx + 1}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 10, color: C.textMuted }}>Target Distance</span>
+                        <input type="number" value={imagerDist} min={1} max={500}
+                          onChange={e => updateImagerProp('distance', Number(e.target.value))}
+                          style={{ width: 60, padding: '2px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, textAlign: 'right' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 10, color: C.textMuted }}>FOV Angle</span>
+                        <input type="number" value={imagerHfov} min={5} max={360}
+                          onChange={e => updateImagerProp('hfov', Number(e.target.value))}
+                          style={{ width: 60, padding: '2px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, textAlign: 'right' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 10, color: C.textMuted }}>Color</span>
+                        <input type="color" value={imagerColor}
+                          onChange={e => updateImagerProp('color', e.target.value)}
+                          style={{ width: 28, height: 20, padding: 0, border: `1px solid ${C.border}`, borderRadius: 3, cursor: 'pointer' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+
+              // Imager list view
+              return (
+                <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Imagers</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {Array.from({ length: imagerCount }, (_, i) => {
+                      const ip = perImagerProps[i] || {}
+                      const dist = ip.distance || targetDist
+                      const color = ip.color || device.color_hex || '#4a90d9'
+                      return (
+                        <button key={i}
+                          onClick={() => onSelectImager?.(i)}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '6px 8px', background: C.bgHover, border: `1px solid ${C.border}`,
+                            borderRadius: 4, cursor: 'pointer', width: '100%',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
+                            <span style={{ fontSize: 10, fontWeight: 600, color: C.text }}>Imager {i + 1}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontSize: 9, color: C.textDim, fontFamily: 'monospace' }}>{dist}ft</span>
+                            <span style={{ fontSize: 10, color: C.accent }}>→</span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* ── Canvas Readout (read-only values from canvas state) ── */}
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Canvas State</div>
@@ -380,6 +494,27 @@ export function RightPanel({
               focalLength={focalLength}
               targetDist={targetDist}
             />
+
+            {/* ── Simulated View button ── */}
+            {Number(props.resolution_w) > 0 && Number(props.sensor_width) > 0 && focalLength > 0 && onShowSimulatedView && (
+              <div style={{ padding: '6px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+                <button
+                  onClick={onShowSimulatedView}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    padding: '6px 10px', borderRadius: 4, cursor: 'pointer',
+                    background: 'none', border: `1px solid ${C.border}`,
+                    color: C.text, fontSize: 10, fontWeight: 600, fontFamily: 'inherit',
+                    transition: 'border-color 0.15s',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = C.accent }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = C.border }}
+                >
+                  <Eye size={12} />
+                  Simulated View
+                </button>
+              </div>
+            )}
 
             {/* ── Advanced Lens / IR ── */}
             <Section title="Advanced Lens / IR">
@@ -454,6 +589,36 @@ export function RightPanel({
               </div>
             </Section>
 
+            {/* ── Blind Spot Analysis ── */}
+            <Section title="Blind Spot Analysis">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <BlindSpotDiagram
+                  installHeight={Number(props.install_height) || 9}
+                  tiltAngle={Number(props.tilt_angle) || 0}
+                  blindSpotFt={blindSpotFt}
+                  targetDistFt={targetDist}
+                  vFov={hFov * 0.75}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <StatRow label="Blind Spot" value={blindSpotFt > 0 ? `${Math.round(blindSpotFt * 10) / 10}` : '0'} unit="ft" color="#f97316" />
+                  <button
+                    onClick={() => onToggleBlindSpot?.(!showBlindSpot)}
+                    style={{
+                      width: 36, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer',
+                      background: showBlindSpot ? '#f97316' : C.bgActive,
+                      position: 'relative', transition: 'background 0.15s',
+                    }}
+                  >
+                    <div style={{
+                      width: 14, height: 14, borderRadius: '50%', background: '#fff',
+                      position: 'absolute', top: 2,
+                      left: showBlindSpot ? 20 : 2, transition: 'left 0.15s',
+                    }} />
+                  </button>
+                </div>
+              </div>
+            </Section>
+
             {/* ── Device Specs (read-only, always open) ── */}
             <Section title="Device Specs" defaultOpen>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
@@ -498,6 +663,17 @@ export function RightPanel({
                       }} />
                   </div>
                 ))}
+                {onDisconnectCable && (
+                  <button
+                    onClick={() => onDisconnectCable(device.id)}
+                    style={{
+                      marginTop: 6, padding: '4px 8px', fontSize: 10,
+                      background: 'transparent', border: '1px solid #ef4444',
+                      borderRadius: 3, color: '#ef4444', cursor: 'pointer',
+                      fontFamily: 'inherit', fontWeight: 500,
+                    }}
+                  >Disconnect</button>
+                )}
               </div>
             </Section>
 
@@ -679,6 +855,17 @@ export function RightPanel({
                       }} />
                   </div>
                 ))}
+                {onDisconnectCable && (
+                  <button
+                    onClick={() => onDisconnectCable(device.id)}
+                    style={{
+                      marginTop: 6, padding: '4px 8px', fontSize: 10,
+                      background: 'transparent', border: '1px solid #ef4444',
+                      borderRadius: 3, color: '#ef4444', cursor: 'pointer',
+                      fontFamily: 'inherit', fontWeight: 500,
+                    }}
+                  >Disconnect</button>
+                )}
               </div>
             </Section>
           </>

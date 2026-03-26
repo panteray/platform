@@ -27,6 +27,8 @@ export interface DeviceFovData {
   sensorAngles?: number[]
   resolutionW?: number; sensorW?: number; focalLength?: number
   blindSpotFt?: number; colorHex?: string
+  /** Per-imager overrides for multisensor cameras */
+  perImagerData?: Array<{ tiers: FovTier[]; hFov: number; colorHex?: string }>
 }
 
 /* ─── Props ─── */
@@ -1088,17 +1090,23 @@ export function CanvasArea({
           ? data.sensorAngles
           : [(dev.rotation || 0)]
 
-        for (const sensorRot of sensorRotations) {
+        for (let sIdx = 0; sIdx < sensorRotations.length; sIdx++) {
+          const sensorRot = sensorRotations[sIdx]
           const sRotRad = sensorRot * Math.PI / 180
+
+          // Per-imager overrides: use imager-specific tiers/hFov when available
+          const imagerData = data.perImagerData?.[sIdx]
+          const effectiveTiers = imagerData?.tiers || data.tiers
+          const effectiveHalfAng = imagerData ? (imagerData.hFov / 2) * Math.PI / 180 : halfAng
 
           // Draw tiers (outermost first, IPVM-style graduated opacity)
           // Map tier colors → zone names for filtering
           const colorToZone: Record<string, string> = {
-            '#22c55e': 'identification', '#eab308': 'recognition',
-            '#f97316': 'observation', '#ef4444': 'detection',
+            '#8b5cf6': 'inspection', '#22c55e': 'identification', '#eab308': 'recognition',
+            '#f97316': 'observation', '#ef4444': 'detection', '#6b7280': 'monitor',
           }
-          for (let t = 0; t < data.tiers.length; t++) {
-            const tier = data.tiers[t]
+          for (let t = 0; t < effectiveTiers.length; t++) {
+            const tier = effectiveTiers[t]
             const r = tier.distanceFt * (scalePxPerFt || 10)
             if (r < 2) continue
 
@@ -1107,7 +1115,7 @@ export function CanvasArea({
             if (zoneName && hiddenPpfZones?.has(zoneName)) continue
 
             // Build cone polygon in LOCAL coordinates (0,0 = camera apex)
-            const localPts = buildConePoints(halfAng, sRotRad, r)
+            const localPts = buildConePoints(effectiveHalfAng, sRotRad, r)
 
             let fillColor = data.colorHex || C.accent
             if (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') fillColor = tier.color
@@ -1198,6 +1206,19 @@ export function CanvasArea({
             })
             c.add(blindCircle)
             objects.push(blindCircle)
+
+            // Blind spot distance label
+            const blindLabel = new fm.FabricText(`${Math.round(data.blindSpotFt * 10) / 10}ft blind`, {
+              left: cx, top: cy + blindR + 10,
+              fontSize: 9, fontWeight: '600', fill: '#f97316',
+              fontFamily: "'IBM Plex Mono', monospace",
+              originX: 'center', originY: 'center',
+              selectable: false, evented: false,
+              opacity: 0.8,
+              shadow: new (fm as any).Shadow({ color: 'rgba(0,0,0,0.7)', blur: 2 }),
+            })
+            c.add(blindLabel)
+            objects.push(blindLabel)
           }
         }
 
@@ -1405,10 +1426,30 @@ export function CanvasArea({
         if (cable.waypoints) for (const wp of cable.waypoints) pts.push(wp)
         if (to) pts.push({ x: to.position_x, y: to.position_y })
         const line = new fm.Polyline(pts, {
-          fill: 'transparent', stroke: '#64748b', strokeWidth: 2,
+          fill: 'transparent', stroke: cable.color_hex || '#8b5cf6', strokeWidth: 2,
           strokeDashArray: [6, 3], selectable: false, evented: false, opacity: 0.6,
         })
         c.add(line)
+
+        // Cable length label at midpoint
+        if (pts.length >= 2) {
+          const midIdx = Math.floor(pts.length / 2)
+          const midIdxPrev = midIdx > 0 ? midIdx - 1 : 0
+          const midX = (pts[midIdxPrev].x + pts[midIdx].x) / 2
+          const midY = (pts[midIdxPrev].y + pts[midIdx].y) / 2
+          const lengthFt = cable.length_ft || cable.total_length_ft || 0
+          if (lengthFt > 0) {
+            const cableLabel = new fm.FabricText(`${Math.round(lengthFt)} ft`, {
+              left: midX, top: midY - 10,
+              fontSize: 9, fontWeight: '600', fill: '#94a3b8',
+              fontFamily: "'IBM Plex Mono', monospace",
+              originX: 'center', originY: 'center',
+              selectable: false, evented: false,
+              shadow: new (fm as any).Shadow({ color: 'rgba(0,0,0,0.8)', blur: 3, offsetX: 0, offsetY: 1 }),
+            } as Record<string, unknown>)
+            c.add(cableLabel)
+          }
+        }
       }
       c.requestRenderAll()
     })()

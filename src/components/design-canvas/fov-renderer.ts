@@ -44,10 +44,12 @@ export interface FovTierPolygon {
 // ---- Zone mapping ----
 
 const COLOR_TO_ZONE: Record<string, string> = {
+  '#8b5cf6': 'inspection',
   '#22c55e': 'identification',
   '#eab308': 'recognition',
   '#f97316': 'observation',
   '#ef4444': 'detection',
+  '#6b7280': 'monitor',
 }
 
 // ---- Core geometry ----
@@ -259,10 +261,12 @@ export function buildCirclePoints(
 
 export function getZoneLabel(zoneName: string): string {
   switch (zoneName) {
+    case 'inspection': return 'INS'
     case 'identification': return 'ID'
     case 'recognition': return 'REC'
     case 'observation': return 'OBS'
     case 'detection': return 'DET'
+    case 'monitor': return 'MON'
     default: return ''
   }
 }
