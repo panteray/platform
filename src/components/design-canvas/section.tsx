@@ -73,7 +73,7 @@ export function Field({ label, value, color, editable, fieldKey, onBlurSave }: F
             autoFocus
             style={{
               width: 80, fontSize: 11, fontWeight: 500, color: C.text,
-              fontFamily: "'IBM Plex Mono', monospace", background: C.bgActive,
+              fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", background: C.bgActive,
               border: `1px solid ${C.accent}`, borderRadius: 3, padding: '1px 4px',
               outline: 'none', textAlign: 'right',
             }}
@@ -83,7 +83,7 @@ export function Field({ label, value, color, editable, fieldKey, onBlurSave }: F
             onClick={() => { setEditing(true); setLocalVal(String(value)) }}
             style={{
               fontSize: 11, fontWeight: 500, color: color || C.text,
-              fontFamily: "'IBM Plex Mono', monospace", cursor: 'pointer',
+              fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", cursor: 'pointer',
               borderBottom: `1px dashed ${C.border}`,
             }}
           >
@@ -97,7 +97,7 @@ export function Field({ label, value, color, editable, fieldKey, onBlurSave }: F
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
       <span style={{ fontSize: 10, color: C.textDim }}>{label}</span>
-      <span style={{ fontSize: 11, fontWeight: 500, color: color || C.text, fontFamily: "'IBM Plex Mono', monospace" }}>
+      <span style={{ fontSize: 11, fontWeight: 500, color: color || C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>
         {value || '\u2014'}
       </span>
     </div>
@@ -130,7 +130,7 @@ export function SliderField({ label, value, unit, min, max, warning, fieldKey, o
         <span style={{
           fontSize: 11, fontWeight: 600,
           color: warning ? C.yellow : C.text,
-          fontFamily: "'IBM Plex Mono', monospace",
+          fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
         }}>
           {localVal} {unit}
         </span>

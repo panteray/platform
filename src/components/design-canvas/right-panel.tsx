@@ -376,7 +376,7 @@ export function RightPanel({
             {/* DORI at target distance — Axis-style real-time feedback */}
             <DoriFeedback
               resolutionW={Number(props.resolution_w) || 0}
-              sensorW={Number(props.sensor_width) || 0}
+              sensorW={Number(props.sensor_w) || Number(props.sensor_width) || 0}
               focalLength={focalLength}
               targetDist={targetDist}
             />

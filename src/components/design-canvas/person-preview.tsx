@@ -108,7 +108,7 @@ export function PersonPreview({ ppf, distanceFt, cameraLabel, onClose }: PersonP
       background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 10,
       padding: '16px 18px', minWidth: 220, maxWidth: 280,
       boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-      fontFamily: "'IBM Plex Sans', sans-serif",
+      fontFamily: "'Inter', 'Segoe UI', sans-serif",
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -129,7 +129,7 @@ export function PersonPreview({ ppf, distanceFt, cameraLabel, onClose }: PersonP
         <div style={{
           background: `${doriColors[dori]}18`, border: `1px solid ${doriColors[dori]}40`,
           borderRadius: 6, padding: '4px 10px', fontSize: 18, fontWeight: 800,
-          color: doriColors[dori], fontFamily: "'IBM Plex Mono', monospace",
+          color: doriColors[dori], fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
         }}>
           {Math.round(ppf)} PPF
         </div>
@@ -178,7 +178,7 @@ export function PersonPreview({ ppf, distanceFt, cameraLabel, onClose }: PersonP
       </div>
 
       {/* Pixel count info */}
-      <div style={{ fontSize: 9, color: C.textDim, fontFamily: "'IBM Plex Mono', monospace" }}>
+      <div style={{ fontSize: 9, color: C.textDim, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>
         {pixelsH}×{pixelsW}px person • {(ppf * ppf).toLocaleString()} px/ft²
       </div>
     </div>

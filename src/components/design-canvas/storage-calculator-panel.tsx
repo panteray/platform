@@ -74,7 +74,7 @@ export function StorageCalculatorPanel({
   const selectStyle = {
     background: C.bg, border: `1px solid ${C.border}`, borderRadius: 4,
     padding: '4px 8px', fontSize: 11, color: C.text, outline: 'none',
-    fontFamily: "'IBM Plex Mono', monospace", cursor: 'pointer',
+    fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", cursor: 'pointer',
   };
 
   return (

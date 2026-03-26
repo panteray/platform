@@ -165,7 +165,7 @@ export function DeviceComparison({ devices, compareIds, referenceDistFt = 30, on
               {p ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{
-                    fontSize: 16, fontWeight: 800, fontFamily: "'IBM Plex Mono', monospace",
+                    fontSize: 16, fontWeight: 800, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
                     color: p.ppf === maxPpf ? DORI_COLORS[p.dori] : C.textMuted,
                   }}>
                     {p.ppf}
@@ -200,7 +200,7 @@ export function DeviceComparison({ devices, compareIds, referenceDistFt = 30, on
               const val = getProp(d, spec.key)
               const formatted = spec.format ? spec.format(val) : (val != null ? String(val) : '—')
               return (
-                <div key={d.id} style={{ flex: 1, padding: '7px 8px', borderLeft: `1px solid ${C.borderSubtle}`, fontSize: 11, color: formatted === '—' ? C.textDim : C.text, fontFamily: "'IBM Plex Mono', monospace" }}>
+                <div key={d.id} style={{ flex: 1, padding: '7px 8px', borderLeft: `1px solid ${C.borderSubtle}`, fontSize: 11, color: formatted === '—' ? C.textDim : C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>
                   {formatted}
                 </div>
               )

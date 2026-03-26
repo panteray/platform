@@ -245,13 +245,13 @@ export function RecordingProfilesPanel({
                   <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Per Camera Estimate</div>
                   <div style={{ display: 'flex', gap: 12 }}>
                     <div>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: "'IBM Plex Mono', monospace" }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>
                         {bw}
                       </span>
                       <span style={{ fontSize: 8, color: C.textDim }}> Mbps</span>
                     </div>
                     <div>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: "'IBM Plex Mono', monospace" }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>
                         {storageGb}
                       </span>
                       <span style={{ fontSize: 8, color: C.textDim }}> GB</span>

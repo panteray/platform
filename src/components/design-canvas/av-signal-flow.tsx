@@ -29,7 +29,7 @@ const inputBase: React.CSSProperties = {
   background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3,
   padding: '2px 6px', color: C.text, fontSize: 11, outline: 'none',
 }
-const monoInput: React.CSSProperties = { ...inputBase, fontFamily: "'IBM Plex Mono', monospace" }
+const monoInput: React.CSSProperties = { ...inputBase, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }
 const selectBase: React.CSSProperties = { ...inputBase, appearance: 'auto' as never }
 
 export function AvSignalFlow({ designId, avoipDevices, onAddDevice, onUpdateDevice, onDeleteDevice }: AvSignalFlowProps) {
@@ -232,8 +232,8 @@ export function AvSignalFlow({ designId, avoipDevices, onAddDevice, onUpdateDevi
               {/* Quick summary */}
               <div style={{ padding: 8, background: C.bgActive, borderRadius: 4, fontSize: 10, color: C.textDim, display: 'flex', flexDirection: 'column', gap: 3 }}>
                 <div>Name: <span style={{ color: C.text, fontWeight: 600 }}>{selected.device_name || '—'}</span></div>
-                <div>IP: <span style={{ color: C.text, fontFamily: "'IBM Plex Mono', monospace" }}>{selected.ip_address || '—'}</span></div>
-                <div>Subnet: <span style={{ color: C.text, fontFamily: "'IBM Plex Mono', monospace" }}>{selected.subnet || '—'}</span></div>
+                <div>IP: <span style={{ color: C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{selected.ip_address || '—'}</span></div>
+                <div>Subnet: <span style={{ color: C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{selected.subnet || '—'}</span></div>
                 <div>VLAN: <span style={{ color: C.text }}>{selected.vlan_id || '—'}</span></div>
                 <div>Latency: <span style={{ color: C.text }}>{selected.latency_setting != null ? `${selected.latency_setting}ms` : '—'}</span></div>
                 <div>Multicast: <span style={{ color: selected.multicast ? C.green : C.textDim, fontWeight: 600 }}>{selected.multicast ? 'Enabled' : 'Disabled'}</span></div>

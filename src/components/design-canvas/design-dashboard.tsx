@@ -104,7 +104,7 @@ function DonutChart({ segments, size = 140, strokeWidth = 24 }: {
           )
         })}
         {/* Center text */}
-        <text x={size / 2} y={size / 2 - 6} textAnchor="middle" fill={C.text} fontSize={22} fontWeight={700} fontFamily="'IBM Plex Mono', monospace">
+        <text x={size / 2} y={size / 2 - 6} textAnchor="middle" fill={C.text} fontSize={22} fontWeight={700} fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace">
           {total}
         </text>
         <text x={size / 2} y={size / 2 + 12} textAnchor="middle" fill={C.textDim} fontSize={10}>
@@ -117,7 +117,7 @@ function DonutChart({ segments, size = 140, strokeWidth = 24 }: {
           <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 10, height: 10, borderRadius: 2, background: seg.color, flexShrink: 0 }} />
             <span style={{ fontSize: 12, color: C.textMuted, width: 90 }}>{seg.label}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: "'IBM Plex Mono', monospace" }}>{seg.value}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{seg.value}</span>
           </div>
         ))}
       </div>
@@ -150,7 +150,7 @@ function ProgressRing({ label, value, max, unit, size = 80, strokeWidth = 6 }: {
         />
         {/* Center value */}
         <text x={size / 2} y={size / 2 + 1} textAnchor="middle" fill={C.text}
-          fontSize={14} fontWeight={700} fontFamily="'IBM Plex Mono', monospace">
+          fontSize={14} fontWeight={700} fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace">
           {typeof value === 'number' && !Number.isInteger(value) ? value.toFixed(1) : value}
         </text>
         {unit && (
@@ -188,7 +188,7 @@ function RiskGauge({ label, score, max }: { label: string; score: number; max: n
           strokeDasharray={`${arcFill} ${arcCirc}`}
           style={{ transition: 'stroke-dasharray 0.5s ease' }}
         />
-        <text x={34} y={32} textAnchor="middle" fill={color} fontSize={11} fontWeight={700} fontFamily="'IBM Plex Mono'">{riskLabel}</text>
+        <text x={34} y={32} textAnchor="middle" fill={color} fontSize={11} fontWeight={700} fontFamily="'SF Mono', 'Cascadia Code', 'Consolas', monospace">{riskLabel}</text>
       </svg>
       <div>
         <div style={{ fontSize: 12, color: C.textMuted }}>{label}</div>

@@ -94,20 +94,20 @@ export function ReportGenerator({
   <style>
     @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'IBM Plex Sans', sans-serif; color: #1a1a2e; padding: 24px; font-size: 11px; }
+    body { font-family: 'Inter', 'Segoe UI', sans-serif; color: #1a1a2e; padding: 24px; font-size: 11px; }
     h1 { font-size: 20px; margin-bottom: 4px; }
     h2 { font-size: 14px; margin: 20px 0 8px; border-bottom: 2px solid #3b82f6; padding-bottom: 4px; color: #1a1a2e; }
     h3 { font-size: 12px; margin: 12px 0 6px; color: #3b82f6; }
     .meta { color: #666; font-size: 10px; margin-bottom: 16px; }
     table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 10px; }
     th { background: #f1f5f9; padding: 6px 8px; text-align: left; font-weight: 700; border: 1px solid #e2e8f0; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
-    td { padding: 5px 8px; border: 1px solid #e2e8f0; font-family: 'IBM Plex Mono', monospace; }
+    td { padding: 5px 8px; border: 1px solid #e2e8f0; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; }
     tr:nth-child(even) { background: #f8fafc; }
     .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; }
     .snapshot { max-width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; margin: 8px 0; }
     .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 8px 0; }
     .metric-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; text-align: center; }
-    .metric-value { font-size: 18px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+    .metric-value { font-size: 18px; font-weight: 700; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; }
     .metric-label { font-size: 9px; color: #666; text-transform: uppercase; margin-top: 2px; }
     .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #999; text-align: center; }
     @media print {

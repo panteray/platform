@@ -148,7 +148,7 @@ export async function createMdfObject(
     const ico = fm.util.groupSVGElements(filtered, res.options)
     const lbl = new fm.FabricText(name || 'MDF', {
       left: 0, top: 20, fontSize: 10, fill: C.text,
-      fontFamily: "'IBM Plex Sans', sans-serif", originX: 'center', originY: 'top',
+      fontFamily: "'Inter', 'Segoe UI', sans-serif", originX: 'center', originY: 'top',
       fontWeight: '600',
     })
     const group = new fm.Group([ico, lbl], {

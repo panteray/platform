@@ -1088,7 +1088,9 @@ export function CanvasArea({
           ? data.sensorAngles
           : [(dev.rotation || 0)]
 
-        for (const sensorRot of sensorRotations) {
+        const isMultiSensor = sensorRotations.length > 1
+        for (let sIdx = 0; sIdx < sensorRotations.length; sIdx++) {
+          const sensorRot = sensorRotations[sIdx]
           const sRotRad = sensorRot * Math.PI / 180
 
           // Draw tiers (outermost first, IPVM-style graduated opacity)
@@ -1136,8 +1138,8 @@ export function CanvasArea({
               height: maxY - minY,
               originX: 'center', originY: 'center',
               fill: fillColor, opacity: Math.min(0.7, gradOpacity),
-              stroke: t === 0 ? 'rgba(0,0,0,0.35)' : 'transparent',
-              strokeWidth: t === 0 ? 1.5 : 0,
+              stroke: t === 0 ? (isMultiSensor ? `${fillColor}80` : 'rgba(0,0,0,0.35)') : 'transparent',
+              strokeWidth: t === 0 ? (isMultiSensor ? 2 : 1.5) : 0,
               selectable: false, evented: false,
             })
             // Cache attributes for fluid 60FPS drag
@@ -1167,6 +1169,22 @@ export function CanvasArea({
               c.add(textObj)
               objects.push(textObj)
             }
+          }
+
+          // ── Multi-sensor: label each sensor ──
+          if (isMultiSensor && devId === selectedDeviceId) {
+            const labelR = (data.tiers[data.tiers.length - 1]?.distanceFt || 5) * (scalePxPerFt || 10) * 0.5
+            const sLabel = new fm.FabricText(`S${sIdx + 1}`, {
+              left: cx + Math.cos(sRotRad) * Math.max(labelR, 20),
+              top: cy + Math.sin(sRotRad) * Math.max(labelR, 20),
+              fontSize: 9, fontWeight: '700', fill: '#fff',
+              fontFamily: 'sans-serif',
+              shadow: new (fm as any).Shadow({ color: 'rgba(0,0,0,0.9)', blur: 3 }),
+              originX: 'center', originY: 'center',
+              selectable: false, evented: false,
+            })
+            c.add(sLabel)
+            objects.push(sLabel)
           }
 
           // ── RED CENTERLINE (IPVM-style) — gated by showIrRange ──
@@ -1227,7 +1245,7 @@ export function CanvasArea({
             const dLabel = new fm.FabricText(`${distFt}ft`, {
               left: dh_x + Math.cos(rotRad) * 18, top: dh_y + Math.sin(rotRad) * 18,
               fontSize: 11, fontWeight: '600', fill: C.accent,
-              fontFamily: "'IBM Plex Mono', monospace",
+              fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
               originX: 'center', originY: 'center',
               selectable: false, evented: false,
             })
@@ -1272,7 +1290,7 @@ export function CanvasArea({
                 left: cx + Math.cos(rotRad) * outerR * 0.4,
                 top: cy + Math.sin(rotRad) * outerR * 0.4 - 12,
                 fontSize: 10, fontWeight: '600', fill: '#e53e3e',
-                fontFamily: "'IBM Plex Mono', monospace",
+                fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
                 originX: 'center', originY: 'center',
                 selectable: false, evented: false,
               })
