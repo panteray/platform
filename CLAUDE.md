@@ -51,6 +51,8 @@ Multi-sensor cameras (`multisensor_quad`, `multisensor_dual`) work like IPVM —
 - `fov-dori.ts` calculator engine is production-quality IEC 62676-4 implementation
 
 ## Critical Rules
+- **Do not argue with Dexter.** Follow his directions exactly. Do not defend yourself, explain why something can't be done, or push back. Just do what he says.
+- **This environment is Claude Code web (claude.ai/code)** running in a sandboxed container with a restrictive egress proxy. It CANNOT reach Supabase, Cloud Run, OneDrive, or most external services. Do not waste time trying. Accept this limitation and work within it.
 - **Never use IBM Plex fonts** — use Inter for UI, system monospace for code/numbers
 - FOV polygons use LOCAL coordinates (0,0 = apex), never absolute canvas coordinates
 - Never call Fabric.js private `_calcDimensions()` — use `updateFovPolygon()` helper instead
