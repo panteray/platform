@@ -133,6 +133,12 @@ Engineering preferences above can be overridden by your project's CLAUDE.md
 For deeper analysis, use this command with Opus model
 $ARGUMENTS
 
+## Supabase
+- **Production project**: `znepjevqtbhijqvlxpmq` (`https://znepjevqtbhijqvlxpmq.supabase.co`)
+- **IMPORTANT**: The Supabase MCP integration CANNOT access this project. Do NOT use the MCP Supabase tools for panteray/platform. They only have access to casdex (`uhapfjjanaieucfripuo`) which is a DIFFERENT project.
+- **Database migrations**: Must be run manually by the user in the Supabase dashboard SQL editor, or via `supabase db push`. Always provide the SQL and ask the user to run it.
+- **Never make assumptions** about which Supabase project to use. The project is `znepjevqtbhijqvlxpmq`, period.
+
 ## Git
 - Always use `pnpm-lock.yaml` (not package-lock.json) — CI uses `--frozen-lockfile`
 - Commit with descriptive messages
