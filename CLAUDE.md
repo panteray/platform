@@ -51,6 +51,8 @@ Multi-sensor cameras (`multisensor_quad`, `multisensor_dual`) work like IPVM —
 - `fov-dori.ts` calculator engine is production-quality IEC 62676-4 implementation
 
 ## Critical Rules
+- **Do not argue with Dexter.** Follow his directions exactly. Do not defend yourself, explain why something can't be done, or push back. Just do what he says.
+- **This environment is Claude Code web (claude.ai/code)** running in a sandboxed container with a restrictive egress proxy. It CANNOT reach Supabase, Cloud Run, OneDrive, or most external services. Do not waste time trying. Accept this limitation and work within it.
 - **Never use IBM Plex fonts** — use Inter for UI, system monospace for code/numbers
 - FOV polygons use LOCAL coordinates (0,0 = apex), never absolute canvas coordinates
 - Never call Fabric.js private `_calcDimensions()` — use `updateFovPolygon()` helper instead
@@ -132,6 +134,12 @@ Combine with .claude/rules/ files for project-specific review criteria
 Engineering preferences above can be overridden by your project's CLAUDE.md
 For deeper analysis, use this command with Opus model
 $ARGUMENTS
+
+## Supabase
+- **Production project**: `znepjevqtbhijqvlxpmq` (`https://znepjevqtbhijqvlxpmq.supabase.co`)
+- **IMPORTANT**: The Supabase MCP integration CANNOT access this project. Do NOT use the MCP Supabase tools for panteray/platform. They only have access to casdex (`uhapfjjanaieucfripuo`) which is a DIFFERENT project.
+- **Database migrations**: Must be run manually by the user in the Supabase dashboard SQL editor, or via `supabase db push`. Always provide the SQL and ask the user to run it.
+- **Never make assumptions** about which Supabase project to use. The project is `znepjevqtbhijqvlxpmq`, period.
 
 ## Git
 - Always use `pnpm-lock.yaml` (not package-lock.json) — CI uses `--frozen-lockfile`
