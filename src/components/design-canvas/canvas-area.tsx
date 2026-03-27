@@ -382,9 +382,18 @@ export function CanvasArea({
 
         // ── CABLE TOOL: clicking on a device or MDF/IDF ──
         const target = o.target
+        if (toolRef.current === 'cable') {
+          console.log('[CABLE-DBG] cable click, target:', target ? 'yes' : 'no', 'type:', target?.type, 'keys:', target ? Object.keys(target).filter(k => k.startsWith('__')) : [])
+        }
         if (toolRef.current === 'cable' && target) {
           const rec = target as unknown as Record<string, unknown>
-          const endpointId = (rec.__devId || rec.__mdfId) as string | undefined
+          // Walk up to parent group if child was clicked (Fabric sub-target)
+          let endpointId = (rec.__devId || rec.__mdfId) as string | undefined
+          if (!endpointId && (target as unknown as { group?: unknown }).group) {
+            const parentRec = (target as unknown as { group: Record<string, unknown> }).group
+            endpointId = (parentRec.__devId || parentRec.__mdfId) as string | undefined
+          }
+          console.log('[CABLE-DBG] endpointId:', endpointId, 'cableState:', cableState.current)
           if (endpointId) {
             if (cableState.current === 'idle' || cableState.current === 'pick_source') {
               // Start cable from this device/MDF
