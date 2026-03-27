@@ -1629,11 +1629,13 @@ export function CanvasArea({
       const newObjs: FabricObject[] = []
       for (const cable of cables) {
         const cRec = cable as unknown as Record<string, unknown>
+        const mdfIdfId = cRec.mdf_idf_id as string | undefined
         const from = devices.find(d => d.id === cable.from_device_id)
           || mdfIdfs?.find(m => m.id === cable.from_device_id)
+          || (mdfIdfId && !cable.from_device_id ? mdfIdfs?.find(m => m.id === mdfIdfId) : null)
         const to = cable.to_device_id
           ? (devices.find(d => d.id === cable.to_device_id) || mdfIdfs?.find(m => m.id === cable.to_device_id))
-          : (cRec.mdf_idf_id ? mdfIdfs?.find(m => m.id === cRec.mdf_idf_id) : null)
+          : (mdfIdfId ? mdfIdfs?.find(m => m.id === mdfIdfId) : null)
         if (!from) continue
         const pts = [{ x: from.position_x, y: from.position_y }]
         if (cable.waypoints) for (const wp of cable.waypoints) pts.push(wp)
