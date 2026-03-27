@@ -204,7 +204,7 @@ export function CanvasArea({
   onSelectDevice, onDeviceMoved, onDeviceRotated,
   onDeviceCopy, onDeviceDelete, onToolChange, onScaleCalibrated,
   onFovHandleDragged, onFovAngleChanged, onCanvasClick, onCableCreated,
-  mdfIdfs, onMdfIdfPlaced, onMdfIdfDeleted, onDragCommit, onZoomChange,
+  mdfIdfs, onMdfIdfPlaced, onMdfIdfMoved, onMdfIdfDeleted, onDragCommit, onZoomChange,
   onFloorPlanError, hiddenCategories, zoomToPointRef,
   walls, onWallCreated, onWallDeleted, onMdfSelected,
   showIrRange, hiddenPpfZones, showBlindSpot, onWallSelected,
@@ -692,6 +692,11 @@ export function CanvasArea({
           if (!isLocked) {
             onDeviceMoved?.(id, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
           }
+        }
+        // MDF/IDF drag persist
+        const mdfId = rec.__mdfId as string | undefined
+        if (mdfId) {
+          onMdfIdfMoved?.(mdfId, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
         }
         if (rec.__fovDist && rec.__tempDistFt !== undefined) {
           const sIdx = rec.__sensorIdx as number | undefined
