@@ -252,6 +252,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
       if (!['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(cat)) continue
 
       const props = (d.properties ?? {}) as Record<string, unknown>
+      if (cat === 'bullet') console.log('[FOV-DBG] bullet props:', JSON.stringify(props))
       // Default FOV: 90° for most cameras, but for multi-sensor divide coverage
       const defaultFov = cat === 'multisensor_quad' ? 90 : cat === 'multisensor_dual' ? 90 : cat === 'fisheye' ? 180 : 90
       const fovAngle = Number(props.fov_angle) || defaultFov
@@ -259,6 +260,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
       const focalLength = Number(props.focal_length) || 0
       const sensorW = Number(props.sensor_w) || Number(props.sensor_width) || 0
       const resW = Number(props.resolution_w) || 0
+      if (cat === 'bullet') console.log('[FOV-DBG] bullet fov:', fovAngle, 'dist:', targetDist, 'fl:', focalLength, 'sw:', sensorW, 'rw:', resW)
 
       let hFov = fovAngle
       if (focalLength > 0 && sensorW > 0) {
