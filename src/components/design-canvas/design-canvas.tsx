@@ -762,10 +762,12 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           fovDisplayMode={fovMode}
           onCanvasClick={() => {}}
           onCableCreated={async (cable) => {
+            console.log('[CABLE] onCableCreated fired:', JSON.stringify(cable))
             // Route MDF IDs to mdf_idf_id instead of from/to_device_id (FK constraint)
             const mdfIds = new Set(mdfIdfs.map(m => m.id))
             const fromIsMdf = mdfIds.has(cable.from_device_id)
             const toIsMdf = cable.to_device_id ? mdfIds.has(cable.to_device_id) : false
+            console.log('[CABLE] fromIsMdf:', fromIsMdf, 'toIsMdf:', toIsMdf)
 
             // Limit 1 Cat6 cable per device to MDF (skip for MDF→MDF links)
             if (!fromIsMdf || !toIsMdf) {
@@ -775,6 +777,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
                   c.from_device_id === deviceId || c.to_device_id === deviceId
                 )
                 if (existing) {
+                  console.log('[CABLE] BLOCKED: device already has cable:', existing.id)
                   toast.warning('Device already has a cable to MDF. Remove existing cable first.')
                   return
                 }
@@ -790,7 +793,9 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
               payload.mdf_idf_id = cable.to_device_id
               delete payload.to_device_id
             }
-            await addCable(payload)
+            console.log('[CABLE] Saving payload:', JSON.stringify(payload))
+            const result = await addCable(payload)
+            console.log('[CABLE] addCable result:', result)
           }}
           mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
           onMdfIdfPlaced={async (x, y) => {

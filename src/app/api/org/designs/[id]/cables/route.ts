@@ -38,8 +38,14 @@ export async function POST(
   const { data: design } = await admin.from('designs').select('id').eq('id', designId).eq('org_id', user.org_id).single()
   if (!design) return NextResponse.json({ error: 'Design not found' }, { status: 404 })
 
-  const { data, error } = await admin.from('design_cables').insert({ ...body, design_id: designId, org_id: user.org_id }).select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const insertPayload = { ...body, design_id: designId, org_id: user.org_id }
+  console.log('[CABLE API] INSERT payload:', JSON.stringify(insertPayload))
+  const { data, error } = await admin.from('design_cables').insert(insertPayload).select().single()
+  if (error) {
+    console.error('[CABLE API] INSERT error:', error.message, error.details, error.hint)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  console.log('[CABLE API] INSERT success:', data?.id)
   return NextResponse.json({ cable: data }, { status: 201 })
 }
 
