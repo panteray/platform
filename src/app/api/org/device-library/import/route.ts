@@ -37,9 +37,7 @@ function parseExcel(buffer: Buffer, vendor: string | null): ParsedImportRow[] {
   return allRows
 }
 
-async function parseCsv(buffer: Buffer, vendor: string | null): Promise<ParsedImportRow[]> {
-  const XLSX = await import('xlsx')
-
+function parseCsv(buffer: Buffer, vendor: string | null): ParsedImportRow[] {
   // Decode to string and strip UTF-8 BOM — Excel on Windows adds BOM to CSV exports,
   // which XLSX.read({ type: 'buffer' }) reads as literal chars in the first header name
   const text = buffer.toString('utf-8').replace(/^\uFEFF/, '')
@@ -97,7 +95,7 @@ export async function POST(req: NextRequest) {
     } else if (fileType === 'xlsx') {
       parsedRows = await parseExcel(buffer, vendor)
     } else {
-      parsedRows = await parseCsv(buffer, vendor)
+      parsedRows = parseCsv(buffer, vendor)
     }
   } catch (err) {
     return NextResponse.json(
