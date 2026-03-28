@@ -3,7 +3,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyDeviceLibraryAccess } from '@/lib/auth'
 import { parsePdfText, parseSpreadsheetRows } from '@/lib/device-import-parser'
 import type { ParsedImportRow } from '@/lib/device-import-parser'
-import pdfParse from 'pdf-parse'
 import * as XLSX from 'xlsx'
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB
@@ -16,8 +15,10 @@ function getFileType(fileName: string): 'pdf' | 'xlsx' | 'csv' | null {
   return null
 }
 
-function parsePdf(buffer: Buffer, vendor: string | null): Promise<ParsedImportRow[]> {
-  return pdfParse(buffer).then((result) => parsePdfText(result.text, vendor))
+async function parsePdf(buffer: Buffer, vendor: string | null): Promise<ParsedImportRow[]> {
+  const pdfParse = (await import('pdf-parse')).default
+  const result = await pdfParse(buffer)
+  return parsePdfText(result.text, vendor)
 }
 
 function parseExcel(buffer: Buffer, vendor: string | null): ParsedImportRow[] {
