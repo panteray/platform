@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
         poe_standard: r.poe_standard,
         wattage: r.wattage,
         ndaa_compliant: r.ndaa_compliant,
-        confidence: r.confidence,
+        confidence: Math.round(r.confidence * 100),
         status: 'pending',
       }))
 

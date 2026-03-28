@@ -456,11 +456,11 @@ export default function DeviceImportPage() {
                           <div className="h-1.5 w-16 rounded-full bg-zinc-800 overflow-hidden">
                             <div
                               className="h-full rounded-full bg-white"
-                              style={{ width: `${(row.confidence ?? 0) * 100}%` }}
+                              style={{ width: `${row.confidence ?? 0}%` }}
                             />
                           </div>
                           <span className="text-[10px] text-zinc-500">
-                            {Math.round((row.confidence ?? 0) * 100)}%
+                            {Math.round(row.confidence ?? 0)}%
                           </span>
                         </div>
                       </td>
