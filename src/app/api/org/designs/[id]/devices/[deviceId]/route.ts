@@ -75,11 +75,19 @@ export async function PATCH(
   }
 
   // Map camera subcategories to valid DB enum
+  // IMPORTANT: must read existing properties from DB first to avoid clobbering
   if (allowed.category && CAMERA_SUBCATS.has(allowed.category as string)) {
     const subCat = allowed.category as string
     allowed.category = 'cctv'
-    const existingProps = (allowed.properties ?? {}) as Record<string, unknown>
-    allowed.properties = { ...existingProps, sub_category: subCat }
+    // Read current properties from DB so we don't wipe them
+    const { data: current } = await admin
+      .from('design_devices')
+      .select('properties')
+      .eq('id', deviceId)
+      .single()
+    const dbProps = (current?.properties ?? {}) as Record<string, unknown>
+    const patchProps = (allowed.properties ?? {}) as Record<string, unknown>
+    allowed.properties = { ...dbProps, ...patchProps, sub_category: subCat }
   }
 
   allowed.updated_at = new Date().toISOString()

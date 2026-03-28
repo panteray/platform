@@ -204,7 +204,7 @@ export function CanvasArea({
   onSelectDevice, onDeviceMoved, onDeviceRotated,
   onDeviceCopy, onDeviceDelete, onToolChange, onScaleCalibrated,
   onFovHandleDragged, onFovAngleChanged, onCanvasClick, onCableCreated,
-  mdfIdfs, onMdfIdfPlaced, onMdfIdfDeleted, onDragCommit, onZoomChange,
+  mdfIdfs, onMdfIdfPlaced, onMdfIdfMoved, onMdfIdfDeleted, onDragCommit, onZoomChange,
   onFloorPlanError, hiddenCategories, zoomToPointRef,
   walls, onWallCreated, onWallDeleted, onMdfSelected,
   showIrRange, hiddenPpfZones, showBlindSpot, onWallSelected,
@@ -384,7 +384,12 @@ export function CanvasArea({
         const target = o.target
         if (toolRef.current === 'cable' && target) {
           const rec = target as unknown as Record<string, unknown>
-          const endpointId = (rec.__devId || rec.__mdfId) as string | undefined
+          // Walk up to parent group if child was clicked (Fabric sub-target)
+          let endpointId = (rec.__devId || rec.__mdfId) as string | undefined
+          if (!endpointId && (target as unknown as { group?: unknown }).group) {
+            const parentRec = (target as unknown as { group: Record<string, unknown> }).group
+            endpointId = (parentRec.__devId || parentRec.__mdfId) as string | undefined
+          }
           if (endpointId) {
             if (cableState.current === 'idle' || cableState.current === 'pick_source') {
               // Start cable from this device/MDF
@@ -687,6 +692,11 @@ export function CanvasArea({
           if (!isLocked) {
             onDeviceMoved?.(id, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
           }
+        }
+        // MDF/IDF drag persist
+        const mdfId = rec.__mdfId as string | undefined
+        if (mdfId) {
+          onMdfIdfMoved?.(mdfId, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
         }
         if (rec.__fovDist && rec.__tempDistFt !== undefined) {
           const sIdx = rec.__sensorIdx as number | undefined
@@ -1629,11 +1639,13 @@ export function CanvasArea({
       const newObjs: FabricObject[] = []
       for (const cable of cables) {
         const cRec = cable as unknown as Record<string, unknown>
+        const mdfIdfId = cRec.mdf_idf_id as string | undefined
         const from = devices.find(d => d.id === cable.from_device_id)
           || mdfIdfs?.find(m => m.id === cable.from_device_id)
+          || (mdfIdfId && !cable.from_device_id ? mdfIdfs?.find(m => m.id === mdfIdfId) : null)
         const to = cable.to_device_id
           ? (devices.find(d => d.id === cable.to_device_id) || mdfIdfs?.find(m => m.id === cable.to_device_id))
-          : (cRec.mdf_idf_id ? mdfIdfs?.find(m => m.id === cRec.mdf_idf_id) : null)
+          : (mdfIdfId ? mdfIdfs?.find(m => m.id === mdfIdfId) : null)
         if (!from) continue
         const pts = [{ x: from.position_x, y: from.position_y }]
         if (cable.waypoints) for (const wp of cable.waypoints) pts.push(wp)

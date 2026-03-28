@@ -175,24 +175,13 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
     }
 
     if (prop === '__resetDori') {
-       // Deep copy properties and strip overridden optics to restore hardware baseline
-       const libSpecs = ((dev as any).libraryItem?.specs ?? {}) as Record<string, unknown>
+       // Strip overridden optics to restore hardware baseline
+       // Canvas target_distance is source of truth — do NOT overwrite it
        const newP = { ...p }
        delete newP.focal_length
        delete newP.fov_angle
        delete newP.sensor_width
        delete newP.resolution_w
-
-       // Retrieve original hardware specifications (or standard defaults)
-       const sw = Number(libSpecs.sensor_w) || 5.14
-       const rw = Number(libSpecs.resolution_w) || 1920
-       const fl = Number(libSpecs.focal_length) || Number(libSpecs.focal_length_min) || 2.8
-
-       // Recalculate Max Recognize Distance (PPF 38 threshold equivalent to mathematical reality)
-       // sceneW = rw/38 -> distMm = (fl * (rw/38 * 304.8))/(2*sw)
-       const recDistFt = Math.max(10, Math.round((fl * rw / 38) / (2 * sw)))
-
-       newP.target_distance = recDistFt
        updateDevice(id, { properties: newP })
        return
     }
@@ -795,6 +784,9 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
           mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
           onMdfIdfPlaced={async (x, y) => {
             await addInfrastructure({ design_id: designId, area_id: activeAreaId, name: 'MDF', position_x: x, position_y: y })
+          }}
+          onMdfIdfMoved={async (id, x, y) => {
+            await updateInfrastructure(id, { position_x: x, position_y: y })
           }}
           onMdfIdfDeleted={async (id) => {
             await deleteInfrastructure(id)
