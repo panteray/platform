@@ -37,8 +37,13 @@ function parseExcel(buffer: Buffer, vendor: string | null): ParsedImportRow[] {
   return allRows
 }
 
-function parseCsv(buffer: Buffer, vendor: string | null): ParsedImportRow[] {
-  const workbook = XLSX.read(buffer, { type: 'buffer' })
+async function parseCsv(buffer: Buffer, vendor: string | null): Promise<ParsedImportRow[]> {
+  const XLSX = await import('xlsx')
+
+  // Decode to string and strip UTF-8 BOM — Excel on Windows adds BOM to CSV exports,
+  // which XLSX.read({ type: 'buffer' }) reads as literal chars in the first header name
+  const text = buffer.toString('utf-8').replace(/^\uFEFF/, '')
+  const workbook = XLSX.read(text, { type: 'string' })
 
   // CSV loads as single sheet
   const sheetName = workbook.SheetNames[0]
@@ -48,7 +53,8 @@ function parseCsv(buffer: Buffer, vendor: string | null): ParsedImportRow[] {
   const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
   if (jsonData.length === 0) return []
 
-  const headers = Object.keys(jsonData[0])
+  // Filter out empty/whitespace-only headers that XLSX can generate from trailing delimiters
+  const headers = Object.keys(jsonData[0]).filter((h) => h.trim() && !h.startsWith('__EMPTY'))
   return parseSpreadsheetRows(headers, jsonData, vendor)
 }
 
