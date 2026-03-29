@@ -110,8 +110,44 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Insert directly into device_library_items
-    const inserts = parsedRows.map((row) => ({
+    // Duplicate guard: check for existing items with matching vendor+model or vendor+partnumber
+    const { data: existing } = await admin
+      .from('device_library_items')
+      .select('vendor, model, partnumber')
+      .eq('org_id', orgId)
+
+    const existingKeys = new Set<string>()
+    for (const row of existing ?? []) {
+      const v = (row.vendor ?? '').toLowerCase().trim()
+      if (row.model) existingKeys.add(`${v}::m::${row.model.toLowerCase().trim()}`)
+      if (row.partnumber) existingKeys.add(`${v}::p::${row.partnumber.toLowerCase().trim()}`)
+    }
+
+    const newRows: ParsedImportRow[] = []
+    let skipped = 0
+    for (const row of parsedRows) {
+      const v = (row.vendor ?? vendor ?? 'Unknown').toLowerCase().trim()
+      const m = (row.model || row.partnumber || '').toLowerCase().trim()
+      const p = (row.partnumber || '').toLowerCase().trim()
+      const isDupe =
+        (m && existingKeys.has(`${v}::m::${m}`)) ||
+        (p && existingKeys.has(`${v}::p::${p}`))
+      if (isDupe) {
+        skipped++
+      } else {
+        newRows.push(row)
+      }
+    }
+
+    if (newRows.length === 0) {
+      return NextResponse.json(
+        { imported: 0, skipped, fileName: file.name },
+        { status: 200 }
+      )
+    }
+
+    // Insert non-duplicate rows
+    const inserts = newRows.map((row) => ({
       org_id: orgId,
       vendor: row.vendor ?? vendor ?? 'Unknown',
       model: row.model || row.partnumber,
@@ -146,7 +182,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { imported: inserts.length, fileName: file.name },
+      { imported: inserts.length, skipped, fileName: file.name },
       { status: 201 }
     )
   } catch (err) {

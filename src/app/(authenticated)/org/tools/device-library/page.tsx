@@ -1,15 +1,16 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import {
   Search, X, ShieldCheck, ShieldAlert, ShieldQuestion,
   Upload, Globe, Pencil, Save, Trash2, Sparkles,
+  ChevronDown, ChevronRight, ChevronLeft, ArrowUpDown, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { useDeviceLibrary } from '@/hooks/useDeviceLibrary'
 import { DEVICE_CATEGORIES, DEVICE_LIBRARY_ROLES } from '@/types/enums'
-import type { DeviceLibraryItem } from '@/types/database'
+import type { DeviceLibraryItem, DeviceSearchResult } from '@/types/database'
 
 const EDITABLE_FIELDS = [
   { key: 'vendor', label: 'Manufacturer', type: 'text' },
@@ -422,6 +423,167 @@ function BulkEditModal({
   )
 }
 
+// ---- Sortable Header ----
+
+function SortHeader({
+  label,
+  column,
+  currentSort,
+  currentDir,
+  onSort,
+}: {
+  label: string
+  column: string
+  currentSort: string
+  currentDir: 'asc' | 'desc'
+  onSort: (col: string) => void
+}) {
+  const isActive = currentSort === column
+  return (
+    <th
+      className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+      onClick={() => onSort(column)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {isActive ? (
+          currentDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </span>
+    </th>
+  )
+}
+
+// ---- Grouped Table Body ----
+
+function GroupedTableBody({
+  results,
+  checked,
+  selectedItem,
+  collapsedGroups,
+  onToggleGroup,
+  onToggleCheck,
+  onLoadItem,
+}: {
+  results: DeviceSearchResult[]
+  checked: Set<string>
+  selectedItem: DeviceLibraryItem | null
+  collapsedGroups: Set<string>
+  onToggleGroup: (vendor: string) => void
+  onToggleCheck: (id: string) => void
+  onLoadItem: (id: string) => void
+}) {
+  // Group by vendor
+  const groups: Map<string, DeviceSearchResult[]> = new Map()
+  for (const item of results) {
+    const v = item.vendor || 'Unknown'
+    if (!groups.has(v)) groups.set(v, [])
+    groups.get(v)!.push(item)
+  }
+
+  return (
+    <tbody>
+      {Array.from(groups.entries()).map(([vendor, items]) => {
+        const isCollapsed = collapsedGroups.has(vendor)
+        return (
+          <GroupSection
+            key={vendor}
+            vendor={vendor}
+            items={items}
+            isCollapsed={isCollapsed}
+            checked={checked}
+            selectedItem={selectedItem}
+            onToggleGroup={onToggleGroup}
+            onToggleCheck={onToggleCheck}
+            onLoadItem={onLoadItem}
+          />
+        )
+      })}
+    </tbody>
+  )
+}
+
+function GroupSection({
+  vendor,
+  items,
+  isCollapsed,
+  checked,
+  selectedItem,
+  onToggleGroup,
+  onToggleCheck,
+  onLoadItem,
+}: {
+  vendor: string
+  items: DeviceSearchResult[]
+  isCollapsed: boolean
+  checked: Set<string>
+  selectedItem: DeviceLibraryItem | null
+  onToggleGroup: (vendor: string) => void
+  onToggleCheck: (id: string) => void
+  onLoadItem: (id: string) => void
+}) {
+  return (
+    <>
+      {/* Group header row */}
+      <tr
+        className="border-b border-border/50 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={() => onToggleGroup(vendor)}
+      >
+        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()} />
+        <td colSpan={6} className="px-4 py-2">
+          <span className="inline-flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wide">
+            {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {vendor}
+            <span className="text-[10px] font-normal text-muted-foreground normal-case tracking-normal">
+              ({items.length} device{items.length !== 1 ? 's' : ''})
+            </span>
+          </span>
+        </td>
+        <td />
+      </tr>
+      {/* Items */}
+      {!isCollapsed && items.map((item) => (
+        <tr
+          key={item.id}
+          className={`border-b border-border/50 last:border-0 hover:bg-muted/50 transition-colors ${
+            selectedItem?.id === item.id ? 'bg-muted' : ''
+          }`}
+        >
+          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={checked.has(item.id)}
+              onChange={() => onToggleCheck(item.id)}
+              className="accent-current"
+            />
+          </td>
+          <td className="px-4 py-3 font-medium text-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.vendor}</td>
+          <td className="px-4 py-3 text-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.model}</td>
+          <td className="px-4 py-3 text-muted-foreground font-mono text-xs cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.partnumber ?? '-'}</td>
+          <td className="px-4 py-3 cursor-pointer" onClick={() => onLoadItem(item.id)}>
+            <span className="inline-flex rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
+              {item.category}
+            </span>
+          </td>
+          <td className="px-4 py-3 text-muted-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.form ?? '-'}</td>
+          <td className="px-4 py-3 text-muted-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.resolution ?? '-'}</td>
+          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => onLoadItem(item.id)}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Edit"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          </td>
+        </tr>
+      ))}
+    </>
+  )
+}
+
 // ---- Main Page ----
 
 export default function DeviceLibraryPage() {
@@ -436,6 +598,19 @@ export default function DeviceLibraryPage() {
     setFilterCategory,
     filterNdaa,
     setFilterNdaa,
+    filterVendor,
+    setFilterVendor,
+    filterForm,
+    setFilterForm,
+    filterResolution,
+    setFilterResolution,
+    sort,
+    setSort,
+    sortDir,
+    setSortDir,
+    page,
+    setPage,
+    totalCount,
     selectedItem,
     loadFullItem,
     clearSelection,
@@ -444,8 +619,33 @@ export default function DeviceLibraryPage() {
 
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [manufacturers, setManufacturers] = useState<string[]>([])
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
   const hasAccess = userRole && (DEVICE_LIBRARY_ROLES as readonly string[]).includes(userRole)
+  const pageSize = 50
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+
+  // Fetch manufacturer list for dropdown
+  useEffect(() => {
+    fetch('/api/org/device-library/manufacturers-list')
+      .then((res) => res.json())
+      .then((json) => setManufacturers(json.manufacturers ?? []))
+      .catch(() => {})
+  }, [])
+
+  // Collect distinct form factors and resolutions from current results for filter dropdowns
+  const formFactors = [...new Set(results.map((r) => r.form).filter(Boolean))] as string[]
+  const resolutions = [...new Set(results.map((r) => r.resolution).filter(Boolean))] as string[]
+
+  function handleSort(col: string) {
+    if (sort === col) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSort(col)
+      setSortDir('asc')
+    }
+  }
 
   function toggleCheck(id: string) {
     setChecked((prev) => {
@@ -462,6 +662,15 @@ export default function DeviceLibraryPage() {
     } else {
       setChecked(new Set(results.map((r) => r.id)))
     }
+  }
+
+  function toggleGroup(vendor: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(vendor)) next.delete(vendor)
+      else next.add(vendor)
+      return next
+    })
   }
 
   const handleSaved = useCallback(() => {
@@ -486,6 +695,8 @@ export default function DeviceLibraryPage() {
     clearSelection()
     refresh()
   }
+
+  const hasFilters = search || filterCategory || filterNdaa || filterVendor || filterForm || filterResolution
 
   if (userLoading) {
     return (
@@ -513,6 +724,9 @@ export default function DeviceLibraryPage() {
           <h1 className="text-2xl font-semibold text-foreground">Device Library</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Browse hardware specifications across all device categories
+            {totalCount > 0 && (
+              <span className="ml-2 text-foreground font-medium">{totalCount} total</span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -573,6 +787,17 @@ export default function DeviceLibraryPage() {
         </div>
 
         <select
+          value={filterVendor}
+          onChange={(e) => setFilterVendor(e.target.value)}
+          className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+        >
+          <option value="">All Manufacturers</option>
+          {manufacturers.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+
+        <select
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value)}
           className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
@@ -580,6 +805,28 @@ export default function DeviceLibraryPage() {
           <option value="">All Categories</option>
           {DEVICE_CATEGORIES.map((c) => (
             <option key={c.value} value={c.value}>{c.label}</option>
+          ))}
+        </select>
+
+        <select
+          value={filterForm}
+          onChange={(e) => setFilterForm(e.target.value)}
+          className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+        >
+          <option value="">All Form Factors</option>
+          {formFactors.map((f) => (
+            <option key={f} value={f}>{f}</option>
+          ))}
+        </select>
+
+        <select
+          value={filterResolution}
+          onChange={(e) => setFilterResolution(e.target.value)}
+          className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+        >
+          <option value="">All Resolutions</option>
+          {resolutions.map((r) => (
+            <option key={r} value={r}>{r}</option>
           ))}
         </select>
 
@@ -593,12 +840,15 @@ export default function DeviceLibraryPage() {
           <option value="false">Non-Compliant</option>
         </select>
 
-        {(search || filterCategory || filterNdaa) && (
+        {hasFilters && (
           <button
             onClick={() => {
               setSearch('')
               setFilterCategory('')
               setFilterNdaa('')
+              setFilterVendor('')
+              setFilterForm('')
+              setFilterResolution('')
             }}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -637,53 +887,24 @@ export default function DeviceLibraryPage() {
                       className="accent-current"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Manufacturer</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Model</th>
+                  <SortHeader label="Manufacturer" column="vendor" currentSort={sort} currentDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Model" column="model" currentSort={sort} currentDir={sortDir} onSort={handleSort} />
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Part #</th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Category</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Form</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Resolution</th>
+                  <SortHeader label="Form" column="form" currentSort={sort} currentDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Resolution" column="resolution" currentSort={sort} currentDir={sortDir} onSort={handleSort} />
                   <th className="px-3 py-3 w-8"></th>
                 </tr>
               </thead>
-              <tbody>
-                {results.map((item) => (
-                  <tr
-                    key={item.id}
-                    className={`border-b border-border/50 last:border-0 hover:bg-muted/50 transition-colors ${
-                      selectedItem?.id === item.id ? 'bg-muted' : ''
-                    }`}
-                  >
-                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={checked.has(item.id)}
-                        onChange={() => toggleCheck(item.id)}
-                        className="accent-current"
-                      />
-                    </td>
-                    <td className="px-4 py-3 font-medium text-foreground cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.vendor}</td>
-                    <td className="px-4 py-3 text-foreground cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.model}</td>
-                    <td className="px-4 py-3 text-muted-foreground font-mono text-xs cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.partnumber ?? '-'}</td>
-                    <td className="px-4 py-3 cursor-pointer" onClick={() => loadFullItem(item.id)}>
-                      <span className="inline-flex rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
-                        {item.category}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.form ?? '-'}</td>
-                    <td className="px-4 py-3 text-muted-foreground cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.resolution ?? '-'}</td>
-                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => loadFullItem(item.id)}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                        title="Edit"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              <GroupedTableBody
+                results={results}
+                checked={checked}
+                selectedItem={selectedItem}
+                collapsedGroups={collapsedGroups}
+                onToggleGroup={toggleGroup}
+                onToggleCheck={toggleCheck}
+                onLoadItem={loadFullItem}
+              />
             </table>
           )}
         </div>
@@ -693,6 +914,36 @@ export default function DeviceLibraryPage() {
           <SideDrawer item={selectedItem} onClose={clearSelection} onSaved={handleSaved} onDeleted={() => { clearSelection(); refresh() }} />
         )}
       </div>
+
+      {/* Pagination */}
+      {totalCount > pageSize && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-xs text-muted-foreground">
+            Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, totalCount)} of {totalCount}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(Math.max(0, page - 1))}
+              disabled={page === 0}
+              className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              Prev
+            </button>
+            <span className="text-xs text-muted-foreground">
+              Page {page + 1} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+              disabled={page >= totalPages - 1}
+              className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Bulk edit modal */}
       {bulkEditOpen && (
