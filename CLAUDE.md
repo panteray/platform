@@ -1,10 +1,59 @@
 # CLAUDE.md — Panteray Platform
 
-> Read this file fully before every response. No exceptions.
+> This file is the law. Read it in full before every action. No exceptions.
+
+---
+
+## IDENTITY
+
+You are a debugger and code executor. Not an advisor. Not a planner. Not a tutor.
+
+---
+
+## HARD GATES — Run before EVERY response
+
+**GATE 1 — Do I understand the request?**
+If anything is ambiguous, ASK. Do not interpret. Do not fill gaps.
+
+**GATE 2 — Did I read the actual code?**
+Pull and read the relevant file(s) via GitHub. No assumptions about what the code does.
+
+**GATE 3 — Did I show a plan?**
+List the exact files and lines being changed. Stop. Do not write code yet.
+
+**GATE 4 — Did I get explicit approval?**
+Wait for "yes" or equivalent. If not received, do not proceed.
+
+---
+
+## ABSOLUTE RULES
+
+- **NEVER claim code works.** Say "pushed — not verified in browser."
+- **NEVER blame the user.** If Dexter says it doesn't work, the code is wrong. Start there.
+- **NEVER add or remove any feature, UI element, route, or functionality without explicit approval.**
+- **NEVER modify API routes unless explicitly requested.**
+- **NEVER mark an issue as DONE until Dexter explicitly confirms it.**
+- **NEVER scope creep.** If it wasn't in the approved plan, it doesn't get pushed.
+- **NEVER guess.** If something is unclear, ask.
+- **NEVER deflect to Cloud Build, config, or external services when code breaks after a push.** The bug is in the code you wrote. Diagnose it first.
+
+---
+
+## WHEN SOMETHING BREAKS
+
+1. Read the error
+2. Read the code at the failing line
+3. State: expected behavior → actual behavior → exact line/logic where they diverge
+4. Propose a fix with a plan
+5. Wait for approval
+6. Push
+
+Do not re-explain why it should work. Do not repeat a previous failed approach.
 
 ---
 
 ## 🚫 Non-Negotiables
+
 - Do NOT create or export any file without explicit instruction
 - Do NOT suggest unapproved scope changes
 - Do NOT argue or push back on decisions — Dexter's word is final
@@ -15,6 +64,7 @@
 ---
 
 ## ⚠️ Verification Rules
+
 - **Never claim code works.** Say "pushed — not verified in browser."
 - **Never blame the user.** If Dexter says it doesn't work, the code is wrong.
 - **Claude cannot verify Fabric.js canvas interactions from the terminal.** Do not pretend otherwise.
@@ -24,6 +74,7 @@
 ---
 
 ## ⚠️ Investigation Rules
+
 - Trace code paths first — never guess, never assume
 - Check for recurring issues before deep-diving (see Recurring Bugs below)
 - Do not go down rabbit holes — stay focused on the reported issue
@@ -31,7 +82,18 @@
 
 ---
 
+## ⚠️ Learned Failures — Never Repeat
+
+- **Cloud Build is OPERATIONAL.** If something breaks after a push, the bug is in the code you wrote. Do not deflect.
+- **Always `curl` test Supabase queries against the live DB before pushing any API route change.** Do not assume a JOIN or FK exists — verify schema first.
+- **No FK exists between `design_devices` and `device_library_items`.** Do not write queries that assume one.
+- **Do not ask Dexter questions that are answered in documents he has already provided.** Read thoroughly before asking anything.
+- **Scope creep is a push failure.** If it wasn't in the approved plan, it doesn't get committed.
+
+---
+
 ## ⚠️ Canvas Rules
+
 - **Canvas is the source of truth.** The sidebar reflects it — never the other way around
 - Canvas drag must NEVER be constrained by sidebar values, slider limits, or input field caps
 - If the user changes something on the canvas, the sidebar updates to match
@@ -41,6 +103,7 @@
 ---
 
 ## Stack
+
 - **Framework:** Next.js 15.1 (App Router, Turbopack dev)
 - **UI:** React 19
 - **Language:** TypeScript 5.7
@@ -76,6 +139,7 @@ npx next lint     # Lint only
 ---
 
 ## Supabase
+
 - **Production project ID:** `znepjevqtbhijqvlxpmq`
 - **URL:** `https://znepjevqtbhijqvlxpmq.supabase.co`
 - Supabase MCP tools **cannot** access this project
@@ -87,6 +151,7 @@ npx next lint     # Lint only
 ---
 
 ## Infrastructure
+
 | Layer | Service | Status |
 |---|---|---|
 | Hosting | Google Cloud Run (us-east1) | DEPLOYED |
@@ -97,10 +162,10 @@ npx next lint     # Lint only
 | Source | GitHub (`panteray/platform`) | OPERATIONAL |
 | Maps API Key | `GOOGLE_MAPS_STATIC_KEY` | Server-side only — served via `/api/org/maps-key` |
 
-
 ---
 
 ## Design Canvas Architecture
+
 - **Fabric.js** = canvas interaction/rendering engine
 - **Google Maps** = passive satellite backdrop (behind canvas, synchronized)
 - **FOV cones** = Fabric.js Polygons — LOCAL coordinates only (0,0 = camera apex)
@@ -109,6 +174,7 @@ npx next lint     # Lint only
 - **DORI colors**: Monitor=#6b7280, Detection=#ef4444, Observation=#f97316, Recognition=#eab308, Identification=#22c55e, Inspection=#8b5cf6
 
 ### Key Files
+
 - `src/components/design-canvas/canvas-area.tsx` — events, rendering, FOV cones, handles
 - `src/components/design-canvas/design-canvas.tsx` — orchestrator, FOV data, device lifecycle, toolbar
 - `src/components/design-canvas/fov-renderer.ts` — FOV geometry (buildConePoints, buildFovTiers)
@@ -122,6 +188,7 @@ npx next lint     # Lint only
 - `src/lib/calculators/fov-dori.ts` — ⚠️ DO NOT CHANGE without understanding IEC 62676-4
 
 ### Industry Reference (IPVM / Hanwha DesignPro / Axis Site Designer)
+
 - All major tools: Google Maps foundation + FOV cones rendered on map
 - IPVM: Google Maps + map polygons (lat/lng) + DORI color tiers + wall occlusion
 - Hanwha DesignPro: Google Maps + FOV cones + PPF zones + 3D preview
@@ -132,6 +199,7 @@ npx next lint     # Lint only
 ---
 
 ## Multi-Sensor Camera Rules
+
 - Each sensor head = independent camera (IPVM pattern)
 - Per-sensor rotation → `properties.sensor_angles` (number array)
 - Default angles: Dual = `[base-45, base+45]`, Quad = `[base, base+90, base+180, base+270]`
@@ -151,6 +219,7 @@ npx next lint     # Lint only
 ---
 
 ## Non-Camera Coverage (Speakers / Vape Sensors)
+
 - Circular coverage zones via `properties.coverage_radius` (ft)
 - Defaults: speakers=25ft (#8b5cf6), vape/environmental=15ft (#14b8a6)
 - Uses same FOV pipeline with 360° hFov, single opacity tier
@@ -158,6 +227,7 @@ npx next lint     # Lint only
 ---
 
 ## Batch Update Pattern
+
 When multiple device properties change simultaneously (e.g., distance handle drag):
 - Send `onDeviceUpdateProp(id, '__batch', mergedObject)` with ALL changed props in one object
 - `design-canvas.tsx` `__batch` handler calls `updateDevice(id, { properties: val })` directly
@@ -166,6 +236,7 @@ When multiple device properties change simultaneously (e.g., distance handle dra
 ---
 
 ## Recurring Bug: FOV Cone Reset
+
 **Symptom:** Add a camera → FOV renders → make any change → cone resets to default size
 
 **Root cause:** Catalog specs from `item.specs` often lack `focal_length`, `sensor_w`, `resolution_w`.
@@ -184,6 +255,7 @@ The `__resetDori` handler then recalculates `target_distance` from missing/wrong
 ---
 
 ## Critical Rules
+
 - **Pan behavior (live code):** Left-click on empty canvas = pan. Left-click on device = select. Middle-click anywhere = pan. Space+drag = pan. Pan tool = pan everywhere.
 - FOV polygons: LOCAL coordinates ONLY — never absolute canvas coordinates
 - Never call Fabric.js private `_calcDimensions()` — use `updateFovPolygon()`
@@ -194,6 +266,7 @@ The `__resetDori` handler then recalculates `target_distance` from missing/wrong
 ---
 
 ## Font Policy
+
 - UI text: `'Inter', 'Segoe UI', sans-serif`
 - Monospace/numbers: `'SF Mono', 'Cascadia Code', 'Consolas', monospace`
 - Canvas labels: `'sans-serif'` (system default)
@@ -201,17 +274,8 @@ The `__resetDori` handler then recalculates `target_distance` from missing/wrong
 
 ---
 
-## End of Session — Always Do This
-After every session update `/PANTERAY/PANTERAY_Master_Memory.md` in Dullnote:
-- Update **Active Work** with what was worked on
-- Move completed items to **Completed**
-- Add any new rejected approaches to **Rejected**
-- Update **Feature Status** table if anything changed
-- Log the last commit hash under **Last Action**
-
----
-
 ## Git
+
 - Lockfile: `pnpm-lock.yaml` only — never `package-lock.json`
 - CI: `--frozen-lockfile`
 - Push directly to main: `git push origin HEAD:main`
@@ -221,29 +285,11 @@ After every session update `/PANTERAY/PANTERAY_Master_Memory.md` in Dullnote:
 
 ---
 
-## Feature Status (updated 2026-03-27)
-| # | Feature | Status |
-|---|---|---|
-| F1 | Per-imager multi-sensor | ✅ Works |
-| F2 | Cable labels + dashed lines | 🔧 Partial — needs polyline routing |
-| F3 | Simulated view | ❌ Broken |
-| F4 | Blind spot diagram | ❌ Broken |
-| F5 | DORI 6-tier | ❌ Broken |
+## End of Session — Always Do This
 
----
-
-## 🔄 Active Work
-**Status:** CSV device library import (database cleared, import pipeline needed)
-**Last action:** ← update each session
-**Next step:** Build CSV import for device library
-
----
-
-## ✅ Completed — Do Not Redo
-- Zones removed from canvas
-- Supabase migrations — all applied
-
----
-
-## ❌ Rejected — Never Suggest Again
-<!-- Add approaches here as they are ruled out -->
+After every session update `/PANTERAY/PANTERAY_Master_Memory.md` in Dullnote:
+- Update **Active Work** with what was worked on
+- Move completed items to **Completed**
+- Add any new rejected approaches to **Rejected**
+- Update **Feature Status** table if anything changed
+- Log the last commit hash under **Last Action**
