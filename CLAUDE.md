@@ -89,6 +89,9 @@ Do not re-explain why it should work. Do not repeat a previous failed approach.
 - **No FK exists between `design_devices` and `device_library_items`.** Do not write queries that assume one.
 - **Do not ask Dexter questions that are answered in documents he has already provided.** Read thoroughly before asking anything.
 - **Scope creep is a push failure.** If it wasn't in the approved plan, it doesn't get committed.
+- **Gates are NEVER optional.** Every change — deleting a file, adding a line, pushing a commit — requires: show plan → get explicit "yes" → then act. "It's small" is not an excuse. "I just said I'd follow the gates" and then skipping them is the exact pattern that must stop. This has been repeated for days. Every skipped gate = a bad push = 7 minutes wasted waiting for Cloud Build to deploy = Dexter blocked and unable to move forward. Gate violations have a direct cost.
+- **One-off DB operations = raw SQL for Supabase SQL Editor.** Do not create throwaway API endpoints that require manual invocation. Dexter cannot and will not call them.
+- **Never ask Dexter to run anything.** No terminal commands, no browser console, no curl, no fetch snippets, no paste-and-execute. If it's a DB operation, provide SQL for Supabase Dashboard. If it's a build/test, run it yourself.
 
 ---
 

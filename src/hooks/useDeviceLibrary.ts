@@ -8,7 +8,7 @@ interface UseDeviceLibraryOptions {
 }
 
 export function useDeviceLibrary(opts?: UseDeviceLibraryOptions) {
-  const limit = opts?.initialLimit ?? 50
+  const limit = opts?.initialLimit ?? 200
   const [results, setResults] = useState<DeviceSearchResult[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

@@ -94,7 +94,7 @@ export function ReportGenerator({
 <head>
   <title>${designName} — Site Report</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+    /* Fonts: Inter for UI, SF Mono/Cascadia Code/Consolas for monospace */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Inter', 'Segoe UI', sans-serif; color: #1a1a2e; padding: 24px; font-size: 11px; }
     h1 { font-size: 20px; margin-bottom: 4px; }

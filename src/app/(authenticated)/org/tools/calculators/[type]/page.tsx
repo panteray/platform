@@ -61,7 +61,7 @@ function CalcInput({ label, value, onChange, placeholder, error, glowing }: {
           border: `1px solid ${error ? C.red : glow ? C.accent : C.border}`,
           background: C.bgInput,
           padding: '0 10px', fontSize: 13, color: C.text,
-          outline: 'none', fontFamily: "'IBM Plex Mono', monospace",
+          outline: 'none', fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
           boxShadow: glow ? `0 0 0 3px ${C.accent}30` : 'none',
           transition: 'border-color 0.3s, box-shadow 0.5s',
         }}
@@ -94,7 +94,7 @@ function SelectInput({ label, value, onChange, options }: {
         height: 36, width: '100%', borderRadius: 6,
         border: `1px solid ${C.border}`, background: C.bgInput,
         padding: '0 10px', fontSize: 13, color: C.text,
-        outline: 'none', fontFamily: "'IBM Plex Mono', monospace",
+        outline: 'none', fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
         appearance: 'none' as const,
       }} value={value} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -125,7 +125,7 @@ function ResultCard({ title, primary, data }: {
           padding: '12px 0', marginBottom: 12,
           borderBottom: `1px solid ${C.border}`,
         }}>
-          <span style={{ fontSize: 28, fontWeight: 700, color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+          <span style={{ fontSize: 28, fontWeight: 700, color: C.accent, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>
             {primary.value}
           </span>
           {primary.unit && <span style={{ fontSize: 13, color: C.textMuted }}>{primary.unit}</span>}
@@ -141,7 +141,7 @@ function ResultCard({ title, primary, data }: {
             padding: '8px 0', borderBottom: i < entries.length - 2 ? `1px solid ${C.border}` : 'none',
           }}>
             <span style={{ fontSize: 11, color: C.textMuted }}>{formatKey(k)}</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: C.text, fontFamily: "'IBM Plex Mono', monospace" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>
               {formatValue(v)}
             </span>
           </div>

@@ -441,7 +441,7 @@ function SortHeader({
   const isActive = currentSort === column
   return (
     <th
-      className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+      className="px-3 py-1.5 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
       onClick={() => onSort(column)}
     >
       <span className="inline-flex items-center gap-1">
@@ -531,8 +531,8 @@ function GroupSection({
         className="border-b border-border/50 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
         onClick={() => onToggleGroup(vendor)}
       >
-        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()} />
-        <td colSpan={6} className="px-4 py-2">
+        <td className="px-2 py-1" onClick={(e) => e.stopPropagation()} />
+        <td colSpan={6} className="px-3 py-1">
           <span className="inline-flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wide">
             {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             {vendor}
@@ -551,7 +551,7 @@ function GroupSection({
             selectedItem?.id === item.id ? 'bg-muted' : ''
           }`}
         >
-          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+          <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
             <input
               type="checkbox"
               checked={checked.has(item.id)}
@@ -559,17 +559,17 @@ function GroupSection({
               className="accent-current"
             />
           </td>
-          <td className="px-4 py-3 font-medium text-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.vendor}</td>
-          <td className="px-4 py-3 text-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.model}</td>
-          <td className="px-4 py-3 text-muted-foreground font-mono text-xs cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.partnumber ?? '-'}</td>
-          <td className="px-4 py-3 cursor-pointer" onClick={() => onLoadItem(item.id)}>
+          <td className="px-3 py-1.5 font-medium text-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.vendor}</td>
+          <td className="px-3 py-1.5 text-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.model}</td>
+          <td className="px-3 py-1.5 text-muted-foreground font-mono text-xs cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.partnumber ?? '-'}</td>
+          <td className="px-3 py-1.5 cursor-pointer" onClick={() => onLoadItem(item.id)}>
             <span className="inline-flex rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
               {item.category}
             </span>
           </td>
-          <td className="px-4 py-3 text-muted-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.form ?? '-'}</td>
-          <td className="px-4 py-3 text-muted-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.resolution ?? '-'}</td>
-          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+          <td className="px-3 py-1.5 text-muted-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.form ?? '-'}</td>
+          <td className="px-3 py-1.5 text-muted-foreground cursor-pointer" onClick={() => onLoadItem(item.id)}>{item.resolution ?? '-'}</td>
+          <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => onLoadItem(item.id)}
               className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -623,7 +623,7 @@ export default function DeviceLibraryPage() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
   const hasAccess = userRole && (DEVICE_LIBRARY_ROLES as readonly string[]).includes(userRole)
-  const pageSize = 50
+  const pageSize = 200
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
 
   // Fetch manufacturer list for dropdown — re-fetch when results change (after imports, deletes, etc.)
@@ -721,7 +721,7 @@ export default function DeviceLibraryPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -770,7 +770,7 @@ export default function DeviceLibraryPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <input
@@ -883,7 +883,7 @@ export default function DeviceLibraryPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="px-3 py-3 w-8">
+                  <th className="px-2 py-1.5 w-8">
                     <input
                       type="checkbox"
                       checked={checked.size === results.length && results.length > 0}
@@ -893,8 +893,8 @@ export default function DeviceLibraryPage() {
                   </th>
                   <SortHeader label="Manufacturer" column="vendor" currentSort={sort} currentDir={sortDir} onSort={handleSort} />
                   <SortHeader label="Model" column="model" currentSort={sort} currentDir={sortDir} onSort={handleSort} />
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Part #</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Category</th>
+                  <th className="px-3 py-1.5 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Part #</th>
+                  <th className="px-3 py-1.5 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Category</th>
                   <SortHeader label="Form" column="form" currentSort={sort} currentDir={sortDir} onSort={handleSort} />
                   <SortHeader label="Resolution" column="resolution" currentSort={sort} currentDir={sortDir} onSort={handleSort} />
                   <th className="px-3 py-3 w-8"></th>
@@ -921,7 +921,7 @@ export default function DeviceLibraryPage() {
 
       {/* Pagination */}
       {totalCount > pageSize && (
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center justify-between pt-1">
           <p className="text-xs text-muted-foreground">
             Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, totalCount)} of {totalCount}
           </p>

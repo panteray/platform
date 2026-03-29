@@ -1256,7 +1256,7 @@ export function CanvasArea({
             const dLabel = new fm.FabricText(`${distFt}ft`, {
               left: dh_x + Math.cos(rotRad) * 18, top: dh_y + Math.sin(rotRad) * 18,
               fontSize: 11, fontWeight: '600', fill: C.accent,
-              fontFamily: "'IBM Plex Mono', monospace",
+              fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
               originX: 'center', originY: 'center',
               selectable: false, evented: false,
             })
@@ -1301,7 +1301,7 @@ export function CanvasArea({
                 left: cx + Math.cos(rotRad) * outerR * 0.4,
                 top: cy + Math.sin(rotRad) * outerR * 0.4 - 12,
                 fontSize: 10, fontWeight: '600', fill: '#e53e3e',
-                fontFamily: "'IBM Plex Mono', monospace",
+                fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
                 originX: 'center', originY: 'center',
                 selectable: false, evented: false,
               })
@@ -1394,7 +1394,7 @@ export function CanvasArea({
           // Label below icon
           const lbl = new fm.FabricText(mdf.name || 'MDF', {
             left: 0, top: 20, fontSize: 10, fill: C.text,
-            fontFamily: "'IBM Plex Sans', sans-serif", originX: 'center', originY: 'top',
+            fontFamily: "'Inter', 'Segoe UI', sans-serif", originX: 'center', originY: 'top',
             fontWeight: '600',
           })
           const group = new fm.Group([ico, lbl], {
