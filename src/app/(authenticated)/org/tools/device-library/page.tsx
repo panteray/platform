@@ -83,53 +83,55 @@ function EditForm({
 }) {
   return (
     <div className="space-y-3">
-      {EDITABLE_FIELDS.map((f) => (
-        <div key={f.key} className="space-y-1">
-          <label className="text-[11px] text-zinc-500">{f.label}</label>
-          {f.type === 'checkbox' ? (
-            <div className="flex items-center gap-2">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+        {EDITABLE_FIELDS.map((f) => (
+          <div key={f.key} className="space-y-1">
+            <label className="text-[11px] text-muted-foreground">{f.label}</label>
+            {f.type === 'checkbox' ? (
+              <div className="flex items-center gap-2 h-8">
+                <input
+                  type="checkbox"
+                  checked={!!values[f.key]}
+                  onChange={(e) => onChange(f.key, e.target.checked)}
+                  className="accent-current"
+                />
+                <span className="text-xs text-muted-foreground">
+                  {values[f.key] ? 'Yes' : 'No'}
+                </span>
+              </div>
+            ) : f.type === 'select' && f.key === 'category' ? (
+              <select
+                value={String(values[f.key] ?? '')}
+                onChange={(e) => onChange(f.key, e.target.value)}
+                className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+              >
+                {DEVICE_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            ) : (
               <input
-                type="checkbox"
-                checked={!!values[f.key]}
-                onChange={(e) => onChange(f.key, e.target.checked)}
-                className="accent-white"
+                type={f.type}
+                value={String(values[f.key] ?? '')}
+                onChange={(e) => onChange(f.key, f.type === 'number' ? (e.target.value ? Number(e.target.value) : null) : e.target.value)}
+                className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
               />
-              <span className="text-xs text-zinc-400">
-                {values[f.key] ? 'Yes' : 'No'}
-              </span>
-            </div>
-          ) : f.type === 'select' && f.key === 'category' ? (
-            <select
-              value={String(values[f.key] ?? '')}
-              onChange={(e) => onChange(f.key, e.target.value)}
-              className="h-8 w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 text-sm text-zinc-200"
-            >
-              {DEVICE_CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type={f.type}
-              value={String(values[f.key] ?? '')}
-              onChange={(e) => onChange(f.key, f.type === 'number' ? (e.target.value ? Number(e.target.value) : null) : e.target.value)}
-              className="h-8 w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 text-sm text-zinc-200 placeholder:text-zinc-700 focus:border-zinc-600 focus:outline-none"
-            />
-          )}
-        </div>
-      ))}
+            )}
+          </div>
+        ))}
+      </div>
       <div className="flex gap-2 pt-2">
         <button
           onClick={onSave}
           disabled={saving}
-          className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Save className="h-3 w-3" />
           {saving ? 'Saving...' : 'Save'}
         </button>
         <button
           onClick={onCancel}
-          className="inline-flex items-center gap-1.5 rounded-md border border-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-zinc-900 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent transition-colors"
         >
           Cancel
         </button>
@@ -228,9 +230,9 @@ function SideDrawer({
   const isOrgOwned = !!item.org_id
 
   return (
-    <div className="w-[38%] flex-shrink-0 rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4 overflow-y-auto max-h-[75vh]">
+    <div className="w-[38%] flex-shrink-0 rounded-lg border border-border bg-background p-4 space-y-4 overflow-y-auto max-h-[80vh]">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-white">
+        <h2 className="text-base font-semibold text-foreground">
           {item.vendor} {item.model}
         </h2>
         <div className="flex items-center gap-1">
@@ -349,6 +351,7 @@ function BulkEditModal({
   onSaved: () => void
 }) {
   const [saving, setSaving] = useState(false)
+  const [touched, setTouched] = useState<Set<string>>(new Set())
   const [values, setValues] = useState<Record<string, unknown>>({
     vendor: '', model: '', partnumber: '', category: '', subcategory: '',
     form: '', resolution: '', ir: '', super_low_light: false,
@@ -357,11 +360,18 @@ function BulkEditModal({
     fps: '', poe_standard: '', wattage: '', ndaa_compliant: false,
   })
 
+  function handleChange(key: string, val: unknown) {
+    setValues((prev) => ({ ...prev, [key]: val }))
+    setTouched((prev) => new Set(prev).add(key))
+  }
+
   async function handleSave() {
+    if (touched.size === 0) { onClose(); return }
     setSaving(true)
     try {
       const body: Record<string, unknown> = {}
       for (const f of EDITABLE_FIELDS) {
+        if (!touched.has(f.key)) continue
         const val = values[f.key]
         if (f.type === 'checkbox') {
           body[f.key] = !!val
@@ -390,7 +400,7 @@ function BulkEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-950 p-6 space-y-4">
+      <div className="w-full max-w-2xl rounded-lg border border-zinc-800 bg-zinc-950 p-6 space-y-4 max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-white">
             Edit {count} Device{count > 1 ? 's' : ''}
@@ -399,9 +409,10 @@ function BulkEditModal({
             <X className="h-4 w-4" />
           </button>
         </div>
+        <p className="text-[11px] text-zinc-500">Only fields you change will be updated.</p>
         <EditForm
           values={values}
-          onChange={(key, val) => setValues((prev) => ({ ...prev, [key]: val }))}
+          onChange={handleChange}
           onSave={handleSave}
           onCancel={onClose}
           saving={saving}
