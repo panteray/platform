@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import {
   Search, X, ShieldCheck, ShieldAlert, ShieldQuestion,
-  Upload, Globe, Pencil, Save, Trash2,
+  Upload, Globe, Pencil, Save, Trash2, Sparkles,
 } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { useDeviceLibrary } from '@/hooks/useDeviceLibrary'
@@ -529,6 +529,13 @@ export default function DeviceLibraryPage() {
           >
             <Upload className="h-4 w-4" />
             Import Devices
+          </Link>
+          <Link
+            href="/org/tools/device-library/enrich"
+            className="inline-flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800 transition-colors"
+          >
+            <Sparkles className="h-4 w-4" />
+            Enrich Devices
           </Link>
         </div>
       </div>
