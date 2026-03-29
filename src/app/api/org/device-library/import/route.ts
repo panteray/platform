@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyDeviceLibraryAccess } from '@/lib/auth'
-import { parsePdfText, parseSpreadsheetRows } from '@/lib/device-import-parser'
+import { parseSpreadsheetRows } from '@/lib/device-import-parser'
 import type { ParsedImportRow } from '@/lib/device-import-parser'
 import * as XLSX from 'xlsx'
 
@@ -13,12 +13,6 @@ function getFileType(fileName: string): 'pdf' | 'xlsx' | 'csv' | null {
   if (ext === 'xlsx' || ext === 'xls') return 'xlsx'
   if (ext === 'csv') return 'csv'
   return null
-}
-
-async function parsePdf(buffer: Buffer, vendor: string | null): Promise<ParsedImportRow[]> {
-  const pdfParse = (await import('pdf-parse')).default
-  const result = await pdfParse(buffer)
-  return parsePdfText(result.text, vendor)
 }
 
 function parseExcel(buffer: Buffer, vendor: string | null): ParsedImportRow[] {
@@ -39,12 +33,10 @@ function parseExcel(buffer: Buffer, vendor: string | null): ParsedImportRow[] {
 }
 
 function parseCsv(buffer: Buffer, vendor: string | null): ParsedImportRow[] {
-  // Decode to string and strip UTF-8 BOM — Excel on Windows adds BOM to CSV exports,
-  // which XLSX.read({ type: 'buffer' }) reads as literal chars in the first header name
+  // Decode to string and strip UTF-8 BOM — Excel on Windows adds BOM to CSV exports
   const text = buffer.toString('utf-8').replace(/^\uFEFF/, '')
   const workbook = XLSX.read(text, { type: 'string' })
 
-  // CSV loads as single sheet
   const sheetName = workbook.SheetNames[0]
   if (!sheetName) return []
 
@@ -87,14 +79,19 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (fileType === 'pdf') {
+      return NextResponse.json(
+        { error: 'PDF import is not supported. Please use CSV or Excel format.' },
+        { status: 400 }
+      )
+    }
+
     // Parse file
     const buffer = Buffer.from(await file.arrayBuffer())
     let parsedRows: ParsedImportRow[]
 
     try {
-      if (fileType === 'pdf') {
-        parsedRows = await parsePdf(buffer, vendor)
-      } else if (fileType === 'xlsx') {
+      if (fileType === 'xlsx') {
         parsedRows = parseExcel(buffer, vendor)
       } else {
         parsedRows = parseCsv(buffer, vendor)
@@ -106,55 +103,39 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Create batch record
-    const { data: batch, error: batchErr } = await admin
-      .from('device_import_batches')
-      .insert({
-        org_id: orgId,
-        file_name: file.name,
-        file_type: fileType,
-        vendor: vendor,
-        status: 'parsed',
-        total_rows: parsedRows.length,
-        created_by: dbUser.id,
-      })
-      .select()
-      .single()
-
-    if (batchErr) {
-      return NextResponse.json({ error: batchErr.message }, { status: 400 })
+    if (parsedRows.length === 0) {
+      return NextResponse.json(
+        { error: 'No valid rows found in file. Ensure it has columns like partnumber, model, vendor, category.' },
+        { status: 400 }
+      )
     }
 
-    // Insert parsed rows
-    if (parsedRows.length > 0) {
-      const rowInserts = parsedRows.map((r) => ({
-        batch_id: batch.id,
-        raw_line: r.raw_line,
-        partnumber: r.partnumber,
-        vendor: r.vendor,
-        model: r.model,
-        category: r.category,
-        subcategory: r.subcategory,
-        resolution: r.resolution,
-        fps: r.fps,
-        poe_standard: r.poe_standard,
-        wattage: r.wattage,
-        ndaa_compliant: r.ndaa_compliant,
-        confidence: Math.round(r.confidence * 100),
-        status: 'pending',
-      }))
+    // Insert directly into device_library_items
+    const inserts = parsedRows.map((row) => ({
+      org_id: orgId,
+      vendor: row.vendor ?? vendor ?? 'Unknown',
+      model: row.model || row.partnumber,
+      partnumber: row.partnumber || null,
+      category: row.category ?? 'other',
+      subcategory: row.subcategory || null,
+      resolution: row.resolution || null,
+      fps: row.fps || null,
+      poe_standard: row.poe_standard || null,
+      wattage: row.wattage ?? null,
+      ndaa_compliant: row.ndaa_compliant ?? false,
+      specs: {},
+    }))
 
-      const { error: rowErr } = await admin
-        .from('device_import_rows')
-        .insert(rowInserts)
+    const { error: insertErr } = await admin
+      .from('device_library_items')
+      .insert(inserts)
 
-      if (rowErr) {
-        return NextResponse.json({ error: rowErr.message }, { status: 400 })
-      }
+    if (insertErr) {
+      return NextResponse.json({ error: insertErr.message }, { status: 400 })
     }
 
     return NextResponse.json(
-      { batchId: batch.id, fileType, totalRows: parsedRows.length },
+      { imported: inserts.length, fileName: file.name },
       { status: 201 }
     )
   } catch (err) {

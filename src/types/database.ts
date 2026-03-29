@@ -936,38 +936,6 @@ export interface DeviceLibraryContribution {
   created_at: string
 }
 
-export interface DeviceImportBatch {
-  id: string
-  org_id: string
-  vendor: string | null
-  file_name: string | null
-  file_type: string | null // pdf | xlsx | csv
-  status: string // import_batch_status enum
-  total_rows: number | null
-  approved_rows: number | null
-  created_by: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface DeviceImportRow {
-  id: string
-  batch_id: string // FK → device_import_batches
-  raw_line: string | null
-  partnumber: string | null
-  vendor: string | null
-  model: string | null
-  category: string | null // device_category enum
-  subcategory: string | null
-  resolution: string | null
-  fps: string | null
-  poe_standard: string | null
-  wattage: number | null
-  ndaa_compliant: boolean
-  confidence: number // 0–1
-  status: string // import_row_status enum
-  created_at: string
-}
 
 /** Shape returned by device library search API */
 export interface DeviceSearchResult {
