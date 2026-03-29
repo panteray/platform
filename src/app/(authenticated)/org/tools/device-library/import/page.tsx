@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import Link from 'next/link'
 import {
-  ArrowLeft, Upload, CheckCircle2, FileSpreadsheet, File,
+  ArrowLeft, Upload, CheckCircle2, FileSpreadsheet, File, Download,
 } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { DEVICE_LIBRARY_ROLES, IMPORT_ACCEPTED_EXTENSIONS } from '@/types/enums'
@@ -38,6 +38,17 @@ export default function DeviceImportPage() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const hasAccess = userRole && (DEVICE_LIBRARY_ROLES as readonly string[]).includes(userRole)
+
+  function downloadTemplate() {
+    const headers = 'vendor,model,partnumber,category,subcategory,resolution,fps,poe_standard,wattage,ndaa'
+    const blob = new Blob([headers + '\n'], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'device-library-template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   async function handleUpload() {
     if (!file) return
@@ -177,9 +188,16 @@ export default function DeviceImportPage() {
             )}
           </div>
 
-          <div className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3 text-xs text-zinc-500 space-y-1">
+          <div className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3 text-xs text-zinc-500 space-y-2">
             <p className="font-medium text-zinc-400">Supported formats:</p>
-            <p><strong className="text-zinc-300">Excel / CSV</strong> — Columns mapped automatically: part number, model, vendor, category, resolution, fps, poe, wattage, ndaa.</p>
+            <p><strong className="text-zinc-300">Excel / CSV</strong> — Columns mapped automatically: vendor, model, partnumber, category, subcategory, resolution, fps, poe_standard, wattage, ndaa.</p>
+            <button
+              onClick={downloadTemplate}
+              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-700 px-2.5 py-1.5 text-[11px] font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+            >
+              <Download className="h-3 w-3" />
+              Download CSV Template
+            </button>
           </div>
 
           <button

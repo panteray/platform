@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
       poe_standard: row.poe_standard || null,
       wattage: row.wattage ?? null,
       ndaa_compliant: row.ndaa_compliant ?? false,
-      specs: {},
+      specs: row.specs ?? {},
     }))
 
     const { error: insertErr } = await admin

@@ -71,6 +71,7 @@ export interface ParsedImportRow {
   wattage: number | null
   ndaa_compliant: boolean
   confidence: number
+  specs: Record<string, unknown>
 }
 
 export function parsePdfText(text: string, batchVendor: string | null): ParsedImportRow[] {
@@ -114,6 +115,7 @@ export function parsePdfText(text: string, batchVendor: string | null): ParsedIm
         wattage: wattMatch ? parseInt(wattMatch[0]) || null : null,
         ndaa_compliant: ndaaFlagged,
         confidence: Math.round(confidence * 100) / 100,
+        specs: {},
       })
     }
   }
@@ -166,12 +168,14 @@ export function parseSpreadsheetRows(
   dataRows: SpreadsheetRow[],
   batchVendor: string | null,
 ): ParsedImportRow[] {
-  // Build column index map
+  // Build column index map + track which headers are mapped
   const colMap: Record<string, number> = {}
+  const mappedIndices = new Set<number>()
   for (let i = 0; i < headers.length; i++) {
     const field = matchHeader(headers[i])
     if (field && !(field in colMap)) {
       colMap[field] = i
+      mappedIndices.add(i)
     }
   }
 
@@ -196,6 +200,18 @@ export function parseSpreadsheetRows(
     const wattage = colMap.wattage != null ? parseNumberish(vals[colMap.wattage]) : null
     const ndaa = colMap.ndaa_compliant != null ? parseBoolish(vals[colMap.ndaa_compliant]) : false
 
+    // Collect unmapped columns into specs so no data is lost
+    const specs: Record<string, unknown> = {}
+    for (let i = 0; i < headers.length; i++) {
+      if (mappedIndices.has(i)) continue
+      const val = vals[i]
+      const strVal = String(val ?? '').trim()
+      if (!strVal) continue
+      // Normalize header to snake_case key
+      const key = headers[i].toLowerCase().trim().replace(/\s+/g, '_')
+      specs[key] = strVal
+    }
+
     // Structured data gets higher base confidence
     let confidence = 0.7
     if (partnumber) confidence += 0.1
@@ -217,6 +233,7 @@ export function parseSpreadsheetRows(
       wattage,
       ndaa_compliant: ndaa,
       confidence: Math.round(confidence * 100) / 100,
+      specs,
     })
   }
 
