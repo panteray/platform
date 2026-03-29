@@ -1,15 +1,28 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import {
   Search, X, ShieldCheck, ShieldAlert, ShieldQuestion,
-  Upload, ChevronRight, Globe,
+  Upload, Globe, Pencil, Save, Trash2,
 } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { useDeviceLibrary } from '@/hooks/useDeviceLibrary'
 import { DEVICE_CATEGORIES, DEVICE_LIBRARY_ROLES } from '@/types/enums'
 import type { DeviceLibraryItem } from '@/types/database'
+
+const EDITABLE_FIELDS = [
+  { key: 'vendor', label: 'Vendor', type: 'text' },
+  { key: 'model', label: 'Model', type: 'text' },
+  { key: 'partnumber', label: 'Part Number', type: 'text' },
+  { key: 'category', label: 'Category', type: 'select' },
+  { key: 'subcategory', label: 'Subcategory', type: 'text' },
+  { key: 'resolution', label: 'Resolution', type: 'text' },
+  { key: 'fps', label: 'FPS', type: 'text' },
+  { key: 'poe_standard', label: 'PoE Standard', type: 'text' },
+  { key: 'wattage', label: 'Wattage (W)', type: 'number' },
+  { key: 'ndaa_compliant', label: 'NDAA Compliant', type: 'checkbox' },
+] as const
 
 function NdaaBadge({ value }: { value: boolean | null }) {
   if (value === true) {
@@ -42,14 +55,155 @@ function SpecRow({ label, value }: { label: string; value: string | number | nul
   )
 }
 
+// ---- Edit Form (shared by drawer + bulk edit) ----
+
+function EditForm({
+  values,
+  onChange,
+  onSave,
+  onCancel,
+  saving,
+}: {
+  values: Record<string, unknown>
+  onChange: (key: string, val: unknown) => void
+  onSave: () => void
+  onCancel: () => void
+  saving: boolean
+}) {
+  return (
+    <div className="space-y-3">
+      {EDITABLE_FIELDS.map((f) => (
+        <div key={f.key} className="space-y-1">
+          <label className="text-[11px] text-zinc-500">{f.label}</label>
+          {f.type === 'checkbox' ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={!!values[f.key]}
+                onChange={(e) => onChange(f.key, e.target.checked)}
+                className="accent-white"
+              />
+              <span className="text-xs text-zinc-400">
+                {values[f.key] ? 'Yes' : 'No'}
+              </span>
+            </div>
+          ) : f.type === 'select' && f.key === 'category' ? (
+            <select
+              value={String(values[f.key] ?? '')}
+              onChange={(e) => onChange(f.key, e.target.value)}
+              className="h-8 w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 text-sm text-zinc-200"
+            >
+              {DEVICE_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type={f.type}
+              value={String(values[f.key] ?? '')}
+              onChange={(e) => onChange(f.key, f.type === 'number' ? (e.target.value ? Number(e.target.value) : null) : e.target.value)}
+              className="h-8 w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 text-sm text-zinc-200 placeholder:text-zinc-700 focus:border-zinc-600 focus:outline-none"
+            />
+          )}
+        </div>
+      ))}
+      <div className="flex gap-2 pt-2">
+        <button
+          onClick={onSave}
+          disabled={saving}
+          className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <Save className="h-3 w-3" />
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+        <button
+          onClick={onCancel}
+          className="inline-flex items-center gap-1.5 rounded-md border border-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-zinc-900 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---- Side Drawer ----
+
 function SideDrawer({
   item,
   onClose,
+  onSaved,
+  onDeleted,
 }: {
   item: DeviceLibraryItem
   onClose: () => void
+  onSaved: () => void
+  onDeleted: () => void
 }) {
   const specs = (item.specs ?? {}) as Record<string, unknown>
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [editValues, setEditValues] = useState<Record<string, unknown>>({})
+
+  function startEdit() {
+    setEditValues({
+      vendor: item.vendor,
+      model: item.model,
+      partnumber: item.partnumber ?? '',
+      category: item.category,
+      subcategory: item.subcategory ?? '',
+      resolution: item.resolution ?? '',
+      fps: item.fps ?? '',
+      poe_standard: item.poe_standard ?? '',
+      wattage: item.wattage ?? '',
+      ndaa_compliant: item.ndaa_compliant,
+    })
+    setEditing(true)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const body: Record<string, unknown> = {}
+      for (const f of EDITABLE_FIELDS) {
+        const val = editValues[f.key]
+        if (f.type === 'number') {
+          body[f.key] = val != null && val !== '' ? Number(val) : null
+        } else if (f.type === 'checkbox') {
+          body[f.key] = !!val
+        } else {
+          body[f.key] = val || null
+        }
+      }
+
+      const res = await fetch(`/api/org/device-library/items/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      if (res.ok) {
+        setEditing(false)
+        onSaved()
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Delete ${item.vendor} ${item.model}?`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/org/device-library/items/${item.id}`, { method: 'DELETE' })
+      if (res.ok) onDeleted()
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const isOrgOwned = !!item.org_id
 
   return (
     <div className="w-[38%] flex-shrink-0 rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4 overflow-y-auto max-h-[75vh]">
@@ -57,12 +211,33 @@ function SideDrawer({
         <h2 className="text-base font-semibold text-white">
           {item.vendor} {item.model}
         </h2>
-        <button
-          onClick={onClose}
-          className="text-zinc-500 hover:text-zinc-300 transition-colors"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {isOrgOwned && !editing && (
+            <>
+              <button
+                onClick={startEdit}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300 transition-colors"
+                title="Edit"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-900 hover:text-red-400 transition-colors disabled:opacity-50"
+                title="Delete"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+          <button
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Source badge */}
@@ -81,45 +256,129 @@ function SideDrawer({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <SpecRow label="Category" value={item.category} />
-        <SpecRow label="Subcategory" value={item.subcategory} />
-        <SpecRow label="Part Number" value={item.partnumber} />
-        <div>
-          <p className="text-[11px] text-zinc-500">NDAA</p>
-          <NdaaBadge value={item.ndaa_compliant} />
-        </div>
-        <SpecRow label="Resolution" value={item.resolution} />
-        <SpecRow label="FPS" value={item.fps} />
-        <SpecRow label="PoE Standard" value={item.poe_standard} />
-        <SpecRow label="Wattage" value={item.wattage != null ? `${item.wattage}W` : null} />
-      </div>
-
-      {/* Extended specs from JSONB */}
-      {Object.keys(specs).length > 0 && (
+      {editing ? (
+        <EditForm
+          values={editValues}
+          onChange={(key, val) => setEditValues((prev) => ({ ...prev, [key]: val }))}
+          onSave={handleSave}
+          onCancel={() => setEditing(false)}
+          saving={saving}
+        />
+      ) : (
         <>
-          <div className="border-t border-zinc-800 pt-3">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-600 mb-2">
-              Extended Specs
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {Object.entries(specs).map(([key, val]) => (
-                <SpecRow
-                  key={key}
-                  label={key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
-                  value={val != null ? String(val) : null}
-                />
-              ))}
+          <div className="grid grid-cols-2 gap-3">
+            <SpecRow label="Category" value={item.category} />
+            <SpecRow label="Subcategory" value={item.subcategory} />
+            <SpecRow label="Part Number" value={item.partnumber} />
+            <div>
+              <p className="text-[11px] text-zinc-500">NDAA</p>
+              <NdaaBadge value={item.ndaa_compliant} />
             </div>
+            <SpecRow label="Resolution" value={item.resolution} />
+            <SpecRow label="FPS" value={item.fps} />
+            <SpecRow label="PoE Standard" value={item.poe_standard} />
+            <SpecRow label="Wattage" value={item.wattage != null ? `${item.wattage}W` : null} />
           </div>
+
+          {/* Extended specs from JSONB */}
+          {Object.keys(specs).length > 0 && (
+            <div className="border-t border-zinc-800 pt-3">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-600 mb-2">
+                Extended Specs
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {Object.entries(specs).map(([key, val]) => (
+                  <SpecRow
+                    key={key}
+                    label={key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                    value={val != null ? String(val) : null}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
   )
 }
 
+// ---- Bulk Edit Modal ----
+
+function BulkEditModal({
+  count,
+  ids,
+  onClose,
+  onSaved,
+}: {
+  count: number
+  ids: string[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [values, setValues] = useState<Record<string, unknown>>({
+    vendor: '', model: '', partnumber: '', category: '', subcategory: '',
+    resolution: '', fps: '', poe_standard: '', wattage: '', ndaa_compliant: false,
+  })
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const body: Record<string, unknown> = {}
+      for (const f of EDITABLE_FIELDS) {
+        const val = values[f.key]
+        if (f.type === 'checkbox') {
+          body[f.key] = !!val
+        } else if (f.type === 'number') {
+          body[f.key] = val != null && val !== '' ? Number(val) : null
+        } else {
+          body[f.key] = val ? String(val).trim() : null
+        }
+      }
+
+      await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/org/device-library/items/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+        )
+      )
+
+      onSaved()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-950 p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-white">
+            Edit {count} Device{count > 1 ? 's' : ''}
+          </h2>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <EditForm
+          values={values}
+          onChange={(key, val) => setValues((prev) => ({ ...prev, [key]: val }))}
+          onSave={handleSave}
+          onCancel={onClose}
+          saving={saving}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ---- Main Page ----
+
 export default function DeviceLibraryPage() {
-  const router = useRouter()
   const { userRole, loading: userLoading } = useUser()
   const {
     results,
@@ -134,10 +393,53 @@ export default function DeviceLibraryPage() {
     selectedItem,
     loadFullItem,
     clearSelection,
+    refresh,
   } = useDeviceLibrary()
 
-  // Role check
+  const [checked, setChecked] = useState<Set<string>>(new Set())
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+
   const hasAccess = userRole && (DEVICE_LIBRARY_ROLES as readonly string[]).includes(userRole)
+
+  function toggleCheck(id: string) {
+    setChecked((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    if (checked.size === results.length) {
+      setChecked(new Set())
+    } else {
+      setChecked(new Set(results.map((r) => r.id)))
+    }
+  }
+
+  const handleSaved = useCallback(() => {
+    refresh()
+    if (selectedItem) loadFullItem(selectedItem.id)
+  }, [refresh, selectedItem, loadFullItem])
+
+  const handleBulkSaved = useCallback(() => {
+    setBulkEditOpen(false)
+    setChecked(new Set())
+    refresh()
+  }, [refresh])
+
+  async function handleBulkDelete() {
+    if (!confirm(`Delete ${checked.size} device${checked.size > 1 ? 's' : ''}?`)) return
+    await Promise.all(
+      Array.from(checked).map((id) =>
+        fetch(`/api/org/device-library/items/${id}`, { method: 'DELETE' })
+      )
+    )
+    setChecked(new Set())
+    clearSelection()
+    refresh()
+  }
 
   if (userLoading) {
     return (
@@ -167,13 +469,33 @@ export default function DeviceLibraryPage() {
             Browse hardware specifications across all device categories
           </p>
         </div>
-        <Link
-          href="/org/tools/device-library/import"
-          className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 transition-colors"
-        >
-          <Upload className="h-4 w-4" />
-          Import Devices
-        </Link>
+        <div className="flex items-center gap-2">
+          {checked.size > 0 && (
+            <>
+              <button
+                onClick={() => setBulkEditOpen(true)}
+                className="inline-flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800 transition-colors"
+              >
+                <Pencil className="h-4 w-4" />
+                Edit Selected ({checked.size})
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="inline-flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Selected ({checked.size})
+              </button>
+            </>
+          )}
+          <Link
+            href="/org/tools/device-library/import"
+            className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 transition-colors"
+          >
+            <Upload className="h-4 w-4" />
+            Import Devices
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -254,38 +576,59 @@ export default function DeviceLibraryPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-800 bg-zinc-900/50">
+                  <th className="px-3 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      checked={checked.size === results.length && results.length > 0}
+                      onChange={toggleAll}
+                      className="accent-white"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Vendor</th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Model</th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Part #</th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Category</th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Subcategory</th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">NDAA</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Source</th>
+                  <th className="px-3 py-3 w-8"></th>
                 </tr>
               </thead>
               <tbody>
                 {results.map((item) => (
                   <tr
                     key={item.id}
-                    onClick={() => loadFullItem(item.id)}
-                    className={`border-b border-zinc-800/50 last:border-0 hover:bg-zinc-900/50 cursor-pointer transition-colors ${
+                    className={`border-b border-zinc-800/50 last:border-0 hover:bg-zinc-900/50 transition-colors ${
                       selectedItem?.id === item.id ? 'bg-zinc-900' : ''
                     }`}
                   >
-                    <td className="px-4 py-3 font-medium text-zinc-200">{item.vendor}</td>
-                    <td className="px-4 py-3 text-zinc-300">{item.model}</td>
-                    <td className="px-4 py-3 text-zinc-500 font-mono text-xs">{item.partnumber ?? '-'}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={checked.has(item.id)}
+                        onChange={() => toggleCheck(item.id)}
+                        className="accent-white"
+                      />
+                    </td>
+                    <td className="px-4 py-3 font-medium text-zinc-200 cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.vendor}</td>
+                    <td className="px-4 py-3 text-zinc-300 cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.model}</td>
+                    <td className="px-4 py-3 text-zinc-500 font-mono text-xs cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.partnumber ?? '-'}</td>
+                    <td className="px-4 py-3 cursor-pointer" onClick={() => loadFullItem(item.id)}>
                       <span className="inline-flex rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400 uppercase">
                         {item.category}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-zinc-500">{item.subcategory ?? '-'}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-zinc-500 cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.subcategory ?? '-'}</td>
+                    <td className="px-4 py-3 cursor-pointer" onClick={() => loadFullItem(item.id)}>
                       <NdaaBadge value={item.ndaa_compliant} />
                     </td>
-                    <td className="px-4 py-3 text-zinc-600 text-xs">
-                      {item.manufacturer_id ? 'Linked' : '-'}
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => loadFullItem(item.id)}
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -296,9 +639,19 @@ export default function DeviceLibraryPage() {
 
         {/* Side drawer */}
         {selectedItem && (
-          <SideDrawer item={selectedItem} onClose={clearSelection} />
+          <SideDrawer item={selectedItem} onClose={clearSelection} onSaved={handleSaved} onDeleted={() => { clearSelection(); refresh() }} />
         )}
       </div>
+
+      {/* Bulk edit modal */}
+      {bulkEditOpen && (
+        <BulkEditModal
+          count={checked.size}
+          ids={Array.from(checked)}
+          onClose={() => setBulkEditOpen(false)}
+          onSaved={handleBulkSaved}
+        />
+      )}
     </div>
   )
 }

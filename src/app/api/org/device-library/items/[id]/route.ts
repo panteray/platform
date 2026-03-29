@@ -96,3 +96,42 @@ export async function PATCH(
 
   return NextResponse.json({ item: data })
 }
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const dbUser = await verifyDeviceLibraryAccess()
+  if (!dbUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { id } = await params
+  const orgId = dbUser.org_id
+  const admin = createAdminClient()
+
+  const { data: existing } = await admin
+    .from('device_library_items')
+    .select('id, org_id')
+    .eq('id', id)
+    .single()
+
+  if (!existing) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  if (existing.org_id !== orgId) {
+    return NextResponse.json({ error: 'Cannot delete global or other org items' }, { status: 403 })
+  }
+
+  const { error: delErr } = await admin
+    .from('device_library_items')
+    .delete()
+    .eq('id', id)
+
+  if (delErr) {
+    return NextResponse.json({ error: delErr.message }, { status: 400 })
+  }
+
+  return NextResponse.json({ deleted: true })
+}
