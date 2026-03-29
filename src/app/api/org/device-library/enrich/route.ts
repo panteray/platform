@@ -5,8 +5,12 @@ import { verifyDeviceLibraryAccess } from '@/lib/auth'
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 
 const TARGET_FIELDS = [
-  'super_low_light', 'focal_length', 'focal_type', 'aov', 'codecs', 'environment', 'ir',
+  'form', 'resolution', 'fps', 'poe_standard', 'wattage', 'ndaa_compliant',
+  'ir', 'super_low_light', 'focal_length', 'focal_type', 'aov',
+  'imager_count', 'multi_imager_type', 'codecs', 'fisheye_view', 'environment',
 ]
+
+const SELECT_COLS = 'id, vendor, model, form, resolution, fps, poe_standard, wattage, ndaa_compliant, ir, super_low_light, focal_length, focal_type, aov, imager_count, multi_imager_type, codecs, fisheye_view, environment'
 
 function isMissing(val: unknown): boolean {
   if (val == null) return true
@@ -23,15 +27,25 @@ export async function GET(_req: NextRequest) {
   const orgId = dbUser.org_id
   const admin = createAdminClient()
 
-  // Get all org devices
-  const { data, error } = await admin
-    .from('device_library_items')
-    .select('id, vendor, model, form, resolution, ir, super_low_light, focal_length, focal_type, aov, codecs, environment')
-    .eq('org_id', orgId)
-    .order('vendor', { ascending: true })
+  // Get all devices (org + global) — paginate past Supabase 1000 row limit
+  const allData: Record<string, unknown>[] = []
+  let offset = 0
+  const batchSize = 1000
+  while (true) {
+    const { data, error } = await admin
+      .from('device_library_items')
+      .select(SELECT_COLS)
+      .or(`org_id.is.null,org_id.eq.${orgId}`)
+      .order('vendor', { ascending: true })
+      .range(offset, offset + batchSize - 1)
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+    if (!data || data.length === 0) break
+    allData.push(...data)
+    if (data.length < batchSize) break
+    offset += batchSize
   }
 
   // Group by manufacturer, identify which need enrichment
@@ -41,17 +55,17 @@ export async function GET(_req: NextRequest) {
     devices: { id: string; model: string; missing: string[] }[]
   }> = {}
 
-  for (const item of data ?? []) {
-    const mfr = item.vendor || 'Unknown'
+  for (const item of allData) {
+    const mfr = (item.vendor as string) || 'Unknown'
     if (!grouped[mfr]) {
       grouped[mfr] = { total: 0, needs_enrichment: 0, devices: [] }
     }
     grouped[mfr].total++
 
-    const missing = TARGET_FIELDS.filter((f) => isMissing(item[f as keyof typeof item]))
+    const missing = TARGET_FIELDS.filter((f) => isMissing(item[f]))
     if (missing.length > 0) {
       grouped[mfr].needs_enrichment++
-      grouped[mfr].devices.push({ id: item.id, model: item.model, missing })
+      grouped[mfr].devices.push({ id: item.id as string, model: item.model as string, missing })
     }
   }
 
@@ -82,12 +96,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'device_ids required' }, { status: 400 })
   }
 
-  // Fetch devices
+  // Fetch devices (org + global)
   const { data: devices, error: fetchErr } = await admin
     .from('device_library_items')
-    .select('id, vendor, model, form, resolution, ir, super_low_light, focal_length, focal_type, aov, codecs, environment')
+    .select(SELECT_COLS)
     .in('id', body.device_ids)
-    .eq('org_id', orgId)
+    .or(`org_id.is.null,org_id.eq.${orgId}`)
 
   if (fetchErr) {
     return NextResponse.json({ error: fetchErr.message }, { status: 400 })
@@ -106,9 +120,10 @@ export async function POST(req: NextRequest) {
       manufacturer: d.vendor,
       form_factor: d.form,
       resolution: d.resolution,
-      ir: d.ir,
       existing_fl: d.focal_length,
       existing_codecs: d.codecs,
+      existing_ir: d.ir,
+      existing_fps: d.fps,
       missing,
     }
   })
@@ -129,16 +144,25 @@ export async function POST(req: NextRequest) {
         content: `Security camera specifications expert. Fill missing specs using training knowledge of these exact models.
 
 Return ONLY valid JSON array, no markdown.
-Format: [{"model":"EXACT_MODEL","environment":"...","focal_length":"...","focal_type":"...","aov":"...","super_low_light":"...","codecs":"...","ir":"..."}]
+Format: [{"model":"EXACT_MODEL","form":"...","resolution":"...","fps":"...","poe_standard":"...","wattage":"...","ndaa_compliant":"...","ir":"...","super_low_light":"...","focal_length":"...","focal_type":"...","aov":"...","imager_count":"...","multi_imager_type":"...","codecs":"...","fisheye_view":"...","environment":"..."}]
 
 Rules:
-- environment: "Indoor"|"Outdoor"|"Both" (Bullet form_factor → always Outdoor; -E suffix → Outdoor; -I suffix → Indoor)
+- form: "Dome"|"Bullet"|"Turret"|"PTZ"|"Box"|"Fisheye"|"Multi-Sensor"|"Cube"|"Covert"
+- resolution: pixel dimensions "1920x1080" or megapixel "2MP", "4MP", "8MP"
+- fps: max framerate as string "30" or "60"
+- poe_standard: "PoE"|"PoE+"|"PoE++"|"12VDC"|"24VAC"
+- wattage: max power in watts as number string "12.5"
+- ndaa_compliant: "Yes"|"No"
+- environment: "Indoor"|"Outdoor"|"Both" (Bullet → always Outdoor; -E suffix → Outdoor; -I suffix → Indoor)
 - focal_length: "2.8mm" fixed or "2.8mm - 12mm" varifocal range
 - focal_type: "Fixed"|"Varifocal"
 - aov: horizontal field of view "97°" or "30° - 91°" range
 - super_low_light: "Yes" if starlight/extreme-low-light capable, else "No"
 - codecs: "H.264, H.265, MJPEG" (H.265 on cameras manufactured ~2016+)
-- ir: "30m" or "No"
+- ir: IR distance "30m" or "No"
+- imager_count: number of sensors "1", "2", "4"
+- multi_imager_type: "Single"|"Dual"|"Quad"|"Panoramic" (only if imager_count > 1)
+- fisheye_view: dewarped FOV degrees or omit
 
 Only include fields in each camera's "missing" array. Omit fields you're not confident about.
 
@@ -175,7 +199,6 @@ ${JSON.stringify(payload)}`,
   for (const result of results) {
     if (!result?.model) continue
 
-    // Find matching device
     const device = devices.find(
       (d) => d.model === result.model || d.model.toUpperCase() === result.model.toUpperCase()
     )
@@ -183,27 +206,22 @@ ${JSON.stringify(payload)}`,
 
     const updates: Record<string, unknown> = {}
 
-    if (result.environment && isMissing(device.environment)) {
-      updates.environment = result.environment
-    }
-    if (result.focal_length && isMissing(device.focal_length)) {
-      updates.focal_length = result.focal_length
-    }
-    if (result.focal_type && isMissing(device.focal_type)) {
-      updates.focal_type = result.focal_type
-    }
-    if (result.aov && isMissing(device.aov)) {
-      updates.aov = result.aov
-    }
-    if (result.super_low_light && isMissing(device.super_low_light)) {
-      updates.super_low_light = result.super_low_light.toLowerCase() === 'yes'
-    }
-    if (result.codecs && isMissing(device.codecs)) {
-      updates.codecs = result.codecs
-    }
-    if (result.ir && isMissing(device.ir)) {
-      updates.ir = result.ir
-    }
+    if (result.form && isMissing(device.form)) updates.form = result.form
+    if (result.resolution && isMissing(device.resolution)) updates.resolution = result.resolution
+    if (result.fps && isMissing(device.fps)) updates.fps = result.fps
+    if (result.poe_standard && isMissing(device.poe_standard)) updates.poe_standard = result.poe_standard
+    if (result.wattage && isMissing(device.wattage)) updates.wattage = parseFloat(result.wattage) || null
+    if (result.ndaa_compliant && isMissing(device.ndaa_compliant)) updates.ndaa_compliant = result.ndaa_compliant.toLowerCase() === 'yes'
+    if (result.environment && isMissing(device.environment)) updates.environment = result.environment
+    if (result.focal_length && isMissing(device.focal_length)) updates.focal_length = result.focal_length
+    if (result.focal_type && isMissing(device.focal_type)) updates.focal_type = result.focal_type
+    if (result.aov && isMissing(device.aov)) updates.aov = result.aov
+    if (result.super_low_light && isMissing(device.super_low_light)) updates.super_low_light = result.super_low_light.toLowerCase() === 'yes'
+    if (result.codecs && isMissing(device.codecs)) updates.codecs = result.codecs
+    if (result.ir && isMissing(device.ir)) updates.ir = result.ir
+    if (result.imager_count && isMissing(device.imager_count)) updates.imager_count = parseInt(result.imager_count, 10) || null
+    if (result.multi_imager_type && isMissing(device.multi_imager_type)) updates.multi_imager_type = result.multi_imager_type
+    if (result.fisheye_view && isMissing(device.fisheye_view)) updates.fisheye_view = result.fisheye_view
 
     if (Object.keys(updates).length > 0) {
       updates.updated_at = new Date().toISOString()

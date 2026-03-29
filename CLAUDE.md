@@ -92,6 +92,9 @@ Do not re-explain why it should work. Do not repeat a previous failed approach.
 - **Gates are NEVER optional.** Every change — deleting a file, adding a line, pushing a commit — requires: show plan → get explicit "yes" → then act. "It's small" is not an excuse. "I just said I'd follow the gates" and then skipping them is the exact pattern that must stop. This has been repeated for days. Every skipped gate = a bad push = 7 minutes wasted waiting for Cloud Build to deploy = Dexter blocked and unable to move forward. Gate violations have a direct cost.
 - **One-off DB operations = raw SQL for Supabase SQL Editor.** Do not create throwaway API endpoints that require manual invocation. Dexter cannot and will not call them.
 - **Never ask Dexter to run anything.** No terminal commands, no browser console, no curl, no fetch snippets, no paste-and-execute. If it's a DB operation, provide SQL for Supabase Dashboard. If it's a build/test, run it yourself.
+- **Do not ask Dexter questions that are answered by looking at the code or the browser.** If the answer is in the codebase or visible on screen, investigate it yourself. Do not ask clarifying questions when the information is right in front of you.
+- **When Dexter says something doesn't work, investigate the actual code path — do not claim it works.** Trace the data flow. Read the code. Look at the browser. The bug is there.
+- **Do not present plans that contradict what Dexter just told you.** If Dexter says "specs are not carrying over," the plan must address WHY specs are not carrying over — not restate that the wiring exists.
 
 ---
 

@@ -7,7 +7,7 @@ import { DESIGN_ACCESS_ROLES } from '@/types/enums'
 import { DesignCanvas } from '@/components/design-canvas/design-canvas'
 import { DesignDashboard } from '@/components/design-canvas/design-dashboard'
 
-type DesignTab = 'dashboard' | 'canvas'
+type DesignTab = 'dashboard' | 'canvas' | 'add-devices'
 
 const TAB_STYLE_BASE: React.CSSProperties = {
   padding: '6px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
@@ -22,9 +22,9 @@ export default function DesignDetailPage() {
 
   const hasAccess = userRole && (DESIGN_ACCESS_ROLES as readonly string[]).includes(userRole)
 
-  // When canvas is active, prevent body scroll
+  // When canvas or add-devices is active, prevent body scroll
   useEffect(() => {
-    if (activeTab === 'canvas') {
+    if (activeTab === 'canvas' || activeTab === 'add-devices') {
       document.body.style.overflow = 'hidden'
     }
     return () => { document.body.style.overflow = '' }
@@ -47,14 +47,18 @@ export default function DesignDetailPage() {
   }
 
   // Canvas tab: full-viewport overlay — covers sidebar, topbar, everything
-  if (activeTab === 'canvas') {
+  if (activeTab === 'canvas' || activeTab === 'add-devices') {
     return (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 50,
         background: 'var(--canvas-bg)',
         display: 'flex', flexDirection: 'column',
       }}>
-        <DesignCanvas designId={id} onNavigateDashboard={() => setActiveTab('dashboard')} />
+        <DesignCanvas
+          designId={id}
+          onNavigateDashboard={() => setActiveTab('dashboard')}
+          initialShowCatalog={activeTab === 'add-devices'}
+        />
       </div>
     )
   }
@@ -88,6 +92,17 @@ export default function DesignDetailPage() {
           }}
         >
           Canvas
+        </button>
+        <button
+          onClick={() => setActiveTab('add-devices')}
+          style={{
+            ...TAB_STYLE_BASE,
+            background: 'transparent',
+            color: 'var(--canvas-text-dim)',
+            borderBottom: '2px solid transparent',
+          }}
+        >
+          Add Devices
         </button>
       </div>
 

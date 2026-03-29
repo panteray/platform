@@ -43,7 +43,7 @@ import { SimulatedView } from './simulated-view'
 import type { DesignDevice, DeviceSearchResult } from '@/types/database'
 
 /* ─── Props ─── */
-interface Props { designId: string; onNavigateDashboard?: () => void }
+interface Props { designId: string; onNavigateDashboard?: () => void; initialShowCatalog?: boolean }
 
 /* ─── Icon mapping for sidebar ─── */
 const SIDEBAR_ICONS: Record<IconTabId, React.ReactNode> = {
@@ -88,7 +88,7 @@ const PAGE_TABS = [
 ] as const
 
 /* ─── Component ─── */
-export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
+export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog }: Props) {
   const router = useRouter()
   const state = useDesignCanvas(designId)
   const {
@@ -108,7 +108,7 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
   const [showGrid, setShowGrid] = useState(true)
   const [showFov, setShowFov] = useState(true)
   const [showLeftPanel, setShowLeftPanel] = useState(true)
-  const [showCatalog, setShowCatalog] = useState(false)
+  const [showCatalog, setShowCatalog] = useState(initialShowCatalog ?? false)
   const [fovMode, setFovMode] = useState<'simple' | 'ppf' | 'dori'>('simple')
   const [floorPlanOpacity, setFloorPlanOpacity] = useState(0.6)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
@@ -455,6 +455,27 @@ export function DesignCanvas({ designId, onNavigateDashboard }: Props) {
     if (item.fps) {
       const fpsNum = parseInt(item.fps, 10)
       if (fpsNum) catalogSpecs.fps = fpsNum
+    }
+    // Carry over remaining device library fields
+    if (item.focal_length) catalogSpecs.focal_length = parseFloat(item.focal_length)
+    if (item.focal_type) catalogSpecs.focal_type = item.focal_type
+    if (item.aov) catalogSpecs.aov = item.aov
+    if (item.form) catalogSpecs.form = item.form
+    if (item.ir) catalogSpecs.ir = item.ir
+    if (item.imager_count) catalogSpecs.imager_count = item.imager_count
+    if (item.multi_imager_type) catalogSpecs.multi_imager_type = item.multi_imager_type
+    if (item.environment) catalogSpecs.environment = item.environment
+    if (item.codecs) catalogSpecs.codecs = item.codecs
+    if (item.super_low_light != null) catalogSpecs.super_low_light = item.super_low_light
+    // Normalize JSONB spec keys (e.g. Hanwha Vision) to canvas-expected keys
+    if (catalogSpecs.focal_length_mm && !catalogSpecs.focal_length) {
+      catalogSpecs.focal_length = parseFloat(String(catalogSpecs.focal_length_mm))
+    }
+    if (catalogSpecs.max_resolution_h && !catalogSpecs.resolution_w) {
+      catalogSpecs.resolution_w = Number(catalogSpecs.max_resolution_h)
+    }
+    if (catalogSpecs.max_resolution_v && !catalogSpecs.resolution_h) {
+      catalogSpecs.resolution_h = Number(catalogSpecs.max_resolution_v)
     }
 
     const dev = await addDevice({
