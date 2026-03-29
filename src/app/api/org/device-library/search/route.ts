@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   let query = admin
     .from('device_library_items')
-    .select('id, category, subcategory, vendor, model, partnumber, resolution, fps, poe_standard, wattage, ndaa_compliant, specs, manufacturer_id')
+    .select('id, category, subcategory, vendor, model, partnumber, resolution, fps, poe_standard, wattage, ndaa_compliant, form, ir, super_low_light, focal_length, focal_type, aov, imager_count, multi_imager_type, codecs, fisheye_view, environment, specs, manufacturer_id')
     .or(`org_id.is.null,org_id.eq.${orgId}`)
     .order('vendor', { ascending: true })
     .order('model', { ascending: true })

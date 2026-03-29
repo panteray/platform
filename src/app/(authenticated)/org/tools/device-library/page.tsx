@@ -12,16 +12,27 @@ import { DEVICE_CATEGORIES, DEVICE_LIBRARY_ROLES } from '@/types/enums'
 import type { DeviceLibraryItem } from '@/types/database'
 
 const EDITABLE_FIELDS = [
-  { key: 'vendor', label: 'Vendor', type: 'text' },
-  { key: 'model', label: 'Model', type: 'text' },
+  { key: 'vendor', label: 'Manufacturer', type: 'text' },
+  { key: 'model', label: 'Model / Part Number', type: 'text' },
   { key: 'partnumber', label: 'Part Number', type: 'text' },
   { key: 'category', label: 'Category', type: 'select' },
-  { key: 'subcategory', label: 'Subcategory', type: 'text' },
+  { key: 'form', label: 'Form', type: 'text' },
   { key: 'resolution', label: 'Resolution', type: 'text' },
+  { key: 'ir', label: 'IR', type: 'text' },
+  { key: 'super_low_light', label: 'Super Low Light', type: 'checkbox' },
+  { key: 'focal_length', label: 'Focal Length', type: 'text' },
+  { key: 'focal_type', label: 'Focal Type', type: 'text' },
+  { key: 'aov', label: 'AoV / FoV', type: 'text' },
+  { key: 'imager_count', label: 'Imager Count', type: 'number' },
+  { key: 'multi_imager_type', label: 'Multi-Imager Type', type: 'text' },
+  { key: 'codecs', label: 'Codecs', type: 'text' },
+  { key: 'fisheye_view', label: 'Fisheye View', type: 'text' },
+  { key: 'environment', label: 'Environment', type: 'text' },
   { key: 'fps', label: 'FPS', type: 'text' },
   { key: 'poe_standard', label: 'PoE Standard', type: 'text' },
   { key: 'wattage', label: 'Wattage (W)', type: 'number' },
   { key: 'ndaa_compliant', label: 'NDAA Compliant', type: 'checkbox' },
+  { key: 'subcategory', label: 'Subcategory', type: 'text' },
 ] as const
 
 function NdaaBadge({ value }: { value: boolean | null }) {
@@ -153,7 +164,18 @@ function SideDrawer({
       partnumber: item.partnumber ?? '',
       category: item.category,
       subcategory: item.subcategory ?? '',
+      form: item.form ?? '',
       resolution: item.resolution ?? '',
+      ir: item.ir ?? '',
+      super_low_light: item.super_low_light ?? false,
+      focal_length: item.focal_length ?? '',
+      focal_type: item.focal_type ?? '',
+      aov: item.aov ?? '',
+      imager_count: item.imager_count ?? '',
+      multi_imager_type: item.multi_imager_type ?? '',
+      codecs: item.codecs ?? '',
+      fisheye_view: item.fisheye_view ?? '',
+      environment: item.environment ?? '',
       fps: item.fps ?? '',
       poe_standard: item.poe_standard ?? '',
       wattage: item.wattage ?? '',
@@ -193,7 +215,7 @@ function SideDrawer({
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete ${item.vendor} ${item.model}?`)) return
+    if (!confirm(`Delete ${item.vendor} — ${item.model}?`)) return
     setDeleting(true)
     try {
       const res = await fetch(`/api/org/device-library/items/${item.id}`, { method: 'DELETE' })
@@ -268,16 +290,26 @@ function SideDrawer({
         <>
           <div className="grid grid-cols-2 gap-3">
             <SpecRow label="Category" value={item.category} />
-            <SpecRow label="Subcategory" value={item.subcategory} />
+            <SpecRow label="Form" value={item.form} />
             <SpecRow label="Part Number" value={item.partnumber} />
+            <SpecRow label="Resolution" value={item.resolution} />
+            <SpecRow label="IR" value={item.ir} />
+            <SpecRow label="Super Low Light" value={item.super_low_light != null ? (item.super_low_light ? 'Yes' : 'No') : null} />
+            <SpecRow label="Focal Length" value={item.focal_length} />
+            <SpecRow label="Focal Type" value={item.focal_type} />
+            <SpecRow label="AoV / FoV" value={item.aov} />
+            <SpecRow label="Imager Count" value={item.imager_count} />
+            <SpecRow label="Multi-Imager Type" value={item.multi_imager_type} />
+            <SpecRow label="Codecs" value={item.codecs} />
+            {item.fisheye_view && <SpecRow label="Fisheye View" value={`${item.fisheye_view}°`} />}
+            <SpecRow label="Environment" value={item.environment} />
+            <SpecRow label="FPS" value={item.fps} />
+            <SpecRow label="PoE Standard" value={item.poe_standard} />
+            <SpecRow label="Wattage" value={item.wattage != null ? `${item.wattage}W` : null} />
             <div>
               <p className="text-[11px] text-zinc-500">NDAA</p>
               <NdaaBadge value={item.ndaa_compliant} />
             </div>
-            <SpecRow label="Resolution" value={item.resolution} />
-            <SpecRow label="FPS" value={item.fps} />
-            <SpecRow label="PoE Standard" value={item.poe_standard} />
-            <SpecRow label="Wattage" value={item.wattage != null ? `${item.wattage}W` : null} />
           </div>
 
           {/* Extended specs from JSONB */}
@@ -319,7 +351,10 @@ function BulkEditModal({
   const [saving, setSaving] = useState(false)
   const [values, setValues] = useState<Record<string, unknown>>({
     vendor: '', model: '', partnumber: '', category: '', subcategory: '',
-    resolution: '', fps: '', poe_standard: '', wattage: '', ndaa_compliant: false,
+    form: '', resolution: '', ir: '', super_low_light: false,
+    focal_length: '', focal_type: '', aov: '', imager_count: '',
+    multi_imager_type: '', codecs: '', fisheye_view: '', environment: '',
+    fps: '', poe_standard: '', wattage: '', ndaa_compliant: false,
   })
 
   async function handleSave() {
@@ -584,12 +619,12 @@ export default function DeviceLibraryPage() {
                       className="accent-white"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Vendor</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Manufacturer</th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Model</th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Part #</th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Category</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Subcategory</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">NDAA</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Form</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Resolution</th>
                   <th className="px-3 py-3 w-8"></th>
                 </tr>
               </thead>
@@ -617,10 +652,8 @@ export default function DeviceLibraryPage() {
                         {item.category}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-zinc-500 cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.subcategory ?? '-'}</td>
-                    <td className="px-4 py-3 cursor-pointer" onClick={() => loadFullItem(item.id)}>
-                      <NdaaBadge value={item.ndaa_compliant} />
-                    </td>
+                    <td className="px-4 py-3 text-zinc-500 cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.form ?? '-'}</td>
+                    <td className="px-4 py-3 text-zinc-500 cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.resolution ?? '-'}</td>
                     <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => loadFullItem(item.id)}

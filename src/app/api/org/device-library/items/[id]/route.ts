@@ -68,6 +68,9 @@ export async function PATCH(
   const allowed = [
     'vendor', 'model', 'partnumber', 'category', 'subcategory',
     'resolution', 'fps', 'poe_standard', 'wattage', 'ndaa_compliant',
+    'form', 'ir', 'super_low_light', 'focal_length', 'focal_type',
+    'aov', 'imager_count', 'multi_imager_type', 'codecs',
+    'fisheye_view', 'environment',
     'specs', 'manufacturer_id',
   ]
   const updates: Record<string, unknown> = {}

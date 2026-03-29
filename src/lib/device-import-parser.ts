@@ -70,6 +70,17 @@ export interface ParsedImportRow {
   poe_standard: string | null
   wattage: number | null
   ndaa_compliant: boolean
+  form: string | null
+  ir: string | null
+  super_low_light: boolean | null
+  focal_length: string | null
+  focal_type: string | null
+  aov: string | null
+  imager_count: number | null
+  multi_imager_type: string | null
+  codecs: string | null
+  fisheye_view: string | null
+  environment: string | null
   confidence: number
   specs: Record<string, unknown>
 }
@@ -114,6 +125,17 @@ export function parsePdfText(text: string, batchVendor: string | null): ParsedIm
         poe_standard: poeMatch ? poeMatch[0] : null,
         wattage: wattMatch ? parseInt(wattMatch[0]) || null : null,
         ndaa_compliant: ndaaFlagged,
+        form: null,
+        ir: null,
+        super_low_light: null,
+        focal_length: null,
+        focal_type: null,
+        aov: null,
+        imager_count: null,
+        multi_imager_type: null,
+        codecs: null,
+        fisheye_view: null,
+        environment: null,
         confidence: Math.round(confidence * 100) / 100,
         specs: {},
       })
@@ -137,6 +159,17 @@ const COLUMN_MAP: Record<string, string[]> = {
   poe_standard: ['poe', 'poe_standard', 'poe standard', 'poe_type'],
   wattage: ['wattage', 'watts', 'power', 'power_consumption', 'w'],
   ndaa_compliant: ['ndaa', 'ndaa_compliant', 'ndaa compliant'],
+  form: ['form', 'form_factor', 'form factor'],
+  ir: ['ir', 'ir_range', 'ir range', 'ir_range_m'],
+  super_low_light: ['super_low_light', 'super low light', 'low_light', 'low light', 'sll'],
+  focal_length: ['focal_length', 'focal length', 'lens'],
+  focal_type: ['focal_type', 'focal type', 'lens_type', 'lens type'],
+  aov: ['aov', 'fov', 'angle_of_view', 'angle of view', 'field_of_view', 'field of view'],
+  imager_count: ['imager_count', 'imager count', 'imagers', 'sensor_count', 'sensor count'],
+  multi_imager_type: ['multi_imager_type', 'multi imager type', 'multi-imager type'],
+  codecs: ['codecs', 'codec', 'video_codec', 'video codec', 'compression'],
+  fisheye_view: ['fisheye_view', 'fisheye view', 'fisheye'],
+  environment: ['environment', 'indoor_outdoor', 'indoor/outdoor', 'indoor outdoor', 'mounting'],
 }
 
 function matchHeader(header: string): string | null {
@@ -199,6 +232,17 @@ export function parseSpreadsheetRows(
     const poe_standard = colMap.poe_standard != null ? String(vals[colMap.poe_standard] ?? '').trim() || null : null
     const wattage = colMap.wattage != null ? parseNumberish(vals[colMap.wattage]) : null
     const ndaa = colMap.ndaa_compliant != null ? parseBoolish(vals[colMap.ndaa_compliant]) : false
+    const form = colMap.form != null ? String(vals[colMap.form] ?? '').trim() || null : null
+    const ir = colMap.ir != null ? String(vals[colMap.ir] ?? '').trim() || null : null
+    const super_low_light = colMap.super_low_light != null ? parseBoolish(vals[colMap.super_low_light]) : null
+    const focal_length = colMap.focal_length != null ? String(vals[colMap.focal_length] ?? '').trim() || null : null
+    const focal_type = colMap.focal_type != null ? String(vals[colMap.focal_type] ?? '').trim() || null : null
+    const aov = colMap.aov != null ? String(vals[colMap.aov] ?? '').trim() || null : null
+    const imager_count = colMap.imager_count != null ? parseNumberish(vals[colMap.imager_count]) : null
+    const multi_imager_type = colMap.multi_imager_type != null ? String(vals[colMap.multi_imager_type] ?? '').trim() || null : null
+    const codecs = colMap.codecs != null ? String(vals[colMap.codecs] ?? '').trim() || null : null
+    const fisheye_view = colMap.fisheye_view != null ? String(vals[colMap.fisheye_view] ?? '').trim() || null : null
+    const environment = colMap.environment != null ? String(vals[colMap.environment] ?? '').trim() || null : null
 
     // Collect unmapped columns into specs so no data is lost
     const specs: Record<string, unknown> = {}
@@ -232,6 +276,17 @@ export function parseSpreadsheetRows(
       poe_standard,
       wattage,
       ndaa_compliant: ndaa,
+      form,
+      ir,
+      super_low_light,
+      focal_length,
+      focal_type,
+      aov,
+      imager_count,
+      multi_imager_type,
+      codecs,
+      fisheye_view,
+      environment,
       confidence: Math.round(confidence * 100) / 100,
       specs,
     })

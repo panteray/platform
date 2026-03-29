@@ -40,7 +40,7 @@ export default function DeviceImportPage() {
   const hasAccess = userRole && (DEVICE_LIBRARY_ROLES as readonly string[]).includes(userRole)
 
   function downloadTemplate() {
-    const headers = 'vendor,model,partnumber,category,subcategory,resolution,fps,poe_standard,wattage,ndaa'
+    const headers = 'manufacturer,model,partnumber,category,form,resolution,ir,super_low_light,focal_length,focal_type,aov,imager_count,multi_imager_type,codecs,fisheye_view,environment,fps,poe_standard,wattage,ndaa'
     const blob = new Blob([headers + '\n'], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -153,7 +153,7 @@ export default function DeviceImportPage() {
         /* Upload form */
         <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-6 space-y-4 max-w-lg">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-zinc-300">Vendor / Manufacturer Name</label>
+            <label className="text-sm font-medium text-zinc-300">Manufacturer Name</label>
             <input
               type="text"
               value={vendor}
@@ -190,7 +190,7 @@ export default function DeviceImportPage() {
 
           <div className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3 text-xs text-zinc-500 space-y-2">
             <p className="font-medium text-zinc-400">Supported formats:</p>
-            <p><strong className="text-zinc-300">Excel / CSV</strong> — Columns mapped automatically: vendor, model, partnumber, category, subcategory, resolution, fps, poe_standard, wattage, ndaa.</p>
+            <p><strong className="text-zinc-300">Excel / CSV</strong> — Columns mapped automatically. Download the template for exact headers.</p>
             <button
               onClick={downloadTemplate}
               className="inline-flex items-center gap-1.5 rounded-md border border-zinc-700 px-2.5 py-1.5 text-[11px] font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"

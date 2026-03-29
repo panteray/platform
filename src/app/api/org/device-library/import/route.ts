@@ -123,6 +123,17 @@ export async function POST(req: NextRequest) {
       poe_standard: row.poe_standard || null,
       wattage: row.wattage ?? null,
       ndaa_compliant: row.ndaa_compliant ?? false,
+      form: row.form || null,
+      ir: row.ir || null,
+      super_low_light: row.super_low_light ?? null,
+      focal_length: row.focal_length || null,
+      focal_type: row.focal_type || null,
+      aov: row.aov || null,
+      imager_count: row.imager_count ?? null,
+      multi_imager_type: row.multi_imager_type || null,
+      codecs: row.codecs || null,
+      fisheye_view: row.fisheye_view || null,
+      environment: row.environment || null,
       specs: row.specs ?? {},
     }))
 

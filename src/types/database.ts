@@ -904,6 +904,17 @@ export interface DeviceLibraryItem {
   poe_standard: string | null
   wattage: number | null
   ndaa_compliant: boolean
+  form: string | null
+  ir: string | null
+  super_low_light: boolean | null
+  focal_length: string | null
+  focal_type: string | null
+  aov: string | null
+  imager_count: number | null
+  multi_imager_type: string | null
+  codecs: string | null
+  fisheye_view: string | null
+  environment: string | null
   specs: Record<string, unknown> // JSONB — category-specific fields
   manufacturer_id: string | null // FK → device_library_manufacturers
   created_at: string
@@ -948,6 +959,17 @@ export interface DeviceSearchResult {
   resolution: string | null
   fps: string | null
   ndaa_compliant: boolean | null
+  form: string | null
+  ir: string | null
+  super_low_light: boolean | null
+  focal_length: string | null
+  focal_type: string | null
+  aov: string | null
+  imager_count: number | null
+  multi_imager_type: string | null
+  codecs: string | null
+  fisheye_view: string | null
+  environment: string | null
   specs: Record<string, unknown> | null
   wattage: number | null
   poe_standard: string | null
