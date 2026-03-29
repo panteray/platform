@@ -103,7 +103,7 @@ export function DesignsTab({ oppId, oppNumber, projectName }: DesignsTabProps) {
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                  d.status === 'ACTIVE' ? 'bg-green-500/10 text-green-400' : 'bg-zinc-800 text-zinc-500'
+                  d.status === 'ACTIVE' ? 'bg-green-500/10 text-green-400' : 'bg-muted text-muted-foreground'
                 }`}>
                   {d.status}
                 </span>

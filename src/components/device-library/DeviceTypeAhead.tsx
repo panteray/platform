@@ -98,13 +98,13 @@ export function DeviceTypeAhead({
     if (value === false) {
       return <ShieldAlert className="h-3.5 w-3.5 text-red-500" />
     }
-    return <ShieldQuestion className="h-3.5 w-3.5 text-zinc-500" />
+    return <ShieldQuestion className="h-3.5 w-3.5 text-muted-foreground" />
   }
 
   return (
     <div ref={wrapperRef} className="relative">
       <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-500" />
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <input
           value={query}
           onChange={(e) => handleChange(e.target.value)}
@@ -113,30 +113,30 @@ export function DeviceTypeAhead({
             if (results.length > 0) setOpen(true)
           }}
           placeholder={placeholder}
-          className="h-9 w-full rounded-md border border-zinc-800 bg-zinc-950 pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+          className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
         />
         {loading && (
           <div className="absolute right-2.5 top-2.5">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-transparent" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
           </div>
         )}
       </div>
 
       {open && results.length > 0 && (
-        <div className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-md border border-zinc-800 bg-zinc-950 shadow-lg">
+        <div className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-md border border-border bg-background shadow-lg">
           {results.map((item, idx) => (
             <button
               key={item.id}
               onClick={() => handleSelect(item)}
-              className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-zinc-900 ${
-                idx === activeIdx ? 'bg-zinc-900' : ''
+              className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-accent ${
+                idx === activeIdx ? 'bg-muted' : ''
               }`}
             >
               <NdaaBadge value={item.ndaa_compliant} />
-              <span className="font-medium text-zinc-200">{item.vendor}</span>
-              <span className="text-zinc-400">{item.model}</span>
+              <span className="font-medium text-foreground">{item.vendor}</span>
+              <span className="text-muted-foreground">{item.model}</span>
               {item.partnumber && (
-                <span className="text-[11px] text-zinc-600 ml-auto font-mono">
+                <span className="text-[11px] text-muted-foreground ml-auto font-mono">
                   {item.partnumber}
                 </span>
               )}
@@ -146,7 +146,7 @@ export function DeviceTypeAhead({
       )}
 
       {open && results.length === 0 && query.trim() && !loading && (
-        <div className="absolute z-20 mt-1 w-full rounded-md border border-zinc-800 bg-zinc-950 shadow-lg p-3 text-sm text-zinc-500">
+        <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-background shadow-lg p-3 text-sm text-muted-foreground">
           No devices found
         </div>
       )}

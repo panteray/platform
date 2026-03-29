@@ -44,7 +44,7 @@ export function DistributorTable({ distributors, loading, onDelete, onCreateClic
                 <tr key={d.id} className="border-b border-border last:border-0 hover:bg-muted/20">
                   <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{d.distributor_number}</td>
                   <td className="px-3 py-2"><Link href={`/org/distributors/${d.id}`} className="font-medium text-foreground hover:underline">{d.name}</Link></td>
-                  <td className="px-3 py-2"><span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${d.status === 'Active' ? 'bg-green-500/10 text-green-500' : 'bg-zinc-500/10 text-zinc-400'}`}>{d.status ?? '—'}</span></td>
+                  <td className="px-3 py-2"><span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${d.status === 'Active' ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground'}`}>{d.status ?? '—'}</span></td>
                   <td className="px-3 py-2 text-muted-foreground">{d.account_number ?? '—'}</td>
                   <td className="px-3 py-2 text-muted-foreground">{d.rep_name ?? '—'}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">{d.rep_email ?? '—'}</td>

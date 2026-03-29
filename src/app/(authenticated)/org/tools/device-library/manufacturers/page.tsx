@@ -33,7 +33,7 @@ function NdaaStatusBadge({ status }: { status: string }) {
       )
     default:
       return (
-        <span className="inline-flex items-center gap-1 rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+        <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
           <ShieldQuestion className="h-3 w-3" /> Unverified
         </span>
       )
@@ -61,31 +61,31 @@ function AddManufacturerForm({
   }
 
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-3">
+    <div className="rounded-lg border border-border bg-background p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-white">Add Device Manufacturer</h3>
-        <button onClick={onCancel} className="text-zinc-500 hover:text-zinc-300">
+        <h3 className="text-sm font-semibold text-foreground">Add Device Manufacturer</h3>
+        <button onClick={onCancel} className="text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
         </button>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="text-[11px] font-medium text-zinc-500">Name *</label>
+          <label className="text-[11px] font-medium text-muted-foreground">Name *</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Axis Communications"
-            className="h-9 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+            className="h-9 w-full rounded-md border border-border bg-muted px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
           />
         </div>
         <div className="space-y-1">
-          <label className="text-[11px] font-medium text-zinc-500">NDAA Status</label>
+          <label className="text-[11px] font-medium text-muted-foreground">NDAA Status</label>
           <select
             value={ndaaStatus}
             onChange={(e) => setNdaaStatus(e.target.value)}
-            className="h-9 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-300 focus:border-zinc-600 focus:outline-none"
+            className="h-9 w-full rounded-md border border-border bg-muted px-3 text-sm text-foreground focus:border-ring focus:outline-none"
           >
             {NDAA_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -93,23 +93,23 @@ function AddManufacturerForm({
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-[11px] font-medium text-zinc-500">Website</label>
+          <label className="text-[11px] font-medium text-muted-foreground">Website</label>
           <input
             type="text"
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
             placeholder="https://..."
-            className="h-9 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+            className="h-9 w-full rounded-md border border-border bg-muted px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
           />
         </div>
         <div className="space-y-1">
-          <label className="text-[11px] font-medium text-zinc-500">NDAA Notes</label>
+          <label className="text-[11px] font-medium text-muted-foreground">NDAA Notes</label>
           <input
             type="text"
             value={ndaaNotes}
             onChange={(e) => setNdaaNotes(e.target.value)}
             placeholder="Optional notes..."
-            className="h-9 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+            className="h-9 w-full rounded-md border border-border bg-muted px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
           />
         </div>
       </div>
@@ -118,13 +118,13 @@ function AddManufacturerForm({
         <button
           onClick={handleSubmit}
           disabled={!name.trim() || saving}
-          className="inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? 'Saving...' : 'Add Manufacturer'}
         </button>
         <button
           onClick={onCancel}
-          className="rounded-md border border-zinc-800 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-900"
+          className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent"
         >
           Cancel
         </button>
@@ -143,8 +143,8 @@ export default function DeviceLibraryManufacturersPage() {
   if (userLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-white">Device Manufacturers</h1>
-        <p className="text-sm text-zinc-500">Loading...</p>
+        <h1 className="text-2xl font-semibold text-foreground">Device Manufacturers</h1>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
   }
@@ -152,8 +152,8 @@ export default function DeviceLibraryManufacturersPage() {
   if (!hasAccess) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-white">Device Manufacturers</h1>
-        <p className="text-sm text-zinc-500">Access denied.</p>
+        <h1 className="text-2xl font-semibold text-foreground">Device Manufacturers</h1>
+        <p className="text-sm text-muted-foreground">Access denied.</p>
       </div>
     )
   }
@@ -168,13 +168,13 @@ export default function DeviceLibraryManufacturersPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/org/tools/device-library"
-            className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300 transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
-            <h1 className="text-2xl font-semibold text-white">Device Manufacturers</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">
+            <h1 className="text-2xl font-semibold text-foreground">Device Manufacturers</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
               Manage hardware manufacturers with NDAA compliance tracking
             </p>
           </div>
@@ -182,7 +182,7 @@ export default function DeviceLibraryManufacturersPage() {
         {!showAdd && (
           <button
             onClick={() => setShowAdd(true)}
-            className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 transition-colors"
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Plus className="h-4 w-4" />
             Add Manufacturer
@@ -208,18 +208,18 @@ export default function DeviceLibraryManufacturersPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Loading manufacturers...</p>
+        <p className="text-sm text-muted-foreground">Loading manufacturers...</p>
       ) : manufacturers.length === 0 ? (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-8 text-center">
-          <p className="text-sm font-medium text-zinc-400">No manufacturers found</p>
-          <p className="text-xs text-zinc-600 mt-1">Add your first device manufacturer above.</p>
+        <div className="rounded-lg border border-border bg-background p-8 text-center">
+          <p className="text-sm font-medium text-muted-foreground">No manufacturers found</p>
+          <p className="text-xs text-muted-foreground mt-1">Add your first device manufacturer above.</p>
         </div>
       ) : (
         <div className="space-y-6">
           {/* Org-specific */}
           {orgMfrs.length > 0 && (
             <div className="space-y-2">
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-600">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Your Organization ({orgMfrs.length})
               </h2>
               <MfrTable items={orgMfrs} showSource={false} />
@@ -229,7 +229,7 @@ export default function DeviceLibraryManufacturersPage() {
           {/* Global */}
           {globalMfrs.length > 0 && (
             <div className="space-y-2">
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-600">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Global Library ({globalMfrs.length})
               </h2>
               <MfrTable items={globalMfrs} showSource />
@@ -243,23 +243,23 @@ export default function DeviceLibraryManufacturersPage() {
 
 function MfrTable({ items, showSource }: { items: DeviceLibraryManufacturer[]; showSource: boolean }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950">
+    <div className="overflow-x-auto rounded-lg border border-border bg-background">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-zinc-800 bg-zinc-900/50">
-            <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Name</th>
-            <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">NDAA Status</th>
-            <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Website</th>
-            <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Status</th>
+          <tr className="border-b border-border bg-muted/50">
+            <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Name</th>
+            <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">NDAA Status</th>
+            <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Website</th>
+            <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Status</th>
             {showSource && (
-              <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Source</th>
+              <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Source</th>
             )}
           </tr>
         </thead>
         <tbody>
           {items.map((m) => (
-            <tr key={m.id} className="border-b border-zinc-800/50 last:border-0 hover:bg-zinc-900/30">
-              <td className="px-4 py-3 font-medium text-zinc-200">{m.name}</td>
+            <tr key={m.id} className="border-b border-border/50 last:border-0 hover:bg-accent/30">
+              <td className="px-4 py-3 font-medium text-foreground">{m.name}</td>
               <td className="px-4 py-3">
                 <NdaaStatusBadge status={m.ndaa_status} />
               </td>
@@ -275,19 +275,19 @@ function MfrTable({ items, showSource }: { items: DeviceLibraryManufacturer[]; s
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 ) : (
-                  <span className="text-xs text-zinc-600">-</span>
+                  <span className="text-xs text-muted-foreground">-</span>
                 )}
               </td>
               <td className="px-4 py-3">
                 {m.is_active ? (
                   <span className="inline-flex rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">Active</span>
                 ) : (
-                  <span className="inline-flex rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-500">Inactive</span>
+                  <span className="inline-flex rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Inactive</span>
                 )}
               </td>
               {showSource && (
                 <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500">
+                  <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                     <Globe className="h-3 w-3" /> Global
                   </span>
                 </td>

@@ -148,8 +148,8 @@ export function OrgSidebar() {
                     'flex items-center rounded-md border-l-[3px] text-[13px] transition-colors',
                     collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-4 py-2',
                     active
-                      ? 'border-blue-500 bg-zinc-900 font-medium text-white'
-                      : 'border-transparent text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
+                      ? 'border-blue-500 bg-accent font-medium text-foreground'
+                      : 'border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                   )}
                 >
                   <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
@@ -189,8 +189,8 @@ export function OrgSidebar() {
                     'flex items-center rounded-md border-l-[3px] text-[13px] transition-colors',
                     collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-4 py-2',
                     active
-                      ? 'border-blue-500 bg-zinc-900 font-medium text-white'
-                      : 'border-transparent text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
+                      ? 'border-blue-500 bg-accent font-medium text-foreground'
+                      : 'border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                   )}
                 >
                   <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
@@ -214,7 +214,7 @@ export function OrgSidebar() {
 
         {/* Settings */}
         <div className={cn('pt-2', collapsed ? 'px-2' : 'px-4')}>
-          <div className="border-t border-zinc-800" />
+          <div className="border-t border-border" />
         </div>
         {bottomNav.map((item) => {
           const active = pathname.startsWith(item.href)
@@ -226,8 +226,8 @@ export function OrgSidebar() {
                 'flex items-center rounded-md border-l-[3px] text-[13px] transition-colors',
                 collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-4 py-2',
                 active
-                  ? 'border-blue-500 bg-zinc-900 font-medium text-white'
-                  : 'border-transparent text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
+                  ? 'border-blue-500 bg-accent font-medium text-foreground'
+                  : 'border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground'
               )}
             >
               <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />

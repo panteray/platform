@@ -82,8 +82,8 @@ export default function DeviceImportPage() {
   if (userLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-white">Import Devices</h1>
-        <p className="text-sm text-zinc-500">Loading...</p>
+        <h1 className="text-2xl font-semibold text-foreground">Import Devices</h1>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
   }
@@ -91,8 +91,8 @@ export default function DeviceImportPage() {
   if (!hasAccess) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-white">Import Devices</h1>
-        <p className="text-sm text-zinc-500">Access denied.</p>
+        <h1 className="text-2xl font-semibold text-foreground">Import Devices</h1>
+        <p className="text-sm text-muted-foreground">Access denied.</p>
       </div>
     )
   }
@@ -103,11 +103,11 @@ export default function DeviceImportPage() {
       <div className="flex items-center gap-3">
         <Link
           href="/org/tools/device-library"
-          className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300 transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <h1 className="text-2xl font-semibold text-white">Import Devices</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Import Devices</h1>
       </div>
 
       {error && (
@@ -118,12 +118,12 @@ export default function DeviceImportPage() {
 
       {/* Success state */}
       {result ? (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-6 space-y-4 max-w-lg">
+        <div className="rounded-lg border border-border bg-background p-6 space-y-4 max-w-lg">
           <div className="flex items-center gap-3">
             <CheckCircle2 className="h-8 w-8 text-green-500" />
             <div>
-              <h2 className="text-lg font-semibold text-white">Import Complete</h2>
-              <p className="text-sm text-zinc-400">
+              <h2 className="text-lg font-semibold text-foreground">Import Complete</h2>
+              <p className="text-sm text-muted-foreground">
                 {result.imported} devices added to the library from {result.fileName}
               </p>
             </div>
@@ -131,7 +131,7 @@ export default function DeviceImportPage() {
           <div className="flex gap-2">
             <Link
               href="/org/tools/device-library"
-              className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 transition-colors"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               View Device Library
             </Link>
@@ -143,7 +143,7 @@ export default function DeviceImportPage() {
                 setError(null)
                 if (fileRef.current) fileRef.current.value = ''
               }}
-              className="inline-flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-900 transition-colors"
+              className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
             >
               Import Another
             </button>
@@ -151,23 +151,23 @@ export default function DeviceImportPage() {
         </div>
       ) : (
         /* Upload form */
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-6 space-y-4 max-w-lg">
+        <div className="rounded-lg border border-border bg-background p-6 space-y-4 max-w-lg">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-zinc-300">Manufacturer Name</label>
+            <label className="text-sm font-medium text-foreground">Manufacturer Name</label>
             <input
               type="text"
               value={vendor}
               onChange={(e) => setVendor(e.target.value)}
               placeholder="e.g. Axis, Hanwha, Verkada..."
-              className="h-9 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+              className="h-9 w-full rounded-md border border-border bg-muted px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
             />
-            <p className="text-[11px] text-zinc-600">
+            <p className="text-[11px] text-muted-foreground">
               Applied to all rows unless the file has a vendor/manufacturer column.
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-zinc-300">
+            <label className="text-sm font-medium text-foreground">
               File (Excel or CSV — 25MB max)
             </label>
             <input
@@ -175,25 +175,25 @@ export default function DeviceImportPage() {
               type="file"
               accept=".xlsx,.xls,.csv"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-zinc-500 file:mr-4 file:rounded-md file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-medium file:text-zinc-900 hover:file:bg-zinc-200"
+              className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary/90"
             />
             {file && (
               <div className="flex items-center gap-2 mt-1">
                 <FileTypeBadge name={file.name} />
-                <span className="text-xs text-zinc-500">{file.name}</span>
-                <span className="text-xs text-zinc-600">
+                <span className="text-xs text-muted-foreground">{file.name}</span>
+                <span className="text-xs text-muted-foreground">
                   ({(file.size / 1024).toFixed(0)} KB)
                 </span>
               </div>
             )}
           </div>
 
-          <div className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3 text-xs text-zinc-500 space-y-2">
-            <p className="font-medium text-zinc-400">Supported formats:</p>
-            <p><strong className="text-zinc-300">Excel / CSV</strong> — Columns mapped automatically. Download the template for exact headers.</p>
+          <div className="rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground space-y-2">
+            <p className="font-medium text-muted-foreground">Supported formats:</p>
+            <p><strong className="text-foreground">Excel / CSV</strong> — Columns mapped automatically. Download the template for exact headers.</p>
             <button
               onClick={downloadTemplate}
-              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-700 px-2.5 py-1.5 text-[11px] font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent transition-colors"
             >
               <Download className="h-3 w-3" />
               Download CSV Template
@@ -203,7 +203,7 @@ export default function DeviceImportPage() {
           <button
             onClick={handleUpload}
             disabled={!file || uploading}
-            className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Upload className="h-4 w-4" />
             {uploading ? 'Importing...' : 'Upload & Import'}

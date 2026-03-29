@@ -210,7 +210,7 @@ export default function ProfilePage() {
                 className="h-20 w-20 rounded-full border-2 border-border object-cover"
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-blue-500 bg-zinc-900 text-xl font-semibold text-white">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-blue-500 bg-muted text-xl font-semibold text-foreground">
                 {initials}
               </div>
             )}

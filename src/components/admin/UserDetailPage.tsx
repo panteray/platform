@@ -147,7 +147,7 @@ export function UserDetailPage({ user, backHref, backLabel, apiBase, apiPassword
 
       <div className="mb-5 flex items-center justify-between">
         <div className="flex items-center gap-3.5">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full border-[1.5px] border-blue-500 bg-zinc-900 text-base font-medium text-white">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border-[1.5px] border-blue-500 bg-muted text-base font-medium text-foreground">
             {initials}
           </div>
           <div>

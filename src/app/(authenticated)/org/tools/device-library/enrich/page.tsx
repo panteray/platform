@@ -164,8 +164,8 @@ export default function EnrichPage() {
   if (userLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-white">Enrich Devices</h1>
-        <p className="text-sm text-zinc-500">Loading...</p>
+        <h1 className="text-2xl font-semibold text-foreground">Enrich Devices</h1>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
   }
@@ -173,8 +173,8 @@ export default function EnrichPage() {
   if (!hasAccess) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-white">Enrich Devices</h1>
-        <p className="text-sm text-zinc-500">Access denied.</p>
+        <h1 className="text-2xl font-semibold text-foreground">Enrich Devices</h1>
+        <p className="text-sm text-muted-foreground">Access denied.</p>
       </div>
     )
   }
@@ -185,13 +185,13 @@ export default function EnrichPage() {
       <div className="flex items-center gap-3">
         <Link
           href="/org/tools/device-library"
-          className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300 transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-semibold text-white">Enrich Devices</h1>
-          <p className="text-sm text-zinc-500">AI fills missing camera specs from device knowledge</p>
+          <h1 className="text-2xl font-semibold text-foreground">Enrich Devices</h1>
+          <p className="text-sm text-muted-foreground">AI fills missing camera specs from device knowledge</p>
         </div>
       </div>
 
@@ -203,27 +203,27 @@ export default function EnrichPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3">
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
-          <p className="text-xl font-medium text-white">{loadingData ? '...' : totalDevices}</p>
-          <p className="text-[11px] text-zinc-500">Total devices</p>
+        <div className="rounded-lg border border-border bg-background p-3">
+          <p className="text-xl font-medium text-foreground">{loadingData ? '...' : totalDevices}</p>
+          <p className="text-[11px] text-muted-foreground">Total devices</p>
         </div>
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
-          <p className="text-xl font-medium text-white">{loadingData ? '...' : totalNeeds}</p>
-          <p className="text-[11px] text-zinc-500">Need enrichment</p>
+        <div className="rounded-lg border border-border bg-background p-3">
+          <p className="text-xl font-medium text-foreground">{loadingData ? '...' : totalNeeds}</p>
+          <p className="text-[11px] text-muted-foreground">Need enrichment</p>
         </div>
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
-          <p className="text-xl font-medium text-white">{enrichedCount}</p>
-          <p className="text-[11px] text-zinc-500">Enriched this run</p>
+        <div className="rounded-lg border border-border bg-background p-3">
+          <p className="text-xl font-medium text-foreground">{enrichedCount}</p>
+          <p className="text-[11px] text-muted-foreground">Enriched this run</p>
         </div>
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
-          <p className="text-xl font-medium text-white">{apiCalls}</p>
-          <p className="text-[11px] text-zinc-500">API calls</p>
+        <div className="rounded-lg border border-border bg-background p-3">
+          <p className="text-xl font-medium text-foreground">{apiCalls}</p>
+          <p className="text-[11px] text-muted-foreground">API calls</p>
         </div>
       </div>
 
       {/* Global progress */}
       {running && (
-        <div className="h-1.5 w-full rounded-full bg-zinc-800 overflow-hidden">
+        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
           <div
             className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-green-500 transition-all duration-500"
             style={{
@@ -241,7 +241,7 @@ export default function EnrichPage() {
           <button
             onClick={startEnrichment}
             disabled={loadingData || totalNeeds === 0}
-            className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Play className="h-4 w-4" />
             Start Enrichment
@@ -250,7 +250,7 @@ export default function EnrichPage() {
           <>
             <button
               onClick={togglePause}
-              className="inline-flex items-center gap-2 rounded-md border border-zinc-700 px-3 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-900 transition-colors"
+              className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
             >
               {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
               {paused ? 'Resume' : 'Pause'}
@@ -266,7 +266,7 @@ export default function EnrichPage() {
         <button
           onClick={loadManufacturers}
           disabled={loadingData || running}
-          className="inline-flex items-center gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm font-medium text-zinc-400 hover:bg-zinc-900 transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
         >
           <RefreshCw className="h-4 w-4" />
           Refresh
@@ -275,9 +275,9 @@ export default function EnrichPage() {
 
       {/* Manufacturer cards */}
       {loadingData ? (
-        <p className="text-sm text-zinc-500">Loading devices...</p>
+        <p className="text-sm text-muted-foreground">Loading devices...</p>
       ) : Object.keys(manufacturers).length === 0 ? (
-        <p className="text-sm text-zinc-500">No devices in the library.</p>
+        <p className="text-sm text-muted-foreground">No devices in the library.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {Object.entries(manufacturers).map(([mfr, data]) => {
@@ -290,11 +290,11 @@ export default function EnrichPage() {
               <div
                 key={mfr}
                 className={`rounded-lg border p-3 ${
-                  isActive ? 'border-indigo-500/50 bg-indigo-500/5' : 'border-zinc-800 bg-zinc-950'
+                  isActive ? 'border-indigo-500/50 bg-indigo-500/5' : 'border-border bg-background'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-white">{mfr}</span>
+                  <span className="text-sm font-medium text-foreground">{mfr}</span>
                   {isDone ? (
                     <span className="rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-400 border border-green-500/20">
                       done
@@ -304,18 +304,18 @@ export default function EnrichPage() {
                       working
                     </span>
                   ) : (
-                    <span className="rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
+                    <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                       pending
                     </span>
                   )}
                 </div>
-                <div className="h-1 w-full rounded-full bg-zinc-800 overflow-hidden mb-1.5">
+                <div className="h-1 w-full rounded-full bg-muted overflow-hidden mb-1.5">
                   <div
                     className="h-full rounded-full bg-indigo-500 transition-all duration-500"
                     style={{ width: prog ? `${pct}%` : data.needs_enrichment === 0 ? '100%' : '0%' }}
                   />
                 </div>
-                <p className="text-[10px] text-zinc-500">
+                <p className="text-[10px] text-muted-foreground">
                   {data.total} devices &middot; {data.needs_enrichment} need enrichment
                 </p>
               </div>
@@ -327,14 +327,14 @@ export default function EnrichPage() {
       {/* Log */}
       <div
         ref={logRef}
-        className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 h-40 overflow-y-auto font-mono text-[11px] leading-relaxed"
+        className="rounded-lg border border-border bg-background p-3 h-40 overflow-y-auto font-mono text-[11px] leading-relaxed"
       >
         {logs.length === 0 ? (
-          <span className="text-zinc-600">Logs will appear here when enrichment starts</span>
+          <span className="text-muted-foreground">Logs will appear here when enrichment starts</span>
         ) : (
           logs.map((l, i) => (
             <div key={i}>
-              <span className="text-zinc-600">[{l.time}]</span>{' '}
+              <span className="text-muted-foreground">[{l.time}]</span>{' '}
               <span
                 className={
                   l.type === 'ok' ? 'text-green-500' : l.type === 'err' ? 'text-red-400' : 'text-indigo-400'

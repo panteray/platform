@@ -51,7 +51,7 @@ function NdaaBadge({ value }: { value: boolean | null }) {
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 text-zinc-500">
+    <span className="inline-flex items-center gap-1 text-muted-foreground">
       <ShieldQuestion className="h-3.5 w-3.5" /> Unverified
     </span>
   )
@@ -60,8 +60,8 @@ function NdaaBadge({ value }: { value: boolean | null }) {
 function SpecRow({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
     <div>
-      <p className="text-[11px] text-zinc-500">{label}</p>
-      <p className="text-sm text-zinc-200">{value != null && value !== '' ? String(value) : '-'}</p>
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-sm text-foreground">{value != null && value !== '' ? String(value) : '-'}</p>
     </div>
   )
 }
@@ -240,7 +240,7 @@ function SideDrawer({
             <>
               <button
                 onClick={startEdit}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300 transition-colors"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 title="Edit"
               >
                 <Pencil className="h-3.5 w-3.5" />
@@ -248,7 +248,7 @@ function SideDrawer({
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-900 hover:text-red-400 transition-colors disabled:opacity-50"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-red-400 transition-colors disabled:opacity-50"
                 title="Delete"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -257,7 +257,7 @@ function SideDrawer({
           )}
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="flex h-7 w-7 items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -271,11 +271,11 @@ function SideDrawer({
             Org Item
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
+          <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
             <Globe className="h-3 w-3" /> Global
           </span>
         )}
-        <span className="rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400 uppercase">
+        <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
           {item.category}
         </span>
       </div>
@@ -309,15 +309,15 @@ function SideDrawer({
             <SpecRow label="PoE Standard" value={item.poe_standard} />
             <SpecRow label="Wattage" value={item.wattage != null ? `${item.wattage}W` : null} />
             <div>
-              <p className="text-[11px] text-zinc-500">NDAA</p>
+              <p className="text-[11px] text-muted-foreground">NDAA</p>
               <NdaaBadge value={item.ndaa_compliant} />
             </div>
           </div>
 
           {/* Extended specs from JSONB */}
           {Object.keys(specs).length > 0 && (
-            <div className="border-t border-zinc-800 pt-3">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-600 mb-2">
+            <div className="border-t border-border pt-3">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
                 Extended Specs
               </p>
               <div className="grid grid-cols-2 gap-3">
@@ -400,16 +400,16 @@ function BulkEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-2xl rounded-lg border border-zinc-800 bg-zinc-950 p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+      <div className="w-full max-w-2xl rounded-lg border border-border bg-background p-6 space-y-4 max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-white">
+          <h2 className="text-base font-semibold text-foreground">
             Edit {count} Device{count > 1 ? 's' : ''}
           </h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <p className="text-[11px] text-zinc-500">Only fields you change will be updated.</p>
+        <p className="text-[11px] text-muted-foreground">Only fields you change will be updated.</p>
         <EditForm
           values={values}
           onChange={handleChange}
@@ -490,8 +490,8 @@ export default function DeviceLibraryPage() {
   if (userLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-white">Device Library</h1>
-        <p className="text-sm text-zinc-500">Loading...</p>
+        <h1 className="text-2xl font-semibold text-foreground">Device Library</h1>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
   }
@@ -499,8 +499,8 @@ export default function DeviceLibraryPage() {
   if (!hasAccess) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-white">Device Library</h1>
-        <p className="text-sm text-zinc-500">You do not have access to the Device Library.</p>
+        <h1 className="text-2xl font-semibold text-foreground">Device Library</h1>
+        <p className="text-sm text-muted-foreground">You do not have access to the Device Library.</p>
       </div>
     )
   }
@@ -510,8 +510,8 @@ export default function DeviceLibraryPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Device Library</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">
+          <h1 className="text-2xl font-semibold text-foreground">Device Library</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Browse hardware specifications across all device categories
           </p>
         </div>
@@ -520,7 +520,7 @@ export default function DeviceLibraryPage() {
             <>
               <button
                 onClick={() => setBulkEditOpen(true)}
-                className="inline-flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800 transition-colors"
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
               >
                 <Pencil className="h-4 w-4" />
                 Edit Selected ({checked.size})
@@ -536,14 +536,14 @@ export default function DeviceLibraryPage() {
           )}
           <Link
             href="/org/tools/device-library/import"
-            className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 transition-colors"
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Upload className="h-4 w-4" />
             Import Devices
           </Link>
           <Link
             href="/org/tools/device-library/enrich"
-            className="inline-flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800 transition-colors"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
           >
             <Sparkles className="h-4 w-4" />
             Enrich Devices
@@ -554,18 +554,18 @@ export default function DeviceLibraryPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-500" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search vendor, model, part number..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9 w-full rounded-md border border-zinc-800 bg-zinc-950 pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+            className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
           />
           {search && (
             <button
               onClick={() => setSearch('')}
-              className="absolute right-2.5 top-2.5 text-zinc-500 hover:text-zinc-300"
+              className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </button>
@@ -575,7 +575,7 @@ export default function DeviceLibraryPage() {
         <select
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value)}
-          className="h-9 rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-300"
+          className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
         >
           <option value="">All Categories</option>
           {DEVICE_CATEGORIES.map((c) => (
@@ -586,7 +586,7 @@ export default function DeviceLibraryPage() {
         <select
           value={filterNdaa}
           onChange={(e) => setFilterNdaa(e.target.value as '' | 'true' | 'false')}
-          className="h-9 rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-300"
+          className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
         >
           <option value="">All NDAA</option>
           <option value="true">NDAA Compliant</option>
@@ -600,7 +600,7 @@ export default function DeviceLibraryPage() {
               setFilterCategory('')
               setFilterNdaa('')
             }}
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Clear filters
           </button>
@@ -616,33 +616,33 @@ export default function DeviceLibraryPage() {
       {/* Content: table + optional drawer */}
       <div className="flex gap-4">
         {/* Table */}
-        <div className={`flex-1 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 ${selectedItem ? 'max-w-[60%]' : ''}`}>
+        <div className={`flex-1 overflow-x-auto rounded-lg border border-border bg-background ${selectedItem ? 'max-w-[60%]' : ''}`}>
           {loading ? (
-            <div className="p-8 text-center text-zinc-500 text-sm">Loading devices...</div>
+            <div className="p-8 text-center text-muted-foreground text-sm">Loading devices...</div>
           ) : results.length === 0 ? (
             <div className="p-8 text-center">
-              <Search className="mx-auto h-8 w-8 text-zinc-700 mb-2" />
-              <p className="text-sm font-medium text-zinc-400">No devices found</p>
-              <p className="text-xs text-zinc-600 mt-1">Try adjusting your search or filters</p>
+              <Search className="mx-auto h-8 w-8 text-muted-foreground/50 mb-2" />
+              <p className="text-sm font-medium text-muted-foreground">No devices found</p>
+              <p className="text-xs text-muted-foreground mt-1">Try adjusting your search or filters</p>
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-800 bg-zinc-900/50">
+                <tr className="border-b border-border bg-muted/50">
                   <th className="px-3 py-3 w-8">
                     <input
                       type="checkbox"
                       checked={checked.size === results.length && results.length > 0}
                       onChange={toggleAll}
-                      className="accent-white"
+                      className="accent-current"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Manufacturer</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Model</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Part #</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Category</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Form</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Resolution</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Manufacturer</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Model</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Part #</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Category</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Form</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Resolution</th>
                   <th className="px-3 py-3 w-8"></th>
                 </tr>
               </thead>
@@ -650,8 +650,8 @@ export default function DeviceLibraryPage() {
                 {results.map((item) => (
                   <tr
                     key={item.id}
-                    className={`border-b border-zinc-800/50 last:border-0 hover:bg-zinc-900/50 transition-colors ${
-                      selectedItem?.id === item.id ? 'bg-zinc-900' : ''
+                    className={`border-b border-border/50 last:border-0 hover:bg-muted/50 transition-colors ${
+                      selectedItem?.id === item.id ? 'bg-muted' : ''
                     }`}
                   >
                     <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
@@ -659,23 +659,23 @@ export default function DeviceLibraryPage() {
                         type="checkbox"
                         checked={checked.has(item.id)}
                         onChange={() => toggleCheck(item.id)}
-                        className="accent-white"
+                        className="accent-current"
                       />
                     </td>
-                    <td className="px-4 py-3 font-medium text-zinc-200 cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.vendor}</td>
-                    <td className="px-4 py-3 text-zinc-300 cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.model}</td>
-                    <td className="px-4 py-3 text-zinc-500 font-mono text-xs cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.partnumber ?? '-'}</td>
+                    <td className="px-4 py-3 font-medium text-foreground cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.vendor}</td>
+                    <td className="px-4 py-3 text-foreground cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.model}</td>
+                    <td className="px-4 py-3 text-muted-foreground font-mono text-xs cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.partnumber ?? '-'}</td>
                     <td className="px-4 py-3 cursor-pointer" onClick={() => loadFullItem(item.id)}>
-                      <span className="inline-flex rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400 uppercase">
+                      <span className="inline-flex rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
                         {item.category}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-zinc-500 cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.form ?? '-'}</td>
-                    <td className="px-4 py-3 text-zinc-500 cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.resolution ?? '-'}</td>
+                    <td className="px-4 py-3 text-muted-foreground cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.form ?? '-'}</td>
+                    <td className="px-4 py-3 text-muted-foreground cursor-pointer" onClick={() => loadFullItem(item.id)}>{item.resolution ?? '-'}</td>
                     <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => loadFullItem(item.id)}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                         title="Edit"
                       >
                         <Pencil className="h-3.5 w-3.5" />

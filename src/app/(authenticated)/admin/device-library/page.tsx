@@ -130,8 +130,8 @@ export default function AdminDeviceLibraryPage() {
   if (userLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-white">Device Library Review</h1>
-        <p className="text-sm text-zinc-500">Loading...</p>
+        <h1 className="text-2xl font-semibold text-foreground">Device Library Review</h1>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
   }
@@ -139,39 +139,39 @@ export default function AdminDeviceLibraryPage() {
   if (userRole !== 'GLOBAL_ADMIN' && userRole !== 'GLOBAL_MANAGER') {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-white">Device Library Review</h1>
-        <p className="text-sm text-zinc-500">Global admin access required.</p>
+        <h1 className="text-2xl font-semibold text-foreground">Device Library Review</h1>
+        <p className="text-sm text-muted-foreground">Global admin access required.</p>
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold text-white">Device Library — Review Queue</h1>
-      <p className="text-sm text-zinc-500">
+      <h1 className="text-2xl font-semibold text-foreground">Device Library — Review Queue</h1>
+      <p className="text-sm text-muted-foreground">
         Review community contributions to the global device library.
       </p>
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Loading...</p>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       ) : contributions.length === 0 ? (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-8 text-center">
-          <Check className="mx-auto h-8 w-8 text-zinc-700 mb-2" />
-          <p className="text-sm font-medium text-zinc-400">Queue is empty</p>
-          <p className="text-xs text-zinc-600 mt-1">No pending contributions to review</p>
+        <div className="rounded-lg border border-border bg-background p-8 text-center">
+          <Check className="mx-auto h-8 w-8 text-muted-foreground/50 mb-2" />
+          <p className="text-sm font-medium text-muted-foreground">Queue is empty</p>
+          <p className="text-xs text-muted-foreground mt-1">No pending contributions to review</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950">
+        <div className="overflow-x-auto rounded-lg border border-border bg-background">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-900/50">
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Vendor</th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Model</th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Category</th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Submitted By</th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Org</th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Date</th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-zinc-500">Actions</th>
+              <tr className="border-b border-border bg-muted/50">
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Vendor</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Model</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Category</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Submitted By</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Org</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Date</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -180,21 +180,21 @@ export default function AdminDeviceLibraryPage() {
                 const isLoading = actionLoading === c.id
 
                 return (
-                  <tr key={c.id} className="border-b border-zinc-800/50 last:border-0">
-                    <td className="px-4 py-3 font-medium text-zinc-200">{item?.vendor ?? '-'}</td>
-                    <td className="px-4 py-3 text-zinc-300">{item?.model ?? '-'}</td>
+                  <tr key={c.id} className="border-b border-border/50 last:border-0">
+                    <td className="px-4 py-3 font-medium text-foreground">{item?.vendor ?? '-'}</td>
+                    <td className="px-4 py-3 text-foreground">{item?.model ?? '-'}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400 uppercase">
+                      <span className="inline-flex rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
                         {item?.category ?? '-'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-zinc-400">
+                    <td className="px-4 py-3 text-muted-foreground">
                       {c.submitted_user
                         ? `${c.submitted_user.first_name} ${c.submitted_user.last_name}`
                         : '-'}
                     </td>
-                    <td className="px-4 py-3 text-zinc-500">{c.organizations?.name ?? '-'}</td>
-                    <td className="px-4 py-3 text-zinc-500">
+                    <td className="px-4 py-3 text-muted-foreground">{c.organizations?.name ?? '-'}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
                       {new Date(c.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
@@ -202,7 +202,7 @@ export default function AdminDeviceLibraryPage() {
                         <button
                           onClick={() => handleApprove(c.id)}
                           disabled={isLoading}
-                          className="inline-flex items-center gap-1 rounded-md border border-zinc-800 px-2 py-1 text-[11px] font-medium text-zinc-300 hover:bg-zinc-900 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-accent disabled:opacity-50"
                         >
                           <Check className="h-3 w-3" /> Approve
                         </button>
@@ -212,7 +212,7 @@ export default function AdminDeviceLibraryPage() {
                             setMergeTarget(null)
                           }}
                           disabled={isLoading}
-                          className="inline-flex items-center gap-1 rounded-md border border-zinc-800 px-2 py-1 text-[11px] font-medium text-zinc-300 hover:bg-zinc-900 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-accent disabled:opacity-50"
                         >
                           <X className="h-3 w-3" /> Reject
                         </button>
@@ -222,7 +222,7 @@ export default function AdminDeviceLibraryPage() {
                             setRejectTarget(null)
                           }}
                           disabled={isLoading}
-                          className="inline-flex items-center gap-1 rounded-md border border-zinc-800 px-2 py-1 text-[11px] font-medium text-zinc-300 hover:bg-zinc-900 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-foreground hover:bg-accent disabled:opacity-50"
                         >
                           <GitMerge className="h-3 w-3" /> Merge
                         </button>
@@ -235,7 +235,7 @@ export default function AdminDeviceLibraryPage() {
                             value={rejectNotes}
                             onChange={(e) => setRejectNotes(e.target.value)}
                             placeholder="Rejection reason (required)..."
-                            className="h-8 flex-1 rounded-md border border-zinc-800 bg-zinc-900 px-3 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                            className="h-8 flex-1 rounded-md border border-border bg-muted px-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
                           />
                           <button
                             onClick={() => handleReject(c.id)}
@@ -246,7 +246,7 @@ export default function AdminDeviceLibraryPage() {
                           </button>
                           <button
                             onClick={() => setRejectTarget(null)}
-                            className="text-zinc-500 hover:text-zinc-300"
+                            className="text-muted-foreground hover:text-foreground"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -256,26 +256,26 @@ export default function AdminDeviceLibraryPage() {
                       {/* Merge inline form */}
                       {mergeTarget === c.id && (
                         <div className="space-y-2 mt-2 max-w-sm">
-                          <p className="text-[11px] text-zinc-500">
+                          <p className="text-[11px] text-muted-foreground">
                             Search for an existing global item to merge into:
                           </p>
                           <div className="relative">
-                            <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-zinc-600" />
+                            <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
                             <input
                               value={mergeSearch}
                               onChange={(e) => searchMergeTargets(e.target.value)}
                               placeholder="Search global items..."
-                              className="h-8 w-full rounded-md border border-zinc-800 bg-zinc-900 pl-7 pr-3 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                              className="h-8 w-full rounded-md border border-border bg-muted pl-7 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
                             />
                           </div>
                           {mergeResults.length > 0 && (
-                            <div className="rounded-md border border-zinc-800 max-h-32 overflow-y-auto">
+                            <div className="rounded-md border border-border max-h-32 overflow-y-auto">
                               {mergeResults.map((r) => (
                                 <button
                                   key={r.id}
                                   onClick={() => setMergeSelectedId(r.id)}
-                                  className={`w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-900 ${
-                                    mergeSelectedId === r.id ? 'bg-zinc-900 text-white' : 'text-zinc-400'
+                                  className={`w-full text-left px-3 py-1.5 text-xs hover:bg-accent ${
+                                    mergeSelectedId === r.id ? 'bg-muted text-foreground' : 'text-muted-foreground'
                                   }`}
                                 >
                                   {r.vendor} — {r.model}
@@ -293,19 +293,19 @@ export default function AdminDeviceLibraryPage() {
                             value={mergeNotes}
                             onChange={(e) => setMergeNotes(e.target.value)}
                             placeholder="Review notes (optional)..."
-                            className="h-8 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                            className="h-8 w-full rounded-md border border-border bg-muted px-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
                           />
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleMerge(c.id)}
                               disabled={!mergeSelectedId || isLoading}
-                              className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-medium text-zinc-900 hover:bg-zinc-200 disabled:opacity-50"
+                              className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                             >
                               <GitMerge className="h-3 w-3" /> Confirm Merge
                             </button>
                             <button
                               onClick={() => setMergeTarget(null)}
-                              className="text-zinc-500 hover:text-zinc-300"
+                              className="text-muted-foreground hover:text-foreground"
                             >
                               <X className="h-3.5 w-3.5" />
                             </button>

@@ -50,7 +50,7 @@ export function DistributorDetail({ distributorId }: Props) {
         <Link href="/org/distributors" className="rounded p-1.5 hover:bg-muted"><ArrowLeft className="h-4 w-4 text-muted-foreground" /></Link>
         <span className="text-[13px] text-muted-foreground">Distributors</span><span className="text-muted-foreground">/</span>
         <span className="text-base font-semibold text-foreground">{dist.name}</span>
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${dist.status === 'Active' ? 'bg-green-500/10 text-green-500' : 'bg-zinc-500/10 text-zinc-400'}`}>{dist.status ?? '—'}</span>
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${dist.status === 'Active' ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground'}`}>{dist.status ?? '—'}</span>
         {dist.is_preferred && <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-green-500/10 text-green-500">Preferred</span>}
         <div className="flex-1" /><button onClick={handleDelete} className="rounded p-1.5 hover:bg-muted"><Trash2 className="h-4 w-4 text-muted-foreground hover:text-red-500" /></button>
       </div>

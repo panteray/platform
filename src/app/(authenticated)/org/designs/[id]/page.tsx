@@ -33,7 +33,7 @@ export default function DesignDetailPage() {
   if (userLoading) {
     return (
       <div className="-m-6 h-[calc(100vh-48px)] flex items-center justify-center bg-[var(--canvas-bg)]">
-        <p className="text-sm text-zinc-500">Loading...</p>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
   }
@@ -41,7 +41,7 @@ export default function DesignDetailPage() {
   if (!hasAccess) {
     return (
       <div className="-m-6 h-[calc(100vh-48px)] flex items-center justify-center bg-[var(--canvas-bg)]">
-        <p className="text-sm text-zinc-500">Access denied.</p>
+        <p className="text-sm text-muted-foreground">Access denied.</p>
       </div>
     )
   }
