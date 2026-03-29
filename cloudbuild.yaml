@@ -37,7 +37,7 @@ steps:
       - '3000'
       - '--allow-unauthenticated'
       - '--set-secrets'
-      - 'NEXT_PUBLIC_SUPABASE_URL=supabase-url:latest,NEXT_PUBLIC_SUPABASE_ANON_KEY=supabase-anon-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest'
+      - 'NEXT_PUBLIC_SUPABASE_URL=supabase-url:latest,NEXT_PUBLIC_SUPABASE_ANON_KEY=supabase-anon-key:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GOOGLE_MAPS_JAVASCRIPT_API=GOOGLE_MAPS_JAVASCRIPT_API:latest'
       - '--min-instances'
       - '0'
       - '--max-instances'
