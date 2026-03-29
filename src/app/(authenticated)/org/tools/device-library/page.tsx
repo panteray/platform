@@ -626,13 +626,14 @@ export default function DeviceLibraryPage() {
   const pageSize = 50
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
 
-  // Fetch manufacturer list for dropdown
+  // Fetch manufacturer list for dropdown — re-fetch when results change (after imports, deletes, etc.)
+  const [mfgRefreshKey, setMfgRefreshKey] = useState(0)
   useEffect(() => {
     fetch('/api/org/device-library/manufacturers-list')
       .then((res) => res.json())
       .then((json) => setManufacturers(json.manufacturers ?? []))
       .catch(() => {})
-  }, [])
+  }, [mfgRefreshKey])
 
   // Collect distinct form factors and resolutions from current results for filter dropdowns
   const formFactors = [...new Set(results.map((r) => r.form).filter(Boolean))] as string[]
@@ -675,6 +676,7 @@ export default function DeviceLibraryPage() {
 
   const handleSaved = useCallback(() => {
     refresh()
+    setMfgRefreshKey((k) => k + 1)
     if (selectedItem) loadFullItem(selectedItem.id)
   }, [refresh, selectedItem, loadFullItem])
 
@@ -682,6 +684,7 @@ export default function DeviceLibraryPage() {
     setBulkEditOpen(false)
     setChecked(new Set())
     refresh()
+    setMfgRefreshKey((k) => k + 1)
   }, [refresh])
 
   async function handleBulkDelete() {
@@ -694,6 +697,7 @@ export default function DeviceLibraryPage() {
     setChecked(new Set())
     clearSelection()
     refresh()
+    setMfgRefreshKey((k) => k + 1)
   }
 
   const hasFilters = search || filterCategory || filterNdaa || filterVendor || filterForm || filterResolution
