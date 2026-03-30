@@ -14,22 +14,37 @@ const ThemeContext = createContext<ThemeContextType>({
   toggleTheme: () => {},
 })
 
+/**
+ * ThemeProvider — runtime theme toggling.
+ *
+ * Initial class is already set by the inline script in layout.tsx
+ * (prevents FOUC). This provider reads that class on mount and
+ * keeps React state in sync for the toggle button.
+ */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>('dark')
 
-  useEffect(() => {
-    const stored = localStorage.getItem('panteray-theme') as Theme | null
-    if (stored) setTheme(stored)
-  }, [])
-
+  // Sync state with the class the inline script already applied
   useEffect(() => {
     const root = document.documentElement
-    root.classList.remove('light', 'dark')
-    root.classList.add(theme)
-    localStorage.setItem('panteray-theme', theme)
-  }, [theme])
+    if (root.classList.contains('light')) {
+      setTheme('light')
+    } else {
+      setTheme('dark')
+    }
+  }, [])
 
-  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+  // Apply class changes on toggle (not on mount — inline script handles that)
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark'
+      const root = document.documentElement
+      root.classList.remove('light', 'dark')
+      root.classList.add(next)
+      localStorage.setItem('panteray-theme', next)
+      return next
+    })
+  }
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

@@ -8,13 +8,23 @@ export const metadata: Metadata = {
   description: 'Lifecycle management platform for system integrators',
 }
 
+/*
+ * Inline script sets the theme class on <html> before first paint.
+ * Reads localStorage('panteray-theme'), falls back to 'dark'.
+ * This prevents FOUC — no JS framework needed for initial render.
+ */
+const themeScript = `(function(){try{var t=localStorage.getItem('panteray-theme');if(t==='light'||t==='dark'){document.documentElement.classList.add(t)}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})();`
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>
         <ThemeProvider>
           {children}
