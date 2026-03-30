@@ -250,7 +250,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       const resW = Number(props.resolution_w) || 0
       // Fallback sensor_w for existing devices missing this field
       if (sensorW === 0) {
-        sensorW = 4
+        sensorW = 5.14
       }
 
       let hFov = fovAngle
@@ -492,8 +492,8 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     }
     // Fallback: derive sensor_w from common sensor size if still missing
     if (!catalogSpecs.sensor_w) {
-      catalogSpecs.sensor_w = 4
-      catalogSpecs.sensor_h = 3
+      catalogSpecs.sensor_w = 5.14
+      catalogSpecs.sensor_h = 3.86
     }
 
     const dev = await addDevice({
