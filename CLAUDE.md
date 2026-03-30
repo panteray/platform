@@ -95,6 +95,7 @@ Do not re-explain why it should work. Do not repeat a previous failed approach.
 - **Do not ask Dexter questions that are answered by looking at the code or the browser.** If the answer is in the codebase or visible on screen, investigate it yourself. Do not ask clarifying questions when the information is right in front of you.
 - **When Dexter says something doesn't work, investigate the actual code path — do not claim it works.** Trace the data flow. Read the code. Look at the browser. The bug is there.
 - **Do not present plans that contradict what Dexter just told you.** If Dexter says "specs are not carrying over," the plan must address WHY specs are not carrying over — not restate that the wiring exists.
+- **Do not do things that were not asked.** If Dexter asks for X, do X. Do not decide to verify a previous fix, investigate a side issue, or do anything other than exactly what was requested.
 
 ---
 
