@@ -63,7 +63,7 @@ export function Sidebar() {
             <img src="/brand/logo-primary-horizontal-dark.svg" alt="Panteray" className="hidden h-9 dark:block" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/logo-primary-horizontal-light.svg" alt="Panteray" className="block h-9 dark:hidden" />
-            <div className="mt-1 px-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/50">
+            <div className="mt-1 px-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
               Admin Portal
             </div>
           </div>

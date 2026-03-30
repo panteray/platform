@@ -82,7 +82,7 @@ export function Topbar() {
         <nav className="flex shrink-0 items-center gap-1.5 text-[13px]">
           {crumbs.map((crumb, i) => (
             <span key={i} className="flex items-center gap-1.5">
-              {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/50" />}
+              {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/70" />}
               {crumb.href && i < crumbs.length - 1 ? (
                 <button
                   onClick={() => router.push(crumb.href!)}
@@ -101,11 +101,11 @@ export function Topbar() {
 
         {/* Search */}
         <div className="flex max-w-[320px] flex-1 items-center gap-2 rounded-lg border border-border/40 bg-background/50 px-3 py-1.5">
-          <Search className="h-3.5 w-3.5 text-muted-foreground/60" />
+          <Search className="h-3.5 w-3.5 text-muted-foreground/80" />
           <input
             type="text"
             placeholder="Search..."
-            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
           />
         </div>
       </div>

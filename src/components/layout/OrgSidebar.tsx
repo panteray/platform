@@ -168,7 +168,7 @@ export function OrgSidebar() {
           <>
             <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
               <div className="border-t border-border/30" />
-              {!collapsed && <p className="mt-2.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/50">CRM</p>}
+              {!collapsed && <p className="mt-2.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">CRM</p>}
             </div>
             {crmNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
@@ -181,7 +181,7 @@ export function OrgSidebar() {
           <>
             <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
               <div className="border-t border-border/30" />
-              {!collapsed && <p className="mt-2.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/50">Tools</p>}
+              {!collapsed && <p className="mt-2.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Tools</p>}
             </div>
             {toolsNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />

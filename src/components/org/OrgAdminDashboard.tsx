@@ -78,7 +78,7 @@ export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashbo
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="overflow-hidden rounded-xl border border-border/40 bg-card shadow-pt-sm">
           <div className="flex items-center gap-2.5 border-b border-border/30 px-4 py-3">
-            <Activity className="h-4 w-4 text-muted-foreground/60" />
+            <Activity className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-[13px] font-semibold text-foreground">Recent Notifications</h2>
           </div>
           <div className="max-h-[320px] overflow-y-auto">
@@ -88,7 +88,7 @@ export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashbo
         <div className="overflow-hidden rounded-xl border border-border/40 bg-card shadow-pt-sm">
           <div className="flex items-center justify-between border-b border-border/30 px-4 py-3">
             <div className="flex items-center gap-2.5">
-              <Building2 className="h-4 w-4 text-muted-foreground/60" />
+              <Building2 className="h-4 w-4 text-muted-foreground" />
               <h2 className="text-[13px] font-semibold text-foreground">Recent Customers</h2>
             </div>
             <Link href="/org/customers" className="text-xs text-pt-purple-light hover:underline">View all</Link>
@@ -98,8 +98,8 @@ export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashbo
               <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">Loading...</div>
             ) : recentCustomers.length === 0 ? (
               <div className="flex h-40 flex-col items-center justify-center gap-2">
-                <Building2 className="h-6 w-6 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground/60">No customers yet</p>
+                <Building2 className="h-6 w-6 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">No customers yet</p>
                 <Link href="/org/customers" className="text-xs text-pt-purple-light hover:underline">Create your first customer</Link>
               </div>
             ) : (
