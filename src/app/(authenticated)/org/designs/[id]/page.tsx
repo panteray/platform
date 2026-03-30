@@ -2,10 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { useUser } from '@/hooks/useUser'
 import { DESIGN_ACCESS_ROLES } from '@/types/enums'
-import { DesignCanvas } from '@/components/design-canvas/design-canvas'
-import { DesignDashboard } from '@/components/design-canvas/design-dashboard'
+
+const DesignCanvas = dynamic(
+  () => import('@/components/design-canvas/design-canvas').then(m => ({ default: m.DesignCanvas })),
+  { ssr: false, loading: () => <div className="-m-6 h-[calc(100vh-48px)] flex items-center justify-center bg-[var(--canvas-bg)]"><p className="text-sm text-muted-foreground">Loading canvas...</p></div> },
+)
+const DesignDashboard = dynamic(
+  () => import('@/components/design-canvas/design-dashboard').then(m => ({ default: m.DesignDashboard })),
+  { ssr: false, loading: () => <div className="-m-6 h-[calc(100vh-48px)] flex items-center justify-center bg-[var(--canvas-bg)]"><p className="text-sm text-muted-foreground">Loading dashboard...</p></div> },
+)
 
 type DesignTab = 'dashboard' | 'canvas' | 'add-devices'
 

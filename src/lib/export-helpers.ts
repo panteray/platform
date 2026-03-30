@@ -1,5 +1,3 @@
-import * as XLSX from 'xlsx'
-
 // ---- Types ----
 
 interface BomItem {
@@ -90,7 +88,8 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-function toXlsx(rows: Record<string, unknown>[], sheetName: string): Blob {
+async function toXlsx(rows: Record<string, unknown>[], sheetName: string): Promise<Blob> {
+  const XLSX = await import('xlsx')
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, sheetName)
@@ -117,7 +116,7 @@ export async function exportBom(designId: string): Promise<void> {
     'Unit Cost': item.unitCost,
     'Total': item.qty * item.unitCost,
   }))
-  const blob = toXlsx(rows, 'BOM')
+  const blob = await toXlsx(rows, 'BOM')
   downloadBlob(blob, `${sanitizeFilename(data.designName)}_BOM.xlsx`)
 }
 
@@ -137,7 +136,7 @@ export async function exportMaterialList(designId: string): Promise<void> {
       'Part #': String(props.part_number ?? ''),
     }
   })
-  const blob = toXlsx(rows, 'Material List')
+  const blob = await toXlsx(rows, 'Material List')
   downloadBlob(blob, `${sanitizeFilename(data.designName)}_Material_List.xlsx`)
 }
 
@@ -163,7 +162,7 @@ export async function exportHardwareSchedule(designId: string): Promise<void> {
       })
     }
   }
-  const blob = toXlsx(rows, 'Hardware Schedule')
+  const blob = await toXlsx(rows, 'Hardware Schedule')
   downloadBlob(blob, `${sanitizeFilename(data.designName)}_Hardware_Schedule.xlsx`)
 }
 
@@ -195,7 +194,7 @@ export async function exportCableSchedule(designId: string): Promise<void> {
     'To Device': '',
     'MDF/IDF': '',
   })
-  const blob = toXlsx(rows, 'Cable Schedule')
+  const blob = await toXlsx(rows, 'Cable Schedule')
   downloadBlob(blob, `${sanitizeFilename(data.designName)}_Cable_Schedule.xlsx`)
 }
 
@@ -277,7 +276,7 @@ export async function exportIsoComplianceReport(
     'Pass/Fail': passCount === results.length ? 'ALL PASS' : 'ISSUES FOUND',
     'Notes': '',
   })
-  const blob = toXlsx(rows, 'ISO 62676 Compliance')
+  const blob = await toXlsx(rows, 'ISO 62676 Compliance')
   downloadBlob(blob, `${sanitizeFilename(designName)}_ISO_62676_Compliance.xlsx`)
 }
 
@@ -345,6 +344,6 @@ export async function exportBomWithPricing(
     { '#': '' as never, 'Category': '', 'Manufacturer': '', 'Model': 'GRAND TOTAL', 'Qty': '' as never, 'MSRP': '', 'Dealer Cost': '', 'Sell Price': '', 'Extended': grandTotal.toFixed(2), 'Labor Hrs': '', 'Labor Cost': '' },
   )
 
-  const blob = toXlsx(rows, 'BOM with Pricing')
+  const blob = await toXlsx(rows, 'BOM with Pricing')
   downloadBlob(blob, `${sanitizeFilename(data.designName)}_BOM_Pricing.xlsx`)
 }

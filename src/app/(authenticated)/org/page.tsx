@@ -1,17 +1,19 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { DivisionFilter } from '@/components/org/DivisionFilter'
 import { DashboardGrid } from '@/components/org/DashboardGrid'
-import { OrgAdminDashboard } from '@/components/org/OrgAdminDashboard'
-import { ManagerDashboard } from '@/components/org/ManagerDashboard'
-import { SalesDashboard } from '@/components/org/SalesDashboard'
-import { PresalesDashboard } from '@/components/org/PresalesDashboard'
-import { PMDashboard } from '@/components/org/PMDashboard'
-import { FieldDashboard } from '@/components/org/FieldDashboard'
 import { useUser } from '@/hooks/useUser'
 import { UserRole } from '@/types/enums'
 import { createClient } from '@/lib/supabase/client'
+
+const OrgAdminDashboard = dynamic(() => import('@/components/org/OrgAdminDashboard').then(m => ({ default: m.OrgAdminDashboard })))
+const ManagerDashboard = dynamic(() => import('@/components/org/ManagerDashboard').then(m => ({ default: m.ManagerDashboard })))
+const SalesDashboard = dynamic(() => import('@/components/org/SalesDashboard').then(m => ({ default: m.SalesDashboard })))
+const PresalesDashboard = dynamic(() => import('@/components/org/PresalesDashboard').then(m => ({ default: m.PresalesDashboard })))
+const PMDashboard = dynamic(() => import('@/components/org/PMDashboard').then(m => ({ default: m.PMDashboard })))
+const FieldDashboard = dynamic(() => import('@/components/org/FieldDashboard').then(m => ({ default: m.FieldDashboard })))
 
 export default function OrgDashboard() {
   const [divisionFilter, setDivisionFilter] = useState('ALL')
