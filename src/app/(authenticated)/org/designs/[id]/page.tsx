@@ -73,7 +73,7 @@ export default function DesignDetailPage() {
 
   // Dashboard tab: normal app shell layout
   return (
-    <div className="-m-6 h-[calc(100vh-48px)] flex flex-col" style={{ background: '#0f1117' }}>
+    <div className="-m-6 h-[calc(100vh-48px)] flex flex-col" style={{ background: 'var(--canvas-bg)' }}>
       {/* Tab bar */}
       <div style={{
         display: 'flex', alignItems: 'flex-end', gap: 2, padding: '0 16px',

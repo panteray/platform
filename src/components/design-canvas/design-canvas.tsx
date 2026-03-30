@@ -246,8 +246,12 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       const fovAngle = Number(props.fov_angle) || defaultFov
       const targetDist = Number(props.target_distance) || 30
       const focalLength = Number(props.focal_length) || 0
-      const sensorW = Number(props.sensor_w) || Number(props.sensor_width) || 0
+      let sensorW = Number(props.sensor_w) || Number(props.sensor_width) || 0
       const resW = Number(props.resolution_w) || 0
+      // Fallback sensor_w for existing devices missing this field
+      if (sensorW === 0 && resW > 0) {
+        sensorW = resW >= 3840 ? 7.68 : resW >= 2560 ? 6.4 : resW >= 1920 ? 5.6 : 4.8
+      }
 
       let hFov = fovAngle
       if (focalLength > 0 && sensorW > 0) {
@@ -476,6 +480,23 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     }
     if (catalogSpecs.max_resolution_v && !catalogSpecs.resolution_h) {
       catalogSpecs.resolution_h = Number(catalogSpecs.max_resolution_v)
+    }
+    // Sensor dimensions — check JSONB aliases
+    if (!catalogSpecs.sensor_w) {
+      const sw = catalogSpecs.sensor_width ?? catalogSpecs.sensor_size_w ?? catalogSpecs.sensor_w_mm
+      if (sw) catalogSpecs.sensor_w = parseFloat(String(sw))
+    }
+    if (!catalogSpecs.sensor_h) {
+      const sh = catalogSpecs.sensor_height ?? catalogSpecs.sensor_size_h ?? catalogSpecs.sensor_h_mm
+      if (sh) catalogSpecs.sensor_h = parseFloat(String(sh))
+    }
+    // Fallback: derive sensor_w from resolution if still missing (common sensor sizes)
+    if (!catalogSpecs.sensor_w && catalogSpecs.resolution_w) {
+      const rw = Number(catalogSpecs.resolution_w)
+      // Most security cameras use 1/2.8" (6.4mm) or 1/3" (4.8mm) sensor
+      // Default to 1/2.8" which is the most common for 2MP+ cameras
+      catalogSpecs.sensor_w = rw >= 3840 ? 7.68 : rw >= 2560 ? 6.4 : rw >= 1920 ? 5.6 : 4.8
+      catalogSpecs.sensor_h = Number(catalogSpecs.sensor_w) * 0.75
     }
 
     const dev = await addDevice({

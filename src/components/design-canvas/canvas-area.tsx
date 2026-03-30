@@ -1393,8 +1393,10 @@ export function CanvasArea({
           }
         }
 
-        // ── HANDLES (selected device only) ──
-        if (devId === selectedDeviceId) {
+        // ── HANDLES (selected device only, skip if fixed lens) ──
+        const devProps = (dev.properties ?? {}) as Record<string, unknown>
+        const isFixedLens = String(devProps.focal_type || '').toLowerCase() === 'fixed'
+        if (devId === selectedDeviceId && !isFixedLens) {
           const outerR = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
           if (outerR > 5) {
             const sensorColors = SENSOR_COLORS
