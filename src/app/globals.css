@@ -3,143 +3,136 @@
 @tailwind utilities;
 
 /*
- * THEMING SYSTEM
+ * PANTERAY DESIGN SYSTEM
  *
- * Structure: each theme is a single class block (.light / .dark) on <html>.
- * Tokens use HSL triplets (H S% L%) consumed as hsl(var(--token)).
- * Canvas tokens use raw hex for Fabric.js / inline style compatibility.
+ * Brand palette: Purple #522F82 primary, Orange/Green/Teal accents
+ * Dark surfaces: Slate scale (blue undertone) — NOT generic Zinc
+ * Typography: Red Rose (display) + Epilogue (mono/numbers)
  *
- * To add a new theme: copy any theme block, change the class name and values.
- * All foreground/background pairings meet WCAG AA contrast (4.5:1 text, 3:1 UI).
- *
- * Groups:
- *   Surfaces    — background layers (page, card, elevated, overlay)
- *   Text        — foreground colors by emphasis level
- *   Borders     — dividers and input outlines
- *   Interactive — primary actions, focus rings, hover states
- *   Status      — success, warning, destructive, info
- *   Canvas      — design canvas tokens (hex for Fabric.js)
- *   Layout      — border-radius, spacing constants
+ * To add a theme: copy a theme block, change class + values.
+ * All pairings meet WCAG AA (4.5:1 text, 3:1 UI).
  */
 
 @layer base {
 
   /* ================================================================
    * LIGHT THEME
-   * Default when no JS or localStorage preference exists.
    * ================================================================ */
   :root,
   .light {
     color-scheme: light;
 
     /* --- Surfaces --- */
-    --background:           0 0% 100%;        /* #ffffff */
-    --card:                 0 0% 100%;        /* #ffffff */
-    --secondary:            240 4.8% 95.9%;   /* #f4f4f5 */
-    --muted:                240 4.8% 95.9%;   /* #f4f4f5 */
-    --accent:               240 4.8% 95.9%;   /* #f4f4f5 */
+    --background:           210 40% 98%;      /* #F8FAFC slate-50 */
+    --card:                 0 0% 100%;        /* #FFFFFF */
+    --secondary:            210 40% 96.1%;    /* #F1F5F9 slate-100 */
+    --muted:                210 40% 96.1%;    /* #F1F5F9 */
+    --accent:               210 40% 96.1%;    /* #F1F5F9 */
+    --popover:              0 0% 100%;
 
     /* --- Text --- */
-    --foreground:           240 10% 3.9%;     /* #0a0a0b — on background, 21:1 */
-    --card-foreground:      240 10% 3.9%;     /* on card, 21:1 */
-    --secondary-foreground: 240 5.9% 10%;     /* on secondary, 15.4:1 */
-    --muted-foreground:     240 3.8% 46.1%;   /* #71717a — on muted, 4.7:1 */
-    --accent-foreground:    240 5.9% 10%;     /* on accent, 15.4:1 */
+    --foreground:           222.2 47.4% 11.2%;  /* #1E293B slate-800, 13.5:1 */
+    --card-foreground:      222.2 47.4% 11.2%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted-foreground:     215.4 16.3% 46.9%;  /* #64748B slate-500, 4.6:1 */
+    --accent-foreground:    222.2 47.4% 11.2%;
+    --popover-foreground:   222.2 47.4% 11.2%;
 
     /* --- Borders --- */
-    --border:               240 5.9% 90%;     /* #e4e4e7 */
-    --input:                240 5.9% 90%;     /* #e4e4e7 */
+    --border:               214.3 31.8% 91.4%;  /* #E2E8F0 slate-200 */
+    --input:                214.3 31.8% 91.4%;
 
-    /* --- Interactive --- */
-    --primary:              221 83% 53%;      /* #2563eb */
-    --primary-foreground:   210 40% 98%;      /* #f8fafc — on primary, 7.1:1 */
-    --ring:                 221 83% 53%;      /* focus ring matches primary */
+    /* --- Interactive (brand purple) --- */
+    --primary:              271 47% 35%;      /* #522F82 */
+    --primary-foreground:   0 0% 100%;        /* white — 8.2:1 */
+    --ring:                 271 47% 35%;
 
     /* --- Status --- */
-    --destructive:          0 84.2% 60.2%;    /* #ef4444 */
-    --destructive-foreground: 0 0% 100%;      /* #ffffff — on destructive, 4.6:1 */
-    --success:              142 71% 45%;      /* #22c55e */
-    --success-foreground:   0 0% 100%;        /* #ffffff — on success, 4.5:1 */
-    --warning:              38 92% 50%;       /* #f59e0b */
-    --warning-foreground:   0 0% 0%;          /* #000000 — on warning, 8.6:1 */
-    --info:                 199 89% 48%;      /* #0ea5e9 */
-    --info-foreground:      0 0% 0%;          /* #000000 — on info, 5.1:1 */
+    --destructive:          0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --success:              142 71% 45%;
+    --success-foreground:   0 0% 100%;
+    --warning:              38 92% 50%;
+    --warning-foreground:   0 0% 0%;
+    --info:                 174 60% 38%;      /* teal brand */
+    --info-foreground:      0 0% 100%;
 
-    /* --- Canvas (hex for Fabric.js / inline styles) --- */
-    --canvas-bg:            #ffffff;
-    --canvas-bg-surface:    #f4f4f5;
-    --canvas-bg-panel:      #fafafa;
-    --canvas-bg-hover:      #e4e4e7;
-    --canvas-bg-active:     #e4e4e7;
-    --canvas-border:        #d4d4d8;
-    --canvas-border-subtle: #e4e4e7;
-    --canvas-text:          #09090b;
-    --canvas-text-muted:    #71717a;
-    --canvas-text-dim:      #a1a1aa;
-    --canvas-accent:        #2563eb;
-    --canvas-accent-hover:  #1d4ed8;
-    --canvas-accent-subtle: rgba(37, 99, 235, 0.08);
-    --canvas-grid-dot:      rgba(0, 0, 0, 0.08);
+    /* --- Canvas (hex for Fabric.js) --- */
+    --canvas-bg:            #F8FAFC;
+    --canvas-bg-surface:    #F1F5F9;
+    --canvas-bg-panel:      #FFFFFF;
+    --canvas-bg-hover:      #E2E8F0;
+    --canvas-bg-active:     #E2E8F0;
+    --canvas-border:        #CBD5E1;
+    --canvas-border-subtle: #E2E8F0;
+    --canvas-text:          #1E293B;
+    --canvas-text-muted:    #64748B;
+    --canvas-text-dim:      #94A3B8;
+    --canvas-accent:        #522F82;
+    --canvas-accent-hover:  #45266D;
+    --canvas-accent-subtle: rgba(82, 47, 130, 0.06);
+    --canvas-grid-dot:      rgba(30, 41, 59, 0.08);
 
     /* --- Layout --- */
-    --radius: 0.5rem;
+    --radius: 0.625rem;
   }
 
   /* ================================================================
-   * DARK THEME
-   * Applied via .dark class on <html>. Inline script prevents FOUC.
+   * DARK THEME — Slate scale (blue undertone)
    * ================================================================ */
   .dark {
     color-scheme: dark;
 
     /* --- Surfaces --- */
-    --background:           240 10% 3.9%;     /* #0a0a0b */
-    --card:                 240 6% 6.5%;      /* #101012 */
-    --secondary:            240 3.7% 10.8%;   /* #1a1a1e */
-    --muted:                240 3.7% 15.9%;   /* #262629 */
-    --accent:               240 3.7% 15.9%;   /* #262629 */
+    --background:           222.2 84% 4.9%;   /* #020617 slate-950 */
+    --card:                 217.2 32.6% 17.5%; /* #1E293B slate-800 */
+    --secondary:            217.2 32.6% 17.5%;
+    --muted:                215.3 25% 26.7%;   /* #334155 slate-700 */
+    --accent:               217.2 32.6% 17.5%;
+    --popover:              222.2 84% 4.9%;
 
     /* --- Text --- */
-    --foreground:           0 0% 98%;         /* #fafafa — on background, 19.3:1 */
-    --card-foreground:      0 0% 98%;         /* on card, 17.4:1 */
-    --secondary-foreground: 0 0% 98%;         /* on secondary, 15.1:1 */
-    --muted-foreground:     240 5% 64.9%;     /* #a1a1aa — on muted, 6.3:1 */
-    --accent-foreground:    0 0% 98%;         /* on accent, 12.6:1 */
+    --foreground:           210 40% 98%;      /* #F8FAFC — 18.1:1 */
+    --card-foreground:      210 40% 98%;
+    --secondary-foreground: 210 40% 98%;
+    --muted-foreground:     215 20.2% 65.1%;  /* #94A3B8 slate-400 — 7.1:1 */
+    --accent-foreground:    210 40% 98%;
+    --popover-foreground:   210 40% 98%;
 
     /* --- Borders --- */
-    --border:               240 3.7% 15.9%;   /* #262629 */
-    --input:                240 3.7% 15.9%;   /* #262629 */
+    --border:               215.3 25% 26.7%;  /* #334155 slate-700 */
+    --input:                215.3 25% 26.7%;
 
-    /* --- Interactive --- */
-    --primary:              217 91% 60%;      /* #3b82f6 */
-    --primary-foreground:   0 0% 100%;        /* #ffffff — on primary, 5.3:1 */
-    --ring:                 217 91% 60%;
+    /* --- Interactive (brand purple, lighter for dark) --- */
+    --primary:              271 39% 47%;      /* #6B46A6 purple-light */
+    --primary-foreground:   0 0% 100%;        /* 5.8:1 */
+    --ring:                 271 39% 47%;
 
     /* --- Status --- */
-    --destructive:          0 62.8% 30.6%;    /* #7f1d1d */
-    --destructive-foreground: 0 0% 98%;       /* #fafafa — on destructive, 8.9:1 */
-    --success:              142 71% 29%;      /* #166534 */
-    --success-foreground:   0 0% 98%;         /* #fafafa — on success, 7.2:1 */
-    --warning:              38 92% 30%;       /* #92400e */
-    --warning-foreground:   0 0% 98%;         /* #fafafa — on warning, 7.8:1 */
-    --info:                 199 89% 28%;      /* #075985 */
-    --info-foreground:      0 0% 98%;         /* #fafafa — on info, 6.4:1 */
+    --destructive:          0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --success:              142 71% 29%;
+    --success-foreground:   0 0% 98%;
+    --warning:              38 92% 30%;
+    --warning-foreground:   0 0% 98%;
+    --info:                 174 60% 25%;
+    --info-foreground:      0 0% 98%;
 
-    /* --- Canvas (hex for Fabric.js / inline styles) --- */
-    --canvas-bg:            #09090b;
-    --canvas-bg-surface:    #18181b;
-    --canvas-bg-panel:      #1c1c1f;
-    --canvas-bg-hover:      #27272a;
-    --canvas-bg-active:     #27272a;
-    --canvas-border:        #27272a;
-    --canvas-border-subtle: #1f1f23;
-    --canvas-text:          #fafafa;
-    --canvas-text-muted:    #a1a1aa;
-    --canvas-text-dim:      #71717a;
-    --canvas-accent:        #3b82f6;
-    --canvas-accent-hover:  #2563eb;
-    --canvas-accent-subtle: rgba(59, 130, 246, 0.12);
-    --canvas-grid-dot:      rgba(255, 255, 255, 0.06);
+    /* --- Canvas (hex for Fabric.js) --- */
+    --canvas-bg:            #020617;
+    --canvas-bg-surface:    #0F172A;
+    --canvas-bg-panel:      #1E293B;
+    --canvas-bg-hover:      #334155;
+    --canvas-bg-active:     #334155;
+    --canvas-border:        #334155;
+    --canvas-border-subtle: #1E293B;
+    --canvas-text:          #F8FAFC;
+    --canvas-text-muted:    #94A3B8;
+    --canvas-text-dim:      #64748B;
+    --canvas-accent:        #6B46A6;
+    --canvas-accent-hover:  #522F82;
+    --canvas-accent-subtle: rgba(107, 70, 166, 0.12);
+    --canvas-grid-dot:      rgba(248, 250, 252, 0.04);
   }
 }
 
@@ -148,21 +141,48 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
 }
 
+/* Subtle gradient utilities */
+@layer utilities {
+  .gradient-brand {
+    background: linear-gradient(135deg, #522F82 0%, #6B46A6 50%, #45266D 100%);
+  }
+  .gradient-surface-dark {
+    background: linear-gradient(180deg, #0F172A 0%, #020617 100%);
+  }
+  .gradient-glow-purple {
+    background: radial-gradient(ellipse at 50% 0%, rgba(107, 70, 166, 0.15) 0%, transparent 60%);
+  }
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: hsl(var(--muted));
-  border-radius: 3px;
+  border-radius: 100px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground));
+}
+
+/* Brand icon sprite styles */
+.pt-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  display: inline-block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
 }

@@ -2,17 +2,26 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Building2, Cpu, PanelLeftClose, PanelLeft, LogOut } from 'lucide-react'
+import { LayoutDashboard, Building2, Cpu } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useSidebarState } from '@/hooks/useSidebarState'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
+/* Brand SVG sprite icon */
+function PtIcon({ name, className }: { name: string; className?: string }) {
+  return (
+    <svg className={cn('pt-icon', className)} aria-hidden="true">
+      <use href={`/brand/panteray-icons-sprite.svg#pt-${name}`} />
+    </svg>
+  )
+}
+
 const adminNav = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, match: '/admin' },
-  { href: '/admin/organizations', label: 'Organizations', icon: Building2, match: '/admin/organizations' },
-  { href: '/admin/device-library', label: 'Device Library', icon: Cpu, match: '/admin/device-library' },
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, ptIcon: 'dashboard', match: '/admin' },
+  { href: '/admin/organizations', label: 'Organizations', icon: Building2, ptIcon: 'manufacturers', match: '/admin/organizations' },
+  { href: '/admin/device-library', label: 'Device Library', icon: Cpu, ptIcon: 'device-library', match: '/admin/device-library' },
 ]
 
 export function Sidebar() {
@@ -37,27 +46,33 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'flex flex-col border-r border-border bg-background transition-all duration-200',
+        'flex flex-col border-r border-border/60 bg-card/80 backdrop-blur-sm transition-all duration-200',
         collapsed ? 'w-16 min-w-[64px]' : 'w-60 min-w-[240px]'
       )}
     >
-      {/* Logo */}
-      <div className="border-b border-border px-4 pb-4 pt-5">
+      {/* Brand logo */}
+      <div className="px-4 pb-3 pt-5">
         {collapsed ? (
-          <div className="flex justify-center text-lg font-semibold text-foreground">P</div>
+          <div className="flex justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/logo-primary-icon.svg" alt="Panteray" className="h-7 w-7" />
+          </div>
         ) : (
-          <>
-            <div className="px-2 text-xl font-semibold tracking-tight text-foreground">Panteray</div>
-            <div className="mt-0.5 px-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+          <div className="px-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/logo-primary-horizontal-dark.svg" alt="Panteray" className="hidden h-9 dark:block" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/logo-primary-horizontal-light.svg" alt="Panteray" className="block h-9 dark:hidden" />
+            <div className="mt-1 px-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/50">
               Admin Portal
             </div>
-          </>
+          </div>
         )}
       </div>
 
       {/* User */}
-      <div className={cn('flex items-center gap-3 border-b border-border py-4', collapsed ? 'justify-center px-2' : 'px-4')}>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-[1.5px] border-blue-500 bg-muted text-sm font-medium text-foreground">
+      <div className={cn('flex items-center border-b border-border/40 pb-4 pt-2', collapsed ? 'justify-center px-2' : 'gap-3 px-4')}>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pt-purple to-pt-purple-dark text-[11px] font-semibold text-white">
           {initials}
         </div>
         {!collapsed && (
@@ -69,7 +84,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-0.5 p-2">
+      <nav className="flex-1 space-y-0.5 px-2 py-3">
         {adminNav.map((item) => {
           const active = item.match === '/admin'
             ? pathname === '/admin'
@@ -80,14 +95,14 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center rounded-md border-l-[3px] text-[13px] transition-colors',
-                collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-4 py-2',
+                'flex items-center rounded-lg text-[13px] font-normal transition-all duration-150',
+                collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2',
                 active
-                  ? 'border-blue-500 bg-muted font-medium text-foreground'
-                  : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
+                  ? 'bg-pt-purple/10 text-pt-purple-light dark:bg-pt-purple/15 dark:text-pt-purple-light'
+                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
               )}
             >
-              <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
+              <PtIcon name={item.ptIcon} className={cn(active && 'text-pt-purple dark:text-pt-purple-light')} />
               {!collapsed && item.label}
             </Link>
           )
@@ -96,7 +111,7 @@ export function Sidebar() {
             return (
               <Tooltip key={item.href} delayDuration={0}>
                 <TooltipTrigger asChild>{link}</TooltipTrigger>
-                <TooltipContent side="right" className="text-xs">{item.label}</TooltipContent>
+                <TooltipContent side="right" className="text-xs font-normal">{item.label}</TooltipContent>
               </Tooltip>
             )
           }
@@ -106,49 +121,41 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom section */}
-      <div className="border-t border-border">
-        {/* Collapse toggle */}
+      <div className="border-t border-border/40">
         {mounted && (
-          <div className={cn('py-1', collapsed ? 'px-2' : 'px-3')}>
+          <div className={cn('py-1', collapsed ? 'px-2' : 'px-2')}>
             <button
               onClick={toggle}
               className={cn(
-                'flex w-full items-center rounded-md py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-                collapsed ? 'justify-center px-2' : 'gap-2.5 px-4'
+                'flex w-full items-center rounded-lg py-2 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground',
+                collapsed ? 'justify-center px-2' : 'gap-3 px-3'
               )}
             >
-              {collapsed ? (
-                <PanelLeft className="h-[18px] w-[18px]" strokeWidth={1.5} />
-              ) : (
-                <>
-                  <PanelLeftClose className="h-[18px] w-[18px]" strokeWidth={1.5} />
-                  <span className="text-[13px]">Collapse</span>
-                </>
-              )}
+              <PtIcon name="collapse" />
+              {!collapsed && <span className="text-[13px]">Collapse</span>}
             </button>
           </div>
         )}
 
-        {/* Logout */}
-        <div className={cn('border-t border-border py-1', collapsed ? 'px-2' : 'px-3')}>
+        <div className={cn('border-t border-border/40 py-1', collapsed ? 'px-2' : 'px-2')}>
           {collapsed ? (
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
                 <button
                   onClick={handleLogout}
-                  className="flex w-full items-center justify-center rounded-md px-2 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  className="flex w-full items-center justify-center rounded-lg p-2.5 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
                 >
-                  <LogOut className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                  <PtIcon name="sign-out" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs">Sign Out</TooltipContent>
+              <TooltipContent side="right" className="text-xs font-normal">Sign Out</TooltipContent>
             </Tooltip>
           ) : (
             <button
               onClick={handleLogout}
-              className="flex w-full items-center gap-2.5 rounded-md px-4 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
             >
-              <LogOut className="h-[18px] w-[18px]" strokeWidth={1.5} />
+              <PtIcon name="sign-out" />
               Sign Out
             </button>
           )}

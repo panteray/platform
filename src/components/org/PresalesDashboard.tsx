@@ -29,11 +29,14 @@ export function PresalesDashboard({ brandColor }: PresalesDashboardProps) {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-medium text-foreground">Presales Dashboard</h1>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <DashboardWidget label="OPPs In Progress" icon={Briefcase} value={oppCount} description="Opportunities in design" loading={loading} brandColor={brandColor} />
-        {placeholderWidgets.map((w) => (
-          <DashboardWidget key={w.label} label={w.label} icon={w.icon} emptyMessage={w.emptyMessage} description={w.description} brandColor={brandColor} />
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Presales Dashboard</h1>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">Design and estimation pipeline overview</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <DashboardWidget label="OPPs In Progress" icon={Briefcase} value={oppCount} description="Opportunities in design" loading={loading} brandColor={brandColor} accentIndex={0} />
+        {placeholderWidgets.map((w, i) => (
+          <DashboardWidget key={w.label} label={w.label} icon={w.icon} emptyMessage={w.emptyMessage} description={w.description} brandColor={brandColor} accentIndex={i + 1} />
         ))}
       </div>
     </div>

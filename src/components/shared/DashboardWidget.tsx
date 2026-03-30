@@ -2,6 +2,9 @@
 
 import type { LucideIcon } from 'lucide-react'
 
+/* Brand accent colors for stat card top lines */
+const ACCENT_COLORS = ['#522F82', '#F97316', '#16A34A', '#14B8A6', '#3B82F6', '#F59E0B', '#EF4444', '#6B46A6']
+
 interface DashboardWidgetProps {
   label: string
   icon: LucideIcon
@@ -10,6 +13,7 @@ interface DashboardWidgetProps {
   emptyMessage?: string
   loading?: boolean
   brandColor?: string | null
+  accentIndex?: number
 }
 
 export function DashboardWidget({
@@ -20,45 +24,32 @@ export function DashboardWidget({
   emptyMessage,
   loading = false,
   brandColor = null,
+  accentIndex = 0,
 }: DashboardWidgetProps) {
   const isEmptyState = value === undefined && emptyMessage
+  const accent = brandColor || ACCENT_COLORS[accentIndex % ACCENT_COLORS.length]
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-      <div
-        className={brandColor ? 'h-1' : 'h-1 bg-muted'}
-        style={brandColor ? { backgroundColor: brandColor } : undefined}
-      />
-      <div className="p-5">
-        <div className="flex items-center gap-3">
-          <div
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${brandColor ? '' : 'bg-muted'}`}
-            style={brandColor ? { backgroundColor: `${brandColor}18` } : undefined}
-          >
-            <span
-              className={brandColor ? '' : 'text-muted-foreground'}
-              style={brandColor ? { color: brandColor } : undefined}
-            >
-              <Icon className="h-5 w-5" />
-            </span>
-          </div>
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
+    <div className="group overflow-hidden rounded-xl border border-border/40 bg-card shadow-pt-sm transition-all duration-150 hover:shadow-pt-md">
+      {/* Colored accent line */}
+      <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}80)` }} />
+      <div className="p-4">
+        <div className="flex items-center justify-between">
+          <p className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+          <Icon className="h-4 w-4 text-muted-foreground/40" />
         </div>
-        <div className="mt-4">
+        <div className="mt-3">
           {loading ? (
-            <div className="h-9 w-16 animate-pulse rounded bg-muted" />
+            <div className="h-8 w-14 animate-pulse rounded-md bg-muted/60" />
           ) : isEmptyState ? (
-            <div className="flex items-center gap-2">
-              <Icon className="h-4 w-4 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground/60">{emptyMessage}</p>
-            </div>
+            <p className="text-[13px] text-muted-foreground/50">{emptyMessage}</p>
           ) : (
-            <p className="text-3xl font-semibold tabular-nums text-foreground">
+            <p className="font-mono text-2xl font-semibold tabular-nums text-foreground">
               {value ?? 0}
             </p>
           )}
           {description && (
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            <p className="mt-1.5 text-[11px] text-muted-foreground/60">{description}</p>
           )}
         </div>
       </div>

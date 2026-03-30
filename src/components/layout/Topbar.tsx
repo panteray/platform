@@ -19,6 +19,14 @@ const ROUTE_LABELS: Record<string, string> = {
   '/org/profile': 'Profile',
   '/org/settings': 'Organization',
   '/org/users': 'Users',
+  '/org/opportunities': 'Opportunities',
+  '/org/customers': 'Customers',
+  '/org/manufacturers': 'Manufacturers',
+  '/org/subcontractors': 'Subcontractors',
+  '/org/distributors': 'Distributors',
+  '/org/designs': 'Designs',
+  '/org/tools/device-library': 'Device Library',
+  '/org/tools/calculators': 'Calculators',
   '/dashboard': 'Dashboard',
 }
 
@@ -37,6 +45,14 @@ function buildBreadcrumbs(pathname: string): { label: string; href?: string }[] 
     else if (sub.startsWith('/profile')) crumbs.push({ label: 'Management', href: '/org/management' }, { label: 'Profile' })
     else if (sub.startsWith('/settings')) crumbs.push({ label: 'Management', href: '/org/management' }, { label: 'Organization' })
     else if (sub.startsWith('/users')) crumbs.push({ label: 'Users' })
+    else if (sub.startsWith('/opportunities')) crumbs.push({ label: 'Opportunities' })
+    else if (sub.startsWith('/customers')) crumbs.push({ label: 'Customers' })
+    else if (sub.startsWith('/manufacturers')) crumbs.push({ label: 'Manufacturers' })
+    else if (sub.startsWith('/subcontractors')) crumbs.push({ label: 'Subcontractors' })
+    else if (sub.startsWith('/distributors')) crumbs.push({ label: 'Distributors' })
+    else if (sub.startsWith('/designs')) crumbs.push({ label: 'Designs' })
+    else if (sub.startsWith('/tools/device-library')) crumbs.push({ label: 'Tools', href: '/org/tools/calculators' }, { label: 'Device Library' })
+    else if (sub.startsWith('/tools/calculators')) crumbs.push({ label: 'Tools' }, { label: 'Calculators' })
     else crumbs.push({ label: 'Dashboard' })
   } else {
     crumbs.push({ label: 'Platform' })
@@ -59,18 +75,18 @@ export function Topbar() {
   const roleLbl = userRole ? roleLabel(userRole as UserRole) : null
 
   return (
-    <header className="flex h-14 min-h-[56px] items-center justify-between border-b border-border bg-card px-6">
+    <header className="flex h-12 min-h-[48px] items-center justify-between border-b border-border/50 bg-card/60 px-5 backdrop-blur-sm">
       {/* Left: Breadcrumb + Search */}
-      <div className="flex flex-1 items-center gap-4">
+      <div className="flex flex-1 items-center gap-5">
         {/* Breadcrumb */}
         <nav className="flex shrink-0 items-center gap-1.5 text-[13px]">
           {crumbs.map((crumb, i) => (
             <span key={i} className="flex items-center gap-1.5">
-              {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/50" />}
               {crumb.href && i < crumbs.length - 1 ? (
                 <button
                   onClick={() => router.push(crumb.href!)}
-                  className="text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {crumb.label}
                 </button>
@@ -84,40 +100,48 @@ export function Topbar() {
         </nav>
 
         {/* Search */}
-        <div className="flex max-w-[360px] flex-1 items-center gap-2 rounded-md border border-input bg-secondary px-3 py-1.5">
-          <Search className="h-4 w-4 text-muted-foreground" />
+        <div className="flex max-w-[320px] flex-1 items-center gap-2 rounded-lg border border-border/40 bg-background/50 px-3 py-1.5">
+          <Search className="h-3.5 w-3.5 text-muted-foreground/60" />
           <input
             type="text"
             placeholder="Search..."
-            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
           />
         </div>
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         {/* Notification Bell + Panel */}
         <div className="relative">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
-            className="relative h-[34px] w-[34px]"
+            className="relative h-8 w-8 text-muted-foreground hover:text-foreground"
             onClick={() => setNotifOpen((o) => !o)}
           >
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-blue-500 px-1 text-[9px] font-semibold text-white">
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-pt-purple px-1 text-[9px] font-semibold text-white">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
           </Button>
           <NotificationPanel open={notifOpen} onClose={handleCloseNotif} />
         </div>
-        <Button variant="outline" size="icon" onClick={toggleTheme} className="h-[34px] w-[34px]">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
           {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
         {roleLbl && (
-          <span className="ml-2 text-xs text-muted-foreground">{roleLbl}</span>
+          <span className="ml-1.5 rounded-md bg-pt-purple/10 px-2 py-0.5 text-[11px] font-medium text-pt-purple-light">
+            {roleLbl}
+          </span>
         )}
       </div>
     </header>

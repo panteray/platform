@@ -55,15 +55,18 @@ export function ManagerDashboard({ brandColor }: ManagerDashboardProps) {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-medium text-foreground">Manager Dashboard</h1>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <DashboardWidget label="Customers" icon={Users} value={stats.customers} description="Customer accounts" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Manufacturers" icon={Building2} value={stats.manufacturers} description="Manufacturer relationships" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Subcontractors" icon={Wrench} value={stats.subcontractors} description="Subcontractor partners" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Distributors" icon={Building2} value={stats.distributors} description="Distributor accounts" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Opportunities" icon={Briefcase} value={stats.opportunities} description="Pipeline opportunities" loading={loading} brandColor={brandColor} />
-        {placeholderWidgets.map((w) => (
-          <DashboardWidget key={w.label} label={w.label} icon={w.icon} emptyMessage={w.emptyMessage} description={w.description} brandColor={brandColor} />
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Manager Dashboard</h1>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">Team operations and pipeline management</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <DashboardWidget label="Customers" icon={Users} value={stats.customers} description="Customer accounts" loading={loading} brandColor={brandColor} accentIndex={0} />
+        <DashboardWidget label="Manufacturers" icon={Building2} value={stats.manufacturers} description="Manufacturer relationships" loading={loading} brandColor={brandColor} accentIndex={1} />
+        <DashboardWidget label="Subcontractors" icon={Wrench} value={stats.subcontractors} description="Subcontractor partners" loading={loading} brandColor={brandColor} accentIndex={2} />
+        <DashboardWidget label="Distributors" icon={Building2} value={stats.distributors} description="Distributor accounts" loading={loading} brandColor={brandColor} accentIndex={3} />
+        <DashboardWidget label="Opportunities" icon={Briefcase} value={stats.opportunities} description="Pipeline opportunities" loading={loading} brandColor={brandColor} accentIndex={4} />
+        {placeholderWidgets.map((w, i) => (
+          <DashboardWidget key={w.label} label={w.label} icon={w.icon} emptyMessage={w.emptyMessage} description={w.description} brandColor={brandColor} accentIndex={i + 5} />
         ))}
       </div>
     </div>

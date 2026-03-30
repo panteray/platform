@@ -30,12 +30,15 @@ export function SalesDashboard({ brandColor }: SalesDashboardProps) {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-medium text-foreground">Sales Dashboard</h1>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <DashboardWidget label="OPPs In Progress" icon={Briefcase} value={stats.opportunities} description="Total pipeline opportunities" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Customers" icon={Building2} value={stats.customers} description="Customer accounts" loading={loading} brandColor={brandColor} />
-        {placeholderWidgets.map((w) => (
-          <DashboardWidget key={w.label} label={w.label} icon={w.icon} emptyMessage={w.emptyMessage} description={w.description} brandColor={brandColor} />
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Sales Dashboard</h1>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">Pipeline and customer activity</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <DashboardWidget label="OPPs In Progress" icon={Briefcase} value={stats.opportunities} description="Total pipeline opportunities" loading={loading} brandColor={brandColor} accentIndex={0} />
+        <DashboardWidget label="Customers" icon={Building2} value={stats.customers} description="Customer accounts" loading={loading} brandColor={brandColor} accentIndex={3} />
+        {placeholderWidgets.map((w, i) => (
+          <DashboardWidget key={w.label} label={w.label} icon={w.icon} emptyMessage={w.emptyMessage} description={w.description} brandColor={brandColor} accentIndex={i + 1} />
         ))}
       </div>
     </div>

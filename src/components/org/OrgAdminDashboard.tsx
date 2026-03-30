@@ -60,55 +60,58 @@ export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashbo
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-medium text-foreground">Organization Dashboard</h1>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <DashboardWidget label="Active Users" icon={Users} value={stats.users} description="Team members in your org" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Opportunities" icon={Briefcase} value={stats.opps} description="Total pipeline opportunities" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Projects" icon={FolderKanban} value={stats.projects} description="Active project engagements" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Customers" icon={Building2} value={stats.customers} description="Customer accounts" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Manufacturers" icon={Building2} value={stats.manufacturers} description="Manufacturer relationships" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Subcontractors" icon={Wrench} value={stats.subcontractors} description="Subcontractor partners" loading={loading} brandColor={brandColor} />
-        <DashboardWidget label="Distributors" icon={Building2} value={stats.distributors} description="Distributor accounts" loading={loading} brandColor={brandColor} />
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Organization Dashboard</h1>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">Overview of your organization metrics</p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-border bg-card">
-          <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-            <Activity className="h-4 w-4 text-muted-foreground" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <DashboardWidget label="Active Users" icon={Users} value={stats.users} description="Team members in your org" loading={loading} brandColor={brandColor} accentIndex={0} />
+        <DashboardWidget label="Opportunities" icon={Briefcase} value={stats.opps} description="Total pipeline opportunities" loading={loading} brandColor={brandColor} accentIndex={1} />
+        <DashboardWidget label="Projects" icon={FolderKanban} value={stats.projects} description="Active project engagements" loading={loading} brandColor={brandColor} accentIndex={2} />
+        <DashboardWidget label="Customers" icon={Building2} value={stats.customers} description="Customer accounts" loading={loading} brandColor={brandColor} accentIndex={3} />
+        <DashboardWidget label="Manufacturers" icon={Building2} value={stats.manufacturers} description="Manufacturer relationships" loading={loading} brandColor={brandColor} accentIndex={4} />
+        <DashboardWidget label="Subcontractors" icon={Wrench} value={stats.subcontractors} description="Subcontractor partners" loading={loading} brandColor={brandColor} accentIndex={5} />
+        <DashboardWidget label="Distributors" icon={Building2} value={stats.distributors} description="Distributor accounts" loading={loading} brandColor={brandColor} accentIndex={6} />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="overflow-hidden rounded-xl border border-border/40 bg-card shadow-pt-sm">
+          <div className="flex items-center gap-2.5 border-b border-border/30 px-4 py-3">
+            <Activity className="h-4 w-4 text-muted-foreground/60" />
             <h2 className="text-[13px] font-semibold text-foreground">Recent Notifications</h2>
           </div>
           <div className="max-h-[320px] overflow-y-auto">
             <NotificationFeed />
           </div>
         </div>
-        <div className="rounded-lg border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
+        <div className="overflow-hidden rounded-xl border border-border/40 bg-card shadow-pt-sm">
+          <div className="flex items-center justify-between border-b border-border/30 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <Building2 className="h-4 w-4 text-muted-foreground/60" />
               <h2 className="text-[13px] font-semibold text-foreground">Recent Customers</h2>
             </div>
-            <Link href="/org/customers" className="text-xs text-primary hover:underline">View all</Link>
+            <Link href="/org/customers" className="text-xs text-pt-purple-light hover:underline">View all</Link>
           </div>
           <div className="min-h-[160px]">
             {loading ? (
               <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">Loading...</div>
             ) : recentCustomers.length === 0 ? (
               <div className="flex h-40 flex-col items-center justify-center gap-2">
-                <Building2 className="h-6 w-6 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">No customers yet</p>
-                <Link href="/org/customers" className="text-xs text-primary hover:underline">Create your first customer</Link>
+                <Building2 className="h-6 w-6 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground/60">No customers yet</p>
+                <Link href="/org/customers" className="text-xs text-pt-purple-light hover:underline">Create your first customer</Link>
               </div>
             ) : (
-              <div className="divide-y divide-border">
+              <div className="divide-y divide-border/30">
                 {recentCustomers.map((c) => (
-                  <Link key={c.id} href={`/org/customers/${c.id}`} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/20">
+                  <Link key={c.id} href={`/org/customers/${c.id}`} className="flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-accent/40">
                     <div>
                       <div className="text-sm font-medium text-foreground">{c.name}</div>
-                      <div className="text-xs text-muted-foreground">{c.customer_number}</div>
+                      <div className="text-[11px] text-muted-foreground">{c.customer_number}</div>
                     </div>
                     {c.customer_type && (
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{c.customer_type}</span>
+                      <span className="rounded-md bg-pt-purple/10 px-2 py-0.5 text-[10px] font-medium text-pt-purple-light">{c.customer_type}</span>
                     )}
                   </Link>
                 ))}
