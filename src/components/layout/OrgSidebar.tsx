@@ -119,22 +119,13 @@ export function OrgSidebar() {
         {collapsed ? (
           <div className="flex justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/logo-primary-icon.svg" alt="Panteray" className="h-7 w-7" />
+            <img src="/brand/logo-app-icon.svg" alt="Panteray" className="h-8 w-8 rounded-lg" />
           </div>
         ) : (
-          <div className="px-1">
+          <div className="flex items-center gap-2.5 px-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brand/logo-primary-horizontal-dark.svg"
-              alt="Panteray"
-              className="hidden h-9 dark:block"
-            />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brand/logo-primary-horizontal-light.svg"
-              alt="Panteray"
-              className="block h-9 dark:hidden"
-            />
+            <img src="/brand/logo-app-icon.svg" alt="Panteray" className="h-8 w-8 rounded-lg" />
+            <span className="text-lg font-semibold tracking-tight text-foreground">Panteray</span>
           </div>
         )}
       </div>

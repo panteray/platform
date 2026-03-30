@@ -44,7 +44,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="mb-10 flex justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/logo-primary-icon.svg" alt="Panteray" className="h-14 w-14" />
+          <img src="/brand/logo-app-icon.svg" alt="Panteray" className="h-14 w-14" />
         </div>
         <h1 className="mb-1 text-center text-2xl font-bold tracking-tight text-white">
           Welcome back
