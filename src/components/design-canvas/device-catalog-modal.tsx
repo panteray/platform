@@ -109,12 +109,23 @@ export function DeviceCatalogModal({ category, onClose, onSelect }: DeviceCatalo
 
   const doFetch = useCallback(async (q: string) => {
     setLoading(true)
-    const params = new URLSearchParams({ limit: '5000' })
-    if (category) params.set('category', category)
-    if (q.trim()) params.set('q', q.trim())
     try {
-      const res = await fetch(`/api/org/device-library/search?${params}`)
-      if (res.ok) { const json = await res.json(); setResults(json.results ?? []) }
+      const allResults: DeviceSearchResult[] = []
+      let offset = 0
+      const batchSize = 1000
+      while (true) {
+        const params = new URLSearchParams({ limit: String(batchSize), offset: String(offset) })
+        if (category) params.set('category', category)
+        if (q.trim()) params.set('q', q.trim())
+        const res = await fetch(`/api/org/device-library/search?${params}`)
+        if (!res.ok) break
+        const json = await res.json()
+        const batch = json.results ?? []
+        allResults.push(...batch)
+        if (batch.length < batchSize) break
+        offset += batchSize
+      }
+      setResults(allResults)
     } finally { setLoading(false) }
   }, [category])
 
