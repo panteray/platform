@@ -14,47 +14,148 @@ import { Search, X, SlidersHorizontal, LayoutGrid, List, ShieldCheck, ShieldAler
 import type { DeviceSearchResult } from '@/types/database'
 import { DEVICE_CATEGORIES } from '@/types/enums'
 
-/* ───────── Form Factor Icon SVGs ───────── */
+/* ───────── Form Factor Icon SVGs — realistic CCTV silhouettes ───────── */
 
 function FormIcon({ type, size = 20, color }: { type: string; size?: number; color: string }) {
-  const h = size * 0.8
-  const s = { width: size, height: h, fill: 'none' as const }
+  const w = size
+  const h = size
+  const s = { width: w, height: h, fill: 'none' as const }
+  const sw = '1.3' // stroke width
   switch (type.toLowerCase().replace(/[\s_-]/g, '')) {
+    /* Box camera — rectangular body + protruding lens barrel + C-mount ring */
     case 'box': case 'highresolutionbox': return (
-      <svg viewBox="0 0 24 16" {...s}><rect x="2" y="2" width="16" height="12" rx="1" stroke={color} strokeWidth="1.5" /><rect x="18" y="4" width="4" height="6" rx="1" stroke={color} strokeWidth="1.5" /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <rect x="3" y="6" width="18" height="12" rx="1.5" stroke={color} strokeWidth={sw} />
+        <rect x="21" y="8" width="6" height="8" rx="1" stroke={color} strokeWidth={sw} />
+        <circle cx="27" cy="12" r="2.5" stroke={color} strokeWidth="1" />
+        <circle cx="27" cy="12" r="1" fill={color} opacity="0.4" />
+        <line x1="5" y1="6" x2="5" y2="4" stroke={color} strokeWidth="1" />
+        <line x1="4" y1="4" x2="6" y2="4" stroke={color} strokeWidth="1" />
+      </svg>
     )
+    /* Bullet camera — cylindrical body with sun shield + lens ring */
     case 'bullet': case 'thermalbullet': return (
-      <svg viewBox="0 0 24 16" {...s}><rect x="1" y="4" width="14" height="8" rx="4" stroke={color} strokeWidth="1.5" /><circle cx="19" cy="8" r="3" stroke={color} strokeWidth="1.5" /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <path d="M4 7 L4 5 L26 5 L26 7" stroke={color} strokeWidth="1" strokeLinecap="round" />
+        <rect x="4" y="7" width="22" height="10" rx="5" stroke={color} strokeWidth={sw} />
+        <circle cx="24" cy="12" r="3.5" stroke={color} strokeWidth={sw} />
+        <circle cx="24" cy="12" r="1.8" stroke={color} strokeWidth="0.8" />
+        <circle cx="24" cy="12" r="0.8" fill={color} opacity="0.5" />
+        <line x1="8" y1="17" x2="8" y2="20" stroke={color} strokeWidth="1" />
+        <circle cx="8" cy="21" r="1" stroke={color} strokeWidth="0.8" />
+      </svg>
     )
+    /* Dome camera — hemispherical dome + flat base + lens behind tinted cover */
     case 'dome': case 'minidome': return (
-      <svg viewBox="0 0 24 16" {...s}><path d="M4 14 A8 8 0 0 1 20 14" stroke={color} strokeWidth="1.5" /><line x1="2" y1="14" x2="22" y2="14" stroke={color} strokeWidth="1.5" /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <ellipse cx="16" cy="16" rx="12" ry="3" stroke={color} strokeWidth={sw} />
+        <path d="M4 16 Q4 4 16 4 Q28 4 28 16" stroke={color} strokeWidth={sw} />
+        <path d="M8 16 Q8 8 16 8 Q24 8 24 16" stroke={color} strokeWidth="0.8" opacity="0.4" />
+        <circle cx="16" cy="13" r="2.5" stroke={color} strokeWidth="0.8" opacity="0.5" />
+        <circle cx="16" cy="13" r="1" fill={color} opacity="0.3" />
+      </svg>
     )
+    /* Turret / eyeball — spherical eye in a base mount */
     case 'turret': return (
-      <svg viewBox="0 0 24 16" {...s}><circle cx="12" cy="7" r="5" stroke={color} strokeWidth="1.5" /><circle cx="12" cy="7" r="2" fill={color} opacity="0.5" /><line x1="4" y1="14" x2="20" y2="14" stroke={color} strokeWidth="1.5" /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <ellipse cx="16" cy="19" rx="10" ry="2.5" stroke={color} strokeWidth={sw} />
+        <circle cx="16" cy="12" r="7" stroke={color} strokeWidth={sw} />
+        <circle cx="18" cy="11" r="3.5" stroke={color} strokeWidth="1" />
+        <circle cx="18" cy="11" r="1.8" stroke={color} strokeWidth="0.7" />
+        <circle cx="18" cy="11" r="0.7" fill={color} opacity="0.5" />
+      </svg>
     )
+    /* PTZ — pan-tilt housing on pedestal + large zoom lens */
     case 'ptz': case 'irptz': return (
-      <svg viewBox="0 0 24 16" {...s}><ellipse cx="10" cy="6" rx="7" ry="5" stroke={color} strokeWidth="1.5" /><circle cx="14" cy="6" r="3" stroke={color} strokeWidth="1.5" /><line x1="12" y1="11" x2="12" y2="15" stroke={color} strokeWidth="1.5" /><line x1="8" y1="15" x2="16" y2="15" stroke={color} strokeWidth="1.5" /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <rect x="12" y="18" width="8" height="3" rx="1" stroke={color} strokeWidth="1" />
+        <line x1="16" y1="15" x2="16" y2="18" stroke={color} strokeWidth={sw} />
+        <ellipse cx="14" cy="10" rx="9" ry="6" stroke={color} strokeWidth={sw} />
+        <circle cx="19" cy="10" r="4" stroke={color} strokeWidth={sw} />
+        <circle cx="19" cy="10" r="2.2" stroke={color} strokeWidth="0.8" />
+        <circle cx="19" cy="10" r="1" fill={color} opacity="0.4" />
+        <path d="M10 4 Q14 2 18 4" stroke={color} strokeWidth="0.8" opacity="0.5" />
+      </svg>
     )
+    /* Fisheye — flat disc with wide convex lens */
     case 'fisheye': return (
-      <svg viewBox="0 0 24 16" {...s}><circle cx="12" cy="8" r="7" stroke={color} strokeWidth="1.5" /><circle cx="12" cy="8" r="3" stroke={color} strokeWidth="1" /><circle cx="12" cy="8" r="1" fill={color} /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <circle cx="16" cy="12" r="10" stroke={color} strokeWidth={sw} />
+        <circle cx="16" cy="12" r="6.5" stroke={color} strokeWidth="1" />
+        <circle cx="16" cy="12" r="4" stroke={color} strokeWidth="0.8" />
+        <circle cx="16" cy="12" r="2" fill={color} opacity="0.15" />
+        <circle cx="16" cy="12" r="1" fill={color} opacity="0.4" />
+        <circle cx="14" cy="10" r="1.5" fill={color} opacity="0.08" />
+      </svg>
     )
+    /* Covert / pinhole — small discreet body with tiny lens aperture */
     case 'covert': return (
-      <svg viewBox="0 0 24 16" {...s}><rect x="8" y="3" width="8" height="10" rx="2" stroke={color} strokeWidth="1.5" /><circle cx="12" cy="8" r="1.5" fill={color} /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <rect x="9" y="6" width="14" height="12" rx="2" stroke={color} strokeWidth={sw} />
+        <circle cx="16" cy="12" r="1.5" fill={color} opacity="0.6" />
+        <circle cx="16" cy="12" r="0.6" fill={color} />
+        <rect x="12" y="3" width="8" height="3" rx="1" stroke={color} strokeWidth="0.8" opacity="0.5" />
+        <line x1="16" y1="18" x2="16" y2="22" stroke={color} strokeWidth="0.8" />
+      </svg>
     )
+    /* Multisensor — multi-head housing with 4 lens pods */
     case 'multisensor': case 'multidirectional': return (
-      <svg viewBox="0 0 24 16" {...s}><circle cx="7" cy="5" r="3" stroke={color} strokeWidth="1.2" /><circle cx="17" cy="5" r="3" stroke={color} strokeWidth="1.2" /><circle cx="7" cy="12" r="3" stroke={color} strokeWidth="1.2" /><circle cx="17" cy="12" r="3" stroke={color} strokeWidth="1.2" /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <circle cx="16" cy="12" r="10" stroke={color} strokeWidth="0.8" opacity="0.3" />
+        <circle cx="10" cy="8" r="3.5" stroke={color} strokeWidth={sw} />
+        <circle cx="10" cy="8" r="1.5" fill={color} opacity="0.3" />
+        <circle cx="22" cy="8" r="3.5" stroke={color} strokeWidth={sw} />
+        <circle cx="22" cy="8" r="1.5" fill={color} opacity="0.3" />
+        <circle cx="10" cy="17" r="3.5" stroke={color} strokeWidth={sw} />
+        <circle cx="10" cy="17" r="1.5" fill={color} opacity="0.3" />
+        <circle cx="22" cy="17" r="3.5" stroke={color} strokeWidth={sw} />
+        <circle cx="22" cy="17" r="1.5" fill={color} opacity="0.3" />
+      </svg>
     )
+    /* Corner mount — triangular bracket + dome on corner wall */
     case 'corner': return (
-      <svg viewBox="0 0 24 16" {...s}><path d="M4 2 L4 14 L20 14" stroke={color} strokeWidth="1.5" strokeLinecap="round" /><circle cx="12" cy="8" r="3" stroke={color} strokeWidth="1.2" /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <path d="M4 2 L4 22 L28 22" stroke={color} strokeWidth={sw} strokeLinecap="round" />
+        <path d="M4 14 L12 14 L12 22" stroke={color} strokeWidth="1" opacity="0.4" />
+        <path d="M10 14 Q10 6 18 6 Q26 6 26 14" stroke={color} strokeWidth={sw} />
+        <line x1="8" y1="14" x2="28" y2="14" stroke={color} strokeWidth="0.8" />
+        <circle cx="18" cy="11" r="2" stroke={color} strokeWidth="0.8" />
+        <circle cx="18" cy="11" r="0.8" fill={color} opacity="0.4" />
+      </svg>
     )
+    /* Video Intercom — panel with camera + speaker grille + call button */
     case 'videointercom': return (
-      <svg viewBox="0 0 24 16" {...s}><rect x="4" y="1" width="16" height="14" rx="2" stroke={color} strokeWidth="1.5" /><circle cx="12" cy="6" r="2" stroke={color} strokeWidth="1" /><rect x="9" y="10" width="6" height="3" rx="1" stroke={color} strokeWidth="1" /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <rect x="6" y="2" width="20" height="20" rx="2" stroke={color} strokeWidth={sw} />
+        <circle cx="16" cy="8" r="3" stroke={color} strokeWidth="1" />
+        <circle cx="16" cy="8" r="1.2" fill={color} opacity="0.4" />
+        <line x1="10" y1="14" x2="22" y2="14" stroke={color} strokeWidth="0.6" opacity="0.3" />
+        <line x1="10" y1="15.5" x2="22" y2="15.5" stroke={color} strokeWidth="0.6" opacity="0.3" />
+        <line x1="10" y1="17" x2="22" y2="17" stroke={color} strokeWidth="0.6" opacity="0.3" />
+        <circle cx="16" cy="20" r="1.2" stroke={color} strokeWidth="1" />
+      </svg>
     )
+    /* Modular — separated sensor body + lens module */
     case 'modular': return (
-      <svg viewBox="0 0 24 16" {...s}><rect x="2" y="2" width="9" height="12" rx="1" stroke={color} strokeWidth="1.2" /><rect x="13" y="2" width="9" height="12" rx="1" stroke={color} strokeWidth="1.2" /><circle cx="6.5" cy="8" r="2" stroke={color} strokeWidth="1" /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <rect x="2" y="5" width="13" height="14" rx="1.5" stroke={color} strokeWidth={sw} />
+        <circle cx="8.5" cy="12" r="3.5" stroke={color} strokeWidth="1" />
+        <circle cx="8.5" cy="12" r="1.5" fill={color} opacity="0.3" />
+        <line x1="15" y1="12" x2="19" y2="12" stroke={color} strokeWidth="1" strokeDasharray="1.5 1" />
+        <rect x="19" y="7" width="10" height="10" rx="1.5" stroke={color} strokeWidth={sw} />
+        <line x1="21" y1="10" x2="27" y2="10" stroke={color} strokeWidth="0.6" opacity="0.4" />
+        <line x1="21" y1="12" x2="27" y2="12" stroke={color} strokeWidth="0.6" opacity="0.4" />
+        <line x1="21" y1="14" x2="27" y2="14" stroke={color} strokeWidth="0.6" opacity="0.4" />
+      </svg>
     )
+    /* Default / generic camera */
     default: return (
-      <svg viewBox="0 0 24 16" {...s}><rect x="3" y="2" width="18" height="12" rx="2" stroke={color} strokeWidth="1.5" /><circle cx="12" cy="8" r="3" stroke={color} strokeWidth="1" /></svg>
+      <svg viewBox="0 0 32 24" {...s}>
+        <rect x="4" y="5" width="18" height="14" rx="2" stroke={color} strokeWidth={sw} />
+        <rect x="22" y="8" width="6" height="8" rx="1" stroke={color} strokeWidth="1" />
+        <circle cx="25" cy="12" r="2" stroke={color} strokeWidth="0.8" />
+        <circle cx="25" cy="12" r="0.8" fill={color} opacity="0.4" />
+      </svg>
     )
   }
 }
@@ -94,10 +195,12 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
   const [activeCategory, setActiveCategory] = useState(externalCategory || 'cctv')
   const [selectedForms, setSelectedForms] = useState<Set<string>>(new Set())
   const [selectedRes, setSelectedRes] = useState('')
+  const [selectedVendor, setSelectedVendor] = useState('')
   const [selectedNdaa, setSelectedNdaa] = useState<'' | 'true' | 'false'>('')
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [distinctResolutions, setDistinctResolutions] = useState<string[]>([])
+  const [manufacturers, setManufacturers] = useState<string[]>([])
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const filterRef = useRef<HTMLDivElement>(null)
@@ -105,11 +208,15 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
   // Use external category if provided (canvas modal passes this)
   const category = externalCategory || activeCategory
 
-  // Fetch distinct resolutions once (unfiltered — fixes repopulation bug)
+  // Fetch distinct resolutions + manufacturers once (unfiltered)
   useEffect(() => {
     fetch('/api/org/device-library/distinct-resolutions')
       .then(r => r.json())
       .then(j => setDistinctResolutions(j.resolutions ?? []))
+      .catch(() => {})
+    fetch('/api/org/device-library/manufacturers-list')
+      .then(r => r.json())
+      .then(j => setManufacturers(j.manufacturers ?? []))
       .catch(() => {})
   }, [])
 
@@ -165,9 +272,11 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
     setQuery(val)
   }
 
-  // Client-side filtering (form factor + resolution + NDAA)
+  // Client-side filtering (vendor + form factor + resolution + NDAA)
   const filtered = useMemo(() => {
     return results.filter(r => {
+      // Manufacturer
+      if (selectedVendor && r.vendor !== selectedVendor) return false
       // Form factor
       if (selectedForms.size > 0) {
         const sub = (r.subcategory || r.form || '').toLowerCase()
@@ -188,7 +297,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
       if (selectedNdaa === 'false' && r.ndaa_compliant) return false
       return true
     })
-  }, [results, selectedForms, selectedRes, selectedNdaa])
+  }, [results, selectedVendor, selectedForms, selectedRes, selectedNdaa])
 
   // Group by form factor for card grid
   const groups = useMemo(() => {
@@ -203,7 +312,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
   }, [filtered])
 
   // Active filter count
-  const activeFilterCount = selectedForms.size + (selectedRes ? 1 : 0) + (selectedNdaa ? 1 : 0)
+  const activeFilterCount = (selectedVendor ? 1 : 0) + selectedForms.size + (selectedRes ? 1 : 0) + (selectedNdaa ? 1 : 0)
 
   // Toggle form factor
   function toggleForm(f: string) {
@@ -216,6 +325,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
   }
 
   function clearFilters() {
+    setSelectedVendor('')
     setSelectedForms(new Set())
     setSelectedRes('')
     setSelectedNdaa('')
@@ -300,6 +410,21 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
                     Clear all
                   </button>
                 )}
+              </div>
+
+              {/* Manufacturer */}
+              <div>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Manufacturer</p>
+                <select
+                  value={selectedVendor}
+                  onChange={e => setSelectedVendor(e.target.value)}
+                  className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                >
+                  <option value="">All Manufacturers</option>
+                  {manufacturers.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Form Factor Icons */}
@@ -406,6 +531,12 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
       {/* ═══ Active Filter Chips ═══ */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 px-4 py-2 border-b border-border bg-muted/30">
+          {selectedVendor && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#2b8fce]/10 border border-[#2b8fce]/30 px-2 py-0.5 text-[10px] font-medium text-[#2b8fce]">
+              {selectedVendor}
+              <button onClick={() => setSelectedVendor('')} className="hover:text-foreground"><X className="h-3 w-3" /></button>
+            </span>
+          )}
           {Array.from(selectedForms).map(f => (
             <span key={f} className="inline-flex items-center gap-1 rounded-full bg-[#2b8fce]/10 border border-[#2b8fce]/30 px-2 py-0.5 text-[10px] font-medium text-[#2b8fce]">
               {f}
