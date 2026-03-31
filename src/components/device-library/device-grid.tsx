@@ -14,226 +14,41 @@ import { Search, X, SlidersHorizontal, LayoutGrid, List, ShieldCheck, ShieldAler
 import type { DeviceSearchResult } from '@/types/database'
 import { DEVICE_CATEGORIES } from '@/types/enums'
 
-/* ───────── Form Factor Icon SVGs — realistic CCTV camera shapes ───────── */
+/* ───────── Form Factor Icons — PNG images from Hanwha ───────── */
 
-function FormIcon({ type, size = 20, color }: { type: string; size?: number; color: string }) {
-  const s = { width: size, height: size, fill: 'none' as const }
-  switch (type.toLowerCase().replace(/[\s_-]/g, '')) {
+const FORM_ICON_MAP: Record<string, string> = {
+  box: '/icons/cctv/box.png',
+  highresolutionbox: '/icons/cctv/hi-res_box.png',
+  bullet: '/icons/cctv/bullet.png',
+  thermalbullet: '/icons/cctv/thermal.png',
+  dome: '/icons/cctv/dome.png',
+  minidome: '/icons/cctv/mini_dome.png',
+  turret: '/icons/cctv/turret.png',
+  ptz: '/icons/cctv/PTZ.png',
+  irptz: '/icons/cctv/PTZ.png',
+  fisheye: '/icons/cctv/fisheye.png',
+  covert: '/icons/cctv/covert.png',
+  multisensor: '/icons/cctv/multisensor.png',
+  multidirectional: '/icons/cctv/multisensor.png',
+  corner: '/icons/cctv/corner.png',
+  videointercom: '/icons/cctv/Intercom.png',
+  modular: '/icons/cctv/modular.png',
+  dualsensor: '/icons/cctv/dualsensor.png',
+}
 
-    /* ── Box camera ──
-       Side view: rectangular housing body, lens barrel protruding right,
-       wall bracket arm underneath */
-    case 'box': case 'highresolutionbox': return (
-      <svg viewBox="0 0 40 32" {...s}>
-        {/* Wall bracket arm */}
-        <path d="M8 26 L8 22 L32 22 L32 18" stroke={color} strokeWidth="1.5" fill="none" />
-        <rect x="4" y="24" width="8" height="4" rx="1" fill={color} opacity="0.15" stroke={color} strokeWidth="1" />
-        {/* Housing body */}
-        <rect x="10" y="4" width="22" height="14" rx="1" fill={color} opacity="0.08" stroke={color} strokeWidth="1.5" />
-        {/* Sun shield / visor on top */}
-        <path d="M9 4 L9 2 L33 2 L33 4" stroke={color} strokeWidth="1.2" />
-        {/* Lens barrel */}
-        <rect x="32" y="7" width="5" height="8" rx="1" fill={color} opacity="0.12" stroke={color} strokeWidth="1.2" />
-        <circle cx="37" cy="11" r="2.5" stroke={color} strokeWidth="1" />
-        <circle cx="37" cy="11" r="1" fill={color} opacity="0.4" />
-      </svg>
-    )
-
-    /* ── Bullet camera ──
-       Side view: long cylindrical body with rounded front, sun visor on top,
-       wall mount bracket arm below, IR LED ring around lens */
-    case 'bullet': case 'thermalbullet': return (
-      <svg viewBox="0 0 40 32" {...s}>
-        {/* Wall bracket */}
-        <path d="M6 28 L6 20 L12 16" stroke={color} strokeWidth="1.5" />
-        <rect x="2" y="26" width="8" height="4" rx="1" fill={color} opacity="0.15" stroke={color} strokeWidth="1" />
-        {/* Sun visor */}
-        <path d="M10 6 L10 4 L34 4 L36 6" stroke={color} strokeWidth="1.2" />
-        {/* Body — rounded cylinder */}
-        <path d="M10 6 L10 18 Q10 20 14 20 L30 20 Q36 20 36 14 L36 6 Z" fill={color} opacity="0.08" stroke={color} strokeWidth="1.5" />
-        {/* Lens face with IR ring */}
-        <circle cx="33" cy="13" r="5" stroke={color} strokeWidth="1.2" />
-        <circle cx="33" cy="13" r="3" stroke={color} strokeWidth="0.8" />
-        <circle cx="33" cy="13" r="1.2" fill={color} opacity="0.5" />
-        {/* IR LED dots */}
-        <circle cx="33" cy="7.5" r="0.6" fill={color} opacity="0.3" />
-        <circle cx="37.5" cy="11" r="0.6" fill={color} opacity="0.3" />
-        <circle cx="37.5" cy="15" r="0.6" fill={color} opacity="0.3" />
-        <circle cx="33" cy="18.5" r="0.6" fill={color} opacity="0.3" />
-        <circle cx="28.5" cy="15" r="0.6" fill={color} opacity="0.3" />
-        <circle cx="28.5" cy="11" r="0.6" fill={color} opacity="0.3" />
-      </svg>
-    )
-
-    /* ── Dome camera ──
-       3/4 view: half-sphere dome sitting on a flat circular base plate,
-       dark tinted dome cover on lower half, ceiling mounted */
-    case 'dome': case 'minidome': return (
-      <svg viewBox="0 0 40 32" {...s}>
-        {/* Base plate */}
-        <ellipse cx="20" cy="22" rx="14" ry="4" fill={color} opacity="0.08" stroke={color} strokeWidth="1.5" />
-        {/* Upper dome shell */}
-        <path d="M6 22 Q6 6 20 6 Q34 6 34 22" fill={color} opacity="0.06" stroke={color} strokeWidth="1.5" />
-        {/* Tinted dome band (lower half) */}
-        <path d="M8 20 Q8 13 20 13 Q32 13 32 20" fill={color} opacity="0.18" stroke={color} strokeWidth="1" />
-        {/* Lens behind dome */}
-        <circle cx="20" cy="17" r="2.5" stroke={color} strokeWidth="0.8" opacity="0.6" />
-        <circle cx="20" cy="17" r="1" fill={color} opacity="0.3" />
-      </svg>
-    )
-
-    /* ── Turret / eyeball camera ──
-       Front view: round camera ball sitting in a conical cup base,
-       large lens visible in center of ball */
-    case 'turret': return (
-      <svg viewBox="0 0 40 32" {...s}>
-        {/* Conical base cup */}
-        <path d="M8 28 L12 18 L28 18 L32 28 Z" fill={color} opacity="0.1" stroke={color} strokeWidth="1.2" />
-        {/* Camera ball */}
-        <circle cx="20" cy="14" r="9" fill={color} opacity="0.06" stroke={color} strokeWidth="1.5" />
-        {/* Lens assembly */}
-        <circle cx="22" cy="13" r="4.5" fill={color} opacity="0.12" stroke={color} strokeWidth="1.2" />
-        <circle cx="22" cy="13" r="2.5" stroke={color} strokeWidth="0.8" />
-        <circle cx="22" cy="13" r="1" fill={color} opacity="0.5" />
-      </svg>
-    )
-
-    /* ── PTZ speed dome ──
-       Side view: pendant mount — arm hanging from ceiling,
-       spherical speed dome ball hanging below */
-    case 'ptz': case 'irptz': return (
-      <svg viewBox="0 0 40 32" {...s}>
-        {/* Ceiling mount plate */}
-        <rect x="13" y="2" width="14" height="3" rx="1" fill={color} opacity="0.12" stroke={color} strokeWidth="1.2" />
-        {/* Arm / neck */}
-        <path d="M17 5 L17 9 L23 9 L23 5" fill={color} opacity="0.06" stroke={color} strokeWidth="1.2" />
-        {/* Speed dome — top housing */}
-        <path d="M10 9 L30 9 L30 15 Q30 17 28 17 L12 17 Q10 17 10 15 Z" fill={color} opacity="0.08" stroke={color} strokeWidth="1.5" />
-        {/* Speed dome — bottom sphere with lens */}
-        <path d="M12 17 Q12 28 20 28 Q28 28 28 17" fill={color} opacity="0.15" stroke={color} strokeWidth="1.5" />
-        {/* Lens band */}
-        <ellipse cx="20" cy="22" rx="6" ry="3" stroke={color} strokeWidth="0.8" opacity="0.5" />
-        <circle cx="20" cy="22" r="1.5" fill={color} opacity="0.4" />
-      </svg>
-    )
-
-    /* ── Fisheye camera ──
-       Top-down view: flat circular disc, wide convex lens in center,
-       concentric rings */
-    case 'fisheye': return (
-      <svg viewBox="0 0 40 32" {...s}>
-        {/* Outer body disc */}
-        <circle cx="20" cy="16" r="13" fill={color} opacity="0.06" stroke={color} strokeWidth="1.5" />
-        {/* Inner ring */}
-        <circle cx="20" cy="16" r="8" fill={color} opacity="0.1" stroke={color} strokeWidth="1" />
-        {/* Convex lens dome */}
-        <circle cx="20" cy="16" r="5" fill={color} opacity="0.15" stroke={color} strokeWidth="0.8" />
-        {/* Lens center */}
-        <circle cx="20" cy="16" r="2" fill={color} opacity="0.25" />
-        <circle cx="20" cy="16" r="0.8" fill={color} opacity="0.5" />
-        {/* Light reflection */}
-        <circle cx="18" cy="14" r="1.2" fill={color} opacity="0.06" />
-      </svg>
-    )
-
-    /* ── Covert / pinhole camera ──
-       Small discreet rectangular unit with a tiny pinhole lens */
-    case 'covert': return (
-      <svg viewBox="0 0 40 32" {...s}>
-        {/* Small body */}
-        <rect x="10" y="8" width="20" height="16" rx="2" fill={color} opacity="0.06" stroke={color} strokeWidth="1.5" />
-        {/* Pinhole lens — very small */}
-        <circle cx="20" cy="14" r="1.2" fill={color} opacity="0.5" />
-        <circle cx="20" cy="14" r="0.5" fill={color} />
-        {/* Status LED */}
-        <circle cx="26" cy="11" r="0.7" fill={color} opacity="0.3" />
-        {/* Cable */}
-        <path d="M20 24 L20 30" stroke={color} strokeWidth="1" opacity="0.4" />
-      </svg>
-    )
-
-    /* ── Multisensor / multi-directional camera ──
-       Top-down view: central body with multiple lens heads pointing outward */
-    case 'multisensor': case 'multidirectional': return (
-      <svg viewBox="0 0 40 32" {...s}>
-        {/* Central body */}
-        <circle cx="20" cy="16" r="5" fill={color} opacity="0.1" stroke={color} strokeWidth="1" />
-        {/* 4 sensor heads pointing outward */}
-        <ellipse cx="10" cy="8" rx="5" ry="3.5" fill={color} opacity="0.08" stroke={color} strokeWidth="1.3" />
-        <circle cx="8" cy="8" r="1.2" fill={color} opacity="0.4" />
-        <ellipse cx="30" cy="8" rx="5" ry="3.5" fill={color} opacity="0.08" stroke={color} strokeWidth="1.3" />
-        <circle cx="32" cy="8" r="1.2" fill={color} opacity="0.4" />
-        <ellipse cx="10" cy="24" rx="5" ry="3.5" fill={color} opacity="0.08" stroke={color} strokeWidth="1.3" />
-        <circle cx="8" cy="24" r="1.2" fill={color} opacity="0.4" />
-        <ellipse cx="30" cy="24" rx="5" ry="3.5" fill={color} opacity="0.08" stroke={color} strokeWidth="1.3" />
-        <circle cx="32" cy="24" r="1.2" fill={color} opacity="0.4" />
-      </svg>
-    )
-
-    /* ── Corner mount camera ──
-       Dome camera mounted on a triangular corner bracket */
-    case 'corner': return (
-      <svg viewBox="0 0 40 32" {...s}>
-        {/* Corner walls */}
-        <path d="M2 2 L2 30" stroke={color} strokeWidth="1.5" />
-        <path d="M2 30 L38 30" stroke={color} strokeWidth="1.5" />
-        {/* Triangular corner bracket */}
-        <path d="M2 12 L16 12 L16 30" fill={color} opacity="0.06" stroke={color} strokeWidth="1" />
-        {/* Dome camera on bracket */}
-        <ellipse cx="16" cy="12" rx="10" ry="3" fill={color} opacity="0.08" stroke={color} strokeWidth="1.2" />
-        <path d="M8 12 Q8 4 16 4 Q24 4 24 12" fill={color} opacity="0.06" stroke={color} strokeWidth="1.3" />
-        <circle cx="16" cy="9" r="2" stroke={color} strokeWidth="0.8" opacity="0.5" />
-        <circle cx="16" cy="9" r="0.8" fill={color} opacity="0.3" />
-      </svg>
-    )
-
-    /* ── Video Intercom ──
-       Wall-mounted panel with camera lens at top, speaker grille, call button */
-    case 'videointercom': return (
-      <svg viewBox="0 0 40 32" {...s}>
-        {/* Panel body */}
-        <rect x="8" y="2" width="24" height="28" rx="2" fill={color} opacity="0.06" stroke={color} strokeWidth="1.5" />
-        {/* Camera lens */}
-        <circle cx="20" cy="9" r="3.5" fill={color} opacity="0.1" stroke={color} strokeWidth="1.2" />
-        <circle cx="20" cy="9" r="1.5" fill={color} opacity="0.4" />
-        {/* Speaker grille */}
-        {[16, 18, 20, 22].map(y => (
-          <line key={y} x1="13" y1={y} x2="27" y2={y} stroke={color} strokeWidth="0.7" opacity="0.25" />
-        ))}
-        {/* Call button */}
-        <circle cx="20" cy="26" r="2" fill={color} opacity="0.12" stroke={color} strokeWidth="1" />
-      </svg>
-    )
-
-    /* ── Modular camera ──
-       Separate sensor head + processor box connected by cable */
-    case 'modular': return (
-      <svg viewBox="0 0 40 32" {...s}>
-        {/* Sensor head (small) */}
-        <rect x="2" y="8" width="10" height="10" rx="2" fill={color} opacity="0.08" stroke={color} strokeWidth="1.3" />
-        <circle cx="7" cy="13" r="3" stroke={color} strokeWidth="1" />
-        <circle cx="7" cy="13" r="1.2" fill={color} opacity="0.4" />
-        {/* Cable between */}
-        <path d="M12 13 Q18 13 18 16 Q18 19 24 19" stroke={color} strokeWidth="1" strokeDasharray="2 1.5" opacity="0.4" />
-        {/* Processor box */}
-        <rect x="24" y="10" width="14" height="12" rx="1.5" fill={color} opacity="0.06" stroke={color} strokeWidth="1.3" />
-        {/* Ports/vents on processor */}
-        <line x1="27" y1="14" x2="35" y2="14" stroke={color} strokeWidth="0.6" opacity="0.2" />
-        <line x1="27" y1="16" x2="35" y2="16" stroke={color} strokeWidth="0.6" opacity="0.2" />
-        <line x1="27" y1="18" x2="35" y2="18" stroke={color} strokeWidth="0.6" opacity="0.2" />
-      </svg>
-    )
-
-    /* ── Default / generic camera ── */
-    default: return (
-      <svg viewBox="0 0 40 32" {...s}>
-        <rect x="6" y="6" width="20" height="14" rx="2" fill={color} opacity="0.06" stroke={color} strokeWidth="1.5" />
-        <rect x="26" y="9" width="8" height="8" rx="1" fill={color} opacity="0.08" stroke={color} strokeWidth="1.2" />
-        <circle cx="30" cy="13" r="2.5" stroke={color} strokeWidth="0.8" />
-        <circle cx="30" cy="13" r="1" fill={color} opacity="0.4" />
-      </svg>
-    )
-  }
+function FormIcon({ type, size = 20 }: { type: string; size?: number; color?: string }) {
+  const key = type.toLowerCase().replace(/[\s_-]/g, '')
+  const src = FORM_ICON_MAP[key] || FORM_ICON_MAP.box
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={type}
+      width={size}
+      height={size}
+      style={{ objectFit: 'contain' }}
+    />
+  )
 }
 
 /* ───────── Form factor list ───────── */
