@@ -36,7 +36,7 @@ import { LeftPanel } from './left-panel'
 import { RightPanel } from './right-panel'
 import { MdfRightPanel } from './mdf-right-panel'
 import { WallRightPanel } from './wall-right-panel'
-import { DeviceCatalogModal } from './device-catalog-modal'
+import { DeviceLibraryModal } from './device-library-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { getFovConeTiers, calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { SimulatedView } from './simulated-view'
@@ -1016,7 +1016,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
 
       {/* ═══════ DEVICE CATALOG MODAL ═══════ */}
       {showCatalog && (
-        <DeviceCatalogModal
+        <DeviceLibraryModal
           category={activeCategory === 'door' ? 'access_control' : activeCategory === 'network' ? 'network' : activeCategory === 'av' ? 'av' : 'cctv'}
           onClose={() => setShowCatalog(false)}
           onSelect={handleDeviceSelected}

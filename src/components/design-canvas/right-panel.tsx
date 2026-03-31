@@ -157,6 +157,7 @@ export function RightPanel({
   selectedImagerIdx, onSelectImager,
   onShowSimulatedView,
 }: Props) {
+  const [activeTab, setActiveTab] = useState<'fov' | 'acc' | 'lens' | 'license'>('fov')
   const props = useMemo(() => (device.properties ?? {}) as Record<string, unknown>, [device.properties])
   const isCamera = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(device.category)
 
@@ -262,8 +263,33 @@ export function RightPanel({
         )}
       </div>
 
-      {/* ── Properties ── */}
+      {/* ── DesignPro-style Tab Bar ── */}
+      <div style={{
+        display: 'flex', borderBottom: `1px solid ${C.border}`, background: C.bgSurface,
+      }}>
+        {(['fov', 'acc', 'lens', 'license'] as const).map(tab => {
+          const active = activeTab === tab
+          const label = tab === 'fov' ? 'FoV' : tab === 'acc' ? 'Acc' : tab === 'lens' ? 'Lens' : 'License'
+          return (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              style={{
+                flex: 1, padding: '8px 0', fontSize: 11, fontWeight: active ? 600 : 400,
+                color: active ? C.accent : C.textMuted,
+                borderBottom: active ? `2px solid ${C.accent}` : '2px solid transparent',
+                background: 'none', border: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+                cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s',
+              }}>
+              {label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ── Tab Content ── */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
+
+      {/* ═══ FoV Tab ═══ */}
+      {activeTab === 'fov' && (<>
         {/* Label */}
         <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Label</div>
@@ -1040,6 +1066,98 @@ export function RightPanel({
             )
           })()}
         </div>
+      </>)}
+
+      {/* ═══ Acc Tab ═══ */}
+      {activeTab === 'acc' && (
+        <div style={{ padding: '16px' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 12 }}>Mounting & Accessories</div>
+
+          {/* Form Factor */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Form Factor</div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: C.text }}>
+              {(device.category || '').replace(/_/g, ' ')}
+              {props.subcategory ? ` — ${String(props.subcategory).replace(/_/g, ' ')}` : ''}
+            </div>
+          </div>
+
+          {/* Mount Type */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Mount Type</div>
+            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              {MOUNT_TYPES.map(m => {
+                const active = (props.mount_type || 'Ceiling') === m
+                return (
+                  <button key={m} onClick={() => updateProp('mount_type', m)}
+                    style={{
+                      padding: '4px 10px', fontSize: 10, fontWeight: 600,
+                      borderRadius: 3, border: `1px solid ${active ? C.accent : C.border}`,
+                      background: active ? `${C.accent}20` : 'transparent',
+                      color: active ? C.accent : C.textMuted, cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                    {m}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Environment */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>Environment</div>
+            <div style={{ display: 'flex', gap: 3 }}>
+              {['Indoor', 'Outdoor'].map(env => {
+                const active = (props.environment || 'Indoor') === env
+                return (
+                  <button key={env} onClick={() => updateProp('environment', env)}
+                    style={{
+                      padding: '4px 10px', fontSize: 10, fontWeight: 600,
+                      borderRadius: 3, border: `1px solid ${active ? C.accent : C.border}`,
+                      background: active ? `${C.accent}20` : 'transparent',
+                      color: active ? C.accent : C.textMuted, cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                    {env}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Install Height (also in FoV tab but relevant for mounting) */}
+          <StatRow label="Install Height" value={`${Number(props.install_height) || 9}`} unit="ft" />
+          <StatRow label="PoE Standard" value={String(props.poe_standard || '-')} />
+          <StatRow label="Wattage" value={props.wattage ? `${props.wattage}` : '-'} unit="W" />
+        </div>
+      )}
+
+      {/* ═══ Lens Tab ═══ */}
+      {activeTab === 'lens' && (
+        <div style={{ padding: '16px' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 12 }}>Lens Specifications</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <StatRow label="Focal Length" value={`${Number(props.focal_length) || '-'}`} unit="mm" />
+            <StatRow label="Sensor Width" value={`${Number(props.sensor_w) || Number(props.sensor_width) || '-'}`} unit="mm" />
+            <StatRow label="H-FOV" value={sensorW > 0 && focalLength > 0 ? `${hFov.toFixed(1)}` : String(fovAngle)} unit="°" />
+            <StatRow label="V-FOV" value={sensorW > 0 && focalLength > 0 ? `${(hFov * 0.75).toFixed(1)}` : '-'} unit="°" />
+            <StatRow label="Resolution" value={props.resolution_w ? `${props.resolution_w}×${props.resolution_h || '?'}` : '-'} />
+            <StatRow label="Focal Type" value={String(props.focal_type || '-')} />
+            <StatRow label="IR Range" value={props.ir_range ? `${props.ir_range}` : '-'} unit="m" />
+            <StatRow label="Imager Count" value={String(props.imager_count || 1)} />
+          </div>
+        </div>
+      )}
+
+      {/* ═══ License Tab ═══ */}
+      {activeTab === 'license' && (
+        <div style={{ padding: '16px' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 12 }}>License & Analytics</div>
+          <div style={{ padding: 20, textAlign: 'center', color: C.textDim, fontSize: 11 }}>
+            License and analytics configuration coming soon.
+          </div>
+        </div>
+      )}
+
       </div>
     </div>
   )
