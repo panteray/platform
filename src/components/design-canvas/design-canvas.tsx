@@ -445,9 +445,45 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     // Merge top-level catalog fields into properties so specs populate in right panel
     const catalogSpecs: Record<string, unknown> = { ...(item.specs ?? {}) }
     if (item.resolution) {
-      const [w, h] = item.resolution.split('x').map(Number)
-      if (w && h) { catalogSpecs.resolution_w = w; catalogSpecs.resolution_h = h }
       catalogSpecs.resolution = item.resolution
+      // Try WxH format first (e.g. "3840x2160")
+      const [w, h] = item.resolution.split('x').map(Number)
+      if (w && h) {
+        catalogSpecs.resolution_w = w; catalogSpecs.resolution_h = h
+      } else {
+        // Parse common resolution strings (e.g. "4MP", "4K", "1080p") to pixel dimensions
+        const res = item.resolution.toLowerCase().replace(/\s/g, '')
+        const mpMatch = res.match(/^([\d.]+)mp/)
+        const pMatch = res.match(/^(\d+)p$/)
+        if (res.includes('4k') || res.includes('uhd')) {
+          catalogSpecs.resolution_w = 3840; catalogSpecs.resolution_h = 2160
+        } else if (res.includes('8k')) {
+          catalogSpecs.resolution_w = 7680; catalogSpecs.resolution_h = 4320
+        } else if (pMatch) {
+          const pH = parseInt(pMatch[1], 10)
+          catalogSpecs.resolution_h = pH
+          catalogSpecs.resolution_w = Math.round(pH * 16 / 9)
+        } else if (mpMatch) {
+          const mp = parseFloat(mpMatch[1])
+          // Standard pixel widths for common megapixel counts
+          const mpToPixels: Record<string, [number, number]> = {
+            '1.3': [1280, 960], '2': [1920, 1080], '3': [2048, 1536],
+            '4': [2560, 1440], '5': [2592, 1944], '6': [3072, 2048],
+            '8': [3840, 2160], '10': [3648, 2736], '12': [4000, 3000],
+            '12.5': [4000, 3000], '16': [4608, 3456], '20': [5120, 3840],
+            '32': [6528, 4896],
+          }
+          const exact = mpToPixels[String(mp)]
+          if (exact) {
+            catalogSpecs.resolution_w = exact[0]; catalogSpecs.resolution_h = exact[1]
+          } else {
+            // Derive from megapixels: assume 4:3 aspect ratio
+            const totalPx = mp * 1_000_000
+            const rW = Math.round(Math.sqrt(totalPx * (4 / 3)))
+            catalogSpecs.resolution_w = rW; catalogSpecs.resolution_h = Math.round(rW * 3 / 4)
+          }
+        }
+      }
     }
     if (item.poe_standard) catalogSpecs.poe_standard = item.poe_standard
     if (item.wattage != null) catalogSpecs.wattage = item.wattage
