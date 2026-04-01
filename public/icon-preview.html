@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html><head><style>
+  body { background: #0f172a; color: #fff; font-family: 'Inter', sans-serif; padding: 40px; }
+  h1 { font-size: 18px; margin-bottom: 30px; color: #64748b; }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; max-width: 900px; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; text-align: center; }
+  .card svg { margin: 0 auto 10px; display: block; }
+  .label { font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+</style></head>
+<body>
+<h1>CCTV Form Factor Icons v4 — Based on Real Camera Photos</h1>
+<div class="grid">
+
+  <!-- DOME — Based on svgrepo PD dome camera, adapted viewBox to 50x50 -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <path d="M25 5C12.617 5 0 8.281 0 11.5V22.5c0 .324.09.64.281.937.149-.289.719-.906.719-.906C2.219 21.059 12.582 17.906 25 17.906c12.418 0 22.844 3.176 24 4.625 0 0 .57.617.719.906.191-.296.281-.613.281-.937V11.5C50 8.281 37.383 5 25 5zM23.75 19.906C12.922 20.102 4.023 22.762 2.562 23.781L2.312 24c-.214.191-.285.383-.312.469 0 0-.012.367 0 .375C2.95 36.66 12.945 46 25 46c12.055 0 22.05-9.372 23-21.188.011-.004 0-.344 0-.344-.028-.086-.098-.277-.312-.469l-.25-.219c-1.457-1.019-10.36-3.68-21.188-3.875-.418-.008-.82 0-1.25 0-.43 0-.832-.008-1.25 0zM25 22c4.398 0 8 3.602 8 8v7.906C33 39.305 29.398 42 25 42c-4.398 0-8-2.793-8-4.094V30c0-4.398 3.602-8 8-8zm0 9c-1.656 0-3 1.344-3 3s1.344 3 3 3 3-1.344 3-3-1.344-3-3-3z"/>
+    </svg>
+    <div class="label">Dome</div>
+  </div>
+
+  <!-- BULLET — Side profile: long body, sun visor, wall bracket, IR face -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <!-- Wall mount plate -->
+      <rect x="2" y="38" width="8" height="6" rx="1"/>
+      <!-- Bracket arm -->
+      <path d="M6 38V32l6-5v-3h-2l-8 6v8z"/>
+      <!-- Sun visor -->
+      <path d="M12 14h30l2 2H12z"/>
+      <!-- Camera body -->
+      <path d="M12 16h28c3 0 5 2 5 5v4c0 3-2 5-5 5H12V16z"/>
+      <!-- Lens face -->
+      <circle cx="42" cy="23" r="6" fill="#0f172a"/>
+      <circle cx="42" cy="23" r="4" fill="#94a3b8" opacity="0.3"/>
+      <circle cx="42" cy="23" r="2" fill="#0f172a"/>
+      <!-- IR dots around lens -->
+      <circle cx="42" cy="16" r="0.8" fill="#0f172a" opacity="0.6"/>
+      <circle cx="48" cy="21" r="0.8" fill="#0f172a" opacity="0.6"/>
+      <circle cx="48" cy="25" r="0.8" fill="#0f172a" opacity="0.6"/>
+      <circle cx="42" cy="30" r="0.8" fill="#0f172a" opacity="0.6"/>
+      <circle cx="36" cy="25" r="0.8" fill="#0f172a" opacity="0.6"/>
+      <circle cx="36" cy="21" r="0.8" fill="#0f172a" opacity="0.6"/>
+    </svg>
+    <div class="label">Bullet</div>
+  </div>
+
+  <!-- BOX — Side profile: rectangular housing, visor on top, lens protruding, wall bracket -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <!-- Wall mount -->
+      <rect x="2" y="36" width="8" height="6" rx="1"/>
+      <!-- Bracket arm -->
+      <path d="M6 36V30l6-4V14"/>
+      <path d="M4 36V28l10-7V13h-2L2 20v16z"/>
+      <!-- Sun visor -->
+      <rect x="12" y="10" width="28" height="3" rx="1"/>
+      <!-- Camera body -->
+      <rect x="12" y="13" width="26" height="16" rx="2"/>
+      <!-- Lens housing -->
+      <rect x="38" y="16" width="8" height="10" rx="2" fill="#cbd5e1"/>
+      <!-- Lens -->
+      <circle cx="46" cy="21" r="3.5" fill="#0f172a"/>
+      <circle cx="46" cy="21" r="1.5" fill="#94a3b8" opacity="0.3"/>
+    </svg>
+    <div class="label">Box</div>
+  </div>
+
+  <!-- TURRET — Front view: round eyeball in cone base, large off-center lens -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <!-- Base plate (flat ring) -->
+      <ellipse cx="25" cy="40" rx="16" ry="4"/>
+      <!-- Cone cup base -->
+      <path d="M11 40c0-2 4-8 7-10h14c3 2 7 8 7 10z" opacity="0.6"/>
+      <!-- Camera ball -->
+      <circle cx="25" cy="24" r="13"/>
+      <!-- Lens housing (offset for eyeball look) -->
+      <circle cx="28" cy="22" r="7" fill="#cbd5e1"/>
+      <circle cx="28" cy="22" r="5" fill="#0f172a"/>
+      <circle cx="28" cy="22" r="2.5" fill="#94a3b8" opacity="0.25"/>
+      <circle cx="28" cy="22" r="1" fill="#0f172a"/>
+    </svg>
+    <div class="label">Turret</div>
+  </div>
+
+  <!-- PTZ — Pendant speed dome: ceiling plate, neck, upper housing, dome ball -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <!-- Ceiling plate -->
+      <rect x="16" y="3" width="18" height="4" rx="2"/>
+      <!-- Neck/arm -->
+      <rect x="20" y="7" width="10" height="5" rx="1.5" opacity="0.8"/>
+      <!-- Upper housing -->
+      <path d="M12 12h26v7c0 1.5-1 3-3 3H15c-2 0-3-1.5-3-3z"/>
+      <!-- Speed dome ball -->
+      <path d="M15 22c0 0-2 14 10 14s10-14 10-14z" fill="#cbd5e1"/>
+      <!-- Lens window band -->
+      <ellipse cx="25" cy="30" rx="8" ry="4" fill="#0f172a" opacity="0.6"/>
+      <circle cx="25" cy="30" r="2" fill="#94a3b8" opacity="0.3"/>
+    </svg>
+    <div class="label">PTZ</div>
+  </div>
+
+  <!-- FISHEYE — Flat wide disc, concentric lens rings -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <!-- Outer disc -->
+      <ellipse cx="25" cy="25" rx="20" ry="16" opacity="0.4"/>
+      <!-- Inner body ring -->
+      <ellipse cx="25" cy="25" rx="14" ry="11"/>
+      <!-- Convex lens dome -->
+      <ellipse cx="25" cy="25" rx="8" ry="6" fill="#cbd5e1"/>
+      <!-- Lens center -->
+      <ellipse cx="25" cy="25" rx="4" ry="3" fill="#0f172a"/>
+      <circle cx="25" cy="25" r="1.2" fill="#94a3b8" opacity="0.4"/>
+    </svg>
+    <div class="label">Fisheye</div>
+  </div>
+
+  <!-- COVERT — Small discreet cube with tiny pinhole -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <rect x="14" y="12" width="22" height="26" rx="3"/>
+      <!-- Pinhole lens -->
+      <circle cx="25" cy="22" r="2" fill="#0f172a"/>
+      <circle cx="25" cy="22" r="0.8" fill="#94a3b8" opacity="0.5"/>
+      <!-- Status LED -->
+      <circle cx="32" cy="16" r="1" fill="#0f172a" opacity="0.5"/>
+      <!-- Mount screw hole -->
+      <circle cx="25" cy="34" r="1.5" fill="#0f172a" opacity="0.3"/>
+    </svg>
+    <div class="label">Covert</div>
+  </div>
+
+  <!-- MULTISENSOR — Dome body with multiple small lens modules underneath -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <!-- Upper dome shell (same shape as dome camera) -->
+      <path d="M25 5C12.617 5 2 8 2 11v9c0 .3.1.6.3.9C3.5 19.5 13 17 25 17s21.5 2.5 22.7 3.9c.2-.3.3-.6.3-.9v-9c0-3-10.617-6-23-6z" opacity="0.5"/>
+      <!-- Base ring -->
+      <ellipse cx="25" cy="23" rx="22" ry="4"/>
+      <!-- Lower tinted dome band -->
+      <path d="M5 23c0 0 1-7 20-7s20 7 20 7c-.5 11-9 20-20 20S5.5 34 5 23z" fill="#cbd5e1"/>
+      <!-- Multiple lens modules (3-4 clustered) — THE key differentiator -->
+      <circle cx="17" cy="30" r="3.5" fill="#0f172a"/>
+      <circle cx="17" cy="30" r="1.5" fill="#94a3b8" opacity="0.3"/>
+      <circle cx="25" cy="28" r="3.5" fill="#0f172a"/>
+      <circle cx="25" cy="28" r="1.5" fill="#94a3b8" opacity="0.3"/>
+      <circle cx="33" cy="30" r="3.5" fill="#0f172a"/>
+      <circle cx="33" cy="30" r="1.5" fill="#94a3b8" opacity="0.3"/>
+      <circle cx="25" cy="36" r="3" fill="#0f172a"/>
+      <circle cx="25" cy="36" r="1.2" fill="#94a3b8" opacity="0.3"/>
+    </svg>
+    <div class="label">Multisensor</div>
+  </div>
+
+  <!-- CORNER — Corner-mount dome on triangular wall bracket -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <!-- Corner walls -->
+      <rect x="0" y="0" width="4" height="50" opacity="0.2"/>
+      <rect x="0" y="46" width="50" height="4" opacity="0.2"/>
+      <!-- Triangle bracket -->
+      <path d="M4 22L22 22L22 46Z" opacity="0.25"/>
+      <!-- Dome on bracket (reuses dome shape, smaller) -->
+      <path d="M22 7c-8 0-14 2-14 4v6c.1.2.5.5 1 .8C10.5 17 15 16 22 16s11.5 1 13 1.8c.5-.3.9-.6 1-.8v-6c0-2-6-4-14-4z" opacity="0.5"/>
+      <ellipse cx="22" cy="19" rx="14" ry="3"/>
+      <path d="M10 19c0 0 .5-4 12-4s12 4 12 4c-.3 7-5.5 12-12 12S10.3 26 10 19z" fill="#cbd5e1"/>
+      <circle cx="22" cy="23" r="3" fill="#0f172a"/>
+      <circle cx="22" cy="23" r="1.2" fill="#94a3b8" opacity="0.3"/>
+    </svg>
+    <div class="label">Corner</div>
+  </div>
+
+  <!-- VIDEO INTERCOM — Vertical wall panel with camera, speaker grille, call button -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <rect x="10" y="3" width="30" height="44" rx="3"/>
+      <!-- Camera -->
+      <circle cx="25" cy="14" r="5" fill="#0f172a"/>
+      <circle cx="25" cy="14" r="2.5" fill="#94a3b8" opacity="0.25"/>
+      <circle cx="25" cy="14" r="1" fill="#0f172a"/>
+      <!-- Speaker grille -->
+      <rect x="16" y="24" width="18" height="10" rx="2" fill="#0f172a" opacity="0.35"/>
+      <line x1="19" y1="27" x2="31" y2="27" stroke="#94a3b8" stroke-width="0.8" opacity="0.25"/>
+      <line x1="19" y1="29.5" x2="31" y2="29.5" stroke="#94a3b8" stroke-width="0.8" opacity="0.25"/>
+      <line x1="19" y1="32" x2="31" y2="32" stroke="#94a3b8" stroke-width="0.8" opacity="0.25"/>
+      <!-- Call button -->
+      <circle cx="25" cy="41" r="2.5" fill="#0f172a" opacity="0.5"/>
+    </svg>
+    <div class="label">Video Intercom</div>
+  </div>
+
+  <!-- IR PTZ — Same PTZ shape with IR ring -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <rect x="16" y="3" width="18" height="4" rx="2"/>
+      <rect x="20" y="7" width="10" height="5" rx="1.5" opacity="0.8"/>
+      <path d="M12 12h26v7c0 1.5-1 3-3 3H15c-2 0-3-1.5-3-3z"/>
+      <path d="M15 22c0 0-2 14 10 14s10-14 10-14z" fill="#cbd5e1"/>
+      <!-- IR ring (red tint) -->
+      <ellipse cx="25" cy="29" rx="9" ry="5" fill="none" stroke="#ef4444" stroke-width="1.5" opacity="0.45"/>
+      <ellipse cx="25" cy="30" rx="8" ry="4" fill="#0f172a" opacity="0.6"/>
+      <circle cx="25" cy="30" r="2" fill="#94a3b8" opacity="0.3"/>
+    </svg>
+    <div class="label">IR PTZ</div>
+  </div>
+
+  <!-- MODULAR — Separate sensor head + processor box -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <!-- Sensor head -->
+      <rect x="3" y="14" width="14" height="14" rx="3"/>
+      <circle cx="10" cy="21" r="4.5" fill="#0f172a"/>
+      <circle cx="10" cy="21" r="2" fill="#94a3b8" opacity="0.25"/>
+      <!-- Cable -->
+      <path d="M17 21c4 0 6 2 6 5s2 5 6 5" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="2.5 2" opacity="0.4" fill="none"/>
+      <!-- Processor box -->
+      <rect x="29" y="22" width="18" height="14" rx="2" opacity="0.6"/>
+      <line x1="33" y1="27" x2="43" y2="27" stroke="#0f172a" stroke-width="1" opacity="0.3"/>
+      <line x1="33" y1="30" x2="43" y2="30" stroke="#0f172a" stroke-width="1" opacity="0.3"/>
+      <line x1="33" y1="33" x2="43" y2="33" stroke="#0f172a" stroke-width="1" opacity="0.3"/>
+    </svg>
+    <div class="label">Modular</div>
+  </div>
+
+  <!-- HIGH RES BOX — Same as box but with larger lens barrel -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <rect x="2" y="36" width="8" height="6" rx="1"/>
+      <path d="M4 36V28l10-7V13h-2L2 20v16z"/>
+      <rect x="12" y="10" width="26" height="3" rx="1"/>
+      <rect x="12" y="13" width="24" height="16" rx="2"/>
+      <!-- Larger lens for high res -->
+      <rect x="36" y="14" width="10" height="14" rx="3" fill="#cbd5e1"/>
+      <circle cx="46" cy="21" r="5" fill="#0f172a"/>
+      <circle cx="46" cy="21" r="2.5" fill="#94a3b8" opacity="0.25"/>
+      <circle cx="46" cy="21" r="1" fill="#0f172a"/>
+    </svg>
+    <div class="label">High Res Box</div>
+  </div>
+
+  <!-- THERMAL BULLET — Bullet with dual lens (thermal + optical) -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <rect x="2" y="38" width="8" height="6" rx="1"/>
+      <path d="M4 38V30l8-6V16h-2L2 22v16z"/>
+      <path d="M12 14h28l2 2H12z"/>
+      <path d="M12 16h28c3 0 5 2 5 5v4c0 3-2 5-5 5H12V16z"/>
+      <!-- Dual lens: optical (right) + thermal (left) -->
+      <circle cx="40" cy="23" r="5" fill="#0f172a"/>
+      <circle cx="40" cy="23" r="2" fill="#94a3b8" opacity="0.25"/>
+      <circle cx="29" cy="23" r="3.5" fill="#0f172a"/>
+      <circle cx="29" cy="23" r="1.5" fill="#ef4444" opacity="0.3"/>
+    </svg>
+    <div class="label">Thermal Bullet</div>
+  </div>
+
+  <!-- MINI DOME — Smaller, flatter dome -->
+  <div class="card">
+    <svg viewBox="0 0 50 50" width="72" height="72" fill="currentColor" color="#94a3b8">
+      <path d="M25 14C16 14 8 16 8 18v6c.1.2.5.5 1 .7C10.5 24 16 23 25 23s14.5 1 16 1.7c.5-.2.9-.5 1-.7v-6c0-2-8-4-17-4z" opacity="0.5"/>
+      <ellipse cx="25" cy="26" rx="17" ry="3.5"/>
+      <path d="M10 26c0 0 1-5 15-5s15 5 15 5c-.4 8-7 14-15 14S10.4 34 10 26z" fill="#cbd5e1"/>
+      <circle cx="25" cy="31" r="3.5" fill="#0f172a"/>
+      <circle cx="25" cy="31" r="1.5" fill="#94a3b8" opacity="0.3"/>
+    </svg>
+    <div class="label">Mini Dome</div>
+  </div>
+
+</div>
+</body></html>

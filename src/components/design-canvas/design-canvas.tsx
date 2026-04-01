@@ -295,17 +295,17 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         tiers = doriTiers.map((t, i) => ({
           distanceFt: Math.min(t.distanceFt, targetDist),
           color: t.color,
-          opacity: [0.04, 0.06, 0.09, 0.12, 0.15, 0.20][i] ?? 0.10,
+          opacity: [0.12, 0.16, 0.20, 0.25, 0.30, 0.40][i] ?? 0.15,
         }))
       } else {
         // Fallback: use DORI colors with proportional distances
         tiers = [
-          { distanceFt: targetDist, color: '#6b7280', opacity: 0.04 },          // Monitor
-          { distanceFt: targetDist * 0.75, color: '#ef4444', opacity: 0.06 },   // Detection
-          { distanceFt: targetDist * 0.5, color: '#f97316', opacity: 0.09 },    // Observation
-          { distanceFt: targetDist * 0.35, color: '#eab308', opacity: 0.12 },   // Recognition
-          { distanceFt: targetDist * 0.2, color: '#22c55e', opacity: 0.15 },    // Identification
-          { distanceFt: targetDist * 0.08, color: '#8b5cf6', opacity: 0.20 },   // Inspection
+          { distanceFt: targetDist, color: '#6b7280', opacity: 0.12 },          // Monitor
+          { distanceFt: targetDist * 0.75, color: '#ef4444', opacity: 0.16 },   // Detection
+          { distanceFt: targetDist * 0.5, color: '#f97316', opacity: 0.20 },    // Observation
+          { distanceFt: targetDist * 0.35, color: '#eab308', opacity: 0.25 },   // Recognition
+          { distanceFt: targetDist * 0.2, color: '#22c55e', opacity: 0.30 },    // Identification
+          { distanceFt: targetDist * 0.08, color: '#8b5cf6', opacity: 0.40 },   // Inspection
         ]
       }
 
