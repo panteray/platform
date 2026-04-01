@@ -290,11 +290,10 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           mountHeight: Number(props.install_height) || 9,
           targetDistance: targetDist,
         })
-        // doriTiers: detection(outermost) → identification(innermost)
-        // Outermost tier always extends to targetDist (canvas is source of truth)
-        // DORI tiers show capability bands within the user's set range
+        // DORI tiers show capability bands WITHIN the user's target distance
+        // Canvas target_distance is the source of truth — no tier extends beyond it
         tiers = doriTiers.map((t, i) => ({
-          distanceFt: i === 0 ? Math.max(t.distanceFt, targetDist) : t.distanceFt,
+          distanceFt: Math.min(t.distanceFt, targetDist),
           color: t.color,
           opacity: [0.04, 0.06, 0.09, 0.12, 0.15, 0.20][i] ?? 0.10,
         }))
