@@ -443,17 +443,18 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const handleDeviceSelected = useCallback(async (item: DeviceSearchResult) => {
     setShowCatalog(false)
 
-    // Derive specific camera type from subcategory for correct icon matching
-    // e.g., subcategory="dome" → category="dome" instead of generic "cctv"
+    // Derive specific camera type from subcategory OR form for correct icon + FOV matching
+    // e.g., subcategory="dome" OR form="Dome" → category="dome" instead of generic "cctv"
     let effectiveCategory = item.category
-    if (item.category === 'cctv' && item.subcategory) {
-      const sub = item.subcategory.toLowerCase()
-      if (sub.includes('dome')) effectiveCategory = 'dome'
+    if (item.category === 'cctv') {
+      const sub = (item.subcategory || item.form || '').toLowerCase()
+      if (sub.includes('dome') && !sub.includes('mini')) effectiveCategory = 'dome'
+      else if (sub.includes('mini') && sub.includes('dome')) effectiveCategory = 'dome'
       else if (sub.includes('bullet')) effectiveCategory = 'bullet'
       else if (sub.includes('turret')) effectiveCategory = 'turret'
       else if (sub.includes('ptz')) effectiveCategory = 'ptz'
       else if (sub.includes('fisheye')) effectiveCategory = 'fisheye'
-      else if (sub.includes('multisensor') || sub.includes('multi-sensor') || sub.includes('multi_sensor')) {
+      else if (sub.includes('multisensor') || sub.includes('multi-sensor') || sub.includes('multi_sensor') || sub.includes('multi directional')) {
         effectiveCategory = sub.includes('dual') ? 'multisensor_dual' : 'multisensor_quad'
       }
       else if (sub.includes('box') || sub.includes('covert')) effectiveCategory = 'box'
