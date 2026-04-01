@@ -255,10 +255,10 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       const defaultFov = cat === 'multisensor_quad' ? 90 : cat === 'multisensor_dual' ? 90 : isFisheye ? 180 : 90
       const fovAngle = Number(props.fov_angle) || defaultFov
       const targetDist = Number(props.target_distance) || 30
-      const focalLength = Number(props.focal_length) || 0
+      const focalLength = Number(props.focal_length) || 3 // fallback 3mm per Dexter
       let sensorW = Number(props.sensor_w) || Number(props.sensor_width) || 0
       const resW = Number(props.resolution_w) || 0
-      // Fallback sensor_w for existing devices missing this field
+      // Fallback sensor_w = 1/2.8" = 5.14mm per Dexter
       if (sensorW === 0) {
         sensorW = 5.14
       }
@@ -298,12 +298,14 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           opacity: [0.04, 0.06, 0.09, 0.12, 0.15, 0.20][i] ?? 0.10,
         }))
       } else {
-        // Fallback: 4 proportional tiers with graduated opacity
+        // Fallback: use DORI colors with proportional distances
         tiers = [
-          { distanceFt: targetDist, color: deviceColor, opacity: 0.06 },
-          { distanceFt: targetDist * 0.7, color: deviceColor, opacity: 0.10 },
-          { distanceFt: targetDist * 0.45, color: deviceColor, opacity: 0.14 },
-          { distanceFt: targetDist * 0.2, color: deviceColor, opacity: 0.20 },
+          { distanceFt: targetDist, color: '#6b7280', opacity: 0.04 },          // Monitor
+          { distanceFt: targetDist * 0.75, color: '#ef4444', opacity: 0.06 },   // Detection
+          { distanceFt: targetDist * 0.5, color: '#f97316', opacity: 0.09 },    // Observation
+          { distanceFt: targetDist * 0.35, color: '#eab308', opacity: 0.12 },   // Recognition
+          { distanceFt: targetDist * 0.2, color: '#22c55e', opacity: 0.15 },    // Identification
+          { distanceFt: targetDist * 0.08, color: '#8b5cf6', opacity: 0.20 },   // Inspection
         ]
       }
 
