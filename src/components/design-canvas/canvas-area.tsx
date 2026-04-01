@@ -1234,6 +1234,7 @@ export function CanvasArea({
             const obj = await createDeviceObject(
               fm, dev.category, dev.position_x, dev.position_y,
               dev.rotation ?? 0, dev.id === selectedDeviceId, dev.id,
+              dev.label || undefined,
             )
             const rec = obj as unknown as Record<string, unknown>
             rec.__isSelected = dev.id === selectedDeviceId

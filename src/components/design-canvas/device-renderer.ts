@@ -14,17 +14,20 @@ import { C } from './constants'
 type FabricModule = typeof import('fabric')
 type FabricObject = import('fabric').FabricObject
 
-// Camera type → PNG image mapping (Hanwha DesignPro style)
+// Camera type → PNG image mapping (Hanwha icons)
 const CAT_TO_PNG: Record<string, string> = {
-  cctv: '/devices/camera-types/dome.png',
-  dome: '/devices/camera-types/dome.png',
-  bullet: '/devices/camera-types/bullet.png',
-  ptz: '/devices/camera-types/ptz.png',
-  fisheye: '/devices/camera-types/fisheye.png',
-  multisensor_quad: '/devices/camera-types/multisensor.png',
-  multisensor_dual: '/devices/camera-types/multisensor_dual.png',
-  turret: '/devices/camera-types/turret.png',
-  box: '/devices/camera-types/box.png',
+  cctv: '/icons/cctv/dome.png',
+  dome: '/icons/cctv/dome.png',
+  bullet: '/icons/cctv/bullet.png',
+  ptz: '/icons/cctv/PTZ.png',
+  fisheye: '/icons/cctv/fisheye.png',
+  multisensor_quad: '/icons/cctv/multisensor.png',
+  multisensor_dual: '/icons/cctv/dualsensor.png',
+  turret: '/icons/cctv/turret.png',
+  box: '/icons/cctv/box.png',
+  covert: '/icons/cctv/covert.png',
+  corner: '/icons/cctv/corner.png',
+  mini_dome: '/icons/cctv/mini_dome.png',
 }
 
 const ICON_SIZE = 28 // px on canvas
@@ -47,8 +50,9 @@ export async function createDeviceObject(
   rotation: number,
   isSelected: boolean,
   deviceId: string,
+  label?: string,
 ): Promise<FabricObject> {
-  let obj: FabricObject
+  let iconObj: FabricObject
 
   const pngUrl = CAT_TO_PNG[category]
 
@@ -57,36 +61,54 @@ export async function createDeviceObject(
       const img = await fm.FabricImage.fromURL(pngUrl, { crossOrigin: 'anonymous' })
       const scale = ICON_SIZE / Math.max(img.width || 64, img.height || 64)
       img.set({
-        left: posX, top: posY,
+        left: 0, top: 0,
         originX: 'center', originY: 'center',
         scaleX: scale, scaleY: scale,
-        angle: rotation,
-        hasControls: false, hasBorders: false, lockRotation: true,
-        selectable: true, evented: true,
-        hoverCursor: 'move', moveCursor: 'move',
       })
-      obj = img
+      iconObj = img
     } catch {
-      obj = await createSvgFallback(fm, category, posX, posY, rotation)
+      iconObj = await createSvgFallback(fm, category, 0, 0, 0)
     }
   } else {
-    obj = await createSvgFallback(fm, category, posX, posY, rotation)
+    iconObj = await createSvgFallback(fm, category, 0, 0, 0)
   }
 
+  // Label text below icon
+  const labelText = label ? label.split(' — ')[0] : '' // Show short label (e.g. "CAM-001")
+  const textObj = new fm.FabricText(labelText, {
+    left: 0, top: ICON_SIZE / 2 + 4,
+    originX: 'center', originY: 'top',
+    fontSize: 9, fill: '#1E293B',
+    fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    fontWeight: '600',
+    textAlign: 'center',
+  })
+
+  // Group icon + label
+  const group = new fm.Group(labelText ? [iconObj, textObj] : [iconObj], {
+    left: posX, top: posY,
+    originX: 'center', originY: 'center',
+    angle: rotation,
+    hasControls: false, hasBorders: false, lockRotation: true,
+    selectable: true, evented: true,
+    hoverCursor: 'move', moveCursor: 'move',
+    subTargetCheck: false,
+  })
+
   // Tag for event handling
-  const rec = obj as unknown as Record<string, unknown>
+  const rec = group as unknown as Record<string, unknown>
   rec.__devId = deviceId
 
-  // Selection ring (Hanwha DesignPro style: accent border)
+  // Selection ring
   if (isSelected) {
-    obj.set({
+    group.set({
       stroke: C.accent,
       strokeWidth: 2,
       padding: 4,
     } as Record<string, unknown>)
   }
 
-  return obj
+  return group
 }
 
 async function createSvgFallback(
@@ -94,7 +116,7 @@ async function createSvgFallback(
   category: string,
   posX: number,
   posY: number,
-  rotation: number,
+  _rotation?: number,
 ): Promise<FabricObject> {
   const iconKey = CATEGORY_TO_ICON[category] || 'generic'
   const svgStr = DEVICE_SVG_STRINGS[iconKey]
@@ -104,15 +126,12 @@ async function createSvgFallback(
       const res = await fm.loadSVGFromString(svgStr)
       const filtered = res.objects.filter(Boolean) as FabricObject[]
       const ico = fm.util.groupSVGElements(filtered, res.options)
-      return new fm.Group([ico], {
+      ico.set({
         left: posX, top: posY,
         originX: 'center', originY: 'center',
         scaleX: 0.4, scaleY: 0.4,
-        angle: rotation,
-        hasControls: false, hasBorders: false, lockRotation: true,
-        selectable: true, evented: true,
-        hoverCursor: 'move', moveCursor: 'move',
       })
+      return ico
     } catch {
       // Fall through to circle
     }
@@ -121,11 +140,8 @@ async function createSvgFallback(
   // Ultimate fallback: simple circle
   return new fm.Circle({
     left: posX, top: posY,
-    radius: 10, fill: C.accent,
+    radius: 10, fill: '#522F82',
     originX: 'center', originY: 'center',
-    hasControls: false, hasBorders: false,
-    selectable: true, evented: true,
-    hoverCursor: 'move', moveCursor: 'move',
   })
 }
 

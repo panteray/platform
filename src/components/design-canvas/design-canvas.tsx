@@ -112,6 +112,9 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const [fovMode, setFovMode] = useState<'simple' | 'ppf' | 'dori'>('simple')
   const [floorPlanOpacity, setFloorPlanOpacity] = useState(0.6)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
+  const [scaleFormat, setScaleFormat] = useState<'ft' | 'ratio' | 'px'>('ft')
+  const [showScaleEdit, setShowScaleEdit] = useState(false)
+  const [scaleEditValue, setScaleEditValue] = useState('')
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
   const [walls, setWalls] = useState<Array<{ id: string; points: Array<{ x: number; y: number }>; wallType?: string; heightFt?: number; opacity?: number; color?: string }>>([])
   const [selectedMdfId, setSelectedMdfId] = useState<string | null>(null)
@@ -583,7 +586,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   )
 
   return (
-    <div style={{
+    <div className="light" style={{
       display: 'flex', flexDirection: 'column', height: '100vh',
       background: C.bg, color: C.text, fontFamily: "'Inter', 'Segoe UI', sans-serif",
     }}>
@@ -1051,18 +1054,78 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
-        {/* Scale bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{
-            width: 50, height: 4, background: C.accent, borderRadius: 1,
-            position: 'relative',
-          }}>
+        {/* Scale control */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
+          {/* Scale bar visual */}
+          <div style={{ width: 50, height: 4, background: C.accent, borderRadius: 1, position: 'relative' }}>
             <div style={{ position: 'absolute', left: 0, top: -2, width: 1, height: 8, background: C.accent }} />
             <div style={{ position: 'absolute', right: 0, top: -2, width: 1, height: 8, background: C.accent }} />
           </div>
-          <span style={{ fontSize: 10, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", color: C.text }}>
-            {(50 / scalePxPerFt).toFixed(0)} ft
-          </span>
+          {/* Clickable scale value */}
+          <button
+            onClick={() => { setShowScaleEdit(!showScaleEdit); setScaleEditValue(String(scalePxPerFt)) }}
+            style={{
+              fontSize: 10, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
+              color: C.accent, background: 'none', border: `1px solid ${C.border}`, borderRadius: 3,
+              padding: '1px 6px', cursor: 'pointer', fontWeight: 600,
+            }}
+          >
+            {scaleFormat === 'ft' && `1" = ${(50 / scalePxPerFt).toFixed(1)} ft`}
+            {scaleFormat === 'ratio' && `1:${Math.round(50 / scalePxPerFt * 12)}`}
+            {scaleFormat === 'px' && `${scalePxPerFt.toFixed(1)} px/ft`}
+          </button>
+          {/* Format toggle */}
+          <select
+            value={scaleFormat}
+            onChange={e => setScaleFormat(e.target.value as 'ft' | 'ratio' | 'px')}
+            style={{
+              fontSize: 9, background: C.bgActive, border: `1px solid ${C.border}`,
+              borderRadius: 3, color: C.textMuted, padding: '1px 4px', cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            <option value="ft">1&quot;=Xft</option>
+            <option value="ratio">1:X</option>
+            <option value="px">px/ft</option>
+          </select>
+
+          {/* Scale edit popover */}
+          {showScaleEdit && (
+            <div style={{
+              position: 'absolute', bottom: 28, right: 0, background: C.bgPanel,
+              border: `1px solid ${C.border}`, borderRadius: 6, padding: 12,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.2)', zIndex: 50, minWidth: 180,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>Set Scale</div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input
+                  type="number" step="0.1" min="0.1"
+                  value={scaleEditValue}
+                  onChange={e => setScaleEditValue(e.target.value)}
+                  style={{
+                    width: 70, padding: '4px 8px', background: C.bgActive,
+                    border: `1px solid ${C.border}`, borderRadius: 4,
+                    color: C.text, fontSize: 12, fontFamily: "'SF Mono', monospace",
+                  }}
+                />
+                <span style={{ fontSize: 10, color: C.textMuted }}>px/ft</span>
+                <button
+                  onClick={() => {
+                    const v = parseFloat(scaleEditValue)
+                    if (v > 0) { setScalePxPerFt(v); setShowScaleEdit(false) }
+                  }}
+                  style={{
+                    padding: '4px 10px', background: C.accent, color: '#fff',
+                    border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >Set</button>
+              </div>
+              <div style={{ fontSize: 9, color: C.textDim, marginTop: 6 }}>
+                Or use the Scale tool to measure two points
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
