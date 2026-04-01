@@ -85,10 +85,27 @@ interface Props {
   canvasActionsRef?: React.MutableRefObject<{ zoomIn: () => void; zoomOut: () => void; fitToView: () => void } | null>
 }
 
-/* ─── Resolve CSS variable to computed value (needed for <canvas> 2D context) ─── */
-function resolveCanvasColor(varName: string, fallback = '#09090b'): string {
-  if (typeof window === 'undefined') return fallback
-  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback
+/* ─── Light-theme canvas colors (canvas is always light-themed) ─── */
+const CANVAS_LIGHT_COLORS: Record<string, string> = {
+  '--canvas-bg': '#F8FAFC',
+  '--canvas-bg-surface': '#F1F5F9',
+  '--canvas-bg-panel': '#FFFFFF',
+  '--canvas-bg-hover': 'rgba(30, 41, 59, 0.04)',
+  '--canvas-bg-active': '#F1F5F9',
+  '--canvas-border': '#CBD5E1',
+  '--canvas-border-subtle': '#E2E8F0',
+  '--canvas-text': '#1E293B',
+  '--canvas-text-muted': '#64748B',
+  '--canvas-text-dim': '#94A3B8',
+  '--canvas-accent': '#522F82',
+  '--canvas-accent-hover': '#6B46A6',
+  '--canvas-accent-subtle': 'rgba(82, 47, 130, 0.08)',
+  '--canvas-grid-dot': 'rgba(30, 41, 59, 0.08)',
+}
+
+function resolveCanvasColor(varName: string, fallback = '#F8FAFC'): string {
+  // Always use light theme colors for canvas regardless of global theme
+  return CANVAS_LIGHT_COLORS[varName] || fallback
 }
 
 /* ─── Camera categories ─── */
