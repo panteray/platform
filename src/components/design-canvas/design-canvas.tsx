@@ -109,7 +109,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const [showFov, setShowFov] = useState(true)
   const [showLeftPanel, setShowLeftPanel] = useState(true)
   const [showCatalog, setShowCatalog] = useState(initialShowCatalog ?? false)
-  const [fovMode, setFovMode] = useState<'simple' | 'ppf' | 'dori'>('simple')
+  const [fovMode, setFovMode] = useState<'simple' | 'ppf' | 'dori'>('dori')
   const [floorPlanOpacity, setFloorPlanOpacity] = useState(0.6)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
   const [scaleFormat, setScaleFormat] = useState<'ft' | 'ratio' | 'px'>('ft')
