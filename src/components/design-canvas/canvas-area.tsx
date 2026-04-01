@@ -82,6 +82,7 @@ interface Props {
   onWallSelected?: (id: string) => void
   onSelectImager?: (idx: number | null) => void
   zoomToPointRef?: React.MutableRefObject<((x: number, y: number) => void) | null>
+  canvasActionsRef?: React.MutableRefObject<{ zoomIn: () => void; zoomOut: () => void; fitToView: () => void } | null>
 }
 
 /* ─── Resolve CSS variable to computed value (needed for <canvas> 2D context) ─── */
@@ -209,6 +210,7 @@ export function CanvasArea({
   walls, onWallCreated, onWallDeleted, onMdfSelected,
   showIrRange, hiddenPpfZones, showBlindSpot, onWallSelected,
   onDeviceUpdateProp, onUndo, onRedo, satelliteConfig, onSelectImager,
+  canvasActionsRef,
 }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -249,6 +251,36 @@ export function CanvasArea({
     }
     return () => { if (zoomToPointRef) zoomToPointRef.current = null }
   }, [zoomToPointRef, ready])
+
+  // Expose zoom in/out/fit actions via ref
+  useEffect(() => {
+    if (!canvasActionsRef) return
+    canvasActionsRef.current = {
+      zoomIn: () => {
+        const c = fcRef.current; if (!c) return
+        const z = Math.min(ZOOM_MAX, c.getZoom() * 1.3)
+        const center = c.getCenterPoint()
+        c.zoomToPoint(center, z)
+        onZoomChange?.(z)
+        c.requestRenderAll()
+      },
+      zoomOut: () => {
+        const c = fcRef.current; if (!c) return
+        const z = Math.max(ZOOM_MIN, c.getZoom() / 1.3)
+        const center = c.getCenterPoint()
+        c.zoomToPoint(center, z)
+        onZoomChange?.(z)
+        c.requestRenderAll()
+      },
+      fitToView: () => {
+        const c = fcRef.current; if (!c) return
+        c.setViewportTransform([1, 0, 0, 1, 0, 0])
+        onZoomChange?.(1)
+        c.requestRenderAll()
+      },
+    }
+    return () => { if (canvasActionsRef) canvasActionsRef.current = null }
+  }, [canvasActionsRef, ready, onZoomChange])
 
   // Pan state
   const panning = useRef(false)
@@ -1151,35 +1183,70 @@ export function CanvasArea({
   }, [ready, showGrid])
 
   // ════════════════════════════════════════════════════════════════
-  // DEVICES
+  // DEVICES — diff-based sync (avoids destroy/recreate on every update)
   // ════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!fcRef.current || !ready) return
     const c = fcRef.current
 
-    // Remove old
-    for (const [, o] of devObjs.current) c.remove(o)
-    devObjs.current.clear()
+    const currentIds = new Set(
+      devices.filter(d => !hiddenCategories?.has(d.category)).map(d => d.id)
+    )
+    const existingIds = new Set(devObjs.current.keys())
 
-    ;(async () => {
-      const fm = await import('fabric')
-
-      for (const dev of devices) {
-        if (hiddenCategories?.has(dev.category)) continue
-        try {
-          const obj = await createDeviceObject(
-            fm, dev.category, dev.position_x, dev.position_y,
-            dev.rotation ?? 0, dev.id === selectedDeviceId, dev.id,
-          )
-          c.add(obj)
-          devObjs.current.set(dev.id, obj)
-        } catch { /* icon load failed */ }
+    // Remove devices no longer in the list
+    for (const id of existingIds) {
+      if (!currentIds.has(id)) {
+        const obj = devObjs.current.get(id)
+        if (obj) c.remove(obj)
+        devObjs.current.delete(id)
       }
+    }
 
-      // Apply canonical z-ordering
-      applyZOrder(c, gridObj.current, fpObj.current, wallObjs.current, fovObjs.current, mdfObjs.current, devObjs.current, handleObjs.current)
+    // Update positions/rotation for existing devices, and track selection changes
+    for (const dev of devices) {
+      if (hiddenCategories?.has(dev.category)) continue
+      const existing = devObjs.current.get(dev.id)
+      if (existing) {
+        const rec = existing as unknown as Record<string, unknown>
+        // Update position if it changed (skip if user is currently dragging)
+        if (!existing.isMoving) {
+          existing.set({ left: dev.position_x, top: dev.position_y })
+        }
+        if (dev.rotation != null) existing.set({ angle: dev.rotation })
+        // Update selection ring
+        const isSelected = dev.id === selectedDeviceId
+        const wasSelected = rec.__isSelected as boolean | undefined
+        if (isSelected !== wasSelected) {
+          existing.set({ stroke: isSelected ? C.accent : 'transparent', strokeWidth: isSelected ? 2 : 0 })
+          rec.__isSelected = isSelected
+        }
+      }
+    }
+
+    // Add new devices
+    const toAdd = devices.filter(d => !hiddenCategories?.has(d.category) && !existingIds.has(d.id))
+    if (toAdd.length > 0) {
+      ;(async () => {
+        const fm = await import('fabric')
+        for (const dev of toAdd) {
+          try {
+            const obj = await createDeviceObject(
+              fm, dev.category, dev.position_x, dev.position_y,
+              dev.rotation ?? 0, dev.id === selectedDeviceId, dev.id,
+            )
+            const rec = obj as unknown as Record<string, unknown>
+            rec.__isSelected = dev.id === selectedDeviceId
+            c.add(obj)
+            devObjs.current.set(dev.id, obj)
+          } catch { /* icon load failed */ }
+        }
+        applyZOrder(c, gridObj.current, fpObj.current, wallObjs.current, fovObjs.current, mdfObjs.current, devObjs.current, handleObjs.current)
+        c.requestRenderAll()
+      })()
+    } else {
       c.requestRenderAll()
-    })()
+    }
   }, [devices, selectedDeviceId, ready, hiddenCategories])
 
   // ════════════════════════════════════════════════════════════════

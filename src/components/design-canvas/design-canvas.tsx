@@ -124,6 +124,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   /* ── Canvas ref for zoom-to-device ── */
   const canvasRef = useRef<{ zoomToDevice?: (devId: string) => void } | null>(null)
   const zoomToPointRef = useRef<((x: number, y: number) => void) | null>(null)
+  const canvasActionsRef = useRef<{ zoomIn: () => void; zoomOut: () => void; fitToView: () => void } | null>(null)
 
   const handleZoomToDevice = useCallback((devId: string) => {
     const dev = devices.find(d => d.id === devId)
@@ -180,7 +181,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
        const newP = { ...p }
        delete newP.focal_length
        delete newP.fov_angle
-       delete newP.sensor_width
+       delete newP.sensor_w
        delete newP.resolution_w
        updateDevice(id, { properties: newP })
        return
@@ -198,6 +199,11 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const areaDevices = useMemo(() =>
     devices.filter(d => d.area_id === activeAreaId)
   , [devices, activeAreaId])
+
+  // Devices placed on canvas (excludes un-placed devices)
+  const canvasDevices = useMemo(() =>
+    areaDevices.filter(d => !(d.properties as Record<string, unknown> | null)?.unplaced)
+  , [areaDevices])
 
   const areaCables = useMemo(() =>
     cables.filter(c => c.area_id === activeAreaId)
@@ -222,7 +228,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       'speaker': { radiusFt: 25, color: '#8b5cf6', fov: 360 },
       'vape_environmental': { radiusFt: 15, color: '#14b8a6', fov: 360 },
     }
-    for (const d of areaDevices) {
+    for (const d of canvasDevices) {
       const cat = d.category
       const coverage = NON_CAM_COVERAGE[cat]
       if (!coverage) continue
@@ -236,13 +242,14 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       })
     }
 
-    for (const d of areaDevices) {
+    for (const d of canvasDevices) {
       const cat = d.category
       if (!['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(cat)) continue
 
       const props = (d.properties ?? {}) as Record<string, unknown>
-      // Default FOV: 90° for most cameras, but for multi-sensor divide coverage
-      const defaultFov = cat === 'multisensor_quad' ? 90 : cat === 'multisensor_dual' ? 90 : cat === 'fisheye' ? 180 : 90
+      const isFisheye = cat === 'fisheye'
+      // Default FOV: 90° for most cameras, 180° for fisheye (selectable 180/360 via fisheye_view)
+      const defaultFov = cat === 'multisensor_quad' ? 90 : cat === 'multisensor_dual' ? 90 : isFisheye ? 180 : 90
       const fovAngle = Number(props.fov_angle) || defaultFov
       const targetDist = Number(props.target_distance) || 30
       const focalLength = Number(props.focal_length) || 0
@@ -253,9 +260,15 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         sensorW = 5.14
       }
 
-      let hFov = fovAngle
-      if (focalLength > 0 && sensorW > 0) {
+      let hFov: number
+      if (isFisheye) {
+        // Fisheye: use fisheye_view property (180 or 360), NOT the rectilinear formula
+        const fisheyeView = Number(props.fisheye_view) || 180
+        hFov = fisheyeView
+      } else if (focalLength > 0 && sensorW > 0) {
         hFov = 2 * Math.atan(sensorW / (2 * focalLength)) * (180 / Math.PI)
+      } else {
+        hFov = fovAngle
       }
 
       const deviceColor = d.color_hex || C.accent
@@ -359,7 +372,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       })
     }
     return map
-  }, [areaDevices])
+  }, [canvasDevices])
 
   /* ── Event handlers ── */
   const handleSelectDevice = useCallback((id: string | null) => {
@@ -410,8 +423,10 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
 
   const handleDeviceDelete = useCallback((id: string) => {
     pushUndo()
-    deleteDevice(id)
-  }, [deleteDevice, pushUndo])
+    // Un-place from canvas (hide) — device stays in the design/left panel
+    updateDevice(id, { properties: { ...((devices.find(d => d.id === id)?.properties ?? {}) as Record<string, unknown>), unplaced: true } })
+    setSelectedDeviceId(null)
+  }, [devices, updateDevice, pushUndo, setSelectedDeviceId])
 
   // Auto-label prefix by category
   const getNextLabel = useCallback((category: string) => {
@@ -720,9 +735,9 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         <div style={{ flex: 1 }} />
 
         {/* Zoom controls (right side) */}
-        <button style={btnStyle(false)} title="Zoom In"><ZoomIn size={13} /></button>
-        <button style={btnStyle(false)} title="Zoom Out"><ZoomOut size={13} /></button>
-        <button style={btnStyle(false)} title="Fit to View"><Maximize2 size={13} /></button>
+        <button onClick={() => canvasActionsRef.current?.zoomIn()} style={btnStyle(false)} title="Zoom In"><ZoomIn size={13} /></button>
+        <button onClick={() => canvasActionsRef.current?.zoomOut()} style={btnStyle(false)} title="Zoom Out"><ZoomOut size={13} /></button>
+        <button onClick={() => canvasActionsRef.current?.fitToView()} style={btnStyle(false)} title="Fit to View"><Maximize2 size={13} /></button>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
@@ -802,7 +817,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           designId={designId}
           areaId={activeAreaId}
           floorPlan={activeFloorPlan}
-          devices={areaDevices}
+          devices={canvasDevices}
           cables={areaCables}
           showGrid={showGrid}
           activeTool={activeTool}
@@ -869,6 +884,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           onDragCommit={() => {}}
           hiddenCategories={hiddenCategories}
           zoomToPointRef={zoomToPointRef}
+          canvasActionsRef={canvasActionsRef}
           walls={walls}
           onWallCreated={(pts) => {
             setWalls(prev => [...prev, { id: crypto.randomUUID(), points: pts }])

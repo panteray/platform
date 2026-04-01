@@ -78,8 +78,43 @@ export async function GET(
         if (libItem.ndaa_compliant != null) catalogFields.ndaa_compliant = libItem.ndaa_compliant
         if (libItem.resolution) {
           catalogFields.resolution = libItem.resolution
-          const [w, h] = (libItem.resolution as string).split('x').map(Number)
-          if (w && h) { catalogFields.resolution_w = w; catalogFields.resolution_h = h }
+          const resStr = libItem.resolution as string
+          // Try WxH format first
+          const [w, h] = resStr.split('x').map(Number)
+          if (w && h) {
+            catalogFields.resolution_w = w; catalogFields.resolution_h = h
+          } else {
+            // Parse common resolution strings (4MP, 4K, 1080p, etc.)
+            const res = resStr.toLowerCase().replace(/\s/g, '')
+            const mpMatch = res.match(/^([\d.]+)mp/)
+            const pMatch = res.match(/^(\d+)p$/)
+            if (res.includes('4k') || res.includes('uhd')) {
+              catalogFields.resolution_w = 3840; catalogFields.resolution_h = 2160
+            } else if (res.includes('8k')) {
+              catalogFields.resolution_w = 7680; catalogFields.resolution_h = 4320
+            } else if (pMatch) {
+              const pH = parseInt(pMatch[1], 10)
+              catalogFields.resolution_h = pH
+              catalogFields.resolution_w = Math.round(pH * 16 / 9)
+            } else if (mpMatch) {
+              const mp = parseFloat(mpMatch[1])
+              const mpToPixels: Record<string, [number, number]> = {
+                '1.3': [1280, 960], '2': [1920, 1080], '3': [2048, 1536],
+                '4': [2560, 1440], '5': [2592, 1944], '6': [3072, 2048],
+                '8': [3840, 2160], '10': [3648, 2736], '12': [4000, 3000],
+                '12.5': [4000, 3000], '16': [4608, 3456], '20': [5120, 3840],
+                '32': [6528, 4896],
+              }
+              const exact = mpToPixels[String(mp)]
+              if (exact) {
+                catalogFields.resolution_w = exact[0]; catalogFields.resolution_h = exact[1]
+              } else {
+                const totalPx = mp * 1_000_000
+                const rW = Math.round(Math.sqrt(totalPx * (4 / 3)))
+                catalogFields.resolution_w = rW; catalogFields.resolution_h = Math.round(rW * 3 / 4)
+              }
+            }
+          }
         }
         if (libItem.fps) {
           const fpsNum = parseInt(libItem.fps as string, 10)
