@@ -69,11 +69,14 @@ export function buildConePoints(
   halfAngRad: number,
   rotationRad: number,
   radiusPx: number,
-  steps: number = 24,
+  steps?: number,
 ): ConePoint[] {
+  // IPVM uses 1° increments for smooth arcs. Default steps = angle in degrees (minimum 24)
+  const angleDeg = Math.round(halfAngRad * 2 * 180 / Math.PI)
+  const numSteps = steps ?? Math.max(24, angleDeg)
   const pts: ConePoint[] = [{ x: 0, y: 0 }] // apex at local origin
-  for (let i = 0; i <= steps; i++) {
-    const a = rotationRad - halfAngRad + (2 * halfAngRad * i / steps)
+  for (let i = 0; i <= numSteps; i++) {
+    const a = rotationRad - halfAngRad + (2 * halfAngRad * i / numSteps)
     pts.push({
       x: Math.cos(a) * radiusPx,
       y: Math.sin(a) * radiusPx,

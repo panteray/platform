@@ -1375,8 +1375,9 @@ export function CanvasArea({
               height: maxY - minY,
               originX: 'center', originY: 'center',
               fill: fillColor, opacity: Math.min(0.7, gradOpacity),
-              stroke: t === 0 ? (isMultiSensor ? (imagerData?.colorHex || SENSOR_COLORS[sIdx % SENSOR_COLORS.length]) : 'rgba(0,0,0,0.35)') : 'transparent',
-              strokeWidth: t === 0 ? (isMultiSensor ? 2.5 : 1.5) : 0,
+              // IPVM style: outermost tier gets stroke matching fill color, strokeOpacity 0.8, weight 3
+              stroke: t === 0 ? fillColor : 'transparent',
+              strokeWidth: t === 0 ? 3 : 0,
               selectable: false,
               // Outermost tier is clickable for cone-click-to-select (Hanwha pattern)
               evented: t === 0,

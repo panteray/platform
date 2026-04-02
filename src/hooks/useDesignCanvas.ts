@@ -35,6 +35,7 @@ export interface DesignCanvasState {
   uploadFloorPlan: (areaId: string, file: File) => Promise<DesignFloorPlan | null>
   addDevice: (data: Record<string, unknown>) => Promise<DesignDevice | null>
   updateDevice: (deviceId: string, data: Record<string, unknown>) => Promise<DesignDevice | null>
+  updateDeviceProps: (deviceId: string, propUpdates: Record<string, unknown>) => Promise<void>
   deleteDevice: (deviceId: string) => Promise<boolean>
   addCable: (data: Record<string, unknown>) => Promise<DesignCable | null>
   deleteCable: (cableId: string) => Promise<boolean>
@@ -271,6 +272,24 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     } catch { toast.error('Failed to save device changes'); await fetchDesign(); return null }
   }, [designId, fetchDesign])
 
+  // Safe property merge — reads latest device state via functional updater, never stale
+  const updateDeviceProps = useCallback(async (deviceId: string, propUpdates: Record<string, unknown>): Promise<void> => {
+    let mergedProps: Record<string, unknown> = {}
+    setDevices((prev) => prev.map((d) => {
+      if (d.id !== deviceId) return d
+      const existing = (d.properties ?? {}) as Record<string, unknown>
+      mergedProps = { ...existing, ...propUpdates }
+      return { ...d, properties: mergedProps, updated_at: new Date().toISOString() } as DesignDevice
+    }))
+    try {
+      const res = await fetch(`/api/org/designs/${designId}/devices/${deviceId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ properties: mergedProps }),
+      })
+      if (!res.ok) { toast.error('Failed to save device changes'); await fetchDesign() }
+    } catch { toast.error('Failed to save device changes'); await fetchDesign() }
+  }, [designId, fetchDesign])
+
   const deleteDevice = useCallback(async (deviceId: string): Promise<boolean> => {
     try {
       setDevices((prev) => prev.filter((d) => d.id !== deviceId))
@@ -297,7 +316,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     activeAreaId, selectedDeviceId, selectedCableId,
     setActiveAreaId, setSelectedDeviceId, setSelectedCableId,
     addArea, updateArea, deleteArea, uploadFloorPlan,
-    addDevice, updateDevice, deleteDevice,
+    addDevice, updateDevice, updateDeviceProps, deleteDevice,
     addCable: cableCrud.add, deleteCable: cableCrud.remove,
     addInfrastructure: infraCrud.add,
     updateInfrastructure: infraCrud.update,

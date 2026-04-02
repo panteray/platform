@@ -96,7 +96,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     loading, error, activeAreaId, selectedDeviceId,
     setActiveAreaId, setSelectedDeviceId,
     addArea, updateArea, deleteArea, uploadFloorPlan,
-    addDevice, updateDevice, deleteDevice,
+    addDevice, updateDevice, updateDeviceProps, deleteDevice,
     addCable, deleteCable, addInfrastructure, updateInfrastructure, deleteInfrastructure,
   } = state
 
@@ -109,7 +109,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const [showFov, setShowFov] = useState(true)
   const [showLeftPanel, setShowLeftPanel] = useState(true)
   const [showCatalog, setShowCatalog] = useState(initialShowCatalog ?? false)
-  const [fovMode, setFovMode] = useState<'simple' | 'ppf' | 'dori'>('dori')
+  const [fovMode, setFovMode] = useState<'simple' | 'ppf' | 'dori'>('simple')
   const [floorPlanOpacity, setFloorPlanOpacity] = useState(0.6)
   const [scalePxPerFt, setScalePxPerFt] = useState(10)
   const [scaleFormat, setScaleFormat] = useState<'ft' | 'ratio' | 'px'>('ft')
@@ -167,32 +167,16 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     console.log('[DesignCanvas] Redo requested')
   }, [])
 
-  const handleDeviceUpdateProp = useCallback((id: string, prop: string, val: any) => {
-    const dev = devices.find(d => d.id === id)
-    if (!dev) return
-    const p = (dev.properties ?? {}) as Record<string, unknown>
-
-    // Batch update: replace entire properties object at once (avoids race conditions)
+  const handleDeviceUpdateProp = useCallback((id: string, prop: string, val: unknown) => {
+    // Batch update: replace entire properties object at once
     if (prop === '__batch') {
       updateDevice(id, { properties: val })
       return
     }
-
-    if (prop === '__resetDori') {
-       // Strip overridden optics to restore hardware baseline
-       // Canvas target_distance is source of truth — do NOT overwrite it
-       const newP = { ...p }
-       delete newP.focal_length
-       delete newP.fov_angle
-       delete newP.sensor_w
-       delete newP.resolution_w
-       updateDevice(id, { properties: newP })
-       return
-    }
-
-    const merged = { ...p, [prop]: val }
-    updateDevice(id, { properties: merged })
-  }, [devices, updateDevice])
+    // All property updates go through updateDeviceProps which reads latest state
+    // No stale closure — functional updater inside reads fresh devices
+    updateDeviceProps(id, { [prop]: val })
+  }, [updateDevice, updateDeviceProps])
 
   /* ── Derived data ── */
   const activeFloorPlan = useMemo(() =>
@@ -290,22 +274,24 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           mountHeight: Number(props.install_height) || 9,
           targetDistance: targetDist,
         })
-        // DORI tiers show capability bands WITHIN the user's target distance
-        // Canvas target_distance is the source of truth — no tier extends beyond it
-        tiers = doriTiers.map((t, i) => ({
-          distanceFt: Math.min(t.distanceFt, targetDist),
-          color: t.color,
-          opacity: [0.12, 0.16, 0.20, 0.25, 0.30, 0.40][i] ?? 0.15,
-        }))
-      } else {
-        // Fallback: use DORI colors with proportional distances
+        // IPVM pattern: store DORI distances for PPF zone toggle, but render single color
+        const doriDistances = doriTiers.map(t => Math.min(t.distanceFt, targetDist))
+        // Single color graduated opacity (IPVM style: fillOpacity 0.55, graduated inward)
         tiers = [
-          { distanceFt: targetDist, color: '#6b7280', opacity: 0.12 },          // Monitor
-          { distanceFt: targetDist * 0.75, color: '#ef4444', opacity: 0.16 },   // Detection
-          { distanceFt: targetDist * 0.5, color: '#f97316', opacity: 0.20 },    // Observation
-          { distanceFt: targetDist * 0.35, color: '#eab308', opacity: 0.25 },   // Recognition
-          { distanceFt: targetDist * 0.2, color: '#22c55e', opacity: 0.30 },    // Identification
-          { distanceFt: targetDist * 0.08, color: '#8b5cf6', opacity: 0.40 },   // Inspection
+          { distanceFt: targetDist, color: deviceColor, opacity: 0.15 },
+          { distanceFt: targetDist * 0.65, color: deviceColor, opacity: 0.25 },
+          { distanceFt: targetDist * 0.35, color: deviceColor, opacity: 0.40 },
+          { distanceFt: targetDist * 0.12, color: deviceColor, opacity: 0.55 },
+        ]
+        // Store DORI distances for optional PPF zone display
+        ;(map as unknown as Record<string, unknown>)[`__dori_${d.id}`] = doriDistances
+      } else {
+        // Fallback: same IPVM pattern — single color graduated opacity
+        tiers = [
+          { distanceFt: targetDist, color: deviceColor, opacity: 0.15 },
+          { distanceFt: targetDist * 0.65, color: deviceColor, opacity: 0.25 },
+          { distanceFt: targetDist * 0.35, color: deviceColor, opacity: 0.40 },
+          { distanceFt: targetDist * 0.12, color: deviceColor, opacity: 0.55 },
         ]
       }
 
@@ -393,24 +379,13 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   }, [updateDevice])
 
   const handleFovDragged = useCallback((id: string, distFt: number) => {
-    const dev = devices.find(d => d.id === id)
-    if (!dev) return
-    const merged = { ...((dev.properties ?? {}) as Record<string, unknown>), target_distance: distFt }
-    updateDevice(id, { properties: merged })
-  }, [devices, updateDevice])
+    updateDeviceProps(id, { target_distance: distFt })
+  }, [updateDeviceProps])
 
   const handleFovAngleChanged = useCallback((id: string, angle: number) => {
-    const dev = devices.find(d => d.id === id)
-    if (!dev) return
-    const p = (dev.properties ?? {}) as Record<string, unknown>
-    // Translate dragged angle back to an optical focal length so DORI engine doesn't fight it and snap back!
-    const sw = Number(p.sensor_w) || Number(p.sensor_width) || 5.14
-    const angRad = angle * (Math.PI / 180)
-    const newFl = sw / (2 * Math.tan(angRad / 2))
-    
-    const merged = { ...p, fov_angle: angle, focal_length: Math.round(newFl * 10) / 10 }
-    updateDevice(id, { properties: merged })
-  }, [devices, updateDevice])
+    // Update FOV angle — updateDeviceProps reads latest state, no stale closure
+    updateDeviceProps(id, { fov_angle: angle })
+  }, [updateDeviceProps])
 
   const handleDeviceCopy = useCallback((id: string) => {
     const dev = devices.find(d => d.id === id)
@@ -428,9 +403,9 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const handleDeviceDelete = useCallback((id: string) => {
     pushUndo()
     // Un-place from canvas (hide) — device stays in the design/left panel
-    updateDevice(id, { properties: { ...((devices.find(d => d.id === id)?.properties ?? {}) as Record<string, unknown>), unplaced: true } })
+    updateDeviceProps(id, { unplaced: true })
     setSelectedDeviceId(null)
-  }, [devices, updateDevice, pushUndo, setSelectedDeviceId])
+  }, [updateDeviceProps, pushUndo, setSelectedDeviceId])
 
   // Auto-label prefix by category
   const getNextLabel = useCallback((category: string) => {
