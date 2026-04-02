@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "drift": {
+      "command": "node",
+      "args": [
+        "/Users/dextergaspard/Downloads/drift-main/drift v2/packages/drift-mcp/dist/index.js",
+        "--project-root",
+        "."
+      ]
+    }
+  }
+}
