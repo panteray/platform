@@ -5,7 +5,7 @@
       "args": [
         "/Users/dextergaspard/Downloads/drift-main/drift v2/packages/drift-mcp/dist/index.js",
         "--project-root",
-        "."
+        "/Users/dextergaspard/repo/platform-1"
       ]
     }
   }
