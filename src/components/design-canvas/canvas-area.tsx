@@ -238,6 +238,11 @@ export function CanvasArea({
   const satMapRef = useRef<SatelliteMapHandle>(null)
   const [ready, setReady] = useState(false)
 
+  /** Fabric zoom — drives map polygon scale + must stay in sync with toolbar/wheel zoom. */
+  const [fabricViewportZoom, setFabricViewportZoom] = useState(1)
+  /** Only setState when zoom changes (pan does not change zoom). */
+  const fabricZoomCommittedRef = useRef<number | null>(null)
+
   // Stable refs for event handlers
   const toolRef = useRef(activeTool)
   useEffect(() => { toolRef.current = activeTool }, [activeTool])
@@ -271,9 +276,22 @@ export function CanvasArea({
     return () => { if (zoomToPointRef) zoomToPointRef.current = null }
   }, [zoomToPointRef, ready])
 
-  // Expose zoom in/out/fit actions via ref
+  // Expose zoom in/out/fit actions via ref (must sync satellite map like mouse:wheel does)
   useEffect(() => {
     if (!canvasActionsRef) return
+    const commitZoom = (c: FabricCanvas) => {
+      const z = c.getZoom()
+      if (fabricZoomCommittedRef.current === null || Math.abs(z - fabricZoomCommittedRef.current) > 1e-6) {
+        fabricZoomCommittedRef.current = z
+        setFabricViewportZoom(z)
+      }
+    }
+    const syncMap = (c: FabricCanvas) => {
+      if (satMapRef.current) {
+        satMapRef.current.syncTransform(c.viewportTransform!, c.getWidth(), c.getHeight())
+      }
+      commitZoom(c)
+    }
     canvasActionsRef.current = {
       zoomIn: () => {
         const c = fcRef.current; if (!c) return
@@ -281,6 +299,7 @@ export function CanvasArea({
         const center = c.getCenterPoint()
         c.zoomToPoint(center, z)
         onZoomChange?.(z)
+        syncMap(c)
         c.requestRenderAll()
       },
       zoomOut: () => {
@@ -289,12 +308,16 @@ export function CanvasArea({
         const center = c.getCenterPoint()
         c.zoomToPoint(center, z)
         onZoomChange?.(z)
+        syncMap(c)
         c.requestRenderAll()
       },
       fitToView: () => {
         const c = fcRef.current; if (!c) return
         c.setViewportTransform([1, 0, 0, 1, 0, 0])
         onZoomChange?.(1)
+        fabricZoomCommittedRef.current = 1
+        setFabricViewportZoom(1)
+        syncMap(c)
         c.requestRenderAll()
       },
     }
@@ -327,11 +350,6 @@ export function CanvasArea({
   // Incremented on drag start, decremented on drag end. >0 means drag is active.
   const isDraggingFov = useRef(false)
   const fovDragGeneration = useRef(0)
-
-  /** Fabric zoom — drives map polygon scale alignment with `SatelliteMap.syncTransform`. */
-  const [fabricViewportZoom, setFabricViewportZoom] = useState(1)
-  /** Only update React state when zoom changes — pan calls syncSatMap every frame; avoid re-renders + map polygon thrash. */
-  const fabricZoomCommittedRef = useRef<number | null>(null)
 
   useMapFovPolygons({
     satMapRef,
@@ -1912,7 +1930,7 @@ export function CanvasArea({
     <div ref={containerRef}
       onDragOver={e => e.preventDefault()}
       onDrop={e => { /* drop handler for catalog */ }}
-      style={{ flex: 1, position: 'relative', overflow: 'hidden', background: C.bg }}>
+      style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative', overflow: 'hidden', background: C.bg }}>
 
       {/* Satellite map backdrop — rendered behind canvas when configured */}
       {satelliteConfig && (

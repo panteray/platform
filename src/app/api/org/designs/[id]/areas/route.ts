@@ -66,7 +66,7 @@ export async function POST(
       name,
       canvas_type: canvasType,
       sort_order: nextSort,
-      satellite_zoom: 18,
+      satellite_zoom: 16,
     })
     .select()
     .single()

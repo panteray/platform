@@ -754,7 +754,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       {/* ═══════════════════════════════════════════════════════════════════
           MAIN CONTENT: Icon Sidebar + Left Panel + Canvas + Right Panel
          ═══════════════════════════════════════════════════════════════════ */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
 
         {/* ── 52px ICON SIDEBAR ── */}
         <div style={{
