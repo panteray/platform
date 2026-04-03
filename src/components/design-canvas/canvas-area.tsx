@@ -1379,7 +1379,7 @@ export function CanvasArea({
         const isSelected = dev.id === selectedDeviceId
         const wasSelected = rec.__isSelected as boolean | undefined
         if (isSelected !== wasSelected) {
-          existing.set({ stroke: isSelected ? C.accent : 'transparent', strokeWidth: isSelected ? 2 : 0 })
+          existing.set({ stroke: isSelected ? '#7c5cfc' : 'transparent', strokeWidth: isSelected ? 2 : 0 })
           rec.__isSelected = isSelected
         }
       }
@@ -1504,7 +1504,7 @@ export function CanvasArea({
             // Build cone polygon in LOCAL coordinates (0,0 = camera apex)
             const localPts = buildConePoints(effectiveHalfAng, sRotRad, r)
 
-            let fillColor = imagerData?.colorHex || data.colorHex || C.accent
+            let fillColor = imagerData?.colorHex || data.colorHex || '#3b82f6'
             if (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') fillColor = tier.color
 
             // IPVM: inner tiers darker (higher PPF), outer tiers lighter
@@ -1651,7 +1651,7 @@ export function CanvasArea({
               const handleRot = handleRotations[hIdx]
               const hRotRad = handleRot * Math.PI / 180
               const sensorSuffix = isMultiSensor ? `_s${hIdx}` : ''
-              const handleColor = isMultiSensor ? sensorColors[hIdx % sensorColors.length] : C.accent
+              const handleColor = isMultiSensor ? sensorColors[hIdx % sensorColors.length] : '#3b82f6'
 
               // Per-imager: use imager-specific distance and hFov for handles
               const imagerData = isMultiSensor ? data.perImagerData?.[hIdx] : undefined

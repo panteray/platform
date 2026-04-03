@@ -289,7 +289,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         hFov = fovAngle
       }
 
-      const deviceColor = d.color_hex || C.accent
+      const deviceColor = d.color_hex || '#3b82f6'
       const hasFullSpecs = focalLength > 0 && sensorW > 0 && resW > 0
 
       let tiers: { distanceFt: number; color: string; opacity: number }[]
