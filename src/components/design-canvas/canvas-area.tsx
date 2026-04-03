@@ -237,17 +237,46 @@ export function CanvasArea({
     satelliteConfigRef.current = satelliteConfig
   }, [satelliteConfig])
 
-  /** Live Google Maps: center + zoom from Fabric viewport (no CSS transform — that freezes tiles). */
+  /**
+   * Previous Fabric vpt slice for satellite sync. Pan uses map.panBy(-dtx,-dty) to match canvas pixels 1:1;
+   * setCenter+setZoom from geo alone under-moved the map when panning.
+   */
+  const lastSatelliteVptRef = useRef<{ tx: number; ty: number; z: number } | null>(null)
+
+  useEffect(() => {
+    lastSatelliteVptRef.current = null
+  }, [satelliteConfig?.lat, satelliteConfig?.lng, satelliteConfig?.zoom])
+
+  /** Live Google Maps: pan = pixel-matched panBy; zoom change = full geo center + zoom. */
   const syncLiveSatelliteMap = useCallback(() => {
     const c = fcRef.current
     const ctx = designGeoContextRef.current
     const cfg = satelliteConfigRef.current
     if (!c || !ctx || !cfg || !satMapRef.current) return
-    const vp = c.getVpCenter()
-    const { lat, lng } = canvasPixelsToLatLng(vp.x, vp.y, ctx)
-    const fabricZ = c.getZoom()
+    const vpt = c.viewportTransform!
+    const tx = vpt[4] ?? 0
+    const ty = vpt[5] ?? 0
+    const fabricZ = vpt[0] ?? 1
     const gz = Math.max(1, Math.min(22, cfg.zoom + Math.log2(Math.max(0.001, fabricZ))))
-    satMapRef.current.syncToGeoViewport({ centerLat: lat, centerLng: lng, googleZoom: gz })
+
+    const last = lastSatelliteVptRef.current
+    const zoomChanged =
+      last === null || Math.abs(fabricZ - last.z) > 1e-5
+
+    if (zoomChanged) {
+      const vp = c.getVpCenter()
+      const { lat, lng } = canvasPixelsToLatLng(vp.x, vp.y, ctx)
+      satMapRef.current.syncToGeoViewport({ centerLat: lat, centerLng: lng, googleZoom: gz })
+      lastSatelliteVptRef.current = { tx, ty, z: fabricZ }
+      return
+    }
+
+    const dtx = tx - last.tx
+    const dty = ty - last.ty
+    if (dtx !== 0 || dty !== 0) {
+      satMapRef.current.panBy(-dtx, -dty)
+    }
+    lastSatelliteVptRef.current = { tx, ty, z: fabricZ }
   }, [])
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1191,6 +1220,7 @@ export function CanvasArea({
       fcRef.current?.requestRenderAll()
       // Satellite map must remeasure when flex layout / panel width changes
       satMapRef.current?.relayout()
+      lastSatelliteVptRef.current = null
       syncLiveSatelliteMap()
     })
     ro.observe(containerRef.current)
