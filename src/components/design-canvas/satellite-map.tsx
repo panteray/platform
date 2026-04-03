@@ -16,8 +16,8 @@ export interface SatelliteMapHandle {
   syncZoom: (googleZoom: number) => void
   panBy: (dxPx: number, dyPx: number) => void
   /**
-   * Sync Fabric viewport to the satellite layer. `vpt` = [scale, 0, 0, scale, panX, panY].
-   * Pan uses `left`/`top` on the map host (not `transform`) — transformed ancestors break Maps tile layout.
+   * Sync Fabric viewport to the satellite layer. `vpt` = Fabric `viewportTransform` (6 values).
+   * Applied as one CSS `matrix()` on a wrapper; map internal zoom stays the area `satellite_zoom` only.
    */
   syncTransform: (vpt: number[], canvasWidth: number, canvasHeight: number) => void
   /** Call after container resizes (e.g. flex layout) so Google remeasures the map node. */
@@ -70,7 +70,13 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
   function SatelliteMap({ lat, lng, zoom, opacity = 0.6, hidden = false, onMapReady }, ref) {
     /** Root — observed so we only construct `google.maps.Map` once this has non-zero size (avoids tiny-tile bug). */
     const rootRef = useRef<HTMLDivElement>(null)
-    /** Host for `new google.maps.Map()` — no CSS transform on this node or its ancestors. */
+    /**
+     * Wrapper: Fabric `viewportTransform` applied here as a single CSS matrix (scale + translate).
+     * Do not split into map.setZoom(log2) + left/top — tx/ty are coupled to scale in Fabric and that caused
+     * the basemap to drift to corners when zooming.
+     */
+    const transformLayerRef = useRef<HTMLDivElement>(null)
+    /** Host for `new google.maps.Map()` — not the transformed node (Maps measures this div). */
     const mapHostRef = useRef<HTMLDivElement>(null)
     const mapInitLockRef = useRef(false)
     const mapInstanceRef = useRef<MapInstance | null>(null)
@@ -94,19 +100,17 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
         if (map) map.panBy(dxPx, dyPx)
       },
       syncTransform(vpt: number[], _canvasWidth: number, _canvasHeight: number) {
-        const map = mapInstanceRef.current
-        if (!map) return
-        const fabricZoom = vpt[0]
-        const panX = vpt[4]
-        const panY = vpt[5]
-
-        const googleZoom = originRef.current.zoom + Math.log2(fabricZoom)
-        map.setZoom(Math.max(1, Math.min(22, googleZoom)))
-
-        const host = mapHostRef.current
-        if (host) {
-          host.style.left = `${panX}px`
-          host.style.top = `${panY}px`
+        if (!mapInstanceRef.current) return
+        const tl = transformLayerRef.current
+        if (tl) {
+          const a = vpt[0] ?? 1
+          const b = vpt[1] ?? 0
+          const c = vpt[2] ?? 0
+          const d = vpt[3] ?? 1
+          const e = vpt[4] ?? 0
+          const f = vpt[5] ?? 0
+          tl.style.transform = `matrix(${a}, ${b}, ${c}, ${d}, ${e}, ${f})`
+          tl.style.transformOrigin = '0 0'
         }
       },
       relayout: () => {
@@ -256,17 +260,26 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
         }}
       >
         <div
-          ref={mapHostRef}
+          ref={transformLayerRef}
           style={{
             position: 'absolute',
             left: 0,
             top: 0,
             width: '100%',
             height: '100%',
-            minWidth: 0,
-            minHeight: 0,
+            transformOrigin: '0 0',
           }}
-        />
+        >
+          <div
+            ref={mapHostRef}
+            style={{
+              width: '100%',
+              height: '100%',
+              minWidth: 0,
+              minHeight: 0,
+            }}
+          />
+        </div>
       </div>
     )
   }

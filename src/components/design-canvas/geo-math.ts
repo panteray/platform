@@ -266,8 +266,9 @@ export function zoomForFeetPerPixel(fpp: number, lat: number): number {
  * Ground radius (feet) to use for `google.maps.Polygon` so on-screen size matches Fabric FOV.
  *
  * Canvas draws radius in scene pixels ≈ `distanceFt * scalePxPerFt`. The map uses Web Mercator
- * `feetPerPixelAtZoom(effectiveGoogleZoom, lat)`. After `SatelliteMap.syncTransform`, Google zoom is
- * `baseSatelliteZoom + log2(fabricViewportZoom)` — pass that as `effectiveGoogleZoom`.
+ * `feetPerPixelAtZoom(effectiveGoogleZoom, lat)`. Pass `effectiveGoogleZoom = baseSatelliteZoom +
+ * log2(fabricViewportZoom)` for the ratio; `SatelliteMap` keeps the map at `baseSatelliteZoom` and
+ * applies Fabric’s viewport as a CSS `matrix()` (see `use-map-fov-polygons` `radiusScale`).
  */
 export function alignMapConeRadiusFeet(
   distanceFt: number,

@@ -124,6 +124,8 @@ export function useMapFovPolygons(opts: {
 
       const effectiveGoogleZoom =
         baseSatelliteZoom + Math.log2(Math.max(0.001, fabricViewportZoom))
+      /** Map stays at `baseSatelliteZoom`; CSS matrix matches Fabric zoom. Scale radius vs align-at-Z_eff. */
+      const radiusScale = Math.max(0.001, fabricViewportZoom)
       const scalePx = geoContext.scalePxPerFt
 
       const created: GPolygon[] = []
@@ -155,12 +157,13 @@ export function useMapFovPolygons(opts: {
 
           for (let t = 0; t < effectiveTiers.length; t++) {
             const tier = effectiveTiers[t]
-            const r = alignMapConeRadiusFeet(
-              tier.distanceFt,
-              scalePx,
-              effectiveGoogleZoom,
-              camLat,
-            )
+            const r =
+              alignMapConeRadiusFeet(
+                tier.distanceFt,
+                scalePx,
+                effectiveGoogleZoom,
+                camLat,
+              ) * radiusScale
             if (r < 0.5) continue
 
             const zoneName = COLOR_TO_ZONE[tier.color]
@@ -208,12 +211,13 @@ export function useMapFovPolygons(opts: {
 
         // PTZ: faint pan-range circle on map (matches canvas pan circle intent)
         if (dev.category === 'ptz') {
-          const panR = alignMapConeRadiusFeet(
-            data.tiers[0]?.distanceFt || 30,
-            scalePx,
-            effectiveGoogleZoom,
-            camLat,
-          )
+          const panR =
+            alignMapConeRadiusFeet(
+              data.tiers[0]?.distanceFt || 30,
+              scalePx,
+              effectiveGoogleZoom,
+              camLat,
+            ) * radiusScale
           if (panR > 2) {
             const ring = generateCirclePolygon(camLat, camLng, panR, 48)
             if (ring.length >= 3) {
