@@ -268,7 +268,7 @@ Same content as `docs/design-canvas-roadmap.md` (keep both in sync when editing)
 | **B3** | Update/recreate polygons on pan/zoom (throttle; align with FOV drag suppression). |
 | **B4** | Wall occlusion on map requires walls in lat/lng + clip in geographic space — larger scope; short term: unclipped map polygons or clip on Fabric only. |
 
-**Implemented:** `use-map-fov-polygons.ts` builds `google.maps.Polygon` from `fovData` + `canvasPixelsToLatLng` + `generateFovConePolygon` / `generateCirclePolygon` (360° / speakers). Respects `showFovCones`, selection-only mode, hidden categories, PPF zone filters, multisensor tiers, PTZ pan ring. Skips rebuild while `isDraggingFov` (same pattern as Fabric FOV). Walls not clipped on map (B4).
+**Implemented:** `use-map-fov-polygons.ts` builds `google.maps.Polygon` from `fovData` + `canvasPixelsToLatLng` + `generateFovConePolygon` / `generateCirclePolygon` (360° / speakers). Ground radius uses `alignMapConeRadiusFeet` (`geo-math.ts`) so Mercator ft/px at `satellite_zoom + log2(fabricZoom)` matches canvas `scalePxPerFt`. Respects `showFovCones`, selection-only mode, hidden categories, PPF zone filters, multisensor tiers, PTZ pan ring. Skips rebuild while `isDraggingFov` (same pattern as Fabric FOV). Walls not clipped on map (B4).
 
 #### Phase C — FOV editing parity & spec stability
 

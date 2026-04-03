@@ -47,7 +47,7 @@ Duplicate of the **Design Canvas Roadmap** section in `CLAUDE.md`. **Keep both f
 | **B3** | Update/recreate polygons on pan/zoom (throttle; align with FOV drag suppression). |
 | **B4** | Wall occlusion on map requires walls in lat/lng + clip in geographic space — larger scope; short term: unclipped map polygons or clip on Fabric only. |
 
-**Implemented:** `use-map-fov-polygons.ts` (wired from `canvas-area.tsx`). Shared types in `fov-data-types.ts`.
+**Implemented:** `use-map-fov-polygons.ts` (wired from `canvas-area.tsx`). Shared types in `fov-data-types.ts`. Map cone radius scaled with `alignMapConeRadiusFeet` vs canvas `scalePxPerFt` and live Fabric zoom.
 
 ---
 

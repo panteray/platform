@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
+  alignMapConeRadiusFeet,
   buildDesignGeoContext,
   canvasPixelsToLatLng,
+  feetPerPixelAtZoom,
   latLngToCanvasPixels,
   pixelToLatLng,
   latLngToPixel,
@@ -44,6 +46,15 @@ describe('geo-math Phase A', () => {
     const b = canvasPixelsToLatLng(50, -30, ctx)
     expect(b.lat).toBeCloseTo(a.lat, 10)
     expect(b.lng).toBeCloseTo(a.lng, 10)
+  })
+
+  it('alignMapConeRadiusFeet is identity when map ft/px matches canvas', () => {
+    const lat = 40.7
+    const z = 18
+    const fMap = feetPerPixelAtZoom(z, lat)
+    const scalePxPerFt = 1 / fMap
+    const d = 100
+    expect(alignMapConeRadiusFeet(d, scalePxPerFt, z, lat)).toBeCloseTo(d, 5)
   })
 
   it('latLngToPixel matches legacy', () => {

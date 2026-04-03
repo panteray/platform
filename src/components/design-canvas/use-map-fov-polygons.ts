@@ -5,6 +5,7 @@ import type { DesignDevice } from '@/types/database'
 import type { SatelliteMapHandle } from './satellite-map'
 import type { DesignGeoContext } from './geo-math'
 import {
+  alignMapConeRadiusFeet,
   canvasPixelsToLatLng,
   generateCirclePolygon,
   generateFovConePolygon,
@@ -64,12 +65,17 @@ function waitForMap(
 }
 
 /**
- * Phase B: native `google.maps.Polygon` FOV layers on the satellite map (lat/lng),
- * aligned with canvas via `DesignGeoContext`. No wall clip on map (canvas only).
+ * Phase B: native `google.maps.Polygon` FOV layers on the satellite map (lat/lng).
+ * Radius uses `alignMapConeRadiusFeet` so ground distance matches Fabric + `scalePxPerFt`
+ * at the current `SatelliteMap` zoom (`baseSatelliteZoom + log2(fabricViewportZoom)`).
  */
 export function useMapFovPolygons(opts: {
   satMapRef: RefObject<SatelliteMapHandle | null>
   geoContext: DesignGeoContext | null
+  /** Area `satellite_zoom` (matches SatelliteMap originRef). */
+  baseSatelliteZoom: number
+  /** Fabric `canvas.getZoom()` — paired with base zoom in syncTransform. */
+  fabricViewportZoom: number
   devices: DesignDevice[]
   fovData: Map<string, DeviceFovData>
   showFovCones: boolean
@@ -82,6 +88,8 @@ export function useMapFovPolygons(opts: {
   const {
     satMapRef,
     geoContext,
+    baseSatelliteZoom,
+    fabricViewportZoom,
     devices,
     fovData,
     showFovCones,
@@ -114,6 +122,10 @@ export function useMapFovPolygons(opts: {
       if (cancelled || !map || !gm) return
       if (isDraggingFovRef.current) return
 
+      const effectiveGoogleZoom =
+        baseSatelliteZoom + Math.log2(Math.max(0.001, fabricViewportZoom))
+      const scalePx = geoContext.scalePxPerFt
+
       const created: GPolygon[] = []
 
       for (const [devId, data] of fovData) {
@@ -143,7 +155,12 @@ export function useMapFovPolygons(opts: {
 
           for (let t = 0; t < effectiveTiers.length; t++) {
             const tier = effectiveTiers[t]
-            const r = tier.distanceFt
+            const r = alignMapConeRadiusFeet(
+              tier.distanceFt,
+              scalePx,
+              effectiveGoogleZoom,
+              camLat,
+            )
             if (r < 0.5) continue
 
             const zoneName = COLOR_TO_ZONE[tier.color]
@@ -191,7 +208,12 @@ export function useMapFovPolygons(opts: {
 
         // PTZ: faint pan-range circle on map (matches canvas pan circle intent)
         if (dev.category === 'ptz') {
-          const panR = data.tiers[0]?.distanceFt || 30
+          const panR = alignMapConeRadiusFeet(
+            data.tiers[0]?.distanceFt || 30,
+            scalePx,
+            effectiveGoogleZoom,
+            camLat,
+          )
           if (panR > 2) {
             const ring = generateCirclePolygon(camLat, camLng, panR, 48)
             if (ring.length >= 3) {
@@ -234,6 +256,8 @@ export function useMapFovPolygons(opts: {
     }
   }, [
     geoContext,
+    baseSatelliteZoom,
+    fabricViewportZoom,
     devices,
     fovData,
     showFovCones,
