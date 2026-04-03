@@ -253,7 +253,8 @@ export function CanvasArea({
     const ctx = designGeoContextRef.current
     const cfg = satelliteConfigRef.current
     if (!c || !ctx || !cfg || !satMapRef.current) return
-    const vpt = c.viewportTransform!
+    const vpt = c.viewportTransform
+    if (!vpt) return
     const tx = vpt[4] ?? 0
     const ty = vpt[5] ?? 0
     const fabricZ = vpt[0] ?? 1
@@ -368,6 +369,8 @@ export function CanvasArea({
         onZoomChange?.(1)
         fabricZoomCommittedRef.current = 1
         setFabricViewportZoom(1)
+        // Reset satellite viewport tracking so next sync does a full geo recalculation
+        lastSatelliteVptRef.current = null
         syncMap(c)
         c.requestRenderAll()
       },
@@ -395,6 +398,9 @@ export function CanvasArea({
 
   // Throttle for real-time drag
   const lastDragT = useRef(0)
+
+  // Track which device is being dragged to prevent position overwrite by React state sync
+  const draggingDeviceIdRef = useRef<string | null>(null)
 
   // FOV drag suppression guard (IPVM pattern: suppress useEffect re-renders during active drag)
   // Uses a counter instead of a boolean+timeout to avoid race conditions.
@@ -828,6 +834,7 @@ export function CanvasArea({
           fovDragGeneration.current++
           isDraggingFov.current = false
         }
+        draggingDeviceIdRef.current = null
 
         if (id && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing && !rec.__sensorRotHandle) {
           // Skip move persist for locked cameras (IPVM-style lock)
@@ -1076,6 +1083,7 @@ export function CanvasArea({
         if (rec.__devId && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing && !rec.__sensorRotHandle) {
           isDraggingFov.current = true
           const devId = rec.__devId as string
+          draggingDeviceIdRef.current = devId
           const newX = obj.left ?? 0, newY = obj.top ?? 0
           const dev = devsRef.current.find(d => d.id === devId)
           // IPVM-style: locked cameras can't be moved (only imagers rotate)
@@ -1121,7 +1129,22 @@ export function CanvasArea({
     }
 
     boot()
-    return () => { dead = true; fcRef.current?.dispose(); fcRef.current = null; setReady(false) }
+    return () => {
+      dead = true
+      fcRef.current?.dispose()
+      fcRef.current = null
+      // Clear all object maps so stale refs don't persist across remount
+      devObjs.current.clear()
+      fovObjs.current.clear()
+      handleObjs.current.clear()
+      mdfObjs.current.clear()
+      wallObjs.current = []
+      gridObj.current = null
+      fpObj.current = null
+      draggingDeviceIdRef.current = null
+      isDraggingFov.current = false
+      setReady(false)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep map FOV scale in sync when canvas zoom is reset without going through syncSatMap (e.g. fit)
@@ -1228,8 +1251,11 @@ export function CanvasArea({
   }, [ready, syncLiveSatelliteMap])
 
   // ════════════════════════════════════════════════════════════════
-  // FLOOR PLAN
+  // FLOOR PLAN — load image only when URL changes (not on opacity)
   // ════════════════════════════════════════════════════════════════
+  const floorPlanOpacityRef = useRef(floorPlanOpacity)
+  useEffect(() => { floorPlanOpacityRef.current = floorPlanOpacity }, [floorPlanOpacity])
+
   useEffect(() => {
     if (!fcRef.current || !ready) return
     const c = fcRef.current
@@ -1240,13 +1266,21 @@ export function CanvasArea({
       const fm = await import('fabric')
       try {
         const img = await fm.FabricImage.fromURL(floorPlan.file_url!, { crossOrigin: 'anonymous' })
-        img.set({ left: 0, top: 0, opacity: floorPlanOpacity, selectable: false, evented: false })
+        img.set({ left: 0, top: 0, opacity: floorPlanOpacityRef.current, selectable: false, evented: false })
         c.add(img); c.sendObjectToBack(img)
         fpObj.current = img
         c.requestRenderAll()
       } catch { onFloorPlanError?.('Failed to load floor plan') }
     })()
-  }, [floorPlan?.file_url, floorPlanOpacity, ready, onFloorPlanError])
+  }, [floorPlan?.file_url, ready, onFloorPlanError])
+
+  // Floor plan opacity — update in-place, no reload
+  useEffect(() => {
+    if (!fpObj.current || !ready) return
+    fpObj.current.set({ opacity: floorPlanOpacity })
+    fpObj.current.setCoords()
+    fcRef.current?.requestRenderAll()
+  }, [floorPlanOpacity, ready])
 
   // ════════════════════════════════════════════════════════════════
   // GRID
@@ -1334,11 +1368,13 @@ export function CanvasArea({
       const existing = devObjs.current.get(dev.id)
       if (existing) {
         const rec = existing as unknown as Record<string, unknown>
-        // Update position if it changed (skip if user is currently dragging)
-        if (!existing.isMoving) {
+        // Update position if it changed — skip if user is currently dragging THIS device
+        // or if Fabric reports the object as mid-move
+        const isBeingDragged = draggingDeviceIdRef.current === dev.id || existing.isMoving
+        if (!isBeingDragged) {
           existing.set({ left: dev.position_x, top: dev.position_y })
         }
-        if (dev.rotation != null) existing.set({ angle: dev.rotation })
+        if (dev.rotation != null && !isBeingDragged) existing.set({ angle: dev.rotation })
         // Update selection ring
         const isSelected = dev.id === selectedDeviceId
         const wasSelected = rec.__isSelected as boolean | undefined
@@ -1378,6 +1414,10 @@ export function CanvasArea({
   // ════════════════════════════════════════════════════════════════
   // FOV CONES + HANDLES
   // ════════════════════════════════════════════════════════════════
+  // Capture generation at render time so async FOV rebuild can detect if a drag
+  // completed while it was running (stale rebuild should be discarded).
+  const fovRebuildGenRef = useRef(0)
+
   useEffect(() => {
     if (!fcRef.current || !ready) return
     const c = fcRef.current
@@ -1385,6 +1425,11 @@ export function CanvasArea({
     // IPVM pattern: completely suppress FOV reconstruction during active handle drag
     // The cone objects stay on canvas and are manipulated by lightweight transform handlers
     if (isDraggingFov.current) return
+
+    // Snapshot the generation counter — if a drag completes while this async
+    // effect is running, the generation will have incremented and we discard.
+    const genAtStart = fovDragGeneration.current
+    fovRebuildGenRef.current = genAtStart
 
     // Clear old
     for (const [, arr] of fovObjs.current) for (const o of arr) c.remove(o)
@@ -1396,6 +1441,9 @@ export function CanvasArea({
 
     ;(async () => {
       const fm = await import('fabric')
+
+      // If a drag completed while we were awaiting fabric import, this rebuild is stale — abort.
+      if (fovDragGeneration.current !== genAtStart) return
 
       for (const [devId, data] of fovData) {
         const dev = devices.find(d => d.id === devId)
@@ -1718,6 +1766,16 @@ export function CanvasArea({
           }
         }
         fovObjs.current.set(devId, objects)
+      }
+
+      // Final staleness check — if a drag completed during this async build, discard everything
+      if (fovDragGeneration.current !== genAtStart) {
+        // Clean up what we just added since it's based on stale data
+        for (const [, arr] of fovObjs.current) for (const o of arr) c.remove(o)
+        fovObjs.current.clear()
+        for (const [, h] of handleObjs.current) c.remove(h)
+        handleObjs.current.clear()
+        return
       }
 
       // Apply canonical z-ordering
