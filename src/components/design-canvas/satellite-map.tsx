@@ -102,16 +102,19 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
       },
     }))
 
-    // Initialize map
+    // Initialize map once per mount. Do not depend on lat/lng/zoom: Google injects DOM into this node;
+    // re-running init when props change caused React insertBefore conflicts with the Maps runtime.
+    // Center/zoom updates: separate effect below.
     useEffect(() => {
       if (!mapRef.current || hidden) return
+      const el = mapRef.current
       let cancelled = false
 
       async function init() {
         try {
           if (!apiKeyCache) {
             const res = await fetch('/api/org/maps-key')
-            if (!res.ok) { setError('Failed to load Maps API key'); return }
+            if (!res.ok) { if (!cancelled) setError('Failed to load Maps API key'); return }
             const json = await res.json()
             apiKeyCache = json.key
           }
@@ -121,13 +124,7 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
           if (cancelled || !mapRef.current) return
 
           const gm = (window as unknown as { google: { maps: { Map: new (el: HTMLElement, opts: Record<string, unknown>) => MapInstance } } }).google
-          if (!gm?.maps?.Map) { setError('Google Maps API not available'); return }
-
-          if (mapInstanceRef.current) {
-            mapInstanceRef.current.setCenter({ lat, lng })
-            mapInstanceRef.current.setZoom(zoom)
-            return
-          }
+          if (!gm?.maps?.Map) { if (!cancelled) setError('Google Maps API not available'); return }
 
           const map = new gm.maps.Map(mapRef.current, {
             center: { lat, lng },
@@ -152,6 +149,7 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
             ],
           })
 
+          if (cancelled) return
           mapInstanceRef.current = map
           originRef.current = { lat, lng, zoom }
         } catch (err) {
@@ -161,10 +159,15 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
       }
 
       void init()
-      return () => { cancelled = true }
-    }, [hidden, lat, lng, zoom])
+      return () => {
+        cancelled = true
+        mapInstanceRef.current = null
+        el.innerHTML = ''
+      }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- single init; props synced in next effect
+    }, [hidden])
 
-    // Update center/zoom when props change
+    // Update center/zoom when props change (after map instance exists)
     useEffect(() => {
       const map = mapInstanceRef.current
       if (!map) return
@@ -173,15 +176,13 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
       originRef.current = { lat, lng, zoom }
     }, [lat, lng, zoom])
 
-    if (error) return <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }} />
-
     return (
       <div
         ref={mapRef}
         style={{
           position: 'absolute',
           inset: 0,
-          opacity: hidden ? 0 : opacity,
+          opacity: hidden ? 0 : error ? 0 : opacity,
           pointerEvents: 'none',
           zIndex: 0,
           display: hidden ? 'none' : 'block',
