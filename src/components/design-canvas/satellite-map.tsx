@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react'
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef, memo } from 'react'
 
 interface SatelliteMapProps {
   lat: number
@@ -64,7 +64,7 @@ type MapInstance = {
   getDiv: () => HTMLElement
 }
 
-export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
+const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
   function SatelliteMap({ lat, lng, zoom, opacity = 0.6, hidden = false }, ref) {
     const mapRef = useRef<HTMLDivElement>(null)
     const mapInstanceRef = useRef<MapInstance | null>(null)
@@ -192,3 +192,6 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
     )
   }
 )
+
+/** Memoized: parent re-renders often; avoid React reconciling against Google-injected DOM inside the map div. */
+export const SatelliteMap = memo(SatelliteMapInner)

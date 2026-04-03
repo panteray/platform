@@ -330,6 +330,8 @@ export function CanvasArea({
 
   /** Fabric zoom — drives map polygon scale alignment with `SatelliteMap.syncTransform`. */
   const [fabricViewportZoom, setFabricViewportZoom] = useState(1)
+  /** Only update React state when zoom changes — pan calls syncSatMap every frame; avoid re-renders + map polygon thrash. */
+  const fabricZoomCommittedRef = useRef<number | null>(null)
 
   useMapFovPolygons({
     satMapRef,
@@ -386,7 +388,12 @@ export function CanvasArea({
       const syncSatMap = () => {
         if (satMapRef.current) {
           satMapRef.current.syncTransform(c.viewportTransform!, c.getWidth(), c.getHeight())
-          setFabricViewportZoom(c.getZoom())
+          const z = c.getZoom()
+          const prev = fabricZoomCommittedRef.current
+          if (prev === null || Math.abs(z - prev) > 1e-6) {
+            fabricZoomCommittedRef.current = z
+            setFabricViewportZoom(z)
+          }
         }
       }
 
@@ -1054,7 +1061,9 @@ export function CanvasArea({
   useEffect(() => {
     const c = fcRef.current
     if (!c || !satelliteConfig) return
-    setFabricViewportZoom(c.getZoom())
+    const z = c.getZoom()
+    fabricZoomCommittedRef.current = z
+    setFabricViewportZoom(z)
   }, [ready, satelliteConfig])
 
   // ════════════════════════════════════════════════════════════════
@@ -1084,6 +1093,7 @@ export function CanvasArea({
       if (e.key.toLowerCase() === 'f' && fcRef.current) {
         fcRef.current.setViewportTransform([1, 0, 0, 1, 0, 0])
         onZoomChange?.(1)
+        fabricZoomCommittedRef.current = 1
         setFabricViewportZoom(1)
         if (satMapRef.current) {
           satMapRef.current.syncTransform([1, 0, 0, 1, 0, 0], fcRef.current.getWidth(), fcRef.current.getHeight())
