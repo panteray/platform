@@ -1,3 +1,6 @@
+# Local MCP overrides (machine-specific paths; copy from .cursor/mcp.json.example)
+.cursor/mcp.json
+
 node_modules/
 .next/
 .env.local

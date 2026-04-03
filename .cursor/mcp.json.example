@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "drift": {
+      "command": "node",
+      "args": [
+        "/path/to/driftv2/packages/drift-mcp/dist/index.js",
+        "--project-root",
+        "."
+      ]
+    }
+  }
+}
