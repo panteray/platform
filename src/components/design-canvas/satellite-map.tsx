@@ -8,19 +8,24 @@ interface SatelliteMapProps {
   zoom: number
   opacity?: number
   hidden?: boolean
-  /** Fired once after the map instance exists and `idle` + resize run (parent can sync Fabric viewport). */
+  /** Fired once after the map instance exists and `idle` + resize run (parent can sync viewport). */
   onMapReady?: () => void
+}
+
+/** Drive the map with API center/zoom only — no CSS transform on the map host (that freezes tile updates). */
+export interface GeoViewportSync {
+  centerLat: number
+  centerLng: number
+  googleZoom: number
 }
 
 export interface SatelliteMapHandle {
   syncZoom: (googleZoom: number) => void
   panBy: (dxPx: number, dyPx: number) => void
   /**
-   * Sync Fabric viewport to the satellite layer. `vpt` = Fabric `viewportTransform` (6 values).
-   * Applied as one CSS `matrix()` on a wrapper; map internal zoom stays the area `satellite_zoom` only.
+   * Live satellite: `setCenter` + `setZoom` so Maps loads/refreshes tiles. Do not use CSS matrix on the map tree.
    */
-  syncTransform: (vpt: number[], canvasWidth: number, canvasHeight: number) => void
-  /** Call after container resizes (e.g. flex layout) so Google remeasures the map node. */
+  syncToGeoViewport: (v: GeoViewportSync) => void
   relayout: () => void
   getMap: () => MapInstance | null
 }
@@ -68,20 +73,11 @@ type MapInstance = {
 
 const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
   function SatelliteMap({ lat, lng, zoom, opacity = 0.6, hidden = false, onMapReady }, ref) {
-    /** Root — observed so we only construct `google.maps.Map` once this has non-zero size (avoids tiny-tile bug). */
     const rootRef = useRef<HTMLDivElement>(null)
-    /**
-     * Wrapper: Fabric `viewportTransform` applied here as a single CSS matrix (scale + translate).
-     * Do not split into map.setZoom(log2) + left/top — tx/ty are coupled to scale in Fabric and that caused
-     * the basemap to drift to corners when zooming.
-     */
-    const transformLayerRef = useRef<HTMLDivElement>(null)
-    /** Host for `new google.maps.Map()` — not the transformed node (Maps measures this div). */
     const mapHostRef = useRef<HTMLDivElement>(null)
     const mapInitLockRef = useRef(false)
     const mapInstanceRef = useRef<MapInstance | null>(null)
     const [error, setError] = useState<string | null>(null)
-    // Store initial config so we can compute offsets during pan sync
     const originRef = useRef({ lat, lng, zoom })
 
     const triggerMapResize = () => {
@@ -99,19 +95,11 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
         const map = mapInstanceRef.current
         if (map) map.panBy(dxPx, dyPx)
       },
-      syncTransform(vpt: number[], _canvasWidth: number, _canvasHeight: number) {
-        if (!mapInstanceRef.current) return
-        const tl = transformLayerRef.current
-        if (tl) {
-          const a = vpt[0] ?? 1
-          const b = vpt[1] ?? 0
-          const c = vpt[2] ?? 0
-          const d = vpt[3] ?? 1
-          const e = vpt[4] ?? 0
-          const f = vpt[5] ?? 0
-          tl.style.transform = `matrix(${a}, ${b}, ${c}, ${d}, ${e}, ${f})`
-          tl.style.transformOrigin = '0 0'
-        }
+      syncToGeoViewport(v: GeoViewportSync) {
+        const map = mapInstanceRef.current
+        if (!map) return
+        map.setCenter({ lat: v.centerLat, lng: v.centerLng })
+        map.setZoom(Math.max(1, Math.min(22, v.googleZoom)))
       },
       relayout: () => {
         triggerMapResize()
@@ -121,7 +109,6 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
       },
     }))
 
-    // Initialize map once the root has real dimensions — if `new Map` runs at 0×0, tiles stay a small patch forever.
     useEffect(() => {
       if (hidden || !rootRef.current) return
       let cancelled = false
@@ -155,7 +142,7 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
             zoom,
             mapTypeId: 'satellite',
             disableDefaultUI: true,
-            gestureHandling: 'none',  // Canvas handles all interactions
+            gestureHandling: 'none',
             keyboardShortcuts: false,
             draggable: false,
             zoomControl: false,
@@ -237,7 +224,6 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- single init; props synced in next effect
     }, [hidden])
 
-    // Update center/zoom when props change (after map instance exists)
     useEffect(() => {
       const map = mapInstanceRef.current
       if (!map) return
@@ -260,30 +246,20 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
         }}
       >
         <div
-          ref={transformLayerRef}
+          ref={mapHostRef}
           style={{
             position: 'absolute',
             left: 0,
             top: 0,
             width: '100%',
             height: '100%',
-            transformOrigin: '0 0',
+            minWidth: 0,
+            minHeight: 0,
           }}
-        >
-          <div
-            ref={mapHostRef}
-            style={{
-              width: '100%',
-              height: '100%',
-              minWidth: 0,
-              minHeight: 0,
-            }}
-          />
-        </div>
+        />
       </div>
     )
   }
 )
 
-/** Memoized: parent re-renders often; avoid React reconciling against Google-injected DOM inside the map div. */
 export const SatelliteMap = memo(SatelliteMapInner)

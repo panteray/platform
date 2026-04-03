@@ -14,7 +14,7 @@ import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { SatelliteMap, type SatelliteMapHandle } from './satellite-map'
 import { buildConePoints } from './fov-renderer'
-import type { DesignGeoContext } from './geo-math'
+import { canvasPixelsToLatLng, type DesignGeoContext } from './geo-math'
 import { createDeviceObject, createMdfObject } from './device-renderer'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignMdfIdf } from '@/types/database'
 import type { FovTier, DeviceFovData } from './fov-data-types'
@@ -232,11 +232,35 @@ export function CanvasArea({
     designGeoContextRef.current = geoContext ?? null
   }, [geoContext])
 
+  const satelliteConfigRef = useRef(satelliteConfig)
+  useEffect(() => {
+    satelliteConfigRef.current = satelliteConfig
+  }, [satelliteConfig])
+
+  /** Live Google Maps: center + zoom from Fabric viewport (no CSS transform — that freezes tiles). */
+  const syncLiveSatelliteMap = useCallback(() => {
+    const c = fcRef.current
+    const ctx = designGeoContextRef.current
+    const cfg = satelliteConfigRef.current
+    if (!c || !ctx || !cfg || !satMapRef.current) return
+    const vp = c.getVpCenter()
+    const { lat, lng } = canvasPixelsToLatLng(vp.x, vp.y, ctx)
+    const fabricZ = c.getZoom()
+    const gz = Math.max(1, Math.min(22, cfg.zoom + Math.log2(Math.max(0.001, fabricZ))))
+    satMapRef.current.syncToGeoViewport({ centerLat: lat, centerLng: lng, googleZoom: gz })
+  }, [])
+
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const fcRef = useRef<FabricCanvas | null>(null)
   const satMapRef = useRef<SatelliteMapHandle>(null)
   const [ready, setReady] = useState(false)
+
+  // When geo/area + canvas are ready, align the live map to the Fabric viewport.
+  useEffect(() => {
+    if (!ready || !geoContext || !satelliteConfig) return
+    syncLiveSatelliteMap()
+  }, [ready, geoContext, satelliteConfig, syncLiveSatelliteMap])
 
   /** Fabric zoom — drives map polygon scale + must stay in sync with toolbar/wheel zoom. */
   const [fabricViewportZoom, setFabricViewportZoom] = useState(1)
@@ -286,11 +310,9 @@ export function CanvasArea({
         setFabricViewportZoom(z)
       }
     }
-    const syncMap = (c: FabricCanvas) => {
-      if (satMapRef.current) {
-        satMapRef.current.syncTransform(c.viewportTransform!, c.getWidth(), c.getHeight())
-      }
-      commitZoom(c)
+    const syncMap = (_c: FabricCanvas) => {
+      syncLiveSatelliteMap()
+      commitZoom(_c)
     }
     canvasActionsRef.current = {
       zoomIn: () => {
@@ -322,7 +344,7 @@ export function CanvasArea({
       },
     }
     return () => { if (canvasActionsRef) canvasActionsRef.current = null }
-  }, [canvasActionsRef, ready, onZoomChange])
+  }, [canvasActionsRef, ready, onZoomChange, syncLiveSatelliteMap])
 
   // Pan state
   const panning = useRef(false)
@@ -402,16 +424,14 @@ export function CanvasArea({
       fcRef.current = c
       setReady(true)
 
-      // ── Helper: sync satellite map to canvas viewport ──
+      // ── Helper: sync live satellite (setCenter/setZoom from viewport center lat/lng) ──
       const syncSatMap = () => {
-        if (satMapRef.current) {
-          satMapRef.current.syncTransform(c.viewportTransform!, c.getWidth(), c.getHeight())
-          const z = c.getZoom()
-          const prev = fabricZoomCommittedRef.current
-          if (prev === null || Math.abs(z - prev) > 1e-6) {
-            fabricZoomCommittedRef.current = z
-            setFabricViewportZoom(z)
-          }
+        syncLiveSatelliteMap()
+        const z = c.getZoom()
+        const prev = fabricZoomCommittedRef.current
+        if (prev === null || Math.abs(z - prev) > 1e-6) {
+          fabricZoomCommittedRef.current = z
+          setFabricViewportZoom(z)
         }
       }
 
@@ -1113,9 +1133,7 @@ export function CanvasArea({
         onZoomChange?.(1)
         fabricZoomCommittedRef.current = 1
         setFabricViewportZoom(1)
-        if (satMapRef.current) {
-          satMapRef.current.syncTransform([1, 0, 0, 1, 0, 0], fcRef.current.getWidth(), fcRef.current.getHeight())
-        }
+        syncLiveSatelliteMap()
       }
       if (e.key === 'Enter') {
         // Finish wall drawing if in progress
@@ -1160,7 +1178,7 @@ export function CanvasArea({
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
-  }, [onDeviceDelete, onSelectDevice, onToolChange, onWallCreated, onDeviceCopy, onDeviceRotated, onUndo, onRedo, onZoomChange])
+  }, [onDeviceDelete, onSelectDevice, onToolChange, onWallCreated, onDeviceCopy, onDeviceRotated, onUndo, onRedo, onZoomChange, syncLiveSatelliteMap])
 
   // ════════════════════════════════════════════════════════════════
   // RESIZE
@@ -1173,14 +1191,11 @@ export function CanvasArea({
       fcRef.current?.requestRenderAll()
       // Satellite map must remeasure when flex layout / panel width changes
       satMapRef.current?.relayout()
-      if (satMapRef.current && fcRef.current) {
-        const c = fcRef.current
-        satMapRef.current.syncTransform(c.viewportTransform!, c.getWidth(), c.getHeight())
-      }
+      syncLiveSatelliteMap()
     })
     ro.observe(containerRef.current)
     return () => ro.disconnect()
-  }, [ready])
+  }, [ready, syncLiveSatelliteMap])
 
   // ════════════════════════════════════════════════════════════════
   // FLOOR PLAN
@@ -1930,12 +1945,9 @@ export function CanvasArea({
   }, [activeTool])
 
   const onSatelliteMapReady = useCallback(() => {
-    const c = fcRef.current
-    if (c && satMapRef.current) {
-      satMapRef.current.relayout()
-      satMapRef.current.syncTransform(c.viewportTransform!, c.getWidth(), c.getHeight())
-    }
-  }, [])
+    satMapRef.current?.relayout()
+    syncLiveSatelliteMap()
+  }, [syncLiveSatelliteMap])
 
   // ════════════════════════════════════════════════════════════════
   // RENDER
