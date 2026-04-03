@@ -52,7 +52,7 @@ export async function GET(
   if (libraryIds.length > 0) {
     const { data: libraryItems } = await admin
       .from('device_library_items')
-      .select('id, vendor, model, partnumber, resolution, fps, poe_standard, wattage, ndaa_compliant, specs')
+      .select('id, vendor, model, partnumber, resolution, fps, poe_standard, wattage, ndaa_compliant, specs, focal_length, focal_type, aov, form, ir, imager_count, multi_imager_type, codecs, super_low_light, environment, subcategory, fisheye_view')
       .in('id', [...new Set(libraryIds)])
 
     if (libraryItems) {
@@ -119,6 +119,39 @@ export async function GET(
         if (libItem.fps) {
           const fpsNum = parseInt(libItem.fps as string, 10)
           if (fpsNum) catalogFields.fps = fpsNum
+        }
+
+        // Optics fields — parse focal_length range strings (e.g. "3.1mm - 8.9mm" → 3.1)
+        if (libItem.focal_length) {
+          const flStr = String(libItem.focal_length)
+          const flNum = parseFloat(flStr)
+          if (flNum > 0) catalogFields.focal_length = flNum
+          catalogFields.focal_type = libItem.focal_type || (flStr.includes('-') ? 'Variable' : 'Fixed')
+        }
+        if (libItem.aov) {
+          catalogFields.aov = libItem.aov
+          // Parse AOV range (e.g. "29° - 83°") → use wide end as default fov_angle
+          const aovStr = String(libItem.aov)
+          const aovNums = aovStr.match(/[\d.]+/g)?.map(Number).filter(n => n > 0) ?? []
+          if (aovNums.length > 0) {
+            // Use the widest angle as default FOV
+            const wideAngle = Math.max(...aovNums)
+            if (wideAngle > 0 && wideAngle <= 360) catalogFields.fov_angle_from_aov = wideAngle
+          }
+        }
+        if (libItem.form) catalogFields.form = libItem.form
+        if (libItem.ir) catalogFields.ir = libItem.ir
+        if (libItem.imager_count) catalogFields.imager_count = libItem.imager_count
+        if (libItem.multi_imager_type) catalogFields.multi_imager_type = libItem.multi_imager_type
+        if (libItem.codecs) catalogFields.codecs = libItem.codecs
+        if (libItem.super_low_light != null) catalogFields.super_low_light = libItem.super_low_light
+        if (libItem.environment) catalogFields.environment = libItem.environment
+        if (libItem.subcategory) catalogFields.sub_category = libItem.subcategory
+        if (libItem.fisheye_view) catalogFields.fisheye_view = libItem.fisheye_view
+        // Default sensor dimensions if library doesn't provide them
+        if (!catalogFields.sensor_w && !libSpecs.sensor_w) {
+          catalogFields.sensor_w = 5.14
+          catalogFields.sensor_h = 3.86
         }
 
         // Priority: device's own properties > catalog top-level > library specs JSON

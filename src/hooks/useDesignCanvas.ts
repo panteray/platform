@@ -33,6 +33,7 @@ export interface DesignCanvasState {
   updateArea: (areaId: string, data: Record<string, unknown>) => Promise<boolean>
   deleteArea: (areaId: string) => Promise<boolean>
   uploadFloorPlan: (areaId: string, file: File) => Promise<DesignFloorPlan | null>
+  deleteFloorPlan: (planId: string) => Promise<boolean>
   addDevice: (data: Record<string, unknown>) => Promise<DesignDevice | null>
   updateDevice: (deviceId: string, data: Record<string, unknown>) => Promise<DesignDevice | null>
   updateDeviceProps: (deviceId: string, propUpdates: Record<string, unknown>) => Promise<void>
@@ -310,6 +311,16 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     } catch { toast.error('Floor plan upload failed'); return null }
   }, [designId, fetchDesign])
 
+  const deleteFloorPlan = useCallback(async (planId: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/org/designs/${designId}/floor-plans?plan_id=${planId}`, { method: 'DELETE' })
+      if (!res.ok) { toast.error('Failed to delete floor plan'); return false }
+      setFloorPlans((prev) => prev.filter((fp) => fp.id !== planId))
+      toast.success('Floor plan deleted')
+      return true
+    } catch { toast.error('Failed to delete floor plan'); return false }
+  }, [designId])
+
   // Device CRUD (special — optimistic)
   const addDevice = useCallback(async (data: Record<string, unknown>): Promise<DesignDevice | null> => {
     try {
@@ -373,7 +384,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     loading, error,
     activeAreaId, selectedDeviceId, selectedCableId,
     setActiveAreaId, setSelectedDeviceId, setSelectedCableId,
-    addArea, updateArea, deleteArea, uploadFloorPlan,
+    addArea, updateArea, deleteArea, uploadFloorPlan, deleteFloorPlan,
     addDevice, updateDevice, updateDeviceProps, deleteDevice,
     addCable: cableCrud.add, deleteCable: cableCrud.remove,
     addInfrastructure: infraCrud.add,

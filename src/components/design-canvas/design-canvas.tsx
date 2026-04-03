@@ -41,7 +41,7 @@ import { DeviceLibraryModal } from './device-library-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { getFovConeTiers, calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { SimulatedView } from './simulated-view'
-import { buildDesignGeoContext } from './geo-math'
+import { buildDesignGeoContext, feetPerPixelAtZoom } from './geo-math'
 import type { DesignDevice, DeviceSearchResult } from '@/types/database'
 
 /* ─── Props ─── */
@@ -97,7 +97,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     design, areas, devices, cables, mdfIdfs, floorPlans,
     loading, error, activeAreaId, selectedDeviceId,
     setActiveAreaId, setSelectedDeviceId,
-    addArea, updateArea, deleteArea, uploadFloorPlan,
+    addArea, updateArea, deleteArea, uploadFloorPlan, deleteFloorPlan,
     addDevice, updateDevice, updateDeviceProps, deleteDevice,
     addCable, deleteCable, addInfrastructure, updateInfrastructure, deleteInfrastructure,
   } = state
@@ -205,6 +205,18 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     return { lat, lng, zoom, opacity: 0.6 as const }
   }, [activeArea])
 
+  // Auto-compute scalePxPerFt from satellite zoom so FOV distances match real-world satellite imagery
+  const scaleInitialized = useRef(false)
+  useEffect(() => {
+    if (!satelliteConfig || scaleInitialized.current) return
+    const fpp = feetPerPixelAtZoom(satelliteConfig.zoom, satelliteConfig.lat)
+    if (fpp > 0) {
+      const pxPerFt = 1 / fpp
+      setScalePxPerFt(pxPerFt)
+      scaleInitialized.current = true
+    }
+  }, [satelliteConfig])
+
   /** Phase A: single geo anchor (satellite center) + scale for lat/lng ↔ `position_x`/`position_y` */
   const designGeoContext = useMemo(
     () => buildDesignGeoContext(
@@ -266,9 +278,10 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
 
       const props = (d.properties ?? {}) as Record<string, unknown>
       const isFisheye = cat === 'fisheye'
-      // Default FOV: 90° for most cameras, 180° for fisheye (selectable 180/360 via fisheye_view)
+      // Default FOV: use AOV from device library if available, else category defaults
       const defaultFov = cat === 'multisensor_quad' ? 90 : cat === 'multisensor_dual' ? 90 : isFisheye ? 180 : 90
-      const fovAngle = Number(props.fov_angle) || defaultFov
+      const aovAngle = Number(props.fov_angle_from_aov) || 0
+      const fovAngle = Number(props.fov_angle) || aovAngle || defaultFov
       const targetDist = Number(props.target_distance) || 30
       const focalLength = Number(props.focal_length) || 3 // fallback 3mm per Dexter
       let sensorW = Number(props.sensor_w) || Number(props.sensor_width) || 0
@@ -433,10 +446,8 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
 
   const handleDeviceDelete = useCallback((id: string) => {
     pushUndo()
-    // Un-place from canvas (hide) — device stays in the design/left panel
-    updateDeviceProps(id, { unplaced: true })
-    setSelectedDeviceId(null)
-  }, [updateDeviceProps, pushUndo, setSelectedDeviceId])
+    deleteDevice(id)
+  }, [deleteDevice, pushUndo])
 
   // Auto-label prefix by category
   const getNextLabel = useCallback((category: string) => {
@@ -644,6 +655,19 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           <span style={{ fontSize: 10 }}>Floor Plan</span>
           <input type="file" accept="image/*" hidden onChange={handleFloorPlanUpload} />
         </label>
+        {activeFloorPlan && (
+          <button
+            onClick={async () => {
+              if (!confirm('Delete this floor plan?')) return
+              await deleteFloorPlan(activeFloorPlan.id)
+            }}
+            style={{ ...btnStyle(false), padding: '4px 8px', gap: 3, color: C.red }}
+            title="Delete Floor Plan"
+          >
+            <Trash2 size={13} />
+            <span style={{ fontSize: 10 }}>Remove</span>
+          </button>
+        )}
 
         <button onClick={() => setShowCatalog(true)} style={{
           display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px',

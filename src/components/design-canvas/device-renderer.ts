@@ -102,7 +102,7 @@ export async function createDeviceObject(
   // Selection ring
   if (isSelected) {
     group.set({
-      stroke: C.accent,
+      stroke: '#7c5cfc',
       strokeWidth: 2,
       padding: 4,
     } as Record<string, unknown>)
