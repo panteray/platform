@@ -14,6 +14,7 @@ import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { SatelliteMap, type SatelliteMapHandle } from './satellite-map'
 import { buildConePoints } from './fov-renderer'
+import type { DesignGeoContext } from './geo-math'
 import { createDeviceObject, createMdfObject } from './device-renderer'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignMdfIdf } from '@/types/database'
 
@@ -63,6 +64,8 @@ interface Props {
   snapshotRef?: React.MutableRefObject<(() => string | null) | null>
   viewportCenterRef?: React.MutableRefObject<(() => { x: number; y: number }) | null>
   satelliteConfig?: { lat: number; lng: number; zoom: number; opacity?: number } | null
+  /** Phase A/B: anchor + scale for lat/lng ↔ canvas pixels (`geo-math`); ref synced for future map overlays */
+  geoContext?: DesignGeoContext | null
   onFloorPlanError?: (msg: string) => void
   onZoomChange?: (zoom: number) => void
   walls?: Array<{ id: string; points: Array<{ x: number; y: number }> }>
@@ -226,9 +229,15 @@ export function CanvasArea({
   onFloorPlanError, hiddenCategories, zoomToPointRef,
   walls, onWallCreated, onWallDeleted, onMdfSelected,
   showIrRange, hiddenPpfZones, showBlindSpot, onWallSelected,
-  onDeviceUpdateProp, onUndo, onRedo, satelliteConfig, onSelectImager,
+  onDeviceUpdateProp, onUndo, onRedo, satelliteConfig, geoContext,
+  onSelectImager,
   canvasActionsRef,
 }: Props) {
+
+  const designGeoContextRef = useRef<DesignGeoContext | null>(null)
+  useEffect(() => {
+    designGeoContextRef.current = geoContext ?? null
+  }, [geoContext])
 
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasElRef = useRef<HTMLCanvasElement>(null)

@@ -255,6 +255,8 @@ Same content as `docs/design-canvas-roadmap.md` (keep both in sync when editing)
 | **A2** | Audit `SatelliteMap.syncTransform` (CSS translate + scale vs Mercator); consider `OverlayView` / map overlay if drift is unacceptable. |
 | **A3** | Integrate or remove unused `geo-math.ts` paths — avoid two diverging math paths. |
 
+**Implemented:** `DesignGeoContext`, `buildDesignGeoContext`, `canvasPixelsToLatLng`, `latLngToCanvasPixels` in `geo-math.ts`; `design-canvas.tsx` builds context and passes `geoContext` to `CanvasArea` (ref `designGeoContextRef` for Phase B). `SatelliteMapHandle.syncTransform` documents CSS-sync limitations. Vitest: `geo-math.test.ts`.
+
 #### Phase B — Native map FOV layer (optional)
 
 **Goal:** Optional `google.maps.Polygon` tiers from same logical FOV as Fabric; `generateFovConePolygon` in `geo-math.ts` where appropriate.

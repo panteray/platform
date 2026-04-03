@@ -40,6 +40,7 @@ import { DeviceLibraryModal } from './device-library-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { getFovConeTiers, calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { SimulatedView } from './simulated-view'
+import { buildDesignGeoContext } from './geo-math'
 import type { DesignDevice, DeviceSearchResult } from '@/types/database'
 
 /* ─── Props ─── */
@@ -202,6 +203,15 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         : 18
     return { lat, lng, zoom, opacity: 0.6 as const }
   }, [activeArea])
+
+  /** Phase A: single geo anchor (satellite center) + scale for lat/lng ↔ `position_x`/`position_y` */
+  const designGeoContext = useMemo(
+    () => buildDesignGeoContext(
+      satelliteConfig ? { lat: satelliteConfig.lat, lng: satelliteConfig.lng } : null,
+      scalePxPerFt,
+    ),
+    [satelliteConfig, scalePxPerFt],
+  )
 
   const areaDevices = useMemo(() =>
     devices.filter(d => d.area_id === activeAreaId)
@@ -818,6 +828,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           areaId={activeAreaId}
           floorPlan={activeFloorPlan}
           satelliteConfig={satelliteConfig}
+          geoContext={designGeoContext}
           devices={canvasDevices}
           cables={areaCables}
           showGrid={showGrid}

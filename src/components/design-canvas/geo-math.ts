@@ -1,10 +1,16 @@
 /**
  * Geo-Math Utilities for Google Maps–based design canvas.
  *
+ * Phase A — single geographic model (keep all map/canvas conversions here):
+ *   - Canvas pixels: `position_x` / `position_y` from DB (origin top-left of canvas space).
+ *   - Scale: `scalePxPerFt` (pixels per foot) — user-calibrated; ties pixels to ground distance.
+ *   - Anchor: geocoded area center (`satellite_lat` / `satellite_lng`) = “job site” origin for lat/lng.
+ *   - Use `buildDesignGeoContext` + `canvasPixelsToLatLng` / `latLngToCanvasPixels` for any map overlay (Phase B).
+ *
  * Converts between:
- *   - Canvas "design coordinates" (feet from design origin)
- *   - Google Maps lat/lng coordinates
- *   - Pixel coordinates (for legacy position_x / position_y)
+ *   - Canvas pixel coordinates (position_x / position_y)
+ *   - Ground feet (via scalePxPerFt)
+ *   - Google Maps lat/lng (via equirectangular offset from anchor)
  *
  * Generates FOV cone polygons as lat/lng arrays for Google Maps Polygon.
  */
@@ -88,6 +94,44 @@ export function destinationPoint(
   return { lat: lat2 * RAD_TO_DEG, lng: lng2 * RAD_TO_DEG }
 }
 
+// ---- Phase A: canonical design ↔ lat/lng (single entry point for overlays) ----
+
+/** Geographic + scale context for the active design area (satellite center + user scale). */
+export interface DesignGeoContext {
+  centerLat: number
+  centerLng: number
+  scalePxPerFt: number
+}
+
+/**
+ * Build context when satellite coords exist and scale is valid. Returns null without a map anchor.
+ */
+export function buildDesignGeoContext(
+  satellite: { lat: number; lng: number } | null | undefined,
+  scalePxPerFt: number,
+): DesignGeoContext | null {
+  if (!satellite || scalePxPerFt <= 0) return null
+  return { centerLat: satellite.lat, centerLng: satellite.lng, scalePxPerFt }
+}
+
+/** Device/canvas pixel position → lat/lng using the active area anchor (Phase B map polygons). */
+export function canvasPixelsToLatLng(
+  px: number,
+  py: number,
+  ctx: DesignGeoContext,
+): { lat: number; lng: number } {
+  return pixelToLatLng(px, py, ctx.centerLat, ctx.centerLng, ctx.scalePxPerFt)
+}
+
+/** lat/lng → canvas pixels relative to the same anchor. */
+export function latLngToCanvasPixels(
+  lat: number,
+  lng: number,
+  ctx: DesignGeoContext,
+): { x: number; y: number } {
+  return latLngToPixel(lat, lng, ctx.centerLat, ctx.centerLng, ctx.scalePxPerFt)
+}
+
 // ---- Legacy pixel ↔ lat/lng conversion ----
 
 /**
@@ -160,32 +204,7 @@ export function generateFovConePolygon(opts: FovConeOptions): Array<{ lat: numbe
   const { lat, lng, rotationDeg, hFovDeg, radiusFt, steps = 32 } = opts
   if (radiusFt < 0.5 || hFovDeg < 1) return []
 
-  // Convert canvas rotation (0=East CW) to map bearing (0=North CW)
-  const centerBearing = (rotationDeg + 90) % 360 // Canvas 0°=East → Map 90°=East
-  // Wait, let me think about this:
-  // Canvas: 0° = pointing right (East), increases clockwise
-  // Google Maps bearing: 0° = North, increases clockwise
-  // To convert: mapBearing = canvasRotation - 90 (since East=0 in canvas = 90 in map)
-  // But actually canvas convention here might be different. Let me use the standard:
-  // canvasRotation 0 = East, so mapBearing = 90 + canvasRotation... no.
-  // Actually: canvas 0° pointing East means mapBearing should be 90°
-  // canvas 90° (pointing South in canvas) = mapBearing 180°
-  // So: mapBearing = canvasRotation + 90
-  // BUT wait, in the original Fabric code, rotation 0 means pointing RIGHT (East).
-  // Let me verify from the original code...
-  // In canvas-area.tsx: `const a = sRotRad - halfAng + (2 * halfAng * i / steps)`
-  // where sRotRad = rotation * Math.PI / 180, and cos(a)*r gives x, sin(a)*r gives y
-  // In screen space: cos(0)=right(east), sin(0)=0, cos(90°)=0, sin(90°)=down(south)
-  // So canvas rotation 0 = East, rotation 90 = South (screen down)
-  // Google Maps: bearing 0 = North, bearing 90 = East
-  // Convert: mapBearing = canvasRotation + 90... but canvas 0=East should be map 90
-  // mapBearing = canvasRotation + 90? canvas 0 → 90 ✓, canvas 90 → 180 ✓
-  // Actually no. Canvas rotation 0 = East. Map bearing 90 = East. So offset = +90.
-  // But canvas rotation increases clockwise in screen space, where Y goes down.
-  // In screen: angle 0 = right, 90 = down. In map: bearing 0 = north, 90 = east.
-  // Screen "down" = map "south" = bearing 180.
-  // So canvas 90 (down/south) should map to bearing 180. 90 + 90 = 180 ✓
-
+  // Canvas 0° = East (clockwise); Maps bearing 0° = North (clockwise) → +90° offset.
   const mapCenterBearing = (rotationDeg + 90 + 360) % 360
   const halfFov = hFovDeg / 2
 

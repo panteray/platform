@@ -32,6 +32,8 @@ Duplicate of the **Design Canvas Roadmap** section in `CLAUDE.md`. **Keep both f
 | **A2** | Audit `SatelliteMap.syncTransform` (CSS translate + scale vs Mercator); consider `OverlayView` / map overlay if drift is unacceptable. |
 | **A3** | Integrate or remove unused `geo-math.ts` paths — avoid two diverging math paths. |
 
+**Implemented:** `DesignGeoContext`, `buildDesignGeoContext`, `canvasPixelsToLatLng`, `latLngToCanvasPixels` in `src/components/design-canvas/geo-math.ts`; `design-canvas.tsx` → `CanvasArea` `geoContext` + ref for Phase B; `syncTransform` JSDoc; `geo-math.test.ts`.
+
 ---
 
 ## Phase B — Native map FOV layer (optional)

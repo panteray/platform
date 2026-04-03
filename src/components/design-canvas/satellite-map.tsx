@@ -13,7 +13,12 @@ interface SatelliteMapProps {
 export interface SatelliteMapHandle {
   syncZoom: (googleZoom: number) => void
   panBy: (dxPx: number, dyPx: number) => void
-  /** Sync the map to match Fabric.js viewport transform [scaleX, 0, 0, scaleY, translateX, translateY] */
+  /**
+   * Sync Fabric viewport to the satellite layer. `vpt` = [scale, 0, 0, scale, panX, panY].
+   * Phase A note: applies CSS translate + scale on the map container; zoom follows Fabric via `setZoom`.
+   * This is not Mercator-accurate pixel locking — slight drift vs true ground alignment at high zoom
+   * is possible. If that becomes unacceptable, use `google.maps.OverlayView` / map canvas sync instead.
+   */
   syncTransform: (vpt: number[], canvasWidth: number, canvasHeight: number) => void
   getMap: () => MapInstance | null
 }
@@ -76,21 +81,16 @@ export const SatelliteMap = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
         const map = mapInstanceRef.current
         if (map) map.panBy(dxPx, dyPx)
       },
-      syncTransform(vpt: number[], canvasWidth: number, canvasHeight: number) {
+      syncTransform(vpt: number[], _canvasWidth: number, _canvasHeight: number) {
         const map = mapInstanceRef.current
         if (!map) return
-        // vpt = [zoom, 0, 0, zoom, panX, panY]
         const fabricZoom = vpt[0]
         const panX = vpt[4]
         const panY = vpt[5]
 
-        // Convert Fabric.js zoom to Google Maps zoom offset
-        // Fabric zoom 1.0 = base Google zoom. Each doubling = +1 Google zoom level
         const googleZoom = originRef.current.zoom + Math.log2(fabricZoom)
         map.setZoom(Math.max(1, Math.min(22, googleZoom)))
 
-        // Apply CSS transform to the map container to sync pan position.
-        // This is more responsive than calling map.panTo() on every frame.
         const el = mapRef.current
         if (el) {
           el.style.transform = `translate(${panX}px, ${panY}px) scale(${fabricZoom})`
