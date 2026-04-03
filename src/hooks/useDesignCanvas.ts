@@ -208,6 +208,64 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     return () => { mountedRef.current = false }
   }, [fetchDesign])
 
+  /**
+   * Phase 0: persist satellite center from opportunity install address when areas lack lat/lng.
+   * One geocode per load; PATCH all areas missing coords, then refetch.
+   */
+  useEffect(() => {
+    if (loading || !design || areas.length === 0) return
+
+    const opp = design.opportunities as { install_address?: string | null } | null | undefined
+    const address = typeof opp?.install_address === 'string' ? opp.install_address.trim() : ''
+    if (!address) return
+
+    const needsGeo = areas.some((a) => a.satellite_lat == null || a.satellite_lng == null)
+    if (!needsGeo) return
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/org/geocode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address }),
+        })
+        if (!res.ok || cancelled) {
+          if (res.status === 404 || res.status === 400) {
+            toast.warning('Could not geocode install address for satellite map')
+          }
+          return
+        }
+        const data = (await res.json()) as { lat?: number; lng?: number }
+        const lat = data.lat
+        const lng = data.lng
+        if (cancelled || typeof lat !== 'number' || typeof lng !== 'number') return
+
+        const toFix = areas.filter((a) => a.satellite_lat == null || a.satellite_lng == null)
+        for (const a of toFix) {
+          if (cancelled) break
+          const z = typeof a.satellite_zoom === 'number' && a.satellite_zoom >= 1 && a.satellite_zoom <= 22
+            ? a.satellite_zoom
+            : 18
+          const patchRes = await fetch(`/api/org/designs/${designId}/areas/${a.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ satellite_lat: lat, satellite_lng: lng, satellite_zoom: z }),
+          })
+          if (!patchRes.ok) {
+            toast.error('Failed to save map location for an area')
+            return
+          }
+        }
+        if (!cancelled) await fetchDesign()
+      } catch {
+        if (!cancelled) toast.error('Geocoding failed')
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [loading, design, areas, designId, fetchDesign])
+
   // Area CRUD
   const addArea = useCallback(async (name: string, canvasType: string): Promise<DesignArea | null> => {
     try {

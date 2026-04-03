@@ -183,6 +183,26 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     floorPlans.find(fp => fp.area_id === activeAreaId) ?? null
   , [floorPlans, activeAreaId])
 
+  const activeArea = useMemo(
+    () => areas.find((a) => a.id === activeAreaId) ?? null,
+    [areas, activeAreaId],
+  )
+
+  /** Google Maps satellite underlay — requires geocoded install address + area rows (see useDesignCanvas). */
+  const satelliteConfig = useMemo(() => {
+    if (!activeArea) return null
+    const lat = activeArea.satellite_lat
+    const lng = activeArea.satellite_lng
+    if (lat == null || lng == null) return null
+    const zoom =
+      typeof activeArea.satellite_zoom === 'number' &&
+      activeArea.satellite_zoom >= 1 &&
+      activeArea.satellite_zoom <= 22
+        ? activeArea.satellite_zoom
+        : 18
+    return { lat, lng, zoom, opacity: 0.6 as const }
+  }, [activeArea])
+
   const areaDevices = useMemo(() =>
     devices.filter(d => d.area_id === activeAreaId)
   , [devices, activeAreaId])
@@ -797,6 +817,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           designId={designId}
           areaId={activeAreaId}
           floorPlan={activeFloorPlan}
+          satelliteConfig={satelliteConfig}
           devices={canvasDevices}
           cables={areaCables}
           showGrid={showGrid}
