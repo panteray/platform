@@ -8,6 +8,8 @@ interface SatelliteMapProps {
   zoom: number
   opacity?: number
   hidden?: boolean
+  /** Fired once after the map instance exists and `idle` + resize run (parent can sync Fabric viewport). */
+  onMapReady?: () => void
 }
 
 export interface SatelliteMapHandle {
@@ -15,10 +17,11 @@ export interface SatelliteMapHandle {
   panBy: (dxPx: number, dyPx: number) => void
   /**
    * Sync Fabric viewport to the satellite layer. `vpt` = [scale, 0, 0, scale, panX, panY].
-   * Applies CSS translate only; zoom follows Fabric via `map.setZoom(baseZoom + log2(scale))` — do not
-   * also CSS-scale the map div (double zoom shrinks the basemap to a small patch).
+   * Pan uses `left`/`top` on the map host (not `transform`) — transformed ancestors break Maps tile layout.
    */
   syncTransform: (vpt: number[], canvasWidth: number, canvasHeight: number) => void
+  /** Call after container resizes (e.g. flex layout) so Google remeasures the map node. */
+  relayout: () => void
   getMap: () => MapInstance | null
 }
 
@@ -64,11 +67,12 @@ type MapInstance = {
 }
 
 const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
-  function SatelliteMap({ lat, lng, zoom, opacity = 0.6, hidden = false }, ref) {
-    /** Host for `new google.maps.Map()` — must NOT have CSS transform (breaks tile layout → tiny map patch). */
-    const mapRef = useRef<HTMLDivElement>(null)
-    /** Parent layer: Fabric pan applied here only. */
-    const panLayerRef = useRef<HTMLDivElement>(null)
+  function SatelliteMap({ lat, lng, zoom, opacity = 0.6, hidden = false, onMapReady }, ref) {
+    /** Root — observed so we only construct `google.maps.Map` once this has non-zero size (avoids tiny-tile bug). */
+    const rootRef = useRef<HTMLDivElement>(null)
+    /** Host for `new google.maps.Map()` — no CSS transform on this node or its ancestors. */
+    const mapHostRef = useRef<HTMLDivElement>(null)
+    const mapInitLockRef = useRef(false)
     const mapInstanceRef = useRef<MapInstance | null>(null)
     const [error, setError] = useState<string | null>(null)
     // Store initial config so we can compute offsets during pan sync
@@ -99,27 +103,33 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
         const googleZoom = originRef.current.zoom + Math.log2(fabricZoom)
         map.setZoom(Math.max(1, Math.min(22, googleZoom)))
 
-        const panEl = panLayerRef.current
-        if (panEl) {
-          panEl.style.transform = `translate(${panX}px, ${panY}px)`
-          panEl.style.transformOrigin = '0 0'
+        const host = mapHostRef.current
+        if (host) {
+          host.style.left = `${panX}px`
+          host.style.top = `${panY}px`
         }
+      },
+      relayout: () => {
+        triggerMapResize()
       },
       getMap() {
         return mapInstanceRef.current
       },
     }))
 
-    // Initialize map once per mount. Do not depend on lat/lng/zoom: Google injects DOM into this node;
-    // re-running init when props change caused React insertBefore conflicts with the Maps runtime.
-    // Center/zoom updates: separate effect below.
+    // Initialize map once the root has real dimensions — if `new Map` runs at 0×0, tiles stay a small patch forever.
     useEffect(() => {
-      if (!mapRef.current || hidden) return
-      const el = mapRef.current
+      if (hidden || !rootRef.current) return
       let cancelled = false
       let resizeObserver: ResizeObserver | null = null
 
       async function init() {
+        if (mapInitLockRef.current || mapInstanceRef.current) return
+        const host = mapHostRef.current
+        if (!host) return
+        const br = host.getBoundingClientRect()
+        if (br.width < 4 || br.height < 4) return
+
         try {
           if (!apiKeyCache) {
             const res = await fetch('/api/org/maps-key')
@@ -127,15 +137,16 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
             const json = await res.json()
             apiKeyCache = json.key
           }
-          if (cancelled || !mapRef.current || !apiKeyCache) return
+          if (cancelled || !mapHostRef.current || !apiKeyCache) return
 
           await loadMapsScript(apiKeyCache)
-          if (cancelled || !mapRef.current) return
+          if (cancelled || !mapHostRef.current) return
 
-          const gm = (window as unknown as { google: { maps: { Map: new (el: HTMLElement, opts: Record<string, unknown>) => MapInstance } } }).google
+          const gm = (window as unknown as { google: { maps: { Map: new (el: HTMLElement, opts: Record<string, unknown>) => MapInstance; event: { trigger: (m: unknown, ev: string) => void; addListenerOnce?: (m: unknown, ev: string, fn: () => void) => void } } } }).google
           if (!gm?.maps?.Map) { if (!cancelled) setError('Google Maps API not available'); return }
 
-          const map = new gm.maps.Map(mapRef.current, {
+          mapInitLockRef.current = true
+          const map = new gm.maps.Map(mapHostRef.current, {
             center: { lat, lng },
             zoom,
             mapTypeId: 'satellite',
@@ -158,18 +169,35 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
             ],
           })
 
-          if (cancelled) return
+          if (cancelled) {
+            mapInitLockRef.current = false
+            return
+          }
           mapInstanceRef.current = map
           originRef.current = { lat, lng, zoom }
+          mapInitLockRef.current = false
 
-          if (cancelled) return
-          if (mapRef.current && typeof ResizeObserver !== 'undefined') {
+          if (typeof gm.maps.event.addListenerOnce === 'function') {
+            gm.maps.event.addListenerOnce(map, 'idle', () => {
+              if (cancelled) return
+              triggerMapResize()
+              onMapReady?.()
+            })
+          } else {
+            requestAnimationFrame(() => {
+              if (!cancelled) {
+                triggerMapResize()
+                onMapReady?.()
+              }
+            })
+          }
+
+          if (mapHostRef.current && typeof ResizeObserver !== 'undefined') {
             resizeObserver = new ResizeObserver(() => {
               triggerMapResize()
             })
-            resizeObserver.observe(mapRef.current)
+            resizeObserver.observe(mapHostRef.current)
           }
-          // Map measures its node on init; if flex layout wasn't final yet, tiles stay a small patch until resize.
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
               if (!cancelled) triggerMapResize()
@@ -178,15 +206,29 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
         } catch (err) {
           console.error('Google Maps init failed:', err)
           if (!cancelled) setError('Maps failed to load')
+          mapInitLockRef.current = false
         }
       }
 
-      void init()
+      const tryInit = () => {
+        if (cancelled || mapInstanceRef.current) return
+        void init()
+      }
+
+      const ro = new ResizeObserver(() => {
+        tryInit()
+      })
+      ro.observe(rootRef.current)
+      tryInit()
+
       return () => {
         cancelled = true
+        ro.disconnect()
         resizeObserver?.disconnect()
         mapInstanceRef.current = null
-        el.innerHTML = ''
+        mapInitLockRef.current = false
+        const host = mapHostRef.current
+        if (host) host.innerHTML = ''
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- single init; props synced in next effect
     }, [hidden])
@@ -202,6 +244,7 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
 
     return (
       <div
+        ref={rootRef}
         style={{
           position: 'absolute',
           inset: 0,
@@ -213,27 +256,17 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
         }}
       >
         <div
-          ref={panLayerRef}
+          ref={mapHostRef}
           style={{
             position: 'absolute',
             left: 0,
             top: 0,
             width: '100%',
             height: '100%',
-            transform: 'translate(0px, 0px)',
-            transformOrigin: '0 0',
+            minWidth: 0,
+            minHeight: 0,
           }}
-        >
-          <div
-            ref={mapRef}
-            style={{
-              width: '100%',
-              height: '100%',
-              minWidth: 0,
-              minHeight: 0,
-            }}
-          />
-        </div>
+        />
       </div>
     )
   }

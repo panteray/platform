@@ -1171,6 +1171,12 @@ export function CanvasArea({
       const { width, height } = entries[0].contentRect
       fcRef.current?.setDimensions({ width, height })
       fcRef.current?.requestRenderAll()
+      // Satellite map must remeasure when flex layout / panel width changes
+      satMapRef.current?.relayout()
+      if (satMapRef.current && fcRef.current) {
+        const c = fcRef.current
+        satMapRef.current.syncTransform(c.viewportTransform!, c.getWidth(), c.getHeight())
+      }
     })
     ro.observe(containerRef.current)
     return () => ro.disconnect()
@@ -1923,6 +1929,14 @@ export function CanvasArea({
     containerRef.current.style.cursor = map[activeTool] || 'default'
   }, [activeTool])
 
+  const onSatelliteMapReady = useCallback(() => {
+    const c = fcRef.current
+    if (c && satMapRef.current) {
+      satMapRef.current.relayout()
+      satMapRef.current.syncTransform(c.viewportTransform!, c.getWidth(), c.getHeight())
+    }
+  }, [])
+
   // ════════════════════════════════════════════════════════════════
   // RENDER
   // ════════════════════════════════════════════════════════════════
@@ -1940,6 +1954,7 @@ export function CanvasArea({
           lng={satelliteConfig.lng}
           zoom={satelliteConfig.zoom}
           opacity={satelliteConfig.opacity}
+          onMapReady={onSatelliteMapReady}
         />
       )}
 
