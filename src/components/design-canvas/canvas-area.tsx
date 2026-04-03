@@ -17,20 +17,13 @@ import { buildConePoints } from './fov-renderer'
 import type { DesignGeoContext } from './geo-math'
 import { createDeviceObject, createMdfObject } from './device-renderer'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignMdfIdf } from '@/types/database'
+import type { FovTier, DeviceFovData } from './fov-data-types'
+import { useMapFovPolygons } from './use-map-fov-polygons'
+
+export type { DeviceFovData, FovTier } from './fov-data-types'
 
 type FabricCanvas = import('fabric').Canvas
 type FabricObject = import('fabric').FabricObject
-
-/* ─── FOV types ─── */
-interface FovTier { distanceFt: number; color: string; opacity: number }
-export interface DeviceFovData {
-  hFov: number; rotation: number; tiers: FovTier[]
-  sensorAngles?: number[]
-  resolutionW?: number; sensorW?: number; focalLength?: number
-  blindSpotFt?: number; colorHex?: string
-  /** Per-imager overrides for multisensor cameras */
-  perImagerData?: Array<{ tiers: FovTier[]; hFov: number; colorHex?: string }>
-}
 
 /* ─── Props ─── */
 interface Props {
@@ -334,6 +327,19 @@ export function CanvasArea({
   // Incremented on drag start, decremented on drag end. >0 means drag is active.
   const isDraggingFov = useRef(false)
   const fovDragGeneration = useRef(0)
+
+  useMapFovPolygons({
+    satMapRef,
+    geoContext: geoContext ?? null,
+    devices,
+    fovData,
+    showFovCones,
+    selectedDeviceId,
+    hiddenCategories,
+    hiddenPpfZones,
+    fovDisplayMode,
+    isDraggingFovRef: isDraggingFov,
+  })
 
   // Context menu
   const [ctxMenu, setCtxMenu] = useState<{ show: boolean; x: number; y: number; id: string; type: 'device' | 'mdf' | 'wall' }>({ show: false, x: 0, y: 0, id: '', type: 'device' })

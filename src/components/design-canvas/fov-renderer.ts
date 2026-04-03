@@ -22,7 +22,7 @@
  *    - Not per-point ray-casting
  */
 
-import type { DeviceFovData } from './canvas-area'
+import type { DeviceFovData } from './fov-data-types'
 import type { DesignDevice } from '@/types/database'
 
 // ---- Types ----
