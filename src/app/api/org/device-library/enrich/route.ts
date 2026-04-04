@@ -194,14 +194,14 @@ ${JSON.stringify(payload)}`,
     return NextResponse.json({ error: 'Failed to parse API response JSON' }, { status: 502 })
   }
 
-  // Apply results to DB
-  let updated = 0
+  // Apply results to DB — build lookup map to avoid O(n²) find
+  const deviceMap = new Map(devices.map((d) => [d.model.toUpperCase(), d]))
+  const updatePromises: PromiseLike<unknown>[] = []
+
   for (const result of results) {
     if (!result?.model) continue
 
-    const device = devices.find(
-      (d) => d.model === result.model || d.model.toUpperCase() === result.model.toUpperCase()
-    )
+    const device = deviceMap.get(result.model.toUpperCase())
     if (!device) continue
 
     const updates: Record<string, unknown> = {}
@@ -225,16 +225,20 @@ ${JSON.stringify(payload)}`,
 
     if (Object.keys(updates).length > 0) {
       updates.updated_at = new Date().toISOString()
-      await admin
-        .from('device_library_items')
-        .update(updates)
-        .eq('id', device.id)
-      updated++
+      updatePromises.push(
+        admin
+          .from('device_library_items')
+          .update(updates)
+          .eq('id', device.id)
+      )
     }
   }
 
+  // Execute all updates concurrently instead of sequentially
+  await Promise.all(updatePromises)
+
   return NextResponse.json({
     processed: results.length,
-    updated,
+    updated: updatePromises.length,
   })
 }

@@ -44,11 +44,35 @@ async function verifyCaller() {
   return dbUser
 }
 
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const caller = await verifyCaller()
+  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const admin = createAdminClient()
+
+  const { data: opp, error } = await admin
+    .from('opportunities')
+    .select('*, customers(id, name, customer_type, contact_name, contact_email, contact_phone, address, state, territory, region, region_state)')
+    .eq('id', id)
+    .eq('org_id', caller.org_id)
+    .single()
+
+  if (error || !opp) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(opp)
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const caller = await verifyCaller()
   if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const body = await request.json()
+
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
   const admin = createAdminClient()
 
   const { data: target } = await admin.from('opportunities').select('org_id').eq('id', id).single()

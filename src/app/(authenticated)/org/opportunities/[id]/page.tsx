@@ -28,10 +28,10 @@ export default function OppDetailPage() {
 
   const load = useCallback(async () => {
     if (!params?.id) return
-    const res = await fetch('/api/org/opportunities')
+    const res = await fetch(`/api/org/opportunities/${params.id}`)
     if (!res.ok) { setLoading(false); return }
-    const opps: Opportunity[] = await res.json()
-    setOpp(opps.find((o) => o.id === params.id) ?? null)
+    const data = await res.json()
+    setOpp(data)
     setLoading(false)
   }, [params?.id])
 

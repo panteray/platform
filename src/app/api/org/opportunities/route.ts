@@ -60,12 +60,15 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   // Initial status history entry
-  await admin.from('opp_status_history').insert({ opp_id: opp.id, org_id: caller.org_id, previous_status: null, new_status: status, changed_by: caller.id })
+  const { error: histErr } = await admin.from('opp_status_history').insert({ opp_id: opp.id, org_id: caller.org_id, previous_status: null, new_status: status, changed_by: caller.id })
+  if (histErr) console.error('Failed to create status history:', histErr.message)
 
   // Auto-create huddle thread
-  await admin.from('opp_huddle_threads').insert({ org_id: caller.org_id, opp_id: opp.id }).select().maybeSingle()
+  const { error: huddleErr } = await admin.from('opp_huddle_threads').insert({ org_id: caller.org_id, opp_id: opp.id }).select().maybeSingle()
+  if (huddleErr) console.error('Failed to create huddle thread:', huddleErr.message)
 
-  await admin.from('audit_log').insert({ org_id: caller.org_id, user_id: caller.id, action: 'opportunity.created', entity_type: 'opportunity', entity_id: opp.id, details: { opp_number: oppNumber } })
+  const { error: auditErr } = await admin.from('audit_log').insert({ org_id: caller.org_id, user_id: caller.id, action: 'opportunity.created', entity_type: 'opportunity', entity_id: opp.id, details: { opp_number: oppNumber } })
+  if (auditErr) console.error('Failed to create audit log:', auditErr.message)
 
   return NextResponse.json(opp, { status: 201 })
 }

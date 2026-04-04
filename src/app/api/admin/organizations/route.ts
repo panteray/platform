@@ -41,10 +41,12 @@ export async function POST(request: NextRequest) {
   const { CalculatorType } = await import('@/types/enums')
 
   const moduleRows = ALL_MODULES.map((m) => ({ org_id: data.id, module: m, is_enabled: false }))
-  await admin.from('org_module_config').insert(moduleRows)
+  const { error: modErr } = await admin.from('org_module_config').insert(moduleRows)
+  if (modErr) console.error('Failed to seed module config:', modErr.message)
 
   const calcRows = Object.values(CalculatorType).map((c) => ({ org_id: data.id, calculator_type: c, is_enabled: false }))
-  await admin.from('org_calculator_config').insert(calcRows)
+  const { error: calcErr } = await admin.from('org_calculator_config').insert(calcRows)
+  if (calcErr) console.error('Failed to seed calculator config:', calcErr.message)
 
   return NextResponse.json(data)
 }

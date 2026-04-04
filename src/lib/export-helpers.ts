@@ -1,3 +1,5 @@
+import { DORI_THRESHOLDS } from '@/lib/calculators/fov-dori'
+
 // ---- Types ----
 
 interface BomItem {
@@ -227,7 +229,10 @@ export interface IsoComplianceResult {
 }
 
 const DORI_PPF_THRESHOLDS: Record<string, number> = {
-  detection: 10, observation: 25, recognition: 63, identification: 125,
+  detection: DORI_THRESHOLDS.detection,
+  observation: DORI_THRESHOLDS.observation,
+  recognition: DORI_THRESHOLDS.recognition,
+  identification: DORI_THRESHOLDS.identification,
 }
 
 export function checkIsoCompliance(

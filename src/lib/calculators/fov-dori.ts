@@ -76,7 +76,7 @@ export type DoriClassification = 'inspection' | 'identification' | 'recognition'
 
 // ---- DORI PPF Thresholds (IEC 62676-4) ----
 
-const DORI_THRESHOLDS = {
+export const DORI_THRESHOLDS = {
   inspection: 305,      // PPF >= 305: forensic-level detail (IEC 62676-4)
   identification: 76,   // PPF >= 76: identify a person
   recognition: 38,      // PPF >= 38: recognize a known person
@@ -386,6 +386,7 @@ function calculateMaxDistance(
   focalLength: number,
   targetPpf: number,
 ): number {
+  if (sensorW <= 0 || targetPpf <= 0 || resolutionW <= 0 || focalLength <= 0) return 0;
   const sceneWidthFt = resolutionW / targetPpf;
   const sceneWidthMm = sceneWidthFt * MM_PER_FT;
   // distance = focalLength * sceneWidth / sensorW (thin lens formula)

@@ -181,7 +181,13 @@ export async function POST(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id: designId } = await params
-  const body = await request.json()
+
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
 
   const admin = createAdminClient()
 
@@ -196,9 +202,9 @@ export async function POST(
   if (!design) return NextResponse.json({ error: 'Design not found' }, { status: 404 })
 
   // Auto-generate label if not provided
-  let label = body.label
+  let label = body.label as string | undefined
   if (!label) {
-    const prefix = body.label_prefix || 'DEV'
+    const prefix = (body.label_prefix as string) || 'DEV'
     const { count } = await admin
       .from('design_devices')
       .select('id', { count: 'exact', head: true })
@@ -210,8 +216,8 @@ export async function POST(
   }
 
   // Map camera subcategories to the valid DB enum 'cctv'
-  let dbCategory = body.category || 'other'
-  let properties = body.properties || {}
+  let dbCategory = (body.category as string) || 'other'
+  let properties = (body.properties as Record<string, unknown>) || {}
   if (CAMERA_SUBCATS.has(dbCategory)) {
     properties = { ...properties, sub_category: dbCategory }
     dbCategory = 'cctv'

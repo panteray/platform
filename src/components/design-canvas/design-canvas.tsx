@@ -582,16 +582,20 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       catalogSpecs.sensor_h = 3.86
     }
 
-    const dev = await addDevice({
-      design_id: designId, area_id: activeAreaId, category: effectiveCategory,
-      label: `${autoLabel} — ${item.vendor} ${item.model}`,
-      position_x: 400, position_y: 300,
-      rotation: 0, properties: catalogSpecs,
-      device_library_item_id: item.id,
-    })
-    if (dev) {
-      setSelectedDeviceId(dev.id)
-      setActiveTool('select')
+    try {
+      const dev = await addDevice({
+        design_id: designId, area_id: activeAreaId, category: effectiveCategory,
+        label: `${autoLabel} — ${item.vendor} ${item.model}`,
+        position_x: 400, position_y: 300,
+        rotation: 0, properties: catalogSpecs,
+        device_library_item_id: item.id,
+      })
+      if (dev) {
+        setSelectedDeviceId(dev.id)
+        setActiveTool('select')
+      }
+    } catch (err) {
+      console.error('Failed to add device:', err)
     }
   }, [addDevice, designId, activeAreaId, setSelectedDeviceId, getNextLabel])
 
@@ -602,7 +606,11 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const handleFloorPlanUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !activeAreaId) return
-    await uploadFloorPlan(activeAreaId, file)
+    try {
+      await uploadFloorPlan(activeAreaId, file)
+    } catch (err) {
+      console.error('Failed to upload floor plan:', err)
+    }
   }, [activeAreaId, uploadFloorPlan])
 
   /* ── Loading / Error ── */

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyGlobalAdmin } from '@/lib/auth'
+
+function generateTempPassword(): string {
+  return randomBytes(24).toString('base64url')
+}
 
 
 export async function GET(request: NextRequest) {
@@ -31,7 +36,7 @@ export async function POST(request: NextRequest) {
 
   const { data: authUser, error: authError } = await admin.auth.admin.createUser({
     email: body.email,
-    password: body.password ?? 'TempPass123!',
+    password: body.password ?? generateTempPassword(),
     email_confirm: true,
   })
 
@@ -96,9 +101,12 @@ export async function DELETE(request: NextRequest) {
   const { data: dbUser } = await admin.from('users').select('auth_id').eq('id', id).single()
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  const { error: dbError } = await admin.from('users').delete().eq('id', id)
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 400 })
+  // Delete auth first — if this fails, DB record stays intact (recoverable)
+  const { error: authError } = await admin.auth.admin.deleteUser(dbUser.auth_id)
+  if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
 
-  await admin.auth.admin.deleteUser(dbUser.auth_id)
+  const { error: dbError } = await admin.from('users').delete().eq('id', id)
+  if (dbError) return NextResponse.json({ error: `Auth deleted but DB delete failed: ${dbError.message}` }, { status: 500 })
+
   return NextResponse.json({ success: true })
 }

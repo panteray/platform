@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Auto-create first area
-  await admin
+  const { error: areaErr } = await admin
     .from('design_areas')
     .insert({
       design_id: design.id,
@@ -106,6 +106,12 @@ export async function POST(req: NextRequest) {
       canvas_type: 'FLOOR_PLAN',
       sort_order: 0,
     })
+
+  if (areaErr) {
+    // Roll back design if area creation fails — design without area is unusable
+    await admin.from('designs').delete().eq('id', design.id)
+    return NextResponse.json({ error: `Design created but area creation failed: ${areaErr.message}` }, { status: 500 })
+  }
 
   return NextResponse.json({ design }, { status: 201 })
 }

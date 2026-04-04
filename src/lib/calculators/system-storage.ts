@@ -104,10 +104,11 @@ const BITRATE_TABLE: Record<string, Record<Compression, number>> = {
   '16mp':  { h264: 25000, h265: 12500, h265plus: 7500 },
 };
 
-function resolutionToKey(label: string, w: number): string | null {
+function resolutionToKey(label: string, w: number, h?: number): string | null {
   const lower = label.toLowerCase().replace(/\s/g, '');
   if (lower in BITRATE_TABLE) return lower;
-  const mp = (w * (w * 9 / 16)) / 1000000;
+  const effectiveH = h || Math.round(w * 9 / 16);
+  const mp = (w * effectiveH) / 1000000;
   if (mp <= 2.5) return '2mp';
   if (mp <= 3.5) return '3mp';
   if (mp <= 4.5) return '4mp';
@@ -189,7 +190,8 @@ export function calculateSystemStorage(input: SystemStorageInput): SystemStorage
   const perCamera: CameraResult[] = cameras.map((cam) => {
     const resLabel = cam.resolutionLabel || '';
     const resW = cam.resolutionW || 0;
-    const resKey = resolutionToKey(resLabel, resW);
+    const resH = cam.resolutionH || 0;
+    const resKey = resolutionToKey(resLabel, resW, resH || undefined);
     const compression = cam.compression || 'h265';
     const baseBitrate = resKey ? (BITRATE_TABLE[resKey]?.[compression] ?? null) : null;
 
