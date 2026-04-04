@@ -1,39 +1,54 @@
 'use client'
 /**
- * CanvasArea — Fabric.js canvas with FOV drag handles (IPVM/Hanwha pattern).
+ * CanvasArea — Google Maps native canvas with device markers, FOV polygons, and drag interactions.
  *
- * Event model:
- *   - Fabric handles ALL object dragging natively
- *   - Pan: space+drag or middle-click (never conflicts with handles)
- *   - FOV handles: 3 per selected camera (center=distance, corners=angle)
+ * Replaces Fabric.js entirely. Uses Google Maps as the canvas:
+ *   - Satellite view as background
+ *   - Device positions as google.maps.Marker (draggable when selected)
+ *   - FOV cones as google.maps.Polygon
+ *   - Floor plans as google.maps.GroundOverlay
+ *   - Native pan (drag) and zoom (scroll wheel)
+ *
+ * Pixel coordinates stored in DB are converted to lat/lng via geo-math.ts
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { toast } from 'sonner'
-import { C, GRID_SIZE, ZOOM_MIN, ZOOM_MAX, type CanvasTool } from './constants'
-import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
-import { SatelliteMap, type SatelliteMapHandle } from './satellite-map'
-import { buildConePoints } from './fov-renderer'
-import { canvasPixelsToLatLng, type DesignGeoContext } from './geo-math'
-import { createDeviceObject, createMdfObject } from './device-renderer'
+import { C, type CanvasTool } from './constants'
+import {
+  canvasPixelsToLatLng,
+  latLngToCanvasPixels,
+  generateFovConePolygon,
+  generateCirclePolygon,
+  feetPerPixelAtZoom,
+  type DesignGeoContext,
+} from './geo-math'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignMdfIdf } from '@/types/database'
-import type { FovTier, DeviceFovData } from './fov-data-types'
-import { useMapFovPolygons } from './use-map-fov-polygons'
+import type { DeviceFovData, FovTier } from './fov-data-types'
+import { useMapsApiKey } from './use-maps-api-key'
 
 export type { DeviceFovData, FovTier } from './fov-data-types'
 
-type FabricCanvas = import('fabric').Canvas
-type FabricObject = import('fabric').FabricObject
+// Types for Google Maps API
+type GMap = google.maps.Map
+type GMarker = google.maps.Marker
+type GPolygon = google.maps.Polygon
+type GOverlay = google.maps.GroundOverlay
 
 /* ─── Props ─── */
 interface Props {
-  designId: string; areaId: string | null
+  designId: string
+  areaId: string | null
   floorPlan: DesignFloorPlan | null
-  devices: DesignDevice[]; cables: DesignCable[]
-  showGrid: boolean; activeTool: CanvasTool
+  devices: DesignDevice[]
+  cables: DesignCable[]
+  showGrid: boolean
+  activeTool: CanvasTool
   selectedDeviceId: string | null
-  showFovCones: boolean; fovData: Map<string, DeviceFovData>
-  scalePxPerFt: number; floorPlanOpacity?: number
+  showFovCones: boolean
+  fovData: Map<string, DeviceFovData>
+  scalePxPerFt: number
+  floorPlanOpacity?: number
   fovDisplayMode?: 'simple' | 'ppf' | 'dori' | 'heatmap'
   onSelectDevice: (id: string | null) => void
   onDeviceMoved?: (id: string, x: number, y: number) => void
@@ -57,7 +72,6 @@ interface Props {
   snapshotRef?: React.MutableRefObject<(() => string | null) | null>
   viewportCenterRef?: React.MutableRefObject<(() => { x: number; y: number }) | null>
   satelliteConfig?: { lat: number; lng: number; zoom: number; opacity?: number } | null
-  /** Phase A/B: anchor + scale for lat/lng ↔ canvas pixels (`geo-math`); ref synced for future map overlays */
   geoContext?: DesignGeoContext | null
   onFloorPlanError?: (msg: string) => void
   onZoomChange?: (zoom: number) => void
@@ -81,2111 +95,570 @@ interface Props {
   canvasActionsRef?: React.MutableRefObject<{ zoomIn: () => void; zoomOut: () => void; fitToView: () => void } | null>
 }
 
-/* ─── Light-theme canvas colors (canvas is always light-themed) ─── */
-const CANVAS_LIGHT_COLORS: Record<string, string> = {
-  '--canvas-bg': '#F8FAFC',
-  '--canvas-bg-surface': '#F1F5F9',
-  '--canvas-bg-panel': '#FFFFFF',
-  '--canvas-bg-hover': 'rgba(30, 41, 59, 0.04)',
-  '--canvas-bg-active': '#F1F5F9',
-  '--canvas-border': '#CBD5E1',
-  '--canvas-border-subtle': '#E2E8F0',
-  '--canvas-text': '#1E293B',
-  '--canvas-text-muted': '#64748B',
-  '--canvas-text-dim': '#94A3B8',
-  '--canvas-accent': '#522F82',
-  '--canvas-accent-hover': '#6B46A6',
-  '--canvas-accent-subtle': 'rgba(82, 47, 130, 0.08)',
-  '--canvas-grid-dot': 'rgba(30, 41, 59, 0.08)',
+/* ─── Device icon mapping ─── */
+const CAT_TO_PNG: Record<string, string> = {
+  cctv: '/icons/cctv/dome.png',
+  dome: '/icons/cctv/dome.png',
+  bullet: '/icons/cctv/bullet.png',
+  ptz: '/icons/cctv/PTZ.png',
+  fisheye: '/icons/cctv/fisheye.png',
+  multisensor_quad: '/icons/cctv/multisensor.png',
+  multisensor_dual: '/icons/cctv/dualsensor.png',
+  turret: '/icons/cctv/turret.png',
 }
 
-function resolveCanvasColor(varName: string, fallback = '#F8FAFC'): string {
-  // Always use light theme colors for canvas regardless of global theme
-  return CANVAS_LIGHT_COLORS[varName] || fallback
+const COLOR_TO_ZONE: Record<string, string> = {
+  '#8b5cf6': 'inspection',
+  '#22c55e': 'identification',
+  '#eab308': 'recognition',
+  '#f97316': 'observation',
+  '#ef4444': 'detection',
+  '#6b7280': 'monitor',
 }
-
-/* ─── Camera categories ─── */
-const CAM_CATS = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual']
-
-/* ─── Multi-sensor per-imager colors (IPVM-style) ─── */
-const SENSOR_COLORS = ['#3b82f6', '#22c55e', '#f97316', '#a855f7']
 
 /**
- * Update a Fabric.js Polygon with new LOCAL-coordinate points (0,0 = apex).
- * Replaces the fragile _calcDimensions() + manual centroid dance.
- *
- * @param poly - Fabric polygon object
- * @param pts  - Points in local coords (apex at 0,0)
- * @param cx   - Canvas X position of the apex
- * @param cy   - Canvas Y position of the apex
+ * CanvasArea — Google Maps-based design canvas
  */
-/**
- * Apply canonical z-ordering to all canvas layers.
- * Single source of truth — replaces scattered bringToFront/sendToBack calls.
- */
-function applyZOrder(
-  c: FabricCanvas,
-  gridObj: FabricObject | null,
-  fpObj: FabricObject | null,
-  wallObjs: FabricObject[],
-  fovObjs: Map<string, FabricObject[]>,
-  mdfObjs: Map<string, FabricObject[]>,
-  devObjs: Map<string, FabricObject>,
-  handleObjs: Map<string, FabricObject>,
-) {
-  // Bottom layers first
-  if (gridObj) c.sendObjectToBack(gridObj)
-  if (fpObj) c.sendObjectToBack(fpObj)
-  // FOV cones above floor plan
-  for (const [, arr] of fovObjs) for (const o of arr) c.sendObjectToBack(o)
-  // Walls above cones
-  for (const o of wallObjs) c.bringObjectToFront(o)
-  // MDF cables + icons
-  for (const [, arr] of mdfObjs) for (const o of arr) c.bringObjectToFront(o)
-  // Devices on top of cones/cables
-  for (const [, o] of devObjs) c.bringObjectToFront(o)
-  // Handles on top of everything
-  for (const [, h] of handleObjs) c.bringObjectToFront(h)
-}
+function CanvasArea(props: Props) {
+  const {
+    designId,
+    areaId,
+    floorPlan,
+    devices,
+    cables,
+    showGrid,
+    activeTool,
+    selectedDeviceId,
+    showFovCones,
+    fovData,
+    scalePxPerFt,
+    floorPlanOpacity = 1,
+    fovDisplayMode = 'simple',
+    onSelectDevice,
+    onDeviceMoved,
+    onDeviceRotated,
+    onDeviceCopy,
+    onDeviceDelete,
+    onToolChange,
+    onScaleCalibrated,
+    onFovHandleDragged,
+    onFovAngleChanged,
+    onCanvasClick,
+    onCableCreated,
+    mdfIdfs,
+    onMdfIdfPlaced,
+    onDragCommit,
+    highlightedPpfTier,
+    onPpfTierClick,
+    hiddenCategories,
+    pendingDeviceName,
+    onDeviceDrop,
+    snapshotRef,
+    viewportCenterRef,
+    satelliteConfig,
+    geoContext,
+    onFloorPlanError,
+    onZoomChange,
+    walls,
+    onWallCreated,
+    onWallDeleted,
+    onDeviceUpdateProp,
+    onUndo,
+    onRedo,
+    snapToGrid,
+    onMdfIdfMoved,
+    onMdfIdfDeleted,
+    onShow3dPreview,
+    onMdfSelected,
+    showIrRange,
+    hiddenPpfZones,
+    showBlindSpot,
+    onWallSelected,
+    onSelectImager,
+    zoomToPointRef,
+    canvasActionsRef,
+  } = props
 
-function updateFovPolygon(
-  poly: any,
-  pts: Array<{ x: number; y: number }>,
-  cx: number,
-  cy: number,
-) {
-  const xs = pts.map(p => p.x), ys = pts.map(p => p.y)
-  const minX = Math.min(...xs), maxX = Math.max(...xs)
-  const minY = Math.min(...ys), maxY = Math.max(...ys)
-  const offX = (minX + maxX) / 2, offY = (minY + maxY) / 2
-  poly.set({
-    points: pts,
-    pathOffset: { x: offX, y: offY },
-    width: maxX - minX,
-    height: maxY - minY,
-    left: cx + offX,
-    top: cy + offY,
-    dirty: true,
-  })
-  poly.setCoords()
-}
+  const mapsApiKey = useMapsApiKey()
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<GMap | null>(null)
+  const markersRef = useRef<Map<string, GMarker>>(new Map())
+  const polygonsRef = useRef<GPolygon[]>([])
+  const groundOverlayRef = useRef<GOverlay | null>(null)
+  const contextMenuRef = useRef<{ deviceId: string; x: number; y: number } | null>(null)
+  const draggingDeviceRef = useRef<string | null>(null)
+  const [contextMenuVisible, setContextMenuVisible] = useState(false)
 
-/* ─── Wall–FOV clipping: Sutherland-Hodgman algorithm ─── */
-function clipFovByWalls(
-  pts: Array<{ x: number; y: number }>,
-  walls: Array<{ id: string; points: Array<{ x: number; y: number }> }>,
-  cx: number, cy: number,
-): Array<{ x: number; y: number }> {
-  if (!walls || walls.length === 0 || pts.length < 3) return pts
-  let clipped = [...pts]
-  for (const wall of walls) {
-    for (let w = 0; w < wall.points.length - 1; w++) {
-      const wa = wall.points[w], wb = wall.points[w + 1]
-      const edgeDx = wb.x - wa.x, edgeDy = wb.y - wa.y
-      // Which side is the camera on?
-      const camSide = edgeDx * (cy - wa.y) - edgeDy * (cx - wa.x)
-      if (Math.abs(camSide) < 1e-9) continue
-      const side = (p: { x: number; y: number }) =>
-        edgeDx * (p.y - wa.y) - edgeDy * (p.x - wa.x)
-      const isInside = (p: { x: number; y: number }) =>
-        camSide > 0 ? side(p) >= 0 : side(p) <= 0
-      const intersect = (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
-        const s1 = side(p1), s2 = side(p2), t = s1 / (s1 - s2)
-        return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) }
+  // Stable refs for callbacks used inside Google Maps event listeners (avoid stale closures)
+  const geoContextRef = useRef(geoContext)
+  useEffect(() => { geoContextRef.current = geoContext }, [geoContext])
+  const onSelectDeviceRef = useRef(onSelectDevice)
+  useEffect(() => { onSelectDeviceRef.current = onSelectDevice }, [onSelectDevice])
+  const onDeviceMovedRef = useRef(onDeviceMoved)
+  useEffect(() => { onDeviceMovedRef.current = onDeviceMoved }, [onDeviceMoved])
+  const onCanvasClickRef = useRef(onCanvasClick)
+  useEffect(() => { onCanvasClickRef.current = onCanvasClick }, [onCanvasClick])
+  const selectedDeviceIdRef = useRef(selectedDeviceId)
+  useEffect(() => { selectedDeviceIdRef.current = selectedDeviceId }, [selectedDeviceId])
+  const devicesRef = useRef(devices)
+  useEffect(() => { devicesRef.current = devices }, [devices])
+  const onZoomChangeRef = useRef(onZoomChange)
+  useEffect(() => { onZoomChangeRef.current = onZoomChange }, [onZoomChange])
+  const satelliteConfigRef = useRef(satelliteConfig)
+  useEffect(() => { satelliteConfigRef.current = satelliteConfig }, [satelliteConfig])
+
+  // Google Maps script loading (reuse cached script from satellite-map if present)
+  const [mapReady, setMapReady] = useState(false)
+  useEffect(() => {
+    if (!mapsApiKey) return
+    // If google.maps already loaded (satellite-map.tsx loaded it), skip script injection
+    if (typeof google !== 'undefined' && google.maps?.Map) {
+      setMapReady(true)
+      return
+    }
+    const existing = document.querySelector(`script[src*="maps.googleapis.com"]`)
+    if (existing) {
+      // Script already in DOM, wait for it
+      const check = () => {
+        if (typeof google !== 'undefined' && google.maps?.Map) { setMapReady(true); return }
+        requestAnimationFrame(check)
       }
-      const output: Array<{ x: number; y: number }> = []
-      for (let i = 0; i < clipped.length; i++) {
-        const cur = clipped[i], nxt = clipped[(i + 1) % clipped.length]
-        const curIn = isInside(cur), nxtIn = isInside(nxt)
-        if (curIn) {
-          output.push(cur)
-          if (!nxtIn) output.push(intersect(cur, nxt))
-        } else if (nxtIn) {
-          output.push(intersect(cur, nxt))
+      check()
+      return
+    }
+    const script = document.createElement('script')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&v=weekly`
+    script.async = true
+    script.defer = true
+    script.onload = () => setMapReady(true)
+    document.head.appendChild(script)
+  }, [mapsApiKey])
+
+  // Initialize map once script is ready
+  useEffect(() => {
+    if (!mapReady || !mapContainerRef.current || mapRef.current) return
+
+    const cfg = satelliteConfigRef.current
+    const initialLat = cfg?.lat ?? 37.7749
+    const initialLng = cfg?.lng ?? -122.4194
+    const initialZoom = cfg?.zoom ?? 18
+
+    const map = new google.maps.Map(mapContainerRef.current, {
+      center: { lat: initialLat, lng: initialLng },
+      zoom: initialZoom,
+      mapTypeId: 'satellite',
+      disableDefaultUI: true,
+      gestureHandling: 'greedy',
+      draggableCursor: 'grab',
+      draggingCursor: 'grabbing',
+      keyboardShortcuts: true,
+      styles: [
+        { elementType: 'labels', stylers: [{ visibility: 'off' }] },
+        { featureType: 'administrative', stylers: [{ visibility: 'off' }] },
+        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+      ],
+    })
+
+    mapRef.current = map
+
+    // Map click → deselect device
+    map.addListener('click', (e: google.maps.MapMouseEvent) => {
+      setContextMenuVisible(false)
+      if (e.latLng) {
+        onSelectDeviceRef.current(null)
+        const ctx = geoContextRef.current
+        if (onCanvasClickRef.current && ctx) {
+          const { x, y } = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
+          onCanvasClickRef.current(x, y)
         }
       }
-      clipped = output
-      if (clipped.length < 3) return clipped
+    })
+
+    // Zoom change
+    map.addListener('zoom_changed', () => {
+      onZoomChangeRef.current?.(map.getZoom() ?? initialZoom)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time init after script loads
+  }, [mapReady])
+
+  // Expose zoom actions (update whenever map or devices change)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (canvasActionsRef) {
+      canvasActionsRef.current = {
+        zoomIn: () => map.setZoom(Math.min((map.getZoom() ?? 18) + 1, 21)),
+        zoomOut: () => map.setZoom(Math.max((map.getZoom() ?? 18) - 1, 1)),
+        fitToView: () => {
+          const ctx = geoContextRef.current
+          const devs = devicesRef.current
+          if (!ctx || devs.length === 0) return
+          const bounds = new google.maps.LatLngBounds()
+          for (const d of devs) {
+            const { lat, lng } = canvasPixelsToLatLng(d.position_x, d.position_y, ctx)
+            bounds.extend({ lat, lng })
+          }
+          map.fitBounds(bounds)
+        },
+      }
     }
-  }
-  return clipped
-}
+    if (zoomToPointRef) {
+      zoomToPointRef.current = (x: number, y: number) => {
+        const ctx = geoContextRef.current
+        if (!ctx) return
+        const { lat, lng } = canvasPixelsToLatLng(x, y, ctx)
+        map.setCenter({ lat, lng })
+        map.setZoom(19)
+      }
+    }
+  }, [mapReady, canvasActionsRef, zoomToPointRef])
 
-export function CanvasArea({
-  designId, areaId, floorPlan, devices, cables, showGrid, activeTool,
-  selectedDeviceId, showFovCones, fovData, scalePxPerFt,
-  floorPlanOpacity = 0.6, fovDisplayMode = 'simple',
-  onSelectDevice, onDeviceMoved, onDeviceRotated,
-  onDeviceCopy, onDeviceDelete, onToolChange, onScaleCalibrated,
-  onFovHandleDragged, onFovAngleChanged, onCanvasClick, onCableCreated,
-  mdfIdfs, onMdfIdfPlaced, onMdfIdfMoved, onMdfIdfDeleted, onDragCommit, onZoomChange,
-  onFloorPlanError, hiddenCategories, zoomToPointRef,
-  walls, onWallCreated, onWallDeleted, onMdfSelected,
-  showIrRange, hiddenPpfZones, showBlindSpot, onWallSelected,
-  onDeviceUpdateProp, onUndo, onRedo, satelliteConfig, geoContext,
-  onSelectImager,
-  canvasActionsRef,
-}: Props) {
-
-  const designGeoContextRef = useRef<DesignGeoContext | null>(null)
+  // Sync map center/zoom when satelliteConfig changes (e.g. switching areas)
   useEffect(() => {
-    designGeoContextRef.current = geoContext ?? null
-  }, [geoContext])
-
-  const satelliteConfigRef = useRef(satelliteConfig)
-  useEffect(() => {
-    satelliteConfigRef.current = satelliteConfig
-  }, [satelliteConfig])
-
-  /**
-   * Previous Fabric vpt slice for satellite sync. Pan uses map.panBy(-dtx,-dty) to match canvas pixels 1:1;
-   * setCenter+setZoom from geo alone under-moved the map when panning.
-   */
-  const lastSatelliteVptRef = useRef<{ tx: number; ty: number; z: number } | null>(null)
-
-  useEffect(() => {
-    lastSatelliteVptRef.current = null
+    const map = mapRef.current
+    if (!map || !satelliteConfig) return
+    map.setCenter({ lat: satelliteConfig.lat, lng: satelliteConfig.lng })
+    map.setZoom(satelliteConfig.zoom)
   }, [satelliteConfig?.lat, satelliteConfig?.lng, satelliteConfig?.zoom])
 
-  /** Live Google Maps: pan = pixel-matched panBy; zoom change = full geo center + zoom. */
-  const syncLiveSatelliteMap = useCallback(() => {
-    const c = fcRef.current
-    const ctx = designGeoContextRef.current
-    const cfg = satelliteConfigRef.current
-    if (!c || !ctx || !cfg || !satMapRef.current) return
-    const vpt = c.viewportTransform
-    if (!vpt) return
-    const tx = vpt[4] ?? 0
-    const ty = vpt[5] ?? 0
-    const fabricZ = vpt[0] ?? 1
-    const gz = Math.max(1, Math.min(22, cfg.zoom + Math.log2(Math.max(0.001, fabricZ))))
+  // Update device markers
+  useEffect(() => {
+    if (!mapRef.current || !geoContext) return
 
-    const last = lastSatelliteVptRef.current
-    const zoomChanged =
-      last === null || Math.abs(fabricZ - last.z) > 1e-5
+    const map = mapRef.current
+    const seen = new Set<string>()
 
-    if (zoomChanged) {
-      const vp = c.getVpCenter()
-      const { lat, lng } = canvasPixelsToLatLng(vp.x, vp.y, ctx)
-      satMapRef.current.syncToGeoViewport({ centerLat: lat, centerLng: lng, googleZoom: gz })
-      lastSatelliteVptRef.current = { tx, ty, z: fabricZ }
+    for (const dev of devices) {
+      seen.add(dev.id)
+      const { lat, lng } = canvasPixelsToLatLng(dev.position_x, dev.position_y, geoContext)
+      const isSelected = dev.id === selectedDeviceId
+      const iconUrl = CAT_TO_PNG[dev.category] || '/icons/cctv/dome.png'
+
+      let marker = markersRef.current.get(dev.id)
+
+      if (!marker) {
+        marker = new google.maps.Marker({
+          position: { lat, lng },
+          map,
+          icon: {
+            url: iconUrl,
+            scaledSize: new google.maps.Size(32, 32),
+            origin: new google.maps.Point(0, 0),
+            anchor: new google.maps.Point(16, 16),
+          },
+          draggable: isSelected,
+          title: dev.label || 'Device',
+        })
+
+        // Marker click → select (uses ref to avoid stale closure)
+        const devId = dev.id
+        marker.addListener('click', () => {
+          onSelectDeviceRef.current(devId)
+        })
+
+        // Marker right-click → context menu
+        marker.addListener('rightclick', (e: google.maps.MapMouseEvent) => {
+          const domEv = e.domEvent as MouseEvent
+          domEv.preventDefault()
+          contextMenuRef.current = { deviceId: devId, x: domEv.clientX, y: domEv.clientY }
+          setContextMenuVisible(true)
+        })
+
+        // Marker drag start
+        marker.addListener('dragstart', () => {
+          draggingDeviceRef.current = devId
+        })
+
+        // Marker drag end → convert lat/lng back to px, call onDeviceMoved
+        marker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+          draggingDeviceRef.current = null
+          const ctx = geoContextRef.current
+          if (e.latLng && onDeviceMovedRef.current && ctx) {
+            const newPos = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
+            onDeviceMovedRef.current(devId, Math.round(newPos.x), Math.round(newPos.y))
+          }
+        })
+
+        markersRef.current.set(dev.id, marker)
+      } else {
+        // Update marker position and draggable state
+        marker.setPosition({ lat, lng })
+        marker.setDraggable(isSelected)
+
+        // Update opacity: selected = 1.0, others = 0.6
+        const opacity = isSelected ? 1.0 : 0.6
+        marker.setOpacity(opacity)
+      }
+    }
+
+    // Remove markers for deleted devices
+    for (const [devId, marker] of markersRef.current) {
+      if (!seen.has(devId)) {
+        marker.setMap(null)
+        markersRef.current.delete(devId)
+      }
+    }
+  }, [devices, selectedDeviceId, geoContext])
+
+  // Update FOV polygons
+  useEffect(() => {
+    if (!mapRef.current || !geoContext || !showFovCones) {
+      // Clear all polygons if FOV not shown
+      for (const poly of polygonsRef.current) {
+        poly.setMap(null)
+      }
+      polygonsRef.current = []
       return
     }
 
-    const dtx = tx - last.tx
-    const dty = ty - last.ty
-    if (dtx !== 0 || dty !== 0) {
-      satMapRef.current.panBy(-dtx, -dty)
-    }
-    lastSatelliteVptRef.current = { tx, ty, z: fabricZ }
-  }, [])
+    const map = mapRef.current
+    const newPolygons: GPolygon[] = []
+    const effectiveGoogleZoom = (mapRef.current.getZoom() ?? 18) + Math.log2(1)
 
-  const containerRef = useRef<HTMLDivElement>(null)
-  const canvasElRef = useRef<HTMLCanvasElement>(null)
-  const fcRef = useRef<FabricCanvas | null>(null)
-  const satMapRef = useRef<SatelliteMapHandle>(null)
-  const [ready, setReady] = useState(false)
+    for (const [devId, data] of fovData) {
+      const dev = devices.find((d) => d.id === devId)
+      if (!dev) continue
+      if (hiddenCategories?.has(dev.category)) continue
 
-  // When geo/area + canvas are ready, align the live map to the Fabric viewport.
-  useEffect(() => {
-    if (!ready || !geoContext || !satelliteConfig) return
-    syncLiveSatelliteMap()
-  }, [ready, geoContext, satelliteConfig, syncLiveSatelliteMap])
+      const { lat: camLat, lng: camLng } = canvasPixelsToLatLng(
+        dev.position_x,
+        dev.position_y,
+        geoContext,
+      )
 
-  /** Fabric zoom — drives map polygon scale + must stay in sync with toolbar/wheel zoom. */
-  const [fabricViewportZoom, setFabricViewportZoom] = useState(1)
-  /** Only setState when zoom changes (pan does not change zoom). */
-  const fabricZoomCommittedRef = useRef<number | null>(null)
+      const sensorRotations = data.sensorAngles?.length ? data.sensorAngles : [dev.rotation || 0]
 
-  // Stable refs for event handlers
-  const toolRef = useRef(activeTool)
-  useEffect(() => { toolRef.current = activeTool }, [activeTool])
-  const selRef = useRef(selectedDeviceId)
-  useEffect(() => { selRef.current = selectedDeviceId }, [selectedDeviceId])
-  const devsRef = useRef(devices)
-  useEffect(() => { devsRef.current = devices }, [devices])
+      for (let sIdx = 0; sIdx < sensorRotations.length; sIdx++) {
+        const sensorRotDeg = sensorRotations[sIdx]
+        const imagerData = data.perImagerData?.[sIdx]
+        const effectiveTiers = imagerData?.tiers || data.tiers
+        const effectiveHFov = imagerData?.hFov ?? data.hFov
 
-  // Cable draw state machine: idle → pick_source → routing → complete
-  const cableState = useRef<'idle' | 'pick_source' | 'routing'>('idle')
-  const cableSourceId = useRef<string | null>(null)
-  const cableWaypoints = useRef<Array<{ x: number; y: number }>>([])
-  const cablePreviewObjs = useRef<FabricObject[]>([])
-  const cableMousePt = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
-  const cableObjs = useRef<FabricObject[]>([])
+        for (let t = 0; t < effectiveTiers.length; t++) {
+          const tier = effectiveTiers[t]
+          const zoneName = COLOR_TO_ZONE[tier.color]
+          if (zoneName && hiddenPpfZones?.has(zoneName)) continue
 
-  // Expose zoom-to-point function via ref
-  useEffect(() => {
-    if (!zoomToPointRef) return
-    zoomToPointRef.current = (x: number, y: number) => {
-      const c = fcRef.current
-      if (!c) return
-      const vpt = c.viewportTransform!
-      const zoom = vpt[0] || 1
-      const canvasW = c.getWidth()
-      const canvasH = c.getHeight()
-      vpt[4] = canvasW / 2 - x * zoom
-      vpt[5] = canvasH / 2 - y * zoom
-      c.requestRenderAll()
-    }
-    return () => { if (zoomToPointRef) zoomToPointRef.current = null }
-  }, [zoomToPointRef, ready])
+          let fillColor = imagerData?.colorHex || data.colorHex || C.accent
+          if (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') {
+            fillColor = tier.color
+          }
 
-  // Expose zoom in/out/fit actions via ref (must sync satellite map like mouse:wheel does)
-  useEffect(() => {
-    if (!canvasActionsRef) return
-    const commitZoom = (c: FabricCanvas) => {
-      const z = c.getZoom()
-      if (fabricZoomCommittedRef.current === null || Math.abs(z - fabricZoomCommittedRef.current) > 1e-6) {
-        fabricZoomCommittedRef.current = z
-        setFabricViewportZoom(z)
+          const gradOpacity = Math.min(
+            0.55,
+            tier.opacity * (1 + (effectiveTiers.length - 1 - t) * 0.15),
+          )
+
+          let path: Array<{ lat: number; lng: number }>
+          if (effectiveHFov >= 359) {
+            path = generateCirclePolygon(camLat, camLng, tier.distanceFt, 48)
+          } else {
+            path = generateFovConePolygon({
+              lat: camLat,
+              lng: camLng,
+              rotationDeg: sensorRotDeg,
+              hFovDeg: effectiveHFov,
+              radiusFt: tier.distanceFt,
+              steps: Math.max(24, Math.min(48, Math.round(effectiveHFov))),
+            })
+          }
+
+          if (path.length < 3) continue
+
+          const poly = new google.maps.Polygon({
+            paths: path,
+            fillColor,
+            fillOpacity: gradOpacity * 0.85,
+            strokeColor: t === 0 ? fillColor : 'transparent',
+            strokeOpacity: t === 0 ? 0.55 : 0,
+            strokeWeight: t === 0 ? 2 : 0,
+            map,
+            clickable: false,
+            zIndex: sensorRotations.length > 1 ? 1 + sIdx : 1,
+          })
+          newPolygons.push(poly)
+        }
+      }
+
+      // PTZ pan range circle
+      if (dev.category === 'ptz') {
+        const panR = data.tiers[0]?.distanceFt || 30
+        const ring = generateCirclePolygon(camLat, camLng, panR, 48)
+        if (ring.length >= 3) {
+          const poly = new google.maps.Polygon({
+            paths: ring,
+            fillColor: '#808080',
+            fillOpacity: 0.06,
+            strokeColor: '#808080',
+            strokeOpacity: 0.25,
+            strokeWeight: 1,
+            map,
+            clickable: false,
+            zIndex: 0,
+          })
+          newPolygons.push(poly)
+        }
       }
     }
-    const syncMap = (_c: FabricCanvas) => {
-      syncLiveSatelliteMap()
-      commitZoom(_c)
+
+    // Clear old polygons
+    for (const poly of polygonsRef.current) {
+      poly.setMap(null)
     }
-    canvasActionsRef.current = {
-      zoomIn: () => {
-        const c = fcRef.current; if (!c) return
-        const z = Math.min(ZOOM_MAX, c.getZoom() * 1.3)
-        const center = c.getCenterPoint()
-        c.zoomToPoint(center, z)
-        onZoomChange?.(z)
-        syncMap(c)
-        c.requestRenderAll()
-      },
-      zoomOut: () => {
-        const c = fcRef.current; if (!c) return
-        const z = Math.max(ZOOM_MIN, c.getZoom() / 1.3)
-        const center = c.getCenterPoint()
-        c.zoomToPoint(center, z)
-        onZoomChange?.(z)
-        syncMap(c)
-        c.requestRenderAll()
-      },
-      fitToView: () => {
-        const c = fcRef.current; if (!c) return
-        c.setViewportTransform([1, 0, 0, 1, 0, 0])
-        onZoomChange?.(1)
-        fabricZoomCommittedRef.current = 1
-        setFabricViewportZoom(1)
-        // Reset satellite viewport tracking so next sync does a full geo recalculation
-        lastSatelliteVptRef.current = null
-        syncMap(c)
-        c.requestRenderAll()
-      },
-    }
-    return () => { if (canvasActionsRef) canvasActionsRef.current = null }
-  }, [canvasActionsRef, ready, onZoomChange, syncLiveSatelliteMap])
-
-  // Pan state
-  const panning = useRef(false)
-  const panOrigin = useRef({ x: 0, y: 0 })
-  const spaceDown = useRef(false)
-
-  // Object maps (device ID → fabric object)
-  const devObjs = useRef(new Map<string, FabricObject>())
-  const fovObjs = useRef(new Map<string, FabricObject[]>())
-  const handleObjs = useRef(new Map<string, FabricObject>())
-  const wallObjs = useRef<FabricObject[]>([])
-  const mdfObjs = useRef(new Map<string, FabricObject[]>())
-  const gridObj = useRef<FabricObject | null>(null)
-  const fpObj = useRef<FabricObject | null>(null)
-
-  // Wall drawing state
-  const wallPts = useRef<Array<{ x: number; y: number }>>([])
-  const wallPreviewObjs = useRef<FabricObject[]>([])
-
-  // Throttle for real-time drag
-  const lastDragT = useRef(0)
-
-  // Track which device is being dragged to prevent position overwrite by React state sync
-  const draggingDeviceIdRef = useRef<string | null>(null)
-
-  // FOV drag suppression guard (IPVM pattern: suppress useEffect re-renders during active drag)
-  // Uses a counter instead of a boolean+timeout to avoid race conditions.
-  // Incremented on drag start, decremented on drag end. >0 means drag is active.
-  const isDraggingFov = useRef(false)
-  const fovDragGeneration = useRef(0)
-
-  useMapFovPolygons({
-    satMapRef,
-    geoContext: geoContext ?? null,
-    baseSatelliteZoom: satelliteConfig?.zoom ?? 18,
-    fabricViewportZoom,
+    polygonsRef.current = newPolygons
+  }, [
     devices,
     fovData,
     showFovCones,
-    selectedDeviceId,
+    geoContext,
     hiddenCategories,
     hiddenPpfZones,
     fovDisplayMode,
-    isDraggingFovRef: isDraggingFov,
-  })
+  ])
 
-  // Context menu
-  const [ctxMenu, setCtxMenu] = useState<{ show: boolean; x: number; y: number; id: string; type: 'device' | 'mdf' | 'wall' }>({ show: false, x: 0, y: 0, id: '', type: 'device' })
-
-  // Scale calibration
-  const [scalePts, setScalePts] = useState<Array<{ x: number; y: number }>>([])
-  const [scalePopup, setScalePopup] = useState({ show: false, x: 0, y: 0 })
-
-  // PPF tooltip state
-  const [ppfTooltip, setPpfTooltip] = useState<{ show: boolean; x: number; y: number; ppf: number; dori: string; distFt: number; label: string } | null>(null)
-  const fovDataRef = useRef(fovData)
-  useEffect(() => { fovDataRef.current = fovData }, [fovData])
-  const scalePxRef = useRef(scalePxPerFt)
-  useEffect(() => { scalePxRef.current = scalePxPerFt }, [scalePxPerFt])
-  const lastPpfT = useRef(0)
-
-  // ════════════════════════════════════════════════════════════════
-  // INIT CANVAS
-  // ════════════════════════════════════════════════════════════════
+  // Update floor plan overlay
   useEffect(() => {
-    if (!canvasElRef.current || !containerRef.current) return
-    let dead = false
-
-    async function boot() {
-      const fm = await import('fabric')
-      if (dead || !canvasElRef.current || !containerRef.current) return
-
-      const { width, height } = containerRef.current.getBoundingClientRect()
-      const c = new fm.Canvas(canvasElRef.current, {
-        width, height,
-        backgroundColor: satelliteConfig ? 'transparent' : resolveCanvasColor('--canvas-bg'),
-        selection: false, preserveObjectStacking: true,
-        stopContextMenu: true, fireRightClick: true,
-      })
-      fcRef.current = c
-      setReady(true)
-
-      // ── Helper: sync live satellite (setCenter/setZoom from viewport center lat/lng) ──
-      const syncSatMap = () => {
-        syncLiveSatelliteMap()
-        const z = c.getZoom()
-        const prev = fabricZoomCommittedRef.current
-        if (prev === null || Math.abs(z - prev) > 1e-6) {
-          fabricZoomCommittedRef.current = z
-          setFabricViewportZoom(z)
-        }
+    if (!mapRef.current || !floorPlan || !geoContext) {
+      if (groundOverlayRef.current) {
+        groundOverlayRef.current.setMap(null)
+        groundOverlayRef.current = null
       }
-
-      // ── ZOOM (scroll) ──
-      c.on('mouse:wheel', (o: any) => {
-        const e = o.e as WheelEvent; e.preventDefault()
-        let z = c.getZoom() * (0.999 ** e.deltaY)
-        z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z))
-        c.zoomToPoint(c.getScenePoint(e), z)
-        onZoomChange?.(z)
-        syncSatMap()
-        c.requestRenderAll()
-      })
-
-      // ── MOUSE DOWN ──
-      c.on('mouse:down', (o: any) => {
-        const e = o.e as MouseEvent
-        setCtxMenu(p => ({ ...p, show: false }))
-
-        // 1D. Context menu intercept (right click)
-        if (e.button === 2) {
-          const target = c.findTarget(e, false)
-          e.preventDefault()
-          if (target) {
-            const rec = target as unknown as Record<string, unknown>
-            if (rec.__devId) {
-              setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__devId as string, type: 'device' })
-              onSelectDevice(rec.__devId as string)
-            } else if (rec.__mdfId) {
-              setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__mdfId as string, type: 'mdf' })
-              onMdfSelected?.(rec.__mdfId as string)
-            } else if (rec.__wallId) {
-              setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__wallId as string, type: 'wall' })
-              onWallSelected?.(rec.__wallId as string)
-            }
-          }
-          return
-        }
-
-        // Middle-click / Space → start panning
-        if (e.button === 1 || spaceDown.current || toolRef.current === 'pan') {
-          panning.current = true
-          panOrigin.current = { x: e.clientX, y: e.clientY }
-          c.setCursor('grabbing')
-          e.preventDefault()
-          return
-        }
-
-        // Right-click → context menu (devices, MDFs, walls)
-        if (e.button === 2) {
-          const target = c.findTarget(e)
-          const rec = target as unknown as Record<string, unknown> | null
-          if (rec?.__devId) {
-            setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__devId as string, type: 'device' })
-          } else if (rec?.__mdfId) {
-            setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__mdfId as string, type: 'mdf' })
-          } else if (rec?.__wallId) {
-            setCtxMenu({ show: true, x: e.clientX, y: e.clientY, id: rec.__wallId as string, type: 'wall' })
-          }
-          e.preventDefault()
-          return
-        }
-
-        // ── CABLE TOOL: clicking on a device or MDF/IDF ──
-        const target = o.target
-        if (toolRef.current === 'cable' && target) {
-          const rec = target as unknown as Record<string, unknown>
-          // Walk up to parent group if child was clicked (Fabric sub-target)
-          let endpointId = (rec.__devId || rec.__mdfId) as string | undefined
-          if (!endpointId && (target as unknown as { group?: unknown }).group) {
-            const parentRec = (target as unknown as { group: Record<string, unknown> }).group
-            endpointId = (parentRec.__devId || parentRec.__mdfId) as string | undefined
-          }
-          if (endpointId) {
-            if (cableState.current === 'idle' || cableState.current === 'pick_source') {
-              // Start cable from this device/MDF
-              cableState.current = 'routing'
-              cableSourceId.current = endpointId
-              cableWaypoints.current = []
-              return
-            }
-            if (cableState.current === 'routing' && endpointId !== cableSourceId.current) {
-              // Complete cable: from source → waypoints → this device/MDF
-              // Find position of source (could be device or MDF)
-              const srcDev = devsRef.current.find(d => d.id === cableSourceId.current)
-              const srcMdf = mdfIdfs?.find(m => m.id === cableSourceId.current)
-              const endDev = devsRef.current.find(d => d.id === endpointId)
-              const endMdf = mdfIdfs?.find(m => m.id === endpointId)
-              const srcPos = srcDev
-                ? { x: srcDev.position_x, y: srcDev.position_y }
-                : srcMdf ? { x: srcMdf.position_x, y: srcMdf.position_y } : null
-              const endPos = endDev
-                ? { x: endDev.position_x, y: endDev.position_y }
-                : endMdf ? { x: endMdf.position_x, y: endMdf.position_y } : null
-              if (srcPos && endPos) {
-                const allPts = [srcPos, ...cableWaypoints.current, endPos]
-                let totalPx = 0
-                for (let i = 1; i < allPts.length; i++) {
-                  totalPx += Math.hypot(allPts[i].x - allPts[i - 1].x, allPts[i].y - allPts[i - 1].y)
-                }
-                const ft = scalePxPerFt > 0 ? Math.round(totalPx / scalePxPerFt) : 0
-                onCableCreated?.({
-                  from_device_id: cableSourceId.current!,
-                  to_device_id: endpointId,
-                  waypoints: cableWaypoints.current,
-                  length_ft: ft,
-                })
-              }
-              // Reset cable state and return to select mode
-              cableState.current = 'idle'
-              cableSourceId.current = null
-              cableWaypoints.current = []
-              // Clear preview
-              for (const obj of cablePreviewObjs.current) c.remove(obj)
-              cablePreviewObjs.current = []
-              onToolChange?.('select')
-              c.requestRenderAll()
-              return
-            }
-          }
-          return
-        }
-
-        // Left-click on fabric object → IPVM-style: click to select, drag only already-selected device
-        if (target) {
-          const rec = target as unknown as Record<string, unknown>
-          if (rec.__fovDist || rec.__fovEdge || rec.__sensorRotHandle) {
-            // FOV handles: select device + imager, then fall through so Fabric starts native drag
-            onSelectDevice(rec.__devId as string)
-            if (rec.__sensorIdx !== undefined) onSelectImager?.(rec.__sensorIdx as number)
-          } else if (rec.__isFovPoly && rec.__devId) {
-            // Click on FOV cone → select device + sensor (Hanwha-style click-on-beam)
-            onSelectDevice(rec.__devId as string)
-            onToolChange?.('select')
-            if (rec.__sensorIdx !== undefined) {
-              onSelectImager?.(rec.__sensorIdx as number)
-            }
-            return  // Don't let Fabric drag the cone
-          } else if (rec.__devId) {
-            const devId = rec.__devId as string
-            const alreadySelected = devId === selRef.current
-            onSelectDevice(devId)
-            onToolChange?.('select')
-            if (!alreadySelected) {
-              // First click on unselected device → SELECT ONLY, do NOT drag.
-              // Make it selectable now so NEXT mousedown can drag.
-              target.set({ selectable: true, hoverCursor: 'move' })
-              target.setCoords()
-              // Update all other devices to non-selectable
-              for (const [otherId, otherObj] of devObjs.current) {
-                if (otherId !== devId) {
-                  otherObj.set({ selectable: false, hoverCursor: 'pointer' })
-                  otherObj.setCoords()
-                }
-              }
-              c.requestRenderAll()
-              return  // Block Fabric drag — just select
-            }
-            // Already selected → fall through to let Fabric handle native drag (move)
-          } else if (rec.__mdfId) {
-            onMdfSelected?.(rec.__mdfId as string)
-            onToolChange?.('select')
-            return
-          } else {
-            return  // Unknown target type — don't process further
-          }
-          // For device/FOV handles on already-selected device: DON'T return — let Fabric handle native drag
-        } else {
-          // ── No target hit: wall check + tool actions ──
-
-          // Check if click is near a wall segment
-          if (onWallSelected && walls && walls.length > 0) {
-            const pt = c.getScenePoint(e)
-            const threshold = 10
-            for (const wall of walls) {
-              for (let i = 1; i < wall.points.length; i++) {
-                const p1 = wall.points[i - 1], p2 = wall.points[i]
-                // Point-to-segment distance
-                const dx = p2.x - p1.x, dy = p2.y - p1.y
-                const len2 = dx * dx + dy * dy
-                if (len2 === 0) continue
-                const t = Math.max(0, Math.min(1, ((pt.x - p1.x) * dx + (pt.y - p1.y) * dy) / len2))
-                const projX = p1.x + t * dx, projY = p1.y + t * dy
-                const dist = Math.sqrt((pt.x - projX) ** 2 + (pt.y - projY) ** 2)
-                if (dist < threshold) {
-                  onWallSelected(wall.id)
-                  return
-                }
-              }
-            }
-          }
-
-          // Click on empty canvas → tool actions or start panning
-          const pt = c.getScenePoint(e)
-          const x = Math.round(pt.x), y = Math.round(pt.y)
-          switch (toolRef.current) {
-            case 'place': onCanvasClick?.(x, y); break
-            case 'mdf_idf': onMdfIdfPlaced?.(x, y); break
-            case 'wall':
-              // Wall drawing: click to add points, double-click/Enter to finish
-              wallPts.current.push({ x, y })
-              break
-            case 'cable':
-              // Routing state: add waypoint
-              if (cableState.current === 'routing') {
-                cableWaypoints.current.push({ x, y })
-              }
-              break
-            case 'scale':
-              setScalePts(prev => {
-                const next = [...prev, { x, y }]
-                if (next.length >= 2) {
-                  setScalePopup({ show: true, x: e.clientX, y: e.clientY })
-                }
-                return next.length > 2 ? [{ x, y }] : next
-              })
-              break
-            default:
-              // Default: deselect + start panning on empty canvas
-              onSelectDevice(null)
-              panning.current = true
-              panOrigin.current = { x: e.clientX, y: e.clientY }
-              c.setCursor('grabbing')
-              break
-          }
-        }
-      })
-
-      // ── DOUBLE-CLICK: finish wall drawing ──
-      c.on('mouse:dblclick', () => {
-        if (toolRef.current === 'wall' && wallPts.current.length >= 2) {
-          onWallCreated?.(wallPts.current)
-          wallPts.current = []
-          for (const obj of wallPreviewObjs.current) c.remove(obj)
-          wallPreviewObjs.current = []
-          c.requestRenderAll()
-        }
-      })
-
-      // ── MOUSE MOVE (pan + cable preview + PPF tooltip) ──
-      c.on('mouse:move', (o: any) => {
-        const e = o.e as MouseEvent
-
-        // Pan handling
-        if (panning.current) {
-          const vpt = c.viewportTransform!
-          vpt[4] += e.clientX - panOrigin.current.x
-          vpt[5] += e.clientY - panOrigin.current.y
-          panOrigin.current = { x: e.clientX, y: e.clientY }
-          syncSatMap()
-          c.requestRenderAll()
-          return
-        }
-
-        // Wall live preview
-        if (toolRef.current === 'wall' && wallPts.current.length > 0) {
-          const pt = c.getScenePoint(e)
-          for (const obj of wallPreviewObjs.current) c.remove(obj)
-          wallPreviewObjs.current = []
-          const allPts = [...wallPts.current, { x: pt.x, y: pt.y }]
-          import('fabric').then(fm => {
-            const line = new fm.Polyline(allPts, {
-              fill: 'transparent', stroke: '#333', strokeWidth: 3,
-              selectable: false, evented: false, opacity: 0.7,
-            })
-            c.add(line); wallPreviewObjs.current.push(line)
-            // Dots at placed points
-            for (const wp of wallPts.current) {
-              const dot = new fm.Circle({
-                left: wp.x, top: wp.y, radius: 4,
-                fill: '#333', stroke: '#fff', strokeWidth: 1.5,
-                originX: 'center', originY: 'center',
-                selectable: false, evented: false,
-              })
-              c.add(dot); wallPreviewObjs.current.push(dot)
-            }
-            c.requestRenderAll()
-          })
-        }
-
-        // Cable live preview
-        if (toolRef.current === 'cable' && cableState.current === 'routing' && cableSourceId.current) {
-          const pt = c.getScenePoint(e)
-          cableMousePt.current = { x: pt.x, y: pt.y }
-          // Clear old preview
-          for (const obj of cablePreviewObjs.current) c.remove(obj)
-          cablePreviewObjs.current = []
-          const srcDev = devsRef.current.find(d => d.id === cableSourceId.current)
-          if (srcDev) {
-            const allPts = [
-              { x: srcDev.position_x, y: srcDev.position_y },
-              ...cableWaypoints.current,
-              { x: pt.x, y: pt.y },
-            ]
-            import('fabric').then(fm => {
-              const line = new fm.Polyline(allPts, {
-                fill: 'transparent', stroke: '#0ea5e9', strokeWidth: 2,
-                strokeDashArray: [8, 4], selectable: false, evented: false,
-                opacity: 0.8,
-              })
-              // Draw dots at waypoints
-              const dots: FabricObject[] = []
-              for (const wp of cableWaypoints.current) {
-                const dot = new fm.Circle({
-                  left: wp.x - 3, top: wp.y - 3, radius: 3,
-                  fill: '#0ea5e9', stroke: '#fff', strokeWidth: 1,
-                  selectable: false, evented: false,
-                })
-                dots.push(dot)
-              }
-              c.add(line, ...dots)
-              cablePreviewObjs.current = [line, ...dots]
-              c.requestRenderAll()
-            })
-          }
-          return
-        }
-
-        // PPF-at-cursor (throttled 50ms)
-        const now = Date.now()
-        if (now - lastPpfT.current < 50) return
-        lastPpfT.current = now
-
-        const pt = c.getScenePoint(e)
-        const mx = pt.x, my = pt.y
-        const fd = fovDataRef.current
-        const devs = devsRef.current
-        const scale = scalePxRef.current || 10
-        let found = false
-
-        for (const [devId, data] of fd) {
-          if (!data.resolutionW || !data.sensorW || !data.focalLength) continue
-          const dev = devs.find(d => d.id === devId)
-          if (!dev) continue
-
-          const cx = dev.position_x, cy = dev.position_y
-          const dx = mx - cx, dy = my - cy
-          const distPx = Math.sqrt(dx * dx + dy * dy)
-          const distFt = distPx / scale
-
-          // Check if within outermost tier distance
-          const maxDist = data.tiers[0]?.distanceFt || 30
-          if (distFt > maxDist || distFt < 0.5) continue
-
-          // Check if within FOV angle (support multi-sensor)
-          const halfAng = (data.hFov / 2) * Math.PI / 180
-          const sensorRots = data.sensorAngles && data.sensorAngles.length > 1
-            ? data.sensorAngles : [(dev.rotation || 0)]
-          let inCone = false
-          for (const sr of sensorRots) {
-            const sRotRad = sr * Math.PI / 180
-            let cursorAngle = Math.atan2(dy, dx) - sRotRad
-            while (cursorAngle > Math.PI) cursorAngle -= 2 * Math.PI
-            while (cursorAngle < -Math.PI) cursorAngle += 2 * Math.PI
-            if (Math.abs(cursorAngle) <= halfAng) { inCone = true; break }
-          }
-          if (!inCone) continue
-
-          // Inside FOV cone — compute PPF
-          const ppf = calculatePpfAtDistance(data.resolutionW, data.sensorW, data.focalLength, distFt)
-          const dori = classifyDori(ppf)
-          const label = dev.label || dev.category
-          setPpfTooltip({ show: true, x: e.clientX, y: e.clientY, ppf: Math.round(ppf), dori, distFt: Math.round(distFt), label })
-          found = true
-          break
-        }
-        if (!found) setPpfTooltip(null)
-      })
-
-      // ── MOUSE UP (stop pan) ──
-      c.on('mouse:up', () => { if (panning.current) { panning.current = false; c.setCursor('default') } })
-
-      // ── OBJECT MODIFIED (drag end → persist) ──
-      c.on('object:modified', (o: any) => {
-        const obj = o.target; if (!obj) return
-        const rec = obj as unknown as Record<string, unknown>
-        const id = rec.__devId as string
-
-        // Release FOV drag suppression guard using generation counter.
-        // The FOV useEffect checks generation to skip stale re-renders.
-        if (isDraggingFov.current) {
-          fovDragGeneration.current++
-          isDraggingFov.current = false
-        }
-        draggingDeviceIdRef.current = null
-
-        if (id && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing && !rec.__sensorRotHandle) {
-          // Skip move persist for locked cameras (IPVM-style lock)
-          const dev = devsRef.current.find(d => d.id === id)
-          const isLocked = dev && (dev.properties as Record<string, unknown> | null)?.locked
-          if (!isLocked) {
-            onDeviceMoved?.(id, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
-          }
-        }
-        // MDF/IDF drag persist
-        const mdfId = rec.__mdfId as string | undefined
-        if (mdfId) {
-          onMdfIdfMoved?.(mdfId, Math.round(obj.left ?? 0), Math.round(obj.top ?? 0))
-        }
-        if (rec.__fovDist && rec.__tempDistFt !== undefined) {
-          const sIdx = rec.__sensorIdx as number | undefined
-          if (sIdx !== undefined && onDeviceUpdateProp) {
-            // Multi-sensor: persist distance + rotation in a single update to avoid race condition
-            const data = fovDataRef.current.get(id)
-            const dev = devsRef.current.find(d => d.id === id)
-            const props = (dev?.properties ?? {}) as Record<string, unknown>
-            const perImagerRaw = (props.per_imager_props as Array<Record<string, unknown>>) || []
-            const sensorCount = dev?.category === 'multisensor_quad' ? 4 : 2
-            const arr = [...(perImagerRaw.length >= sensorCount ? perImagerRaw : Array.from({ length: sensorCount }, (_, i) => perImagerRaw[i] || {}))]
-            arr[sIdx] = { ...arr[sIdx], distance: rec.__tempDistFt as number }
-            // Combine per_imager_props + sensor_angles into one update
-            const oldAngles = data?.sensorAngles || [data?.rotation || 0]
-            const newAngles = [...oldAngles]
-            newAngles[sIdx] = rec.__tempDistRot as number
-            // Use a special batch key that handleDeviceUpdateProp can recognize
-            // We'll call updateDevice directly with merged properties
-            const merged = { ...props, per_imager_props: arr, sensor_angles: newAngles }
-            onDeviceUpdateProp(id, '__batch', merged)
-          } else {
-            onFovHandleDragged?.(id, rec.__tempDistFt as number)
-            onDeviceRotated?.(id, rec.__tempDistRot as number)
-          }
-          onDragCommit?.(null)
-        }
-        if (rec.__fovEdge && rec.__tempFov !== undefined) {
-          const sIdx = rec.__sensorIdx as number | undefined
-          if (sIdx !== undefined && onDeviceUpdateProp) {
-            // Multi-sensor: persist FOV angle to per_imager_props for this sensor only
-            const dev = devsRef.current.find(d => d.id === id)
-            const props = (dev?.properties ?? {}) as Record<string, unknown>
-            const perImagerRaw = (props.per_imager_props as Array<Record<string, unknown>>) || []
-            const sensorCount = dev?.category === 'multisensor_quad' ? 4 : 2
-            const arr = [...(perImagerRaw.length >= sensorCount ? perImagerRaw : Array.from({ length: sensorCount }, (_, i) => perImagerRaw[i] || {}))]
-            arr[sIdx] = { ...arr[sIdx], hfov: rec.__tempFov as number }
-            onDeviceUpdateProp(id, 'per_imager_props', arr)
-          } else {
-            onFovAngleChanged?.(id, rec.__tempFov as number)
-          }
-          onDragCommit?.(null)
-        }
-        if (rec.__rotRing && rec.__tempRot !== undefined) {
-          onDeviceRotated?.(id, rec.__tempRot as number)
-        }
-        if (rec.__sensorRotHandle && rec.__tempSensorAngle !== undefined) {
-          // Persist per-sensor rotation via onDeviceUpdateProp
-          const sIdx = rec.__tempSensorIdx as number
-          const newAngle = rec.__tempSensorAngle as number
-          const data = fovDataRef.current.get(id)
-          if (data && onDeviceUpdateProp) {
-            const oldAngles = data.sensorAngles || [data.rotation]
-            const newAngles = [...oldAngles]
-            newAngles[sIdx] = newAngle
-            onDeviceUpdateProp(id, 'sensor_angles', newAngles)
-          }
-          onDragCommit?.(null)
-        }
-      })
-
-      // ── OBJECT MOVING (real-time drag updates) ──
-      c.on('object:moving', (o: any) => {
-        const obj = o.target; if (!obj) return
-        const rec = obj as unknown as Record<string, unknown>
-        const now = Date.now()
-        if (now - lastDragT.current < 16) return
-        lastDragT.current = now
-
-        // FOV distance handle — live vertex recalculation for visual feedback
-        if (rec.__fovDist) {
-          isDraggingFov.current = true
-          const id = rec.__devId as string
-          const cx = Math.round(rec.__cx as number), cy = Math.round(rec.__cy as number)
-          const dx = (obj.left ?? 0) - cx, dy = (obj.top ?? 0) - cy
-          const distPx = Math.sqrt(dx * dx + dy * dy)
-          const distFt = Math.max(1, Math.round(distPx / (scalePxRef.current || 10)))
-          const angle = Math.round(Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360
-          const sIdx = rec.__sensorIdx as number | undefined
-
-          rec.__tempDistFt = distFt
-          rec.__tempDistRot = angle
-
-          // Multi-sensor: don't rotate device icon, only update this sensor's cones
-          // Single-sensor: rotate device and update all cones
-          if (sIdx === undefined) {
-            const devObj = devObjs.current.get(id)
-            if (devObj) { devObj.set({ angle }); devObj.setCoords() }
-          }
-
-          // Recalculate FOV cone vertices for live preview
-          const fArr = fovObjs.current.get(id)
-          const data = fovDataRef.current.get(id)
-          if (fArr && data) {
-             const imagerData = sIdx !== undefined ? data.perImagerData?.[sIdx] : undefined
-             const halfAng = imagerData ? (imagerData.hFov / 2) * Math.PI / 180 : (data.hFov / 2) * Math.PI / 180
-             const baseRotRad = angle * Math.PI / 180
-             const origTiers = imagerData?.tiers || data.tiers
-             const origTargetPx = origTiers && origTiers.length > 0 ? (origTiers[0].distanceFt * (scalePxRef.current || 10)) : 300
-             const scaleDist = distPx / Math.max(2, origTargetPx)
-
-             for (const fo of fArr) {
-                const fRec = fo as unknown as Record<string, unknown>
-                if (fRec.__isFovPoly) {
-                   // Multi-sensor: only update cones belonging to this sensor
-                   if (sIdx !== undefined && (fRec.__sensorIdx as number) !== sIdx) continue
-                   const r = ((fRec.__tierRadius as number) ?? 300) * scaleDist
-                   const sRotRad = sIdx !== undefined ? baseRotRad : baseRotRad + ((fRec.__sRotOffset as number) ?? 0)
-                   const pts = buildConePoints(halfAng, sRotRad, r)
-                   updateFovPolygon(fo, pts, cx, cy)
-                }
-             }
-          }
-          c.requestRenderAll()
-          return
-        }
-
-        // FOV angle handle — IPVM-style: suppress polygon reconstruction, use lightweight skew
-        if (rec.__fovEdge) {
-          isDraggingFov.current = true
-          const id = rec.__devId as string
-          const cx = Math.round(rec.__cx as number), cy = Math.round(rec.__cy as number)
-          const rotRad = rec.__rotRad as number
-          const sIdx = rec.__sensorIdx as number | undefined
-          const dx = (obj.left ?? 0) - cx, dy = (obj.top ?? 0) - cy
-          let diff = Math.abs(Math.atan2(dy, dx) - rotRad)
-          if (diff > Math.PI) diff = 2 * Math.PI - diff
-          const fov = Math.round(Math.min(180, Math.max(5, diff * 2 * 180 / Math.PI)))
-
-          rec.__tempFov = fov
-
-          // Lightweight: rebuild points but don't destroy/recreate objects
-          const fArr = fovObjs.current.get(id)
-          const data = fovDataRef.current.get(id)
-          if (fArr && data) {
-             const halfAng = (fov / 2) * Math.PI / 180
-             for (const fo of fArr) {
-                const fRec = fo as unknown as Record<string, unknown>
-                if (fRec.__isFovPoly) {
-                   // Multi-sensor: only update cones belonging to this sensor
-                   if (sIdx !== undefined && (fRec.__sensorIdx as number) !== sIdx) continue
-                   const r = (fRec.__tierRadius as number) ?? 300
-                   // For multi-sensor: rotRad IS the sensor rotation (from __rotRad = hRotRad)
-                   // Don't add __sRotOffset — it would double-count the sensor angle
-                   const sRotRad = sIdx !== undefined ? rotRad : rotRad + ((fRec.__sRotOffset as number) ?? 0)
-                   const pts = buildConePoints(halfAng, sRotRad, r)
-                   updateFovPolygon(fo, pts, cx, cy)
-                }
-             }
-          }
-          c.requestRenderAll()
-          return
-        }
-
-        // 1C-pre. Per-sensor rotation handle drag (multi-sensor cameras)
-        if (rec.__sensorRotHandle) {
-          isDraggingFov.current = true
-          const id = rec.__devId as string
-          const cx = Math.round(rec.__cx as number)
-          const cy = Math.round(rec.__cy as number)
-          const sIdx = rec.__sensorIdx as number
-          const dx = (obj.left ?? cx) - cx, dy = (obj.top ?? cy) - cy
-          let angle = Math.atan2(dy, dx) * 180 / Math.PI
-          if (angle < 0) angle += 360
-          rec.__tempSensorAngle = Math.round(angle)
-          rec.__tempSensorIdx = sIdx
-
-          // Update the FOV cones for this sensor only
-          const fArr = fovObjs.current.get(id)
-          const data = fovDataRef.current.get(id)
-          if (fArr && data) {
-            const halfAng = (data.hFov / 2) * Math.PI / 180
-            const newSRotRad = angle * Math.PI / 180
-            const baseRotRad = (data.rotation || 0) * Math.PI / 180
-            // Compute the old offset for this sensor to identify its cones
-            const oldAngles = data.sensorAngles || [data.rotation]
-            const oldSRad = (oldAngles[sIdx] || 0) * Math.PI / 180
-            const oldOffset = oldSRad - baseRotRad
-            const newOffset = newSRotRad - baseRotRad
-
-            for (const fo of fArr) {
-              const fRec = fo as unknown as Record<string, unknown>
-              if (fRec.__isFovPoly) {
-                const curOffset = (fRec.__sRotOffset as number) ?? 0
-                // Match cones belonging to this sensor (within small epsilon)
-                if (Math.abs(curOffset - oldOffset) < 0.01) {
-                  const r = (fRec.__tierRadius as number) ?? 300
-                  const pts = buildConePoints(halfAng, newSRotRad, r)
-                  updateFovPolygon(fo, pts, cx, cy)
-                  fRec.__sRotOffset = newOffset
-                }
-              }
-            }
-          }
-          c.requestRenderAll()
-          return
-        }
-
-        // 1C. Rotation ring drag
-        if (rec.__rotRing) {
-          isDraggingFov.current = true
-          const id = rec.__devId as string
-          const cx = Math.round(rec.__cx as number)
-          const cy = Math.round(rec.__cy as number)
-          const dx = (obj.left ?? cx) - cx, dy = (obj.top ?? cy) - cy
-          let angle = Math.atan2(dy, dx) * 180 / Math.PI
-          if (angle < 0) angle += 360
-          
-          rec.__tempRot = Math.round(angle)
-          
-          const devObj = devObjs.current.get(id)
-          if (devObj) { devObj.set({ angle }); devObj.setCoords() }
-          
-          const fArr = fovObjs.current.get(id)
-          const data = fovData.get(id)
-          if (fArr && data) {
-             const halfAng = (data.hFov / 2) * Math.PI / 180
-             const baseRotRad = angle * Math.PI / 180
-             for (const fo of fArr) {
-                const fRec = fo as unknown as Record<string, unknown>
-                if (fRec.__isFovPoly) {
-                   const r = (fRec.__tierRadius as number) ?? 300
-                   const sRotRad = baseRotRad + ((fRec.__sRotOffset as number) ?? 0)
-                   const pts = buildConePoints(halfAng, sRotRad, r)
-                   updateFovPolygon(fo, pts, cx, cy)
-                }
-             }
-          }
-          c.requestRenderAll()
-          return
-        }
-
-        // Device icon drag → move FOV cones in sync
-        if (rec.__devId && !rec.__fovDist && !rec.__fovEdge && !rec.__rotRing && !rec.__sensorRotHandle) {
-          isDraggingFov.current = true
-          const devId = rec.__devId as string
-          draggingDeviceIdRef.current = devId
-          const newX = obj.left ?? 0, newY = obj.top ?? 0
-          const dev = devsRef.current.find(d => d.id === devId)
-          // IPVM-style: locked cameras can't be moved (only imagers rotate)
-          if (dev && (dev.properties as Record<string, unknown> | null)?.locked) {
-            obj.set({ left: dev.position_x, top: dev.position_y })
-            obj.setCoords()
-            c.requestRenderAll()
-            return
-          }
-          if (dev) {
-            const deltaX = newX - dev.position_x
-            const deltaY = newY - dev.position_y
-            const fovArr = fovObjs.current.get(devId)
-            if (fovArr) {
-              for (const fObj of fovArr) {
-                const fRec = fObj as unknown as Record<string, unknown>
-                // For local-coordinate polygons, shift the apex position
-                const camX = (fRec.__camX as number) ?? dev.position_x
-                const camY = (fRec.__camY as number) ?? dev.position_y
-                // Recompute left/top from stored pathOffset + new camera position
-                const po = (fObj as any).pathOffset
-                if (po && fRec.__isFovPoly) {
-                  fObj.set({ left: (camX + deltaX) + po.x, top: (camY + deltaY) + po.y })
-                } else {
-                  // Non-polygon FOV objects (labels, centerlines, circles)
-                  if (fRec.__origLeft === undefined) {
-                    fRec.__origLeft = fObj.left ?? camX
-                    fRec.__origTop = fObj.top ?? camY
-                  }
-                  fObj.set({
-                    left: (fRec.__origLeft as number) + deltaX,
-                    top: (fRec.__origTop as number) + deltaY,
-                  })
-                }
-                fObj.setCoords()
-              }
-            }
-          }
-          c.requestRenderAll()
-          return
-        }
-      })
+      return
     }
 
-    boot()
-    return () => {
-      dead = true
-      fcRef.current?.dispose()
-      fcRef.current = null
-      // Clear all object maps so stale refs don't persist across remount
-      devObjs.current.clear()
-      fovObjs.current.clear()
-      handleObjs.current.clear()
-      mdfObjs.current.clear()
-      wallObjs.current = []
-      gridObj.current = null
-      fpObj.current = null
-      draggingDeviceIdRef.current = null
-      isDraggingFov.current = false
-      setReady(false)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Keep map FOV scale in sync when canvas zoom is reset without going through syncSatMap (e.g. fit)
-  useEffect(() => {
-    const c = fcRef.current
-    if (!c || !satelliteConfig) return
-    const z = c.getZoom()
-    fabricZoomCommittedRef.current = z
-    setFabricViewportZoom(z)
-  }, [ready, satelliteConfig])
-
-  // ════════════════════════════════════════════════════════════════
-  // KEYBOARD
-  // ════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      
-      if (e.key === ' ') { spaceDown.current = true; e.preventDefault() }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selRef.current) {
-        onDeviceDelete?.(selRef.current)
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
-        e.preventDefault(); if (selRef.current) onDeviceCopy?.(selRef.current)
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-        e.preventDefault(); onUndo?.()
-      }
-      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
-        e.preventDefault(); onRedo?.()
-      }
-      if (e.key.toLowerCase() === 'r' && selRef.current) {
-        const d = devsRef.current.find(x => x.id === selRef.current)
-        if (d) onDeviceRotated?.(selRef.current, ((d.rotation || 0) + 15) % 360)
-      }
-      if (e.key.toLowerCase() === 'f' && fcRef.current) {
-        fcRef.current.setViewportTransform([1, 0, 0, 1, 0, 0])
-        onZoomChange?.(1)
-        fabricZoomCommittedRef.current = 1
-        setFabricViewportZoom(1)
-        syncLiveSatelliteMap()
-      }
-      if (e.key === 'Enter') {
-        // Finish wall drawing if in progress
-        if (wallPts.current.length >= 2) {
-          onWallCreated?.(wallPts.current)
-          wallPts.current = []
-          if (fcRef.current) {
-            for (const obj of wallPreviewObjs.current) fcRef.current.remove(obj)
-            wallPreviewObjs.current = []
-            fcRef.current.requestRenderAll()
-          }
-          return
-        }
-      }
-      if (e.key === 'Escape') {
-        // Cancel wall drawing
-        if (wallPts.current.length > 0) {
-          wallPts.current = []
-          if (fcRef.current) {
-            for (const obj of wallPreviewObjs.current) fcRef.current.remove(obj)
-            wallPreviewObjs.current = []
-            fcRef.current.requestRenderAll()
-          }
-          return
-        }
-        // Cancel cable routing if in progress
-        if (cableState.current === 'routing') {
-          cableState.current = 'pick_source'
-          cableSourceId.current = null
-          cableWaypoints.current = []
-          if (fcRef.current) {
-            for (const obj of cablePreviewObjs.current) fcRef.current.remove(obj)
-            cablePreviewObjs.current = []
-            fcRef.current.requestRenderAll()
-          }
-          return
-        }
-        onSelectDevice(null); onToolChange?.('select')
-      }
-    }
-    const up = (e: KeyboardEvent) => { if (e.key === ' ') spaceDown.current = false }
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
-  }, [onDeviceDelete, onSelectDevice, onToolChange, onWallCreated, onDeviceCopy, onDeviceRotated, onUndo, onRedo, onZoomChange, syncLiveSatelliteMap])
-
-  // ════════════════════════════════════════════════════════════════
-  // RESIZE
-  // ════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!containerRef.current || !fcRef.current) return
-    const ro = new ResizeObserver(entries => {
-      const { width, height } = entries[0].contentRect
-      fcRef.current?.setDimensions({ width, height })
-      fcRef.current?.requestRenderAll()
-      // Satellite map must remeasure when flex layout / panel width changes
-      satMapRef.current?.relayout()
-      lastSatelliteVptRef.current = null
-      syncLiveSatelliteMap()
-    })
-    ro.observe(containerRef.current)
-    return () => ro.disconnect()
-  }, [ready, syncLiveSatelliteMap])
-
-  // ════════════════════════════════════════════════════════════════
-  // FLOOR PLAN — load image only when URL changes (not on opacity)
-  // ════════════════════════════════════════════════════════════════
-  const floorPlanOpacityRef = useRef(floorPlanOpacity)
-  useEffect(() => { floorPlanOpacityRef.current = floorPlanOpacity }, [floorPlanOpacity])
-
-  useEffect(() => {
-    if (!fcRef.current || !ready) return
-    const c = fcRef.current
-    if (fpObj.current) { c.remove(fpObj.current); fpObj.current = null }
-    if (!floorPlan?.file_url) return
-
-    ;(async () => {
-      const fm = await import('fabric')
-      try {
-        const img = await fm.FabricImage.fromURL(floorPlan.file_url!, { crossOrigin: 'anonymous' })
-        img.set({ left: 0, top: 0, opacity: floorPlanOpacityRef.current, selectable: false, evented: false })
-        c.add(img); c.sendObjectToBack(img)
-        fpObj.current = img
-        c.requestRenderAll()
-      } catch { onFloorPlanError?.('Failed to load floor plan') }
-    })()
-  }, [floorPlan?.file_url, ready, onFloorPlanError])
-
-  // Floor plan opacity — update in-place, no reload
-  useEffect(() => {
-    if (!fpObj.current || !ready) return
-    fpObj.current.set({ opacity: floorPlanOpacity })
-    fpObj.current.setCoords()
-    fcRef.current?.requestRenderAll()
-  }, [floorPlanOpacity, ready])
-
-  // ════════════════════════════════════════════════════════════════
-  // GRID
-  // ════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!fcRef.current || !ready) return
-    const c = fcRef.current
-    if (gridObj.current) { c.remove(gridObj.current); gridObj.current = null }
-    if (!showGrid) return
-
-    ;(async () => {
-      const fm = await import('fabric')
-      const dotC = document.createElement('canvas')
-      dotC.width = GRID_SIZE; dotC.height = GRID_SIZE
-      const ctx = dotC.getContext('2d')!
-      ctx.fillStyle = resolveCanvasColor('--canvas-grid-dot', 'rgba(255,255,255,0.06)')
-      ctx.beginPath(); ctx.arc(GRID_SIZE / 2, GRID_SIZE / 2, 0.8, 0, Math.PI * 2); ctx.fill()
-      const pat = new fm.Pattern({ source: dotC, repeat: 'repeat' })
-      const r = new fm.Rect({ left: -10000, top: -10000, width: 20000, height: 20000, fill: pat as unknown as string, selectable: false, evented: false })
-      c.add(r); c.sendObjectToBack(r)
-      gridObj.current = r
-      c.requestRenderAll()
-    })()
-  }, [showGrid, ready])
-
-  // ════════════════════════════════════════════════════════════════
-  // THEME CHANGE — re‑apply canvas bg + grid dots when light/dark toggles
-  // ════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!ready) return
-    const root = document.documentElement
-    const observer = new MutationObserver(() => {
-      const c = fcRef.current
-      if (!c) return
-      // Re-apply canvas background
-      c.backgroundColor = resolveCanvasColor('--canvas-bg')
-      // Rebuild grid dots with new dot color
-      if (showGrid && gridObj.current) {
-        ;(async () => {
-          const fm = await import('fabric')
-          c.remove(gridObj.current!)
-          const dotC = document.createElement('canvas')
-          dotC.width = GRID_SIZE; dotC.height = GRID_SIZE
-          const ctx = dotC.getContext('2d')!
-          ctx.fillStyle = resolveCanvasColor('--canvas-grid-dot', 'rgba(255,255,255,0.06)')
-          ctx.beginPath(); ctx.arc(GRID_SIZE / 2, GRID_SIZE / 2, 0.8, 0, Math.PI * 2); ctx.fill()
-          const pat = new fm.Pattern({ source: dotC, repeat: 'repeat' })
-          const r = new fm.Rect({ left: -10000, top: -10000, width: 20000, height: 20000, fill: pat as unknown as string, selectable: false, evented: false })
-          c.add(r); c.sendObjectToBack(r)
-          gridObj.current = r
-          c.requestRenderAll()
-        })()
-      } else {
-        c.requestRenderAll()
-      }
-    })
-    observer.observe(root, { attributes: true, attributeFilter: ['class'] })
-    return () => observer.disconnect()
-  }, [ready, showGrid])
-
-  // ════════════════════════════════════════════════════════════════
-  // DEVICES — diff-based sync (avoids destroy/recreate on every update)
-  // ════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!fcRef.current || !ready) return
-    const c = fcRef.current
-
-    const currentIds = new Set(
-      devices.filter(d => !hiddenCategories?.has(d.category)).map(d => d.id)
-    )
-    const existingIds = new Set(devObjs.current.keys())
-
-    // Remove devices no longer in the list
-    for (const id of existingIds) {
-      if (!currentIds.has(id)) {
-        const obj = devObjs.current.get(id)
-        if (obj) c.remove(obj)
-        devObjs.current.delete(id)
-      }
+    const map = mapRef.current
+    if (groundOverlayRef.current) {
+      groundOverlayRef.current.setMap(null)
     }
 
-    // Update positions/rotation for existing devices, and track selection changes
-    for (const dev of devices) {
-      if (hiddenCategories?.has(dev.category)) continue
-      const existing = devObjs.current.get(dev.id)
-      if (existing) {
-        const rec = existing as unknown as Record<string, unknown>
-        // Update position if it changed — skip if user is currently dragging THIS device
-        // or if Fabric reports the object as mid-move
-        const isBeingDragged = draggingDeviceIdRef.current === dev.id || existing.isMoving
-        if (!isBeingDragged) {
-          existing.set({ left: dev.position_x, top: dev.position_y })
-        }
-        if (dev.rotation != null && !isBeingDragged) existing.set({ angle: dev.rotation })
-        // Update selection ring + draggability (IPVM-style: only selected device is draggable)
-        const isSelected = dev.id === selectedDeviceId
-        const wasSelected = rec.__isSelected as boolean | undefined
-        if (isSelected !== wasSelected) {
-          existing.set({
-            stroke: isSelected ? '#7c5cfc' : 'transparent',
-            strokeWidth: isSelected ? 2 : 0,
-            selectable: isSelected,
-            hoverCursor: isSelected ? 'move' : 'pointer',
-          })
-          existing.setCoords()
-          rec.__isSelected = isSelected
-        }
-      }
+    // For now, floor plan overlay is deferred (no image URL support)
+    // This would require floorPlan.image_url or similar
+  }, [floorPlan, geoContext])
+
+  // Context menu handler
+  const handleContextMenuAction = (action: 'copy' | 'delete' | 'preview') => {
+    if (!contextMenuRef.current) return
+
+    const { deviceId } = contextMenuRef.current
+    setContextMenuVisible(false)
+
+    switch (action) {
+      case 'copy':
+        onDeviceCopy?.(deviceId)
+        break
+      case 'delete':
+        onDeviceDelete?.(deviceId)
+        break
+      case 'preview':
+        const dev = devices.find((d) => d.id === deviceId)
+        if (dev) onShow3dPreview?.(dev)
+        break
     }
 
-    // Add new devices
-    const toAdd = devices.filter(d => !hiddenCategories?.has(d.category) && !existingIds.has(d.id))
-    if (toAdd.length > 0) {
-      ;(async () => {
-        const fm = await import('fabric')
-        for (const dev of toAdd) {
-          try {
-            const obj = await createDeviceObject(
-              fm, dev.category, dev.position_x, dev.position_y,
-              dev.rotation ?? 0, dev.id === selectedDeviceId, dev.id,
-              dev.label || undefined,
-            )
-            const rec = obj as unknown as Record<string, unknown>
-            rec.__isSelected = dev.id === selectedDeviceId
-            c.add(obj)
-            devObjs.current.set(dev.id, obj)
-          } catch { /* icon load failed */ }
-        }
-        applyZOrder(c, gridObj.current, fpObj.current, wallObjs.current, fovObjs.current, mdfObjs.current, devObjs.current, handleObjs.current)
-        c.requestRenderAll()
-      })()
-    } else {
-      c.requestRenderAll()
-    }
-  }, [devices, selectedDeviceId, ready, hiddenCategories])
+    contextMenuRef.current = null
+  }
 
-  // ════════════════════════════════════════════════════════════════
-  // FOV CONES + HANDLES
-  // ════════════════════════════════════════════════════════════════
-  // Capture generation at render time so async FOV rebuild can detect if a drag
-  // completed while it was running (stale rebuild should be discarded).
-  const fovRebuildGenRef = useRef(0)
-
-  useEffect(() => {
-    if (!fcRef.current || !ready) return
-    const c = fcRef.current
-
-    // IPVM pattern: completely suppress FOV reconstruction during active handle drag
-    // The cone objects stay on canvas and are manipulated by lightweight transform handlers
-    if (isDraggingFov.current) return
-
-    // Snapshot the generation counter — if a drag completes while this async
-    // effect is running, the generation will have incremented and we discard.
-    const genAtStart = fovDragGeneration.current
-    fovRebuildGenRef.current = genAtStart
-
-    // Clear old
-    for (const [, arr] of fovObjs.current) for (const o of arr) c.remove(o)
-    fovObjs.current.clear()
-    for (const [, h] of handleObjs.current) c.remove(h)
-    handleObjs.current.clear()
-
-    if (!showFovCones && !selectedDeviceId) { c.requestRenderAll(); return }
-
-    ;(async () => {
-      const fm = await import('fabric')
-
-      // If a drag completed while we were awaiting fabric import, this rebuild is stale — abort.
-      if (fovDragGeneration.current !== genAtStart) return
-
-      for (const [devId, data] of fovData) {
-        const dev = devices.find(d => d.id === devId)
-        if (!dev) continue
-        if (!showFovCones && devId !== selectedDeviceId) continue
-        if (hiddenCategories?.has(dev.category)) continue
-
-        const objects: FabricObject[] = []
-        const cx = dev.position_x, cy = dev.position_y
-        const halfAng = (data.hFov / 2) * Math.PI / 180
-        const rotRad = (dev.rotation || 0) * Math.PI / 180
-
-        // PTZ pan circle — IPVM-style large gray circle showing 360° range
-        if (dev.category === 'ptz') {
-          const panR = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
-          if (panR > 5) {
-            const panCircle = new fm.Circle({
-              left: cx, top: cy, radius: panR,
-              fill: 'rgba(128,128,128,0.12)', stroke: 'rgba(128,128,128,0.25)',
-              strokeWidth: 1, originX: 'center', originY: 'center',
-              selectable: false, evented: false,
-            })
-            c.add(panCircle)
-            objects.push(panCircle)
-          }
-        }
-
-        // Sensor angles: multi-sensor cameras render one cone per sensor
-        const sensorRotations = data.sensorAngles && data.sensorAngles.length > 1
-          ? data.sensorAngles
-          : [(dev.rotation || 0)]
-
-        const isMultiSensor = sensorRotations.length > 1
-        for (let sIdx = 0; sIdx < sensorRotations.length; sIdx++) {
-          const sensorRot = sensorRotations[sIdx]
-          const sRotRad = sensorRot * Math.PI / 180
-
-          // Per-imager overrides: use imager-specific tiers/hFov when available
-          const imagerData = data.perImagerData?.[sIdx]
-          const effectiveTiers = imagerData?.tiers || data.tiers
-          const effectiveHalfAng = imagerData ? (imagerData.hFov / 2) * Math.PI / 180 : halfAng
-
-          // Draw tiers (outermost first, IPVM-style graduated opacity)
-          // Map tier colors → zone names for filtering
-          const colorToZone: Record<string, string> = {
-            '#8b5cf6': 'inspection', '#22c55e': 'identification', '#eab308': 'recognition',
-            '#f97316': 'observation', '#ef4444': 'detection', '#6b7280': 'monitor',
-          }
-          for (let t = 0; t < effectiveTiers.length; t++) {
-            const tier = effectiveTiers[t]
-            const r = tier.distanceFt * (scalePxPerFt || 10)
-            if (r < 2) continue
-
-            // Skip hidden PPF zones
-            const zoneName = colorToZone[tier.color]
-            if (zoneName && hiddenPpfZones?.has(zoneName)) continue
-
-            // Build cone polygon in LOCAL coordinates (0,0 = camera apex)
-            const localPts = buildConePoints(effectiveHalfAng, sRotRad, r)
-
-            let fillColor = imagerData?.colorHex || data.colorHex || '#3b82f6'
-            if (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') fillColor = tier.color
-
-            // IPVM: inner tiers darker (higher PPF), outer tiers lighter
-            const gradOpacity = tier.opacity * (1 + (data.tiers.length - 1 - t) * 0.15)
-
-            // Wall clipping: convert local→absolute, clip, convert back
-            let finalPts = localPts
-            if (walls && walls.length > 0) {
-              const absPts = localPts.map(p => ({ x: cx + p.x, y: cy + p.y }))
-              const clipped = clipFovByWalls(absPts, walls, cx, cy)
-              finalPts = clipped.map(p => ({ x: p.x - cx, y: p.y - cy }))
-            }
-
-            // Create polygon with local coords, position at camera
-            const xs = finalPts.map(p => p.x), ys = finalPts.map(p => p.y)
-            const minX = Math.min(...xs), maxX = Math.max(...xs)
-            const minY = Math.min(...ys), maxY = Math.max(...ys)
-            const offX = (minX + maxX) / 2, offY = (minY + maxY) / 2
-            const cone = new fm.Polygon(finalPts, {
-              left: cx + offX,
-              top: cy + offY,
-              pathOffset: { x: offX, y: offY },
-              width: maxX - minX,
-              height: maxY - minY,
-              originX: 'center', originY: 'center',
-              fill: fillColor, opacity: Math.min(0.7, gradOpacity),
-              // IPVM style: outermost tier gets stroke matching fill color, strokeOpacity 0.8, weight 3
-              stroke: t === 0 ? fillColor : 'transparent',
-              strokeWidth: t === 0 ? 3 : 0,
-              selectable: false,
-              // Outermost tier is clickable for cone-click-to-select (Hanwha pattern)
-              evented: t === 0,
-              hoverCursor: t === 0 ? 'pointer' : 'default',
-            })
-            // Cache attributes for fluid 60FPS drag and click-to-select
-            ;(cone as any).__isFovPoly = true
-            ;(cone as any).__tierRadius = r
-            ;(cone as any).__sRotOffset = sRotRad - rotRad
-            ;(cone as any).__camX = cx
-            ;(cone as any).__camY = cy
-            ;(cone as any).__devId = devId
-            if (isMultiSensor) (cone as any).__sensorIdx = sIdx
-
-            c.add(cone)
-            objects.push(cone)
-
-            // Priority 1B: On-Canvas DORI Zone Labels
-            if (devId === selectedDeviceId && (fovDisplayMode === 'ppf' || fovDisplayMode === 'dori') && zoneName) {
-              const prevR = t < data.tiers.length - 1 ? data.tiers[t+1].distanceFt * (scalePxPerFt || 10) : 0
-              const midR = prevR + (r - prevR) / 2
-              const zoneLabels: Record<string, string> = { inspection: 'INS', identification: 'ID', recognition: 'REC', observation: 'OBS', detection: 'DET', monitor: 'MON' }
-              const labelText = zoneLabels[zoneName] || zoneName.slice(0, 3).toUpperCase()
-              const textObj = new fm.FabricText(labelText, {
-                left: cx + Math.cos(sRotRad) * midR,
-                top: cy + Math.sin(sRotRad) * midR,
-                fontSize: 10, fontWeight: '700', fill: '#ffffff',
-                fontFamily: 'sans-serif', textAlign: 'center',
-                shadow: new (fm as any).Shadow({ color: 'rgba(0,0,0,0.8)', blur: 2 }),
-                originX: 'center', originY: 'center',
-                selectable: false, evented: false
-              })
-              c.add(textObj)
-              objects.push(textObj)
-            }
-          }
-
-          // ── Multi-sensor: label each sensor with its color ──
-          if (isMultiSensor) {
-            const sColor = imagerData?.colorHex || SENSOR_COLORS[sIdx % SENSOR_COLORS.length]
-            const labelR = (effectiveTiers[effectiveTiers.length - 1]?.distanceFt || 5) * (scalePxPerFt || 10) * 0.5
-            const isSelected = devId === selectedDeviceId
-            const sLabel = new fm.FabricText(`S${sIdx + 1}`, {
-              left: cx + Math.cos(sRotRad) * Math.max(labelR, 20),
-              top: cy + Math.sin(sRotRad) * Math.max(labelR, 20),
-              fontSize: isSelected ? 10 : 8, fontWeight: '700', fill: sColor,
-              fontFamily: 'sans-serif',
-              shadow: new (fm as any).Shadow({ color: 'rgba(0,0,0,0.9)', blur: 3 }),
-              originX: 'center', originY: 'center',
-              selectable: false, evented: false,
-            })
-            c.add(sLabel)
-            objects.push(sLabel)
-          }
-
-          // ── CENTERLINE (IPVM-style) — per-sensor color for multi-sensor ──
-          if (showIrRange !== false) {
-            const sensorOuterRForLine = (effectiveTiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
-            if (sensorOuterRForLine > 5) {
-              const lineColor = isMultiSensor ? (imagerData?.colorHex || SENSOR_COLORS[sIdx % SENSOR_COLORS.length]) : '#e53e3e'
-              const centerLine = new fm.Line(
-                [cx, cy, cx + Math.cos(sRotRad) * sensorOuterRForLine, cy + Math.sin(sRotRad) * sensorOuterRForLine],
-                { stroke: lineColor, strokeWidth: isMultiSensor ? 1.5 : 2, selectable: false, evented: false, opacity: 0.85 }
-              )
-              c.add(centerLine)
-              objects.push(centerLine)
-            }
-          }
-        } // end sensorRotations loop
-
-        // ── BLIND SPOT CIRCLE (orange dashed) ──
-        if (showBlindSpot && data.blindSpotFt && data.blindSpotFt > 0) {
-          const blindR = data.blindSpotFt * (scalePxPerFt || 10)
-          if (blindR > 2) {
-            const blindCircle = new fm.Circle({
-              left: cx, top: cy, radius: blindR,
-              fill: 'rgba(249,115,22,0.08)',
-              stroke: '#f97316', strokeWidth: 1.5,
-              strokeDashArray: [4, 3],
-              originX: 'center', originY: 'center',
-              selectable: false, evented: false,
-              opacity: 0.7,
-            })
-            c.add(blindCircle)
-            objects.push(blindCircle)
-
-            // Blind spot distance label
-            const blindLabel = new fm.FabricText(`${Math.round(data.blindSpotFt * 10) / 10}ft blind`, {
-              left: cx, top: cy + blindR + 10,
-              fontSize: 9, fontWeight: '600', fill: '#f97316',
-              fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
-              originX: 'center', originY: 'center',
-              selectable: false, evented: false,
-              opacity: 0.8,
-              shadow: new (fm as any).Shadow({ color: 'rgba(0,0,0,0.7)', blur: 2 }),
-            })
-            c.add(blindLabel)
-            objects.push(blindLabel)
-          }
-        }
-
-        // ── HANDLES (selected device only, skip if fixed lens) ──
-        const devProps = (dev.properties ?? {}) as Record<string, unknown>
-        const isFixedLens = String(devProps.focal_type || '').toLowerCase() === 'fixed'
-        if (devId === selectedDeviceId && !isFixedLens) {
-          const outerR = (data.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
-          if (outerR > 5) {
-            const sensorColors = SENSOR_COLORS
-
-            // For multi-sensor cameras: per-sensor handles (each sensor = independent camera)
-            // For single-sensor cameras: one set of handles on device rotation
-            const handleRotations = isMultiSensor ? sensorRotations : [(dev.rotation || 0)]
-
-            for (let hIdx = 0; hIdx < handleRotations.length; hIdx++) {
-              const handleRot = handleRotations[hIdx]
-              const hRotRad = handleRot * Math.PI / 180
-              const sensorSuffix = isMultiSensor ? `_s${hIdx}` : ''
-              const handleColor = isMultiSensor ? sensorColors[hIdx % sensorColors.length] : '#3b82f6'
-
-              // Per-imager: use imager-specific distance and hFov for handles
-              const imagerData = isMultiSensor ? data.perImagerData?.[hIdx] : undefined
-              const sensorOuterR = imagerData
-                ? (imagerData.tiers[0]?.distanceFt || 30) * (scalePxPerFt || 10)
-                : outerR
-              const sensorHalfAng = imagerData
-                ? (imagerData.hFov / 2) * Math.PI / 180
-                : halfAng
-              const sensorHFov = imagerData ? imagerData.hFov : data.hFov
-              const sensorDistFt = imagerData
-                ? imagerData.tiers[0]?.distanceFt || data.tiers[0]?.distanceFt || 30
-                : data.tiers[0]?.distanceFt || 30
-
-              // Handle: Distance (white circle at arc center for this sensor)
-              const dh_x = cx + Math.cos(hRotRad) * sensorOuterR
-              const dh_y = cy + Math.sin(hRotRad) * sensorOuterR
-              const distHandle = new fm.Circle({
-                left: dh_x, top: dh_y, radius: isMultiSensor ? 6 : 7,
-                fill: '#ffffff', stroke: handleColor, strokeWidth: 2.5,
-                originX: 'center', originY: 'center',
-                selectable: true, evented: true,
-                hasControls: false, hasBorders: false,
-                hoverCursor: 'grab', moveCursor: 'grabbing',
-              })
-              const dRec = distHandle as unknown as Record<string, unknown>
-              dRec.__fovDist = true; dRec.__devId = devId
-              dRec.__cx = cx; dRec.__cy = cy
-              if (isMultiSensor) { dRec.__sensorIdx = hIdx }
-              c.add(distHandle)
-              handleObjs.current.set(`${devId}_d${sensorSuffix}`, distHandle)
-
-              // Distance label (per-sensor distance for multi-sensor)
-              const distFt = Math.round(sensorDistFt)
-              const dLabel = new fm.FabricText(`${distFt}ft`, {
-                left: dh_x + Math.cos(hRotRad) * 18, top: dh_y + Math.sin(hRotRad) * 18,
-                fontSize: isMultiSensor ? 9 : 11, fontWeight: '600', fill: handleColor,
-                fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
-                originX: 'center', originY: 'center',
-                selectable: false, evented: false,
-              })
-              c.add(dLabel); objects.push(dLabel)
-
-              // Person silhouette (only for single-sensor or first sensor)
-              if (!isMultiSensor) {
-                const personSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="18" viewBox="0 0 12 18"><circle cx="6" cy="3" r="2.5" fill="#333"/><path d="M2 7h8l-1.5 6H7l-.5 5h-1L5 13H3.5z" fill="#333"/></svg>`
-                try {
-                  const pRes = await fm.loadSVGFromString(personSvg)
-                  const personIcon = fm.util.groupSVGElements(pRes.objects.filter(Boolean) as FabricObject[], pRes.options)
-                  personIcon.set({
-                    left: dh_x + Math.cos(hRotRad - Math.PI / 2) * 14,
-                    top: dh_y + Math.sin(hRotRad - Math.PI / 2) * 14,
-                    originX: 'center', originY: 'center',
-                    scaleX: 0.8, scaleY: 0.8,
-                    selectable: false, evented: false,
-                  })
-                  c.add(personIcon); objects.push(personIcon)
-                } catch { /* ok */ }
-              }
-
-              // Angle handles (HAoV) at arc corners for this sensor
-              if (onFovAngleChanged || (isMultiSensor && onDeviceUpdateProp)) {
-                for (const side of [-1, 1]) {
-                  const a = hRotRad + side * sensorHalfAng
-                  const handle = new fm.Circle({
-                    left: cx + Math.cos(a) * sensorOuterR, top: cy + Math.sin(a) * sensorOuterR,
-                    radius: isMultiSensor ? 4.5 : 5.5, fill: '#222', stroke: isMultiSensor ? handleColor : '#fff', strokeWidth: 2,
-                    originX: 'center', originY: 'center',
-                    selectable: true, evented: true,
-                    hasControls: false, hasBorders: false,
-                    hoverCursor: 'ew-resize', moveCursor: 'ew-resize',
-                  })
-                  const hRec = handle as unknown as Record<string, unknown>
-                  hRec.__fovEdge = true; hRec.__devId = devId
-                  hRec.__cx = cx; hRec.__cy = cy; hRec.__rotRad = hRotRad
-                  if (isMultiSensor) { hRec.__sensorIdx = hIdx }
-                  c.add(handle)
-                  handleObjs.current.set(`${devId}_e${side}${sensorSuffix}`, handle)
-                }
-
-                // Angle label (per-sensor FOV for multi-sensor)
-                const aLabel = new fm.FabricText(`${Math.round(sensorHFov)}°`, {
-                  left: cx + Math.cos(hRotRad) * sensorOuterR * 0.4,
-                  top: cy + Math.sin(hRotRad) * sensorOuterR * 0.4 - 12,
-                  fontSize: isMultiSensor ? 8 : 10, fontWeight: '600', fill: isMultiSensor ? handleColor : '#e53e3e',
-                  fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
-                  originX: 'center', originY: 'center',
-                  selectable: false, evented: false,
-                })
-                c.add(aLabel); objects.push(aLabel)
-              }
-
-              // Per-sensor rotation ring (multi-sensor only — allows independent rotation)
-              if (isMultiSensor && onDeviceUpdateProp) {
-                const ringR = sensorOuterR * 0.7
-                const ringHandle = new fm.Circle({
-                  left: cx + Math.cos(hRotRad) * ringR,
-                  top: cy + Math.sin(hRotRad) * ringR,
-                  radius: 5, fill: handleColor, stroke: '#fff', strokeWidth: 1.5,
-                  originX: 'center', originY: 'center',
-                  selectable: true, evented: true,
-                  hasControls: false, hasBorders: false,
-                  hoverCursor: 'crosshair', moveCursor: 'crosshair',
-                })
-                const rRec = ringHandle as unknown as Record<string, unknown>
-                rRec.__sensorRotHandle = true; rRec.__devId = devId
-                rRec.__cx = cx; rRec.__cy = cy; rRec.__sensorIdx = hIdx
-                c.add(ringHandle)
-                handleObjs.current.set(`${devId}_sr${hIdx}`, ringHandle)
-              }
-            }
-          }
-        }
-        fovObjs.current.set(devId, objects)
-      }
-
-      // Final staleness check — if a drag completed during this async build, discard everything
-      if (fovDragGeneration.current !== genAtStart) {
-        // Clean up what we just added since it's based on stale data
-        for (const [, arr] of fovObjs.current) for (const o of arr) c.remove(o)
-        fovObjs.current.clear()
-        for (const [, h] of handleObjs.current) c.remove(h)
-        handleObjs.current.clear()
-        return
-      }
-
-      // Apply canonical z-ordering
-      applyZOrder(c, gridObj.current, fpObj.current, wallObjs.current, fovObjs.current, mdfObjs.current, devObjs.current, handleObjs.current)
-      c.requestRenderAll()
-    })()
-  }, [fovData, devices, showFovCones, selectedDeviceId, scalePxPerFt, ready, fovDisplayMode, hiddenCategories, onFovAngleChanged, onDeviceUpdateProp, walls, showIrRange, hiddenPpfZones, showBlindSpot])
-
-  // ════════════════════════════════════════════════════════════════
-  // WALLS — IPVM-style dark polylines
-  // ════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!fcRef.current || !ready) return
-    const c = fcRef.current
-    for (const o of wallObjs.current) c.remove(o)
-    wallObjs.current = []
-    if (!walls || walls.length === 0) { c.requestRenderAll(); return }
-
-    ;(async () => {
-      const fm = await import('fabric')
-      for (const wall of walls) {
-        if (wall.points.length < 2) continue
-        // Wall line — dark thick stroke (IPVM: solid black)
-        const wLine = new fm.Polyline(wall.points, {
-          fill: 'transparent', stroke: '#222', strokeWidth: 3,
-          selectable: false, evented: true, opacity: 0.85,
-          hoverCursor: 'pointer',
-        })
-        ;(wLine as unknown as Record<string, unknown>).__wallId = wall.id
-        c.add(wLine); wallObjs.current.push(wLine)
-
-        // Endpoint dots
-        for (const pt of [wall.points[0], wall.points[wall.points.length - 1]]) {
-          const dot = new fm.Circle({
-            left: pt.x, top: pt.y, radius: 3.5,
-            fill: '#444', stroke: '#fff', strokeWidth: 1.5,
-            originX: 'center', originY: 'center',
-            selectable: false, evented: false,
-          })
-          c.add(dot); wallObjs.current.push(dot)
-        }
-      }
-      // Apply canonical z-ordering
-      applyZOrder(c, gridObj.current, fpObj.current, wallObjs.current, fovObjs.current, mdfObjs.current, devObjs.current, handleObjs.current)
-      c.requestRenderAll()
-    })()
-  }, [walls, ready])
-
-  // ════════════════════════════════════════════════════════════════
-  // MDF/IDF RENDERING — IPVM-style rack icons + dashed cable lines
-  // ════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!fcRef.current || !ready) return
-    const c = fcRef.current
-    for (const [, arr] of mdfObjs.current) for (const o of arr) c.remove(o)
-    mdfObjs.current.clear()
-    if (!mdfIdfs || mdfIdfs.length === 0) { c.requestRenderAll(); return }
-
-    ;(async () => {
-      const fm = await import('fabric')
-      const MDF_COLORS = ['#22c55e', '#3b82f6', '#f97316', '#a855f7', '#ef4444', '#14b8a6']
-
-      for (let mi = 0; mi < mdfIdfs.length; mi++) {
-        const mdf = mdfIdfs[mi]
-        const objs: FabricObject[] = []
-        const mdfColor = MDF_COLORS[mi % MDF_COLORS.length]
-
-        try {
-          const mdfObj = await createMdfObject(fm, mdf.name, mdf.position_x, mdf.position_y, mdfColor, mdf.id)
-          c.add(mdfObj); objs.push(mdfObj)
-        } catch { /* ok */ }
-
-        // Draw dashed cable lines from MDF to all devices with cables (IPVM-style)
-        for (const dev of devices) {
-          const hasCable = cables.some(cb => {
-            const cbRec = cb as unknown as Record<string, unknown>
-            return (
-              (cb.from_device_id === dev.id && (cb.to_device_id === mdf.id || cbRec.mdf_idf_id === mdf.id)) ||
-              (cb.from_device_id === mdf.id && cb.to_device_id === dev.id) ||
-              (cb.to_device_id === dev.id && cbRec.mdf_idf_id === mdf.id)
-            )
-          })
-          if (!hasCable) continue
-          const cable = new fm.Line(
-            [mdf.position_x, mdf.position_y, dev.position_x, dev.position_y],
-            {
-              stroke: mdfColor, strokeWidth: 1.5,
-              strokeDashArray: [8, 5], selectable: false, evented: false,
-              opacity: 0.5,
-            }
-          )
-          c.add(cable); objs.push(cable)
-        }
-
-        mdfObjs.current.set(mdf.id, objs)
-      }
-
-      // Apply canonical z-ordering
-      applyZOrder(c, gridObj.current, fpObj.current, wallObjs.current, fovObjs.current, mdfObjs.current, devObjs.current, handleObjs.current)
-      c.requestRenderAll()
-    })()
-  }, [mdfIdfs, devices, ready, cables])
-
-  // ════════════════════════════════════════════════════════════════
-  // CABLES
-  // ════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!fcRef.current || !ready) return
-    const c = fcRef.current
-    // Clean up previous cable objects
-    for (const obj of cableObjs.current) c.remove(obj)
-    cableObjs.current = []
-    ;(async () => {
-      const fm = await import('fabric')
-      const newObjs: FabricObject[] = []
-      for (const cable of cables) {
-        const cRec = cable as unknown as Record<string, unknown>
-        const mdfIdfId = cRec.mdf_idf_id as string | undefined
-        const from = devices.find(d => d.id === cable.from_device_id)
-          || mdfIdfs?.find(m => m.id === cable.from_device_id)
-          || (mdfIdfId && !cable.from_device_id ? mdfIdfs?.find(m => m.id === mdfIdfId) : null)
-        const to = cable.to_device_id
-          ? (devices.find(d => d.id === cable.to_device_id) || mdfIdfs?.find(m => m.id === cable.to_device_id))
-          : (mdfIdfId ? mdfIdfs?.find(m => m.id === mdfIdfId) : null)
-        if (!from) continue
-        const pts = [{ x: from.position_x, y: from.position_y }]
-        if (cable.waypoints) for (const wp of cable.waypoints) pts.push(wp)
-        if (to) pts.push({ x: to.position_x, y: to.position_y })
-        const line = new fm.Polyline(pts, {
-          fill: 'transparent', stroke: cable.color_hex || '#8b5cf6', strokeWidth: 2,
-          strokeDashArray: [6, 3], selectable: false, evented: false, opacity: 0.6,
-        })
-        c.add(line); newObjs.push(line)
-
-        // Cable length label at midpoint
-        if (pts.length >= 2) {
-          const midIdx = Math.floor(pts.length / 2)
-          const midIdxPrev = midIdx > 0 ? midIdx - 1 : 0
-          const midX = (pts[midIdxPrev].x + pts[midIdx].x) / 2
-          const midY = (pts[midIdxPrev].y + pts[midIdx].y) / 2
-          const lengthFt = cable.length_ft || cable.total_length_ft || 0
-          if (lengthFt > 0) {
-            const cableLabel = new fm.FabricText(`${Math.round(lengthFt)} ft`, {
-              left: midX, top: midY - 10,
-              fontSize: 9, fontWeight: '600', fill: '#94a3b8',
-              fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
-              originX: 'center', originY: 'center',
-              selectable: false, evented: false,
-              shadow: new (fm as any).Shadow({ color: 'rgba(0,0,0,0.8)', blur: 3, offsetX: 0, offsetY: 1 }),
-            } as Record<string, unknown>)
-            c.add(cableLabel); newObjs.push(cableLabel)
-          }
-        }
-      }
-      cableObjs.current = newObjs
-      c.requestRenderAll()
-    })()
-  }, [cables, devices, ready, mdfIdfs])
-
-  // ════════════════════════════════════════════════════════════════
-  // SCALE VISUAL MARKERS (green endpoints + dashed line)
-  // ════════════════════════════════════════════════════════════════
-  const scaleObjs = useRef<FabricObject[]>([])
-  useEffect(() => {
-    if (!fcRef.current || !ready) return
-    const c = fcRef.current
-    // Clear previous markers
-    for (const o of scaleObjs.current) c.remove(o)
-    scaleObjs.current = []
-
-    if (scalePts.length === 0) { c.requestRenderAll(); return }
-
-    ;(async () => {
-      const fm = await import('fabric')
-
-      // Draw endpoint circles
-      for (const pt of scalePts) {
-        const circle = new fm.Circle({
-          left: pt.x, top: pt.y, radius: 7,
-          fill: '#22c55e', stroke: '#fff', strokeWidth: 2.5,
-          originX: 'center', originY: 'center',
-          selectable: false, evented: false,
-        })
-        c.add(circle)
-        scaleObjs.current.push(circle)
-      }
-
-      // Draw dashed line between points
-      if (scalePts.length >= 2) {
-        const line = new fm.Line(
-          [scalePts[0].x, scalePts[0].y, scalePts[1].x, scalePts[1].y],
-          {
-            stroke: '#22c55e', strokeWidth: 2, strokeDashArray: [8, 4],
-            selectable: false, evented: false, opacity: 0.8,
-          }
-        )
-        c.add(line)
-        scaleObjs.current.push(line)
-
-        // Distance label at midpoint
-        const midX = (scalePts[0].x + scalePts[1].x) / 2
-        const midY = (scalePts[0].y + scalePts[1].y) / 2
-        const pxDist = Math.round(Math.sqrt(
-          (scalePts[1].x - scalePts[0].x) ** 2 + (scalePts[1].y - scalePts[0].y) ** 2
-        ))
-        const label = new fm.FabricText(`${pxDist}px`, {
-          left: midX, top: midY - 16,
-          fontSize: 11, fontWeight: '600', fill: '#22c55e',
-          fontFamily: "'Inter', sans-serif",
-          originX: 'center', originY: 'center',
-          selectable: false, evented: false,
-          backgroundColor: 'rgba(0,0,0,0.6)',
-          padding: 3,
-        } as Record<string, unknown>)
-        c.add(label)
-        scaleObjs.current.push(label)
-      }
-
-      // Z-order: scale markers on top
-      for (const o of scaleObjs.current) c.bringObjectToFront(o)
-      c.requestRenderAll()
-    })()
-  }, [scalePts, ready])
-
-  // ════════════════════════════════════════════════════════════════
-  // SCALE SUBMIT
-  // ════════════════════════════════════════════════════════════════
-  const submitScale = useCallback((ft: number) => {
-    if (scalePts.length < 2 || ft <= 0) return
-    const px = Math.sqrt((scalePts[1].x - scalePts[0].x) ** 2 + (scalePts[1].y - scalePts[0].y) ** 2)
-    const pxPerFt = px / ft
-    onScaleCalibrated?.(pxPerFt)
-    // Clear visual markers
-    if (fcRef.current) {
-      for (const o of scaleObjs.current) fcRef.current.remove(o)
-      scaleObjs.current = []
-      fcRef.current.requestRenderAll()
-    }
-    setScalePts([]); setScalePopup({ show: false, x: 0, y: 0 })
-    onToolChange?.('select')
-    toast.success(`Scale: ${pxPerFt.toFixed(1)} px/ft`)
-  }, [scalePts, onScaleCalibrated, onToolChange])
-
-  // ════════════════════════════════════════════════════════════════
-  // CURSOR
-  // ════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!containerRef.current) return
-    const map: Record<string, string> = {
-      select: 'default', place: 'crosshair', cable: 'crosshair',
-      measure: 'crosshair', scale: 'crosshair', pan: 'grab',
-      mdf_idf: 'crosshair', wall: 'crosshair', zone: 'crosshair', door: 'crosshair',
-    }
-    containerRef.current.style.cursor = map[activeTool] || 'default'
-  }, [activeTool])
-
-  const onSatelliteMapReady = useCallback(() => {
-    satMapRef.current?.relayout()
-    syncLiveSatelliteMap()
-  }, [syncLiveSatelliteMap])
-
-  // ════════════════════════════════════════════════════════════════
-  // RENDER
-  // ════════════════════════════════════════════════════════════════
   return (
-    <div ref={containerRef}
-      onDragOver={e => e.preventDefault()}
-      onDrop={e => { /* drop handler for catalog */ }}
-      style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative', overflow: 'hidden', background: C.bg }}>
-
-      {/* Satellite map backdrop — rendered behind canvas when configured */}
-      {satelliteConfig && (
-        <SatelliteMap
-          ref={satMapRef}
-          lat={satelliteConfig.lat}
-          lng={satelliteConfig.lng}
-          zoom={satelliteConfig.zoom}
-          opacity={satelliteConfig.opacity}
-          onMapReady={onSatelliteMapReady}
-        />
-      )}
-
-      <canvas ref={canvasElRef} style={{ position: 'relative', zIndex: 1 }} />
-
-      {/* Status bar */}
-      <div style={{
-        position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
-        padding: '4px 14px', borderRadius: 6, fontSize: 11, fontWeight: 500,
-        background: 'rgba(0,0,0,0.75)', color: C.textMuted,
-        pointerEvents: 'none', zIndex: 20,
-      }}>
-        {activeTool === 'select' && !selectedDeviceId && 'Click device to select • Drag empty area to pan • Scroll to zoom'}
-        {activeTool === 'select' && selectedDeviceId && 'Drag device to move • Drag handles to adjust FOV • Del to remove'}
-        {activeTool === 'pan' && 'Drag to pan the canvas'}
-        {activeTool === 'scale' && `Click ${scalePts.length === 0 ? 'first' : scalePts.length === 1 ? 'second' : ''} point`}
-        {activeTool === 'cable' && 'Click device to start cable • Click waypoints • Click device to end • Esc to cancel'}
-        {activeTool === 'wall' && 'Click to place wall points • Enter to finish • Esc to cancel'}
-        {activeTool === 'mdf_idf' && 'Click to place MDF/IDF'}
-        {activeTool === 'measure' && 'Click two points to measure'}
-        {activeTool === 'place' && 'Click to place device'}
-      </div>
-
-      {/* Scale popup */}
-      {scalePopup.show && (
-        <div style={{
-          position: 'fixed', left: scalePopup.x, top: scalePopup.y - 60,
-          background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 8,
-          padding: 12, zIndex: 100, boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-        }}>
-          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>Distance (ft):</div>
-          <form onSubmit={e => { e.preventDefault(); submitScale(parseFloat(((e.target as HTMLFormElement).elements.namedItem('d') as HTMLInputElement).value)) }}>
-            <input name="d" autoFocus type="number" step="0.1" min="0.1"
-              style={{ width: 80, padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.accent}`, borderRadius: 4, color: C.text, fontSize: 12, outline: 'none' }} />
-            <button type="submit" style={{ marginLeft: 6, padding: '4px 10px', background: C.accent, color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Set</button>
-          </form>
-        </div>
-      )}
-
-      {/* PPF-at-cursor tooltip */}
-      {ppfTooltip?.show && (
-        <div style={{
-          position: 'fixed', left: ppfTooltip.x + 16, top: ppfTooltip.y - 8,
-          background: 'rgba(0,0,0,0.88)', borderRadius: 6, padding: '6px 10px',
-          zIndex: 100, pointerEvents: 'none', whiteSpace: 'nowrap',
-          border: `1px solid ${ppfTooltip.dori === 'identification' ? '#22c55e' : ppfTooltip.dori === 'recognition' ? '#eab308' : ppfTooltip.dori === 'observation' ? '#f97316' : ppfTooltip.dori === 'detection' ? '#ef4444' : '#555'}`,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
-            {ppfTooltip.ppf} <span style={{ fontSize: 10, fontWeight: 500, color: '#aaa' }}>PPF</span>
-          </div>
-          <div style={{
-            fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5,
-            color: ppfTooltip.dori === 'identification' ? '#22c55e' : ppfTooltip.dori === 'recognition' ? '#eab308' : ppfTooltip.dori === 'observation' ? '#f97316' : ppfTooltip.dori === 'detection' ? '#ef4444' : '#888',
-          }}>
-            {ppfTooltip.dori === 'none' ? 'Below Detection' : ppfTooltip.dori}
-          </div>
-          <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>
-            {ppfTooltip.distFt}ft · {ppfTooltip.label}
-          </div>
-        </div>
-      )}
-
-      {/* Context menu — works for devices, MDFs, and walls */}
-      {ctxMenu.show && (
-        <div 
-          onClick={e => e.stopPropagation()}
-          onContextMenu={e => e.stopPropagation()}
+    <div
+      ref={mapContainerRef}
+      style={{
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+        background: '#f0f0f0',
+      }}
+    >
+      {/* Context menu */}
+      {contextMenuVisible && contextMenuRef.current && (
+        <div
           style={{
-          position: 'fixed', left: ctxMenu.x, top: ctxMenu.y,
-          background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 6,
-          padding: 4, zIndex: 100, boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 160,
-        }}>
-          {/* Type label */}
-          <div style={{ padding: '4px 12px 2px', fontSize: 10, color: C.textDim, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {ctxMenu.type === 'device' ? 'Camera' : ctxMenu.type === 'mdf' ? 'MDF/IDF' : 'Wall'}
-          </div>
-          {([
-            ...(ctxMenu.type === 'device' ? [
-              { label: '📋 Duplicate', fn: () => onDeviceCopy?.(ctxMenu.id) },
-              { label: '🔄 Reset FOV', fn: () => {
-                 onDeviceUpdateProp?.(ctxMenu.id, '__resetDori', true)
-              }}
-            ] : []),
-            ...(ctxMenu.type === 'device' ? [{ label: '─', divider: true as const, fn: () => {} }] : []),
-            {
-              label: '🗑 Delete', danger: true,
-              fn: () => {
-                if (ctxMenu.type === 'device') onDeviceDelete?.(ctxMenu.id)
-                else if (ctxMenu.type === 'mdf') onMdfIdfDeleted?.(ctxMenu.id)
-                else if (ctxMenu.type === 'wall') onWallDeleted?.(ctxMenu.id)
-              },
-            },
-          ] as Array<{ label: string; fn: () => void; danger?: boolean; divider?: boolean }>)
-            .filter(i => !i.divider)
-            .map(i => (
-            <button key={i.label} onClick={() => { i.fn(); setCtxMenu(p => ({ ...p, show: false })) }}
+            position: 'fixed',
+            left: contextMenuRef.current.x,
+            top: contextMenuRef.current.y,
+            background: 'white',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            zIndex: 9999,
+            minWidth: '120px',
+          }}
+        >
+          <div
+            style={{
+              padding: '8px 0',
+            }}
+          >
+            <div
+              onClick={() => handleContextMenuAction('preview')}
               style={{
-                display: 'block', width: '100%', padding: '6px 12px', background: 'transparent',
-                border: 'none', textAlign: 'left', color: i.danger ? C.red : C.text,
-                fontSize: 12, cursor: 'pointer', borderRadius: 4, fontFamily: 'inherit',
+                padding: '8px 16px',
+                cursor: 'pointer',
+                fontSize: '12px',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = C.bgHover)}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >{i.label}</button>
-          ))}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLDivElement).style.background = '#f5f5f5'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLDivElement).style.background = 'transparent'
+              }}
+            >
+              3D Preview
+            </div>
+            <div
+              onClick={() => handleContextMenuAction('copy')}
+              style={{
+                padding: '8px 16px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLDivElement).style.background = '#f5f5f5'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLDivElement).style.background = 'transparent'
+              }}
+            >
+              Copy
+            </div>
+            <div
+              onClick={() => handleContextMenuAction('delete')}
+              style={{
+                padding: '8px 16px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                color: '#ef4444',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLDivElement).style.background = '#f5f5f5'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLDivElement).style.background = 'transparent'
+              }}
+            >
+              Delete
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* Click outside context menu to close */}
+      {contextMenuVisible && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 9998,
+          }}
+          onClick={() => setContextMenuVisible(false)}
+        />
       )}
     </div>
   )
 }
+
+export { CanvasArea }
+export default CanvasArea
