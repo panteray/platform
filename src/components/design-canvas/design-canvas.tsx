@@ -335,29 +335,23 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           mountHeight: Number(props.install_height) || 9,
           targetDistance: targetDist,
         })
-        // Use the DORI monitor distance (outermost/max) as the cone reach,
-        // clamped to targetDist if the user has explicitly set one.
+        // Cone distance = targetDist (user-set or 30ft default). DORI tiers are bands within.
         // Sort DORI tiers by distance descending for graduated rendering.
         const sortedDori = [...doriTiers].sort((a, b) => b.distanceFt - a.distanceFt)
-        const maxDoriDist = sortedDori[0]?.distanceFt || targetDist
-        // If user has set a target_distance explicitly, use that as cap;
-        // otherwise use the DORI-computed max distance
-        const userSetTarget = props.target_distance !== undefined && props.target_distance !== null
-        const effectiveMaxDist = userSetTarget ? targetDist : Math.max(targetDist, maxDoriDist)
-        // Build tiers from DORI distances with device color
+        // Build tiers capped at targetDist — DORI zones that exceed the cone are clamped
         tiers = sortedDori
           .filter(t => t.distanceFt > 0)
           .map((t, i) => ({
-            distanceFt: Math.min(t.distanceFt, effectiveMaxDist),
+            distanceFt: Math.min(t.distanceFt, targetDist),
             color: deviceColor,
             opacity: 0.12 + i * 0.10, // Inner tiers more opaque (IPVM style)
           }))
         // Ensure at least one tier
         if (tiers.length === 0) {
-          tiers = [{ distanceFt: effectiveMaxDist, color: deviceColor, opacity: 0.15 }]
+          tiers = [{ distanceFt: targetDist, color: deviceColor, opacity: 0.15 }]
         }
         // Store DORI distances for optional PPF zone display
-        const doriDistances = sortedDori.map(t => Math.min(t.distanceFt, effectiveMaxDist))
+        const doriDistances = sortedDori.map(t => Math.min(t.distanceFt, targetDist))
         ;(map as unknown as Record<string, unknown>)[`__dori_${d.id}`] = doriDistances
       } else {
         // Fallback: same IPVM pattern — single color graduated opacity
@@ -408,7 +402,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
               focalLength, mountHeight: installHeight, targetDistance: imagerDist,
             })
             imagerTiers = doriTiers.map((t, i) => ({
-              distanceFt: i === 0 ? Math.max(t.distanceFt, imagerDist) : t.distanceFt,
+              distanceFt: Math.min(t.distanceFt, imagerDist),
               color: t.color,
               opacity: [0.04, 0.06, 0.09, 0.12, 0.15, 0.20][i] ?? 0.10,
             }))
