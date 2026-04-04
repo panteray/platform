@@ -295,7 +295,14 @@ function CanvasArea(props: Props) {
     script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&v=weekly`
     script.async = true
     script.defer = true
-    script.onload = () => setMapReady(true)
+    script.onload = () => {
+      // google.maps.Map may not be available immediately at onload — poll for it
+      const check = () => {
+        if (typeof google !== 'undefined' && google.maps?.Map) { setMapReady(true); return }
+        requestAnimationFrame(check)
+      }
+      check()
+    }
     document.head.appendChild(script)
   }, [mapsApiKey])
 
@@ -466,7 +473,8 @@ function CanvasArea(props: Props) {
         markersRef.current.delete(devId)
       }
     }
-  }, [devices, selectedDeviceId, geoContext])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mapReady triggers re-run after map init
+  }, [devices, selectedDeviceId, geoContext, mapReady])
 
   // Update FOV polygons
   useEffect(() => {
@@ -574,6 +582,7 @@ function CanvasArea(props: Props) {
       poly.setMap(null)
     }
     polygonsRef.current = newPolygons
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mapReady triggers re-run after map init
   }, [
     devices,
     fovData,
@@ -582,6 +591,7 @@ function CanvasArea(props: Props) {
     hiddenCategories,
     hiddenPpfZones,
     fovDisplayMode,
+    mapReady,
   ])
 
   // FOV drag handles for selected device (IPVM pattern: tip handle for distance, edge handles for angle)
@@ -738,7 +748,8 @@ function CanvasArea(props: Props) {
       for (const h of fovHandlesRef.current) h.setMap(null)
       fovHandlesRef.current = []
     }
-  }, [selectedDeviceId, devices, fovData, showFovCones, geoContext])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mapReady triggers re-run after map init
+  }, [selectedDeviceId, devices, fovData, showFovCones, geoContext, mapReady])
 
   // Update floor plan overlay
   useEffect(() => {
