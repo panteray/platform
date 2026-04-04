@@ -590,7 +590,7 @@ export function CanvasArea({
           return
         }
 
-        // Left-click on fabric object → select device or allow handle drag
+        // Left-click on fabric object → IPVM-style: click to select, drag only already-selected device
         if (target) {
           const rec = target as unknown as Record<string, unknown>
           if (rec.__fovDist || rec.__fovEdge || rec.__sensorRotHandle) {
@@ -606,9 +606,26 @@ export function CanvasArea({
             }
             return  // Don't let Fabric drag the cone
           } else if (rec.__devId) {
-            // Device icon: select + switch tool, then fall through for native drag
-            onSelectDevice(rec.__devId as string)
+            const devId = rec.__devId as string
+            const alreadySelected = devId === selRef.current
+            onSelectDevice(devId)
             onToolChange?.('select')
+            if (!alreadySelected) {
+              // First click on unselected device → SELECT ONLY, do NOT drag.
+              // Make it selectable now so NEXT mousedown can drag.
+              target.set({ selectable: true, hoverCursor: 'move' })
+              target.setCoords()
+              // Update all other devices to non-selectable
+              for (const [otherId, otherObj] of devObjs.current) {
+                if (otherId !== devId) {
+                  otherObj.set({ selectable: false, hoverCursor: 'pointer' })
+                  otherObj.setCoords()
+                }
+              }
+              c.requestRenderAll()
+              return  // Block Fabric drag — just select
+            }
+            // Already selected → fall through to let Fabric handle native drag (move)
           } else if (rec.__mdfId) {
             onMdfSelected?.(rec.__mdfId as string)
             onToolChange?.('select')
@@ -616,7 +633,7 @@ export function CanvasArea({
           } else {
             return  // Unknown target type — don't process further
           }
-          // For device/FOV: DON'T return — let Fabric handle native drag
+          // For device/FOV handles on already-selected device: DON'T return — let Fabric handle native drag
         } else {
           // ── No target hit: wall check + tool actions ──
 
@@ -1375,11 +1392,17 @@ export function CanvasArea({
           existing.set({ left: dev.position_x, top: dev.position_y })
         }
         if (dev.rotation != null && !isBeingDragged) existing.set({ angle: dev.rotation })
-        // Update selection ring
+        // Update selection ring + draggability (IPVM-style: only selected device is draggable)
         const isSelected = dev.id === selectedDeviceId
         const wasSelected = rec.__isSelected as boolean | undefined
         if (isSelected !== wasSelected) {
-          existing.set({ stroke: isSelected ? '#7c5cfc' : 'transparent', strokeWidth: isSelected ? 2 : 0 })
+          existing.set({
+            stroke: isSelected ? '#7c5cfc' : 'transparent',
+            strokeWidth: isSelected ? 2 : 0,
+            selectable: isSelected,
+            hoverCursor: isSelected ? 'move' : 'pointer',
+          })
+          existing.setCoords()
           rec.__isSelected = isSelected
         }
       }

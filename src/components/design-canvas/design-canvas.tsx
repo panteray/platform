@@ -318,16 +318,29 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           mountHeight: Number(props.install_height) || 9,
           targetDistance: targetDist,
         })
-        // IPVM pattern: store DORI distances for PPF zone toggle, but render single color
-        const doriDistances = doriTiers.map(t => Math.min(t.distanceFt, targetDist))
-        // Single color graduated opacity (IPVM style: fillOpacity 0.55, graduated inward)
-        tiers = [
-          { distanceFt: targetDist, color: deviceColor, opacity: 0.15 },
-          { distanceFt: targetDist * 0.65, color: deviceColor, opacity: 0.25 },
-          { distanceFt: targetDist * 0.35, color: deviceColor, opacity: 0.40 },
-          { distanceFt: targetDist * 0.12, color: deviceColor, opacity: 0.55 },
-        ]
+        // Use the DORI monitor distance (outermost/max) as the cone reach,
+        // clamped to targetDist if the user has explicitly set one.
+        // Sort DORI tiers by distance descending for graduated rendering.
+        const sortedDori = [...doriTiers].sort((a, b) => b.distanceFt - a.distanceFt)
+        const maxDoriDist = sortedDori[0]?.distanceFt || targetDist
+        // If user has set a target_distance explicitly, use that as cap;
+        // otherwise use the DORI-computed max distance
+        const userSetTarget = props.target_distance !== undefined && props.target_distance !== null
+        const effectiveMaxDist = userSetTarget ? targetDist : Math.max(targetDist, maxDoriDist)
+        // Build tiers from DORI distances with device color
+        tiers = sortedDori
+          .filter(t => t.distanceFt > 0)
+          .map((t, i) => ({
+            distanceFt: Math.min(t.distanceFt, effectiveMaxDist),
+            color: deviceColor,
+            opacity: 0.12 + i * 0.10, // Inner tiers more opaque (IPVM style)
+          }))
+        // Ensure at least one tier
+        if (tiers.length === 0) {
+          tiers = [{ distanceFt: effectiveMaxDist, color: deviceColor, opacity: 0.15 }]
+        }
         // Store DORI distances for optional PPF zone display
+        const doriDistances = sortedDori.map(t => Math.min(t.distanceFt, effectiveMaxDist))
         ;(map as unknown as Record<string, unknown>)[`__dori_${d.id}`] = doriDistances
       } else {
         // Fallback: same IPVM pattern — single color graduated opacity

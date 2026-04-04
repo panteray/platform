@@ -85,13 +85,15 @@ export async function createDeviceObject(
   })
 
   // Group icon + label
+  // Devices start non-selectable (no drag). Canvas sets selectable=true on the selected device only.
+  // This implements IPVM-style: click to select, drag only the selected device.
   const group = new fm.Group(labelText ? [iconObj, textObj] : [iconObj], {
     left: posX, top: posY,
     originX: 'center', originY: 'center',
     angle: rotation,
     hasControls: false, hasBorders: false, lockRotation: true,
-    selectable: true, evented: true,
-    hoverCursor: 'move', moveCursor: 'move',
+    selectable: isSelected, evented: true,
+    hoverCursor: isSelected ? 'move' : 'pointer', moveCursor: 'move',
     subTargetCheck: false,
   })
 

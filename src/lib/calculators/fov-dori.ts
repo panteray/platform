@@ -388,7 +388,8 @@ function calculateMaxDistance(
 ): number {
   const sceneWidthFt = resolutionW / targetPpf;
   const sceneWidthMm = sceneWidthFt * MM_PER_FT;
-  const distMm = (focalLength * sceneWidthMm) / (2 * sensorW);
+  // distance = focalLength * sceneWidth / sensorW (thin lens formula)
+  const distMm = (focalLength * sceneWidthMm) / sensorW;
   return distMm / MM_PER_FT;
 }
 
