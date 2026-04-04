@@ -246,6 +246,13 @@ function CanvasArea(props: Props) {
   const draggingDeviceRef = useRef<string | null>(null)
   const fovPolygonListenersRef = useRef<google.maps.MapsEventListener[]>([])
   const isDraggingFovRef = useRef(false)
+  // IPVM-style drag handles: person icon (rotation+distance) + 2 arc-edge circles (FOV angle)
+  const fovHandleMarkerRef = useRef<GMarker | null>(null)
+  const fovAngleHandlesRef = useRef<[GMarker, GMarker] | null>(null)
+  const pendingRotationRef = useRef<number | null>(null)
+  const pendingDistanceRef = useRef<number | null>(null)
+  const pendingFovAngleRef = useRef<number | null>(null)
+  const dragDeviceIdRef = useRef<string | null>(null)
   const [contextMenuVisible, setContextMenuVisible] = useState(false)
 
   // Stable refs for callbacks used inside Google Maps event listeners (avoid stale closures)
@@ -600,11 +607,20 @@ function CanvasArea(props: Props) {
     mapReady,
   ])
 
-  // FOV cone interaction — drag cone to rotate camera + adjust distance, like IPVM/Axis/Hanwha
-  // All polygons for the selected device become clickable.
-  // Dragging the cone body rotates the camera. Dragging near the outer edge adjusts distance.
+  // IPVM-style FOV handle markers: person icon (rotation+distance) + 2 arc-edge circles (FOV angle)
+  // Deferred persistence: live visual updates during drag, single PATCH on release.
   useEffect(() => {
-    // Clean up previous listeners
+    // Skip handle updates while actively dragging (prevent effect re-run from killing drag)
+    if (isDraggingFovRef.current) return
+
+    // Clean up previous handles
+    fovHandleMarkerRef.current?.setMap(null)
+    fovHandleMarkerRef.current = null
+    if (fovAngleHandlesRef.current) {
+      fovAngleHandlesRef.current[0].setMap(null)
+      fovAngleHandlesRef.current[1].setMap(null)
+      fovAngleHandlesRef.current = null
+    }
     for (const l of fovPolygonListenersRef.current) l.remove()
     fovPolygonListenersRef.current = []
 
@@ -616,77 +632,265 @@ function CanvasArea(props: Props) {
     const data = fovData.get(selectedDeviceId)
     if (!data || !data.tiers.length) return
 
-    const { lat: camLat, lng: camLng } = canvasPixelsToLatLng(dev.position_x, dev.position_y, geoContext)
-
-    // Use polygons tagged during rendering
     const selectedPolygons = selectedDevicePolygonsRef.current
     if (!selectedPolygons.length) return
 
-    // Outermost tier distance — used to detect if drag is near the outer edge
+    const map = mapRef.current
+    const { lat: camLat, lng: camLng } = canvasPixelsToLatLng(dev.position_x, dev.position_y, geoContext)
     const outermostDist = data.tiers[0]?.distanceFt ?? 30
+    const currentHFov = data.hFov
+    const currentRotation = dev.rotation || 0
+    // Canvas rotation (0=East) → maps bearing (0=North): +90
+    const mapCenterBearing = (currentRotation + 90 + 360) % 360
+    const halfFov = currentHFov / 2
 
-    // Drag mode: 'rotate' or 'distance'
-    let dragMode: 'rotate' | 'distance' = 'rotate'
-
-    // Make selected device's polygons interactive
-    for (const poly of selectedPolygons) {
-      poly.setOptions({ clickable: true, draggable: false })
-
-      // Mousedown on cone → determine drag mode and start
-      const downListener = poly.addListener('mousedown', (e: google.maps.PolyMouseEvent) => {
-        if (!e.latLng) return
-
-        // Determine if click is near the outer edge (last 25% of cone distance → distance drag)
-        const clickDist = haversineDistanceFt(camLat, camLng, e.latLng.lat(), e.latLng.lng())
-        if (outermostDist > 0 && clickDist > outermostDist * 0.75) {
-          dragMode = 'distance'
-        } else {
-          dragMode = 'rotate'
-        }
-
-        isDraggingFovRef.current = true
-        mapRef.current?.setOptions({ draggable: false })
-      })
-      fovPolygonListenersRef.current.push(downListener)
+    // ── Person icon SVG (standing person silhouette, IPVM style) ──
+    const personSvg: google.maps.Symbol = {
+      path: 'M0,-8 C-2,-8 -3,-6.5 -3,-5 C-3,-3.5 -2,-2 0,-2 C2,-2 3,-3.5 3,-5 C3,-6.5 2,-8 0,-8 Z M-4,0 L-4,6 L-2,6 L-2,2 L2,2 L2,6 L4,6 L4,0 L3,-1 L-3,-1 Z',
+      fillColor: '#1e293b',
+      fillOpacity: 1,
+      strokeColor: '#ffffff',
+      strokeWeight: 1.5,
+      scale: 1.3,
+      anchor: new google.maps.Point(0, 0),
     }
 
-    // Mousemove on map → rotate or adjust distance
-    const map = mapRef.current
-    const moveListener = map.addListener('mousemove', (e: google.maps.MapMouseEvent) => {
-      if (!isDraggingFovRef.current || !e.latLng) return
+    // ── Small circle SVG for angle handles ──
+    const circleSvg: google.maps.Symbol = {
+      path: google.maps.SymbolPath.CIRCLE,
+      fillColor: '#ffffff',
+      fillOpacity: 1,
+      strokeColor: '#1e293b',
+      strokeWeight: 2,
+      scale: 5,
+    }
 
-      const mouseLatLng = e.latLng
-      if (dragMode === 'rotate') {
-        const bearing = bearingFromTo(camLat, camLng, mouseLatLng.lat(), mouseLatLng.lng())
-        // Maps bearing (0=N, clockwise) → canvas rotation (0=E): subtract 90°
-        const canvasRot = ((bearing - 90 + 360) % 360)
-        onDeviceRotatedRef.current?.(selectedDeviceIdRef.current!, Math.round(canvasRot))
-      } else {
-        // Distance mode: distance from camera to cursor = new target distance
-        const newDist = haversineDistanceFt(camLat, camLng, mouseLatLng.lat(), mouseLatLng.lng())
-        const clampedDist = Math.max(5, Math.round(newDist))
-        onFovHandleDraggedRef.current?.(selectedDeviceIdRef.current!, clampedDist)
-      }
+    // ── Create person icon handle at cone tip ──
+    const personPos = destinationPoint(camLat, camLng, mapCenterBearing, outermostDist)
+    const personMarker = new google.maps.Marker({
+      position: personPos,
+      map,
+      icon: personSvg,
+      draggable: true,
+      zIndex: 10,
+      title: 'Drag to set rotation & distance',
     })
-    fovPolygonListenersRef.current.push(moveListener)
+    fovHandleMarkerRef.current = personMarker
 
-    // Mouseup on map → end drag
-    const upListener = map.addListener('mouseup', () => {
+    // ── Create angle handles at arc edges ──
+    const leftPos = destinationPoint(camLat, camLng, (mapCenterBearing - halfFov + 360) % 360, outermostDist)
+    const rightPos = destinationPoint(camLat, camLng, (mapCenterBearing + halfFov) % 360, outermostDist)
+    const leftMarker = new google.maps.Marker({
+      position: leftPos,
+      map,
+      icon: circleSvg,
+      draggable: true,
+      zIndex: 10,
+      title: 'Drag to adjust FOV angle',
+    })
+    const rightMarker = new google.maps.Marker({
+      position: rightPos,
+      map,
+      icon: circleSvg,
+      draggable: true,
+      zIndex: 10,
+      title: 'Drag to adjust FOV angle',
+    })
+    fovAngleHandlesRef.current = [leftMarker, rightMarker]
+
+    // ── Helper: live-update all selected polygon paths ──
+    const liveUpdatePolygons = (newRotDeg: number, newOuterDist: number, newHFov: number) => {
+      const polys = selectedDevicePolygonsRef.current
+      if (!polys.length) return
+      const newMapBearing = (newRotDeg + 90 + 360) % 360
+      const origOuterDist = data.tiers[0]?.distanceFt ?? 30
+      const scale = origOuterDist > 0 ? newOuterDist / origOuterDist : 1
+
+      const sensorRotations = data.sensorAngles?.length ? data.sensorAngles : [currentRotation]
+      // Compute delta from original base rotation to apply to each sensor
+      const baseDelta = newRotDeg - currentRotation
+
+      let polyIdx = 0
+      for (let sIdx = 0; sIdx < sensorRotations.length; sIdx++) {
+        const newSensorRot = sensorRotations[sIdx] + baseDelta
+        const imagerData = data.perImagerData?.[sIdx]
+        const effectiveTiers = imagerData?.tiers || data.tiers
+        const effectiveHFov = sensorRotations.length === 1 ? newHFov : (imagerData?.hFov ?? data.hFov)
+
+        for (let t = 0; t < effectiveTiers.length; t++) {
+          const tier = effectiveTiers[t]
+          const zoneName = COLOR_TO_ZONE[tier.color]
+          if (zoneName && hiddenPpfZones?.has(zoneName)) continue
+
+          if (polyIdx >= polys.length) break
+          const scaledDist = tier.distanceFt * scale
+
+          let path: Array<{ lat: number; lng: number }>
+          if (effectiveHFov >= 359) {
+            path = generateCirclePolygon(camLat, camLng, scaledDist, 48)
+          } else {
+            path = generateFovConePolygon({
+              lat: camLat,
+              lng: camLng,
+              rotationDeg: newSensorRot,
+              hFovDeg: effectiveHFov,
+              radiusFt: scaledDist,
+              steps: Math.max(24, Math.min(48, Math.round(effectiveHFov))),
+            })
+          }
+          if (path.length >= 3) {
+            polys[polyIdx].setPaths(path.map(p => new google.maps.LatLng(p.lat, p.lng)))
+          }
+          polyIdx++
+        }
+      }
+    }
+
+    // ── Person icon drag: rotation + distance ──
+    const personDragStart = personMarker.addListener('dragstart', () => {
+      isDraggingFovRef.current = true
+      dragDeviceIdRef.current = selectedDeviceId
+      map.setOptions({ draggable: false })
+    })
+    fovPolygonListenersRef.current.push(personDragStart)
+
+    const personDrag = personMarker.addListener('drag', (e: google.maps.MapMouseEvent) => {
+      if (!e.latLng) return
+      const newBearing = bearingFromTo(camLat, camLng, e.latLng.lat(), e.latLng.lng())
+      const newCanvasRot = ((newBearing - 90 + 360) % 360)
+      const newDist = Math.max(5, Math.round(haversineDistanceFt(camLat, camLng, e.latLng.lat(), e.latLng.lng())))
+
+      pendingRotationRef.current = Math.round(newCanvasRot)
+      pendingDistanceRef.current = newDist
+
+      // Live update polygons
+      liveUpdatePolygons(newCanvasRot, newDist, currentHFov)
+
+      // Update camera marker icon rotation
+      const devMarker = markersRef.current.get(selectedDeviceId)
+      if (devMarker) {
+        devMarker.setIcon(buildCameraSymbol(dev.category, newCanvasRot, true))
+      }
+
+      // Reposition angle handles
+      const newMapBearing = (newCanvasRot + 90 + 360) % 360
+      const newHalfFov = currentHFov / 2
+      const newLeft = destinationPoint(camLat, camLng, (newMapBearing - newHalfFov + 360) % 360, newDist)
+      const newRight = destinationPoint(camLat, camLng, (newMapBearing + newHalfFov) % 360, newDist)
+      leftMarker.setPosition(newLeft)
+      rightMarker.setPosition(newRight)
+    })
+    fovPolygonListenersRef.current.push(personDrag)
+
+    const personDragEnd = personMarker.addListener('dragend', () => {
+      isDraggingFovRef.current = false
+      map.setOptions({ draggable: true })
+      const devId = dragDeviceIdRef.current
+      if (devId && pendingRotationRef.current !== null) {
+        onDeviceRotatedRef.current?.(devId, pendingRotationRef.current)
+      }
+      if (devId && pendingDistanceRef.current !== null) {
+        onFovHandleDraggedRef.current?.(devId, pendingDistanceRef.current)
+      }
+      pendingRotationRef.current = null
+      pendingDistanceRef.current = null
+      dragDeviceIdRef.current = null
+    })
+    fovPolygonListenersRef.current.push(personDragEnd)
+
+    // ── Angle handle drag: FOV angle ──
+    const setupAngleDrag = (handle: GMarker, side: 'left' | 'right') => {
+      const otherHandle = side === 'left' ? rightMarker : leftMarker
+
+      const dragStart = handle.addListener('dragstart', () => {
+        isDraggingFovRef.current = true
+        dragDeviceIdRef.current = selectedDeviceId
+        map.setOptions({ draggable: false })
+      })
+      fovPolygonListenersRef.current.push(dragStart)
+
+      const drag = handle.addListener('drag', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return
+        // Get current center bearing (may have been updated by prior person drag)
+        const effectiveRot = pendingRotationRef.current ?? currentRotation
+        const effectiveDist = pendingDistanceRef.current ?? outermostDist
+        const centerBearing = (effectiveRot + 90 + 360) % 360
+
+        const handleBearing = bearingFromTo(camLat, camLng, e.latLng.lat(), e.latLng.lng())
+        // Compute angular difference from center bearing to handle bearing
+        let diff = handleBearing - centerBearing
+        if (diff > 180) diff -= 360
+        if (diff < -180) diff += 360
+        const newHalfFov = Math.max(5, Math.min(179, Math.abs(diff)))
+        const newFovAngle = Math.round(newHalfFov * 2)
+
+        pendingFovAngleRef.current = newFovAngle
+
+        // Live update polygons with new FOV angle
+        liveUpdatePolygons(effectiveRot, effectiveDist, newFovAngle)
+
+        // Reposition the other handle symmetrically
+        const otherBearing = side === 'left'
+          ? (centerBearing + newHalfFov) % 360
+          : (centerBearing - newHalfFov + 360) % 360
+        const otherPos = destinationPoint(camLat, camLng, otherBearing, effectiveDist)
+        otherHandle.setPosition(otherPos)
+
+        // Reposition person icon (distance unchanged, rotation unchanged)
+        const personP = destinationPoint(camLat, camLng, centerBearing, effectiveDist)
+        personMarker.setPosition(personP)
+      })
+      fovPolygonListenersRef.current.push(drag)
+
+      const dragEnd = handle.addListener('dragend', () => {
+        isDraggingFovRef.current = false
+        map.setOptions({ draggable: true })
+        const devId = dragDeviceIdRef.current
+        if (devId && pendingFovAngleRef.current !== null) {
+          onFovAngleChangedRef.current?.(devId, pendingFovAngleRef.current)
+        }
+        pendingFovAngleRef.current = null
+        dragDeviceIdRef.current = null
+      })
+      fovPolygonListenersRef.current.push(dragEnd)
+    }
+
+    setupAngleDrag(leftMarker, 'left')
+    setupAngleDrag(rightMarker, 'right')
+
+    // ── Document-level mouseup safety net (mouse released outside map) ──
+    const docMouseUp = () => {
       if (isDraggingFovRef.current) {
         isDraggingFovRef.current = false
-        mapRef.current?.setOptions({ draggable: true })
+        map.setOptions({ draggable: true })
+        const devId = dragDeviceIdRef.current
+        if (devId) {
+          if (pendingRotationRef.current !== null) onDeviceRotatedRef.current?.(devId, pendingRotationRef.current)
+          if (pendingDistanceRef.current !== null) onFovHandleDraggedRef.current?.(devId, pendingDistanceRef.current)
+          if (pendingFovAngleRef.current !== null) onFovAngleChangedRef.current?.(devId, pendingFovAngleRef.current)
+        }
+        pendingRotationRef.current = null
+        pendingDistanceRef.current = null
+        pendingFovAngleRef.current = null
+        dragDeviceIdRef.current = null
       }
-    })
-    fovPolygonListenersRef.current.push(upListener)
+    }
+    document.addEventListener('mouseup', docMouseUp)
 
     return () => {
       for (const l of fovPolygonListenersRef.current) l.remove()
       fovPolygonListenersRef.current = []
-      isDraggingFovRef.current = false
-      mapRef.current?.setOptions({ draggable: true })
+      document.removeEventListener('mouseup', docMouseUp)
+      fovHandleMarkerRef.current?.setMap(null)
+      fovHandleMarkerRef.current = null
+      if (fovAngleHandlesRef.current) {
+        fovAngleHandlesRef.current[0].setMap(null)
+        fovAngleHandlesRef.current[1].setMap(null)
+        fovAngleHandlesRef.current = null
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDeviceId, devices, fovData, showFovCones, geoContext, hiddenCategories, hiddenPpfZones, mapReady])
+  }, [selectedDeviceId, devices, fovData, showFovCones, geoContext, hiddenPpfZones, mapReady])
 
   // Update floor plan overlay
   useEffect(() => {
