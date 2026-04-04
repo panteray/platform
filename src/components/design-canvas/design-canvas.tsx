@@ -298,10 +298,25 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         // Fisheye: use fisheye_view property (180 or 360), NOT the rectilinear formula
         const fisheyeView = Number(props.fisheye_view) || 180
         hFov = fisheyeView
+      } else if (aovAngle > 0) {
+        // Manufacturer AOV from device library — most accurate, matches IPVM
+        const userOverride = Number(props.fov_angle) || 0
+        if (userOverride > 0) {
+          hFov = Math.min(userOverride, aovAngle) // user can narrow but not exceed manufacturer AOV
+        } else {
+          hFov = aovAngle
+        }
       } else if (focalLength > 0 && sensorW > 0) {
-        hFov = 2 * Math.atan(sensorW / (2 * focalLength)) * (180 / Math.PI)
+        // Thin-lens approximation as fallback when no AOV in library
+        const thinLens = 2 * Math.atan(sensorW / (2 * focalLength)) * (180 / Math.PI)
+        const userOverride = Number(props.fov_angle) || 0
+        if (userOverride > 0) {
+          hFov = Math.min(userOverride, thinLens) // user can narrow but not exceed computed max
+        } else {
+          hFov = thinLens
+        }
       } else {
-        hFov = fovAngle
+        hFov = defaultFov
       }
 
       const deviceColor = d.color_hex || '#3b82f6'
