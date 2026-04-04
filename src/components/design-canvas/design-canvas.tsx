@@ -218,10 +218,12 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   }, [satelliteConfig])
 
   /** Phase A: single geo anchor (satellite center) + scale for lat/lng ↔ `position_x`/`position_y` */
+  // Fallback to default center if no satellite config — ensures markers and FOV render regardless
+  const DEFAULT_CENTER = { lat: 37.7749, lng: -122.4194 }
   const designGeoContext = useMemo(
     () => buildDesignGeoContext(
-      satelliteConfig ? { lat: satelliteConfig.lat, lng: satelliteConfig.lng } : null,
-      scalePxPerFt,
+      satelliteConfig ? { lat: satelliteConfig.lat, lng: satelliteConfig.lng } : DEFAULT_CENTER,
+      scalePxPerFt > 0 ? scalePxPerFt : 1,
     ),
     [satelliteConfig, scalePxPerFt],
   )

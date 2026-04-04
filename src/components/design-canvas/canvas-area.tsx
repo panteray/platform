@@ -22,6 +22,9 @@ import {
   generateFovConePolygon,
   generateCirclePolygon,
   feetPerPixelAtZoom,
+  destinationPoint,
+  distanceFt as haversineDistanceFt,
+  bearing as bearingFromTo,
   type DesignGeoContext,
 } from './geo-math'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignMdfIdf } from '@/types/database'
@@ -96,7 +99,7 @@ interface Props {
   canvasActionsRef?: React.MutableRefObject<{ zoomIn: () => void; zoomOut: () => void; fitToView: () => void } | null>
 }
 
-/* ─── Device icon mapping ─── */
+/* ─── Device icon mapping (PNG fallback for non-camera devices) ─── */
 const CAT_TO_PNG: Record<string, string> = {
   cctv: '/icons/cctv/dome.png',
   dome: '/icons/cctv/dome.png',
@@ -106,6 +109,58 @@ const CAT_TO_PNG: Record<string, string> = {
   multisensor_quad: '/icons/cctv/multisensor.png',
   multisensor_dual: '/icons/cctv/dualsensor.png',
   turret: '/icons/cctv/turret.png',
+}
+
+/* ─── Camera marker SVG paths (google.maps.Symbol supports rotation) ─── */
+// Circle with a notch/wedge pointing in the aim direction (0° = East in canvas coords).
+// Path is drawn centered at 0,0 in a 24x24 viewBox. The notch points RIGHT (0°).
+// google.maps.Symbol rotation property rotates this.
+const CAMERA_SVG_PATHS: Record<string, string> = {
+  // Standard dome/turret — circle with direction notch
+  dome:   'M 0,-10 A 10,10 0 1,0 0,10 A 10,10 0 1,0 0,-10 Z M 8,-4 L 14,0 L 8,4 Z',
+  turret: 'M 0,-10 A 10,10 0 1,0 0,10 A 10,10 0 1,0 0,-10 Z M 8,-4 L 14,0 L 8,4 Z',
+  cctv:   'M 0,-10 A 10,10 0 1,0 0,10 A 10,10 0 1,0 0,-10 Z M 8,-4 L 14,0 L 8,4 Z',
+  // Bullet — elongated rectangle with aim arrow
+  bullet: 'M -8,-6 L 8,-6 L 12,0 L 8,6 L -8,6 Z',
+  // PTZ — circle with crosshair notch
+  ptz:    'M 0,-10 A 10,10 0 1,0 0,10 A 10,10 0 1,0 0,-10 Z M 8,-5 L 16,0 L 8,5 Z',
+  // Fisheye — full circle (no direction notch — 360° view)
+  fisheye: 'M 0,-10 A 10,10 0 1,0 0,10 A 10,10 0 1,0 0,-10 Z',
+  // Multi-sensor — circle with multiple notches
+  multisensor_quad: 'M 0,-10 A 10,10 0 1,0 0,10 A 10,10 0 1,0 0,-10 Z M 8,-3 L 13,0 L 8,3 Z M -8,-3 L -13,0 L -8,3 Z',
+  multisensor_dual: 'M 0,-10 A 10,10 0 1,0 0,10 A 10,10 0 1,0 0,-10 Z M 8,-3 L 13,0 L 8,3 Z',
+}
+
+const CAMERA_CATEGORIES = new Set([
+  'cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual',
+])
+
+/** Signed angle difference (shortest path), result in [-180, 180] */
+function angleDiff(a: number, b: number): number {
+  let d = ((a - b + 540) % 360) - 180
+  return d
+}
+
+/** Build a google.maps.Symbol for camera devices (supports rotation) */
+function buildCameraSymbol(
+  category: string,
+  rotation: number,
+  isSelected: boolean,
+): google.maps.Symbol {
+  const path = CAMERA_SVG_PATHS[category] || CAMERA_SVG_PATHS.dome
+  // Canvas convention: 0° = East. google.maps.Symbol rotation: 0° = North, clockwise.
+  // So canvas 0° (East) = Symbol 90°. Offset +90.
+  const symbolRotation = (rotation + 90 + 360) % 360
+  return {
+    path,
+    rotation: symbolRotation,
+    fillColor: isSelected ? '#6d28d9' : '#1e293b',
+    fillOpacity: isSelected ? 1.0 : 0.85,
+    strokeColor: isSelected ? '#a78bfa' : '#64748b',
+    strokeWeight: isSelected ? 2.5 : 1.5,
+    scale: isSelected ? 1.6 : 1.3,
+    anchor: new google.maps.Point(0, 0),
+  }
 }
 
 const COLOR_TO_ZONE: Record<string, string> = {
@@ -188,6 +243,7 @@ function CanvasArea(props: Props) {
   const groundOverlayRef = useRef<GOverlay | null>(null)
   const contextMenuRef = useRef<{ deviceId: string; x: number; y: number } | null>(null)
   const draggingDeviceRef = useRef<string | null>(null)
+  const fovHandlesRef = useRef<GMarker[]>([])
   const [contextMenuVisible, setContextMenuVisible] = useState(false)
 
   // Stable refs for callbacks used inside Google Maps event listeners (avoid stale closures)
@@ -207,6 +263,14 @@ function CanvasArea(props: Props) {
   useEffect(() => { onZoomChangeRef.current = onZoomChange }, [onZoomChange])
   const satelliteConfigRef = useRef(satelliteConfig)
   useEffect(() => { satelliteConfigRef.current = satelliteConfig }, [satelliteConfig])
+  const onFovHandleDraggedRef = useRef(onFovHandleDragged)
+  useEffect(() => { onFovHandleDraggedRef.current = onFovHandleDragged }, [onFovHandleDragged])
+  const onFovAngleChangedRef = useRef(onFovAngleChanged)
+  useEffect(() => { onFovAngleChangedRef.current = onFovAngleChanged }, [onFovAngleChanged])
+  const onDeviceRotatedRef = useRef(onDeviceRotated)
+  useEffect(() => { onDeviceRotatedRef.current = onDeviceRotated }, [onDeviceRotated])
+  const fovDataRef = useRef(fovData)
+  useEffect(() => { fovDataRef.current = fovData }, [fovData])
 
   // Google Maps script loading (reuse cached script from satellite-map if present)
   const [mapReady, setMapReady] = useState(false)
@@ -334,20 +398,25 @@ function CanvasArea(props: Props) {
       seen.add(dev.id)
       const { lat, lng } = canvasPixelsToLatLng(dev.position_x, dev.position_y, geoContext)
       const isSelected = dev.id === selectedDeviceId
-      const iconUrl = CAT_TO_PNG[dev.category] || '/icons/cctv/dome.png'
+      const isCamera = CAMERA_CATEGORIES.has(dev.category)
 
       let marker = markersRef.current.get(dev.id)
+
+      // Build icon: cameras use Symbol (rotation-capable), others use PNG
+      const iconObj: google.maps.Symbol | google.maps.Icon = isCamera
+        ? buildCameraSymbol(dev.category, dev.rotation || 0, isSelected)
+        : {
+            url: CAT_TO_PNG[dev.category] || '/icons/cctv/dome.png',
+            scaledSize: new google.maps.Size(32, 32),
+            origin: new google.maps.Point(0, 0),
+            anchor: new google.maps.Point(16, 16),
+          }
 
       if (!marker) {
         marker = new google.maps.Marker({
           position: { lat, lng },
           map,
-          icon: {
-            url: iconUrl,
-            scaledSize: new google.maps.Size(32, 32),
-            origin: new google.maps.Point(0, 0),
-            anchor: new google.maps.Point(16, 16),
-          },
+          icon: iconObj,
           draggable: isSelected,
           title: dev.label || 'Device',
         })
@@ -383,13 +452,10 @@ function CanvasArea(props: Props) {
 
         markersRef.current.set(dev.id, marker)
       } else {
-        // Update marker position and draggable state
+        // Update marker position, icon (rotation changes), and draggable state
         marker.setPosition({ lat, lng })
+        marker.setIcon(iconObj)
         marker.setDraggable(isSelected)
-
-        // Update opacity: selected = 1.0, others = 0.6
-        const opacity = isSelected ? 1.0 : 0.6
-        marker.setOpacity(opacity)
       }
     }
 
@@ -517,6 +583,162 @@ function CanvasArea(props: Props) {
     hiddenPpfZones,
     fovDisplayMode,
   ])
+
+  // FOV drag handles for selected device (IPVM pattern: tip handle for distance, edge handles for angle)
+  useEffect(() => {
+    // Clear existing handles
+    for (const h of fovHandlesRef.current) h.setMap(null)
+    fovHandlesRef.current = []
+
+    if (!mapRef.current || !geoContext || !showFovCones || !selectedDeviceId) return
+
+    const dev = devices.find((d) => d.id === selectedDeviceId)
+    if (!dev || !CAMERA_CATEGORIES.has(dev.category)) return
+
+    const data = fovData.get(selectedDeviceId)
+    if (!data || !data.tiers.length) return
+
+    const map = mapRef.current
+    const { lat: camLat, lng: camLng } = canvasPixelsToLatLng(dev.position_x, dev.position_y, geoContext)
+    const rotation = dev.rotation || 0
+    const hFov = data.hFov
+    const maxTierDist = data.tiers[0]?.distanceFt || 30
+
+    // Canvas 0° = East → Maps bearing 0° = North → +90° offset
+    const mapBearing = (rotation + 90 + 360) % 360
+    const halfFov = hFov / 2
+
+    // Handle icon: small draggable circle
+    const handleSymbol: google.maps.Symbol = {
+      path: google.maps.SymbolPath.CIRCLE,
+      fillColor: '#facc15',
+      fillOpacity: 1,
+      strokeColor: '#854d0e',
+      strokeWeight: 2,
+      scale: 7,
+    }
+
+    // 1. Distance handle — at the tip of the FOV cone (center bearing, max distance)
+    const tipPos = destinationPoint(camLat, camLng, mapBearing, maxTierDist)
+    const tipHandle = new google.maps.Marker({
+      position: tipPos,
+      map,
+      icon: handleSymbol,
+      draggable: true,
+      title: 'Drag to change FOV distance',
+      zIndex: 100,
+    })
+
+    tipHandle.addListener('drag', (e: google.maps.MapMouseEvent) => {
+      if (!e.latLng) return
+      const distFt = haversineDistanceFt(camLat, camLng, e.latLng.lat(), e.latLng.lng())
+      onFovHandleDraggedRef.current?.(selectedDeviceId, Math.max(1, Math.round(distFt)))
+    })
+
+    tipHandle.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+      if (!e.latLng) return
+      const distFt = haversineDistanceFt(camLat, camLng, e.latLng.lat(), e.latLng.lng())
+      onFovHandleDraggedRef.current?.(selectedDeviceId, Math.max(1, Math.round(distFt)))
+    })
+
+    fovHandlesRef.current.push(tipHandle)
+
+    // 2. Left edge handle — at left edge of FOV cone
+    if (hFov < 359) {
+      const leftBearing = (mapBearing - halfFov + 360) % 360
+      const leftPos = destinationPoint(camLat, camLng, leftBearing, maxTierDist * 0.7)
+      const leftHandle = new google.maps.Marker({
+        position: leftPos,
+        map,
+        icon: { ...handleSymbol, fillColor: '#fb923c' },
+        draggable: true,
+        title: 'Drag to change FOV angle',
+        zIndex: 100,
+      })
+
+      leftHandle.addListener('drag', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return
+        const bearing = bearingFromTo(camLat, camLng, e.latLng.lat(), e.latLng.lng())
+        const diff = angleDiff(bearing, mapBearing)
+        const newFov = Math.max(5, Math.min(360, Math.abs(diff) * 2))
+        onFovAngleChangedRef.current?.(selectedDeviceId, Math.round(newFov))
+      })
+
+      leftHandle.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return
+        const bearing = bearingFromTo(camLat, camLng, e.latLng.lat(), e.latLng.lng())
+        const diff = angleDiff(bearing, mapBearing)
+        const newFov = Math.max(5, Math.min(360, Math.abs(diff) * 2))
+        onFovAngleChangedRef.current?.(selectedDeviceId, Math.round(newFov))
+      })
+
+      fovHandlesRef.current.push(leftHandle)
+
+      // 3. Right edge handle
+      const rightBearing = (mapBearing + halfFov + 360) % 360
+      const rightPos = destinationPoint(camLat, camLng, rightBearing, maxTierDist * 0.7)
+      const rightHandle = new google.maps.Marker({
+        position: rightPos,
+        map,
+        icon: { ...handleSymbol, fillColor: '#fb923c' },
+        draggable: true,
+        title: 'Drag to change FOV angle',
+        zIndex: 100,
+      })
+
+      rightHandle.addListener('drag', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return
+        const bearing = bearingFromTo(camLat, camLng, e.latLng.lat(), e.latLng.lng())
+        const diff = angleDiff(bearing, mapBearing)
+        const newFov = Math.max(5, Math.min(360, Math.abs(diff) * 2))
+        onFovAngleChangedRef.current?.(selectedDeviceId, Math.round(newFov))
+      })
+
+      rightHandle.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return
+        const bearing = bearingFromTo(camLat, camLng, e.latLng.lat(), e.latLng.lng())
+        const diff = angleDiff(bearing, mapBearing)
+        const newFov = Math.max(5, Math.min(360, Math.abs(diff) * 2))
+        onFovAngleChangedRef.current?.(selectedDeviceId, Math.round(newFov))
+      })
+
+      fovHandlesRef.current.push(rightHandle)
+
+      // 4. Rotation handle — placed behind the camera, drag to rotate
+      const rotHandleBearing = (mapBearing + 180 + 360) % 360
+      const rotPos = destinationPoint(camLat, camLng, rotHandleBearing, maxTierDist * 0.35)
+      const rotHandle = new google.maps.Marker({
+        position: rotPos,
+        map,
+        icon: { ...handleSymbol, fillColor: '#38bdf8', strokeColor: '#0369a1' },
+        draggable: true,
+        title: 'Drag to rotate camera',
+        zIndex: 100,
+      })
+
+      rotHandle.addListener('drag', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return
+        const bearing = bearingFromTo(camLat, camLng, e.latLng.lat(), e.latLng.lng())
+        // Maps bearing to canvas rotation: subtract 90° offset, then flip 180° (handle is behind camera)
+        const canvasRot = ((bearing - 90 + 180 + 360) % 360)
+        onDeviceRotatedRef.current?.(selectedDeviceId, Math.round(canvasRot))
+      })
+
+      rotHandle.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return
+        const bearing = bearingFromTo(camLat, camLng, e.latLng.lat(), e.latLng.lng())
+        const canvasRot = ((bearing - 90 + 180 + 360) % 360)
+        onDeviceRotatedRef.current?.(selectedDeviceId, Math.round(canvasRot))
+      })
+
+      fovHandlesRef.current.push(rotHandle)
+    }
+
+    return () => {
+      for (const h of fovHandlesRef.current) h.setMap(null)
+      fovHandlesRef.current = []
+    }
+  }, [selectedDeviceId, devices, fovData, showFovCones, geoContext])
 
   // Update floor plan overlay
   useEffect(() => {
