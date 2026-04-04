@@ -1,4 +1,5 @@
 'use client'
+/// <reference types="google.maps" />
 /**
  * CanvasArea — Google Maps native canvas with device markers, FOV polygons, and drag interactions.
  *
