@@ -1,96 +1,116 @@
 'use client'
 /**
- * LeftPanel — Device inventory list (Hanwha DesignPro style).
+ * LeftPanel — Device inventory with quantity pool (Hanwha DesignPro style).
  *
- * Shows all devices placed in the current area with category icons,
- * labels, and quick-select. Supports grouping by category or color.
- * Color filter chips let users focus on specific color groups.
+ * Groups devices by model (device_library_item_id). Each model shows:
+ *   - Editable quantity (−/count/+)
+ *   - "On Map" devices with [locate] [remove] actions
+ *   - "Available" pool devices with [+ Place] action
  */
 
-import React, { useState } from 'react'
-import { Plus, Trash2, Cctv, DoorOpen, Network, Speaker, Cpu, Box, Locate, Palette } from 'lucide-react'
+import React, { useState, useMemo } from 'react'
+import {
+  Plus, Minus, Cctv, DoorOpen, Network, Speaker, Cpu, Box,
+  Locate, MapPinOff, MapPin, ChevronDown, ChevronRight, Trash2,
+} from 'lucide-react'
 import { C } from './constants'
 import type { DesignDevice } from '@/types/database'
 
 const CAT_ICON: Record<string, React.ReactNode> = {
   cctv: <Cctv size={14} />, dome: <Cctv size={14} />, bullet: <Cctv size={14} />,
   turret: <Cctv size={14} />, ptz: <Cctv size={14} />, fisheye: <Cctv size={14} />,
+  multisensor_quad: <Cctv size={14} />, multisensor_dual: <Cctv size={14} />,
   access_control: <DoorOpen size={14} />, network: <Network size={14} />,
   av: <Speaker size={14} />, vape_environmental: <Cpu size={14} />,
 }
 const CAT_COLOR: Record<string, string> = {
   cctv: '#3b82f6', dome: '#3b82f6', bullet: '#3b82f6', turret: '#3b82f6',
-  ptz: '#8b5cf6', fisheye: '#06b6d4', access_control: '#f97316',
-  network: '#22c55e', av: '#eab308', vape_environmental: '#ef4444',
+  ptz: '#8b5cf6', fisheye: '#06b6d4', multisensor_quad: '#a855f7', multisensor_dual: '#a855f7',
+  access_control: '#f97316', network: '#22c55e', av: '#eab308', vape_environmental: '#ef4444',
+}
+
+interface ModelGroup {
+  libraryItemId: string | null
+  modelName: string
+  category: string
+  devices: DesignDevice[]
+  placed: DesignDevice[]
+  available: DesignDevice[]
 }
 
 interface Props {
+  /** ALL devices in this area (including unplaced) */
   devices: DesignDevice[]
   selectedId: string | null
   onSelect: (id: string | null) => void
   onAddDevice: () => void
   onDeleteDevice: (id: string) => void
   onZoomToDevice?: (id: string) => void
-  /** When set, only devices with this color_hex are shown on canvas */
-  onColorFilterChange?: (colors: Set<string> | null) => void
+  onPlaceDevice?: (id: string) => void
+  onRemoveFromMap?: (id: string) => void
+  onUpdateQuantity?: (libraryItemId: string, newQty: number, templateDevice: DesignDevice) => void
 }
 
-export function LeftPanel({ devices, selectedId, onSelect, onAddDevice, onDeleteDevice, onZoomToDevice, onColorFilterChange }: Props) {
-  const [groupBy, setGroupBy] = useState<'category' | 'color'>('category')
-  const [activeColors, setActiveColors] = useState<Set<string> | null>(null)
+export function LeftPanel({
+  devices, selectedId, onSelect, onAddDevice, onDeleteDevice,
+  onZoomToDevice, onPlaceDevice, onRemoveFromMap, onUpdateQuantity,
+}: Props) {
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
-  // Collect unique colors used by devices
-  const usedColors = React.useMemo(() => {
-    const s = new Set<string>()
+  // Group devices by model (device_library_item_id)
+  const modelGroups = useMemo(() => {
+    const map = new Map<string, ModelGroup>()
+
     for (const d of devices) {
-      const c = (d as unknown as Record<string, unknown>).color_hex as string | undefined
-      if (c) s.add(c)
+      const libId = d.device_library_item_id || `custom_${d.id}`
+      const props = (d.properties ?? {}) as Record<string, unknown>
+      const isUnplaced = !!props.unplaced
+
+      if (!map.has(libId)) {
+        const vendor = (props.vendor as string) || ''
+        const model = (props.model as string) || ''
+        const modelName = vendor && model ? `${vendor} ${model}` : d.label || 'Custom Device'
+        map.set(libId, {
+          libraryItemId: d.device_library_item_id,
+          modelName,
+          category: d.category,
+          devices: [],
+          placed: [],
+          available: [],
+        })
+      }
+
+      const group = map.get(libId)!
+      group.devices.push(d)
+      if (isUnplaced) {
+        group.available.push(d)
+      } else {
+        group.placed.push(d)
+      }
     }
-    return Array.from(s).sort()
+
+    // Sort groups: cameras first, then by model name
+    return [...map.entries()].sort((a, b) => {
+      const catA = a[1].category
+      const catB = b[1].category
+      const isCamA = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(catA)
+      const isCamB = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(catB)
+      if (isCamA !== isCamB) return isCamA ? -1 : 1
+      return a[1].modelName.localeCompare(b[1].modelName)
+    })
   }, [devices])
 
-  // Group devices
-  const groups = React.useMemo(() => {
-    const map = new Map<string, DesignDevice[]>()
-    const filtered = activeColors
-      ? devices.filter(d => {
-          const c = (d as unknown as Record<string, unknown>).color_hex as string | undefined
-          return c && activeColors.has(c)
-        })
-      : devices
-
-    for (const d of filtered) {
-      const key = groupBy === 'color'
-        ? ((d as unknown as Record<string, unknown>).color_hex as string || 'unassigned')
-        : d.category
-      if (!map.has(key)) map.set(key, [])
-      map.get(key)!.push(d)
-    }
-    return map
-  }, [devices, groupBy, activeColors])
-
-  const toggleColorFilter = (color: string) => {
-    setActiveColors(prev => {
-      let next: Set<string> | null
-      if (!prev) {
-        next = new Set([color])
-      } else if (prev.has(color)) {
-        const copy = new Set(prev)
-        copy.delete(color)
-        next = copy.size === 0 ? null : copy
-      } else {
-        next = new Set(prev)
-        next.add(color)
-      }
-      onColorFilterChange?.(next)
+  const toggleCollapse = (key: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }
 
-  const clearColorFilter = () => {
-    setActiveColors(null)
-    onColorFilterChange?.(null)
-  }
+  const totalDevices = devices.length
+  const placedCount = devices.filter(d => !(d.properties as Record<string, unknown> | null)?.unplaced).length
 
   return (
     <div style={{
@@ -103,160 +123,210 @@ export function LeftPanel({ devices, selectedId, onSelect, onAddDevice, onDelete
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '10px 12px', borderBottom: `1px solid ${C.border}`,
       }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
-          Devices ({activeColors ? groups.size : devices.length})
-        </span>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button onClick={() => setGroupBy(g => g === 'category' ? 'color' : 'category')}
-            title={`Group by ${groupBy === 'category' ? 'color' : 'category'}`}
-            style={{
-              display: 'flex', alignItems: 'center', padding: '4px 6px',
-              background: groupBy === 'color' ? C.accentSubtle : 'transparent',
-              color: groupBy === 'color' ? C.accent : C.textMuted,
-              border: `1px solid ${groupBy === 'color' ? C.accent : C.border}`,
-              borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit',
-            }}>
-            <Palette size={12} />
-          </button>
-          <button onClick={onAddDevice}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '4px 8px', background: C.accent, color: '#fff',
-              border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit',
-            }}>
-            <Plus size={12} /> Add
-          </button>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
+            Devices
+          </span>
+          <span style={{ fontSize: 9, color: C.textDim }}>
+            {placedCount} placed · {totalDevices - placedCount} available
+          </span>
         </div>
+        <button onClick={onAddDevice}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            padding: '4px 8px', background: C.accent, color: '#fff',
+            border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 600,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>
+          <Plus size={12} /> Add
+        </button>
       </div>
 
-      {/* Color filter chips (Hanwha DesignPro style) */}
-      {usedColors.length > 0 && (
-        <div style={{
-          display: 'flex', flexWrap: 'wrap', gap: 3, padding: '6px 12px',
-          borderBottom: `1px solid ${C.borderSubtle}`,
-        }}>
-          {usedColors.map(color => {
-            const isActive = activeColors?.has(color)
-            return (
-              <button key={color} onClick={() => toggleColorFilter(color)}
-                style={{
-                  width: 14, height: 14, borderRadius: '50%', background: color,
-                  border: isActive ? '2px solid #fff' : '1px solid rgba(255,255,255,0.2)',
-                  cursor: 'pointer', opacity: !activeColors || isActive ? 1 : 0.3,
-                  transition: 'opacity 0.15s, border 0.15s',
-                }}
-                title={`Filter by ${color}`}
-              />
-            )
-          })}
-          {activeColors && (
-            <button onClick={clearColorFilter}
-              style={{
-                fontSize: 9, padding: '1px 6px', background: 'transparent',
-                color: C.textMuted, border: `1px solid ${C.border}`, borderRadius: 8,
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}>
-              Clear
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Device list */}
+      {/* Device list grouped by model */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
-        {devices.length === 0 && (
+        {modelGroups.length === 0 && (
           <div style={{ padding: 16, textAlign: 'center', color: C.textDim, fontSize: 11 }}>
-            No devices placed yet.<br />
+            No devices yet.<br />
             Click &ldquo;Add&rdquo; to browse the catalog.
           </div>
         )}
 
-        {Array.from(groups.entries()).map(([key, devs]) => (
-          <div key={key}>
-            {/* Group header */}
-            <div style={{
-              padding: '6px 12px', fontSize: 9, fontWeight: 700,
-              color: groupBy === 'color'
-                ? (key === 'unassigned' ? C.textDim : key)
-                : (CAT_COLOR[key] || C.textMuted),
-              textTransform: 'uppercase', letterSpacing: '0.5px',
-              display: 'flex', alignItems: 'center', gap: 5,
-            }}>
-              {groupBy === 'color' && key !== 'unassigned' && (
-                <span style={{
-                  width: 8, height: 8, borderRadius: '50%', background: key,
-                  display: 'inline-block', flexShrink: 0,
-                }} />
-              )}
-              {groupBy === 'color'
-                ? (key === 'unassigned' ? 'No Color' : `Group`)
-                : key.replace(/_/g, ' ')
-              } ({devs.length})
-            </div>
+        {modelGroups.map(([key, group]) => {
+          const isCollapsed = collapsedGroups.has(key)
+          const total = group.devices.length
+          const placed = group.placed.length
+          const catColor = CAT_COLOR[group.category] || C.textMuted
+          const catIcon = CAT_ICON[group.category] || <Box size={14} />
 
-            {/* Device rows */}
-            {devs.map(d => {
-              const sel = d.id === selectedId
-              const devColor = (d as unknown as Record<string, unknown>).color_hex as string | undefined
-              return (
-                <div key={d.id}
-                  onClick={() => onSelect(d.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 12px', cursor: 'pointer',
-                    background: sel ? C.accentSubtle : 'transparent',
-                    borderLeft: sel ? `2px solid ${C.accent}` : '2px solid transparent',
-                    transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={e => { if (!sel) e.currentTarget.style.background = C.bgHover }}
-                  onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'transparent' }}
-                >
-                  {/* Color dot */}
-                  {devColor && (
-                    <span style={{
-                      width: 6, height: 6, borderRadius: '50%', background: devColor,
-                      flexShrink: 0,
-                    }} />
-                  )}
-                  <span style={{ color: CAT_COLOR[d.category] || C.textMuted, flexShrink: 0 }}>
-                    {CAT_ICON[d.category] || <Box size={14} />}
-                  </span>
-                  <span style={{
-                    flex: 1, fontSize: 11, color: sel ? C.text : C.textMuted,
+          return (
+            <div key={key} style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
+              {/* Model header */}
+              <div
+                onClick={() => toggleCollapse(key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '8px 10px', cursor: 'pointer',
+                  background: C.bgHover,
+                }}
+              >
+                <span style={{ color: catColor, flexShrink: 0 }}>{catIcon}</span>
+                {isCollapsed ? <ChevronRight size={12} color={C.textDim} /> : <ChevronDown size={12} color={C.textDim} />}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 11, fontWeight: 600, color: C.text,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>
-                    {d.label || 'Unnamed'}
-                  </span>
-                  <button onClick={e => { e.stopPropagation(); onDeleteDevice(d.id) }}
-                    style={{
-                      background: 'none', border: 'none', color: C.textDim,
-                      cursor: 'pointer', padding: 2, opacity: 0.4, transition: 'opacity 0.1s',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = '0.4')}
-                    title="Delete"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                  {onZoomToDevice && (
-                    <button onClick={e => { e.stopPropagation(); onSelect(d.id); onZoomToDevice(d.id) }}
-                      style={{
-                        background: 'none', border: 'none', color: C.accent,
-                        cursor: 'pointer', padding: 2, opacity: 0.4, transition: 'opacity 0.1s',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                      onMouseLeave={e => (e.currentTarget.style.opacity = '0.4')}
-                      title="Zoom to device"
-                    >
-                      <Locate size={12} />
-                    </button>
-                  )}
+                    {group.modelName}
+                  </div>
+                  <div style={{ fontSize: 9, color: C.textDim }}>
+                    {placed}/{total} placed
+                  </div>
                 </div>
-              )
-            })}
-          </div>
-        ))}
+
+                {/* Quantity controls */}
+                {group.libraryItemId && onUpdateQuantity && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}
+                    onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => {
+                        if (total > placed) {
+                          onUpdateQuantity(group.libraryItemId!, total - 1, group.devices[0])
+                        }
+                      }}
+                      disabled={total <= placed}
+                      style={{
+                        width: 18, height: 18, borderRadius: 3, border: `1px solid ${C.border}`,
+                        background: 'transparent', color: total <= placed ? C.borderSubtle : C.textMuted,
+                        cursor: total <= placed ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                      }}
+                    >
+                      <Minus size={10} />
+                    </button>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.text, minWidth: 18, textAlign: 'center' }}>
+                      {total}
+                    </span>
+                    <button
+                      onClick={() => onUpdateQuantity(group.libraryItemId!, total + 1, group.devices[0])}
+                      style={{
+                        width: 18, height: 18, borderRadius: 3, border: `1px solid ${C.border}`,
+                        background: 'transparent', color: C.textMuted, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                      }}
+                    >
+                      <Plus size={10} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Expanded device list */}
+              {!isCollapsed && (
+                <div style={{ padding: '2px 0' }}>
+                  {/* Placed devices */}
+                  {group.placed.map(d => {
+                    const sel = d.id === selectedId
+                    return (
+                      <div key={d.id}
+                        onClick={() => onSelect(d.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          padding: '4px 10px 4px 28px', cursor: 'pointer',
+                          background: sel ? C.accentSubtle : 'transparent',
+                          borderLeft: sel ? `2px solid ${C.accent}` : '2px solid transparent',
+                          transition: 'background 0.1s',
+                        }}
+                        onMouseEnter={e => { if (!sel) e.currentTarget.style.background = C.bgHover }}
+                        onMouseLeave={e => { if (!sel) e.currentTarget.style.background = sel ? C.accentSubtle : 'transparent' }}
+                      >
+                        <MapPin size={10} color="#22c55e" style={{ flexShrink: 0 }} />
+                        <span style={{
+                          flex: 1, fontSize: 10, color: sel ? C.text : C.textMuted,
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                          {d.label || 'Unnamed'}
+                        </span>
+                        {onZoomToDevice && (
+                          <button onClick={e => { e.stopPropagation(); onSelect(d.id); onZoomToDevice(d.id) }}
+                            title="Locate on map"
+                            style={{
+                              background: 'none', border: 'none', color: C.accent,
+                              cursor: 'pointer', padding: 2, opacity: 0.4, transition: 'opacity 0.1s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                            onMouseLeave={e => (e.currentTarget.style.opacity = '0.4')}
+                          >
+                            <Locate size={10} />
+                          </button>
+                        )}
+                        {onRemoveFromMap && (
+                          <button onClick={e => { e.stopPropagation(); onRemoveFromMap(d.id) }}
+                            title="Remove from map"
+                            style={{
+                              background: 'none', border: 'none', color: '#f97316',
+                              cursor: 'pointer', padding: 2, opacity: 0.4, transition: 'opacity 0.1s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                            onMouseLeave={e => (e.currentTarget.style.opacity = '0.4')}
+                          >
+                            <MapPinOff size={10} />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Available (unplaced) devices */}
+                  {group.available.map(d => {
+                    return (
+                      <div key={d.id}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          padding: '4px 10px 4px 28px',
+                        }}
+                      >
+                        <Box size={10} color={C.textDim} style={{ flexShrink: 0 }} />
+                        <span style={{
+                          flex: 1, fontSize: 10, color: C.textDim,
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                          {d.label || 'Unnamed'}
+                        </span>
+                        {onPlaceDevice && (
+                          <button onClick={e => { e.stopPropagation(); onPlaceDevice(d.id) }}
+                            title="Place on map"
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 2,
+                              background: 'none', border: `1px solid ${C.border}`,
+                              color: '#22c55e', cursor: 'pointer', padding: '1px 6px',
+                              borderRadius: 3, fontSize: 9, fontWeight: 600,
+                              fontFamily: 'inherit', transition: 'all 0.1s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.1)'; e.currentTarget.style.borderColor = '#22c55e' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = C.border }}
+                          >
+                            <Plus size={9} /> Place
+                          </button>
+                        )}
+                        <button onClick={e => { e.stopPropagation(); onDeleteDevice(d.id) }}
+                          title="Delete permanently"
+                          style={{
+                            background: 'none', border: 'none', color: C.textDim,
+                            cursor: 'pointer', padding: 2, opacity: 0.3, transition: 'opacity 0.1s',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                          onMouseLeave={e => (e.currentTarget.style.opacity = '0.3')}
+                        >
+                          <Trash2 size={9} />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

@@ -12,7 +12,7 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react'
-import { X, Copy, Trash2, ChevronDown, ChevronRight, Lock, Unlock, Settings } from 'lucide-react'
+import { X, Copy, Trash2, ChevronDown, ChevronRight, Lock, Unlock, Settings, MapPinOff } from 'lucide-react'
 import { C } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
@@ -34,6 +34,7 @@ interface Props {
   onUpdateDevice: (id: string, updates: Record<string, unknown>) => void
   onDuplicate: (id: string) => void
   onDelete: (id: string) => void
+  onRemoveFromMap?: (id: string) => void
   scalePxPerFt: number
   onChangeModel?: (id: string) => void
   mdfIdfs?: DesignMdfIdf[]
@@ -193,7 +194,7 @@ function BtnGroup({ options, value, onChange }: {
 
 /* ─── Component ─── */
 export function RightPanel({
-  device, onClose, onUpdateDevice, onDuplicate, onDelete, scalePxPerFt, mdfIdfs,
+  device, onClose, onUpdateDevice, onDuplicate, onDelete, onRemoveFromMap, scalePxPerFt, mdfIdfs,
   onChangeModel,
   showIrRange = true, onToggleIrRange, hiddenPpfZones, onTogglePpfZone,
   showBlindSpot = false, onToggleBlindSpot,
@@ -243,8 +244,14 @@ export function RightPanel({
             style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 4, borderRadius: 4 }}>
             <Copy size={14} />
           </button>
-          <button onClick={() => onDelete(device.id)} title="Remove from canvas"
-            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4, borderRadius: 4 }}>
+          {onRemoveFromMap && (
+            <button onClick={() => onRemoveFromMap(device.id)} title="Remove from map (return to pool)"
+              style={{ background: 'none', border: 'none', color: '#f97316', cursor: 'pointer', padding: 4, borderRadius: 4 }}>
+              <MapPinOff size={14} />
+            </button>
+          )}
+          <button onClick={() => onDelete(device.id)} title="Delete permanently"
+            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4, borderRadius: 4, opacity: 0.5 }}>
             <Trash2 size={14} />
           </button>
           <button onClick={onClose} title="Close"

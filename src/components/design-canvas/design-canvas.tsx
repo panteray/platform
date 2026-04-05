@@ -129,6 +129,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const [showSimulatedView, setShowSimulatedView] = useState(false)
   const [showFovPanel, setShowFovPanel] = useState(false)
   const [showDeviceProfile, setShowDeviceProfile] = useState(false)
+  const [pendingPlaceDeviceId, setPendingPlaceDeviceId] = useState<string | null>(null)
 
   /* ── Canvas ref for zoom-to-device ── */
   const canvasRef = useRef<{ zoomToDevice?: (devId: string) => void } | null>(null)
@@ -477,6 +478,64 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     deleteDevice(id)
   }, [deleteDevice, pushUndo])
 
+  // Remove from map (soft-delete: sets unplaced=true, device stays in pool)
+  const handleRemoveFromMap = useCallback((id: string) => {
+    updateDeviceProps(id, { unplaced: true })
+  }, [updateDeviceProps])
+
+  // Place device: enter place mode, next canvas click positions it
+  const handlePlaceDevice = useCallback((id: string) => {
+    setPendingPlaceDeviceId(id)
+    setActiveTool('select') // cursor stays normal, canvas click handles placement
+  }, [])
+
+  // Canvas click handler for placing a pending device
+  const handleCanvasClickForPlacement = useCallback((x: number, y: number) => {
+    if (!pendingPlaceDeviceId) return
+    updateDeviceProps(pendingPlaceDeviceId, { unplaced: false })
+    updateDevice(pendingPlaceDeviceId, { position_x: Math.round(x), position_y: Math.round(y) })
+    setSelectedDeviceId(pendingPlaceDeviceId)
+    setPendingPlaceDeviceId(null)
+  }, [pendingPlaceDeviceId, updateDeviceProps, updateDevice, setSelectedDeviceId])
+
+  // Update quantity for a model: add or remove unplaced devices
+  const handleUpdateModelQuantity = useCallback(async (
+    libraryItemId: string, newQty: number, templateDevice: DesignDevice,
+  ) => {
+    const allForModel = devices.filter(d => d.device_library_item_id === libraryItemId)
+    const currentQty = allForModel.length
+    if (newQty === currentQty) return
+
+    if (newQty > currentQty) {
+      // Add more unplaced devices
+      const toAdd = newQty - currentQty
+      const templateProps = (templateDevice.properties ?? {}) as Record<string, unknown>
+      for (let i = 0; i < toAdd; i++) {
+        const prefix = LABEL_PREFIX[templateDevice.category] || 'DEV'
+        const sameCategory = devices.filter(d => (LABEL_PREFIX[d.category] || 'DEV') === prefix)
+        const seq = String(sameCategory.length + 1 + i).padStart(3, '0')
+        const label = `${prefix}-${seq} — ${templateProps.vendor || ''} ${templateProps.model || ''}`.trim()
+        await addDevice({
+          design_id: designId, area_id: templateDevice.area_id,
+          category: templateDevice.category, label,
+          position_x: 400, position_y: 300, rotation: 0,
+          properties: { ...templateProps, unplaced: true },
+          color_hex: templateDevice.color_hex,
+          device_library_item_id: libraryItemId,
+        })
+      }
+    } else {
+      // Remove unplaced devices (never remove placed ones)
+      const unplaced = allForModel.filter(d =>
+        !!(d.properties as Record<string, unknown> | null)?.unplaced
+      )
+      const toRemove = currentQty - newQty
+      for (let i = 0; i < Math.min(toRemove, unplaced.length); i++) {
+        deleteDevice(unplaced[i].id)
+      }
+    }
+  }, [devices, addDevice, deleteDevice, designId])
+
   // Auto-label prefix by category
   const getNextLabel = useCallback((category: string) => {
     const prefix = LABEL_PREFIX[category] || 'DEV'
@@ -597,6 +656,9 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       catalogSpecs.sensor_h = 3.86
     }
 
+    // Create device as unplaced (goes to pool in left sidebar)
+    catalogSpecs.unplaced = true
+
     try {
       const dev = await addDevice({
         design_id: designId, area_id: activeAreaId, category: effectiveCategory,
@@ -606,8 +668,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         device_library_item_id: item.id,
       })
       if (dev) {
-        setSelectedDeviceId(dev.id)
-        setActiveTool('select')
+        // Don't auto-select or place — device goes to pool
       }
     } catch (err) {
       console.error('Failed to add device:', err)
@@ -880,6 +941,9 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
             onAddDevice={() => setShowCatalog(true)}
             onDeleteDevice={handleDeviceDelete}
             onZoomToDevice={handleZoomToDevice}
+            onPlaceDevice={handlePlaceDevice}
+            onRemoveFromMap={handleRemoveFromMap}
+            onUpdateQuantity={handleUpdateModelQuantity}
           />
         )}
 
@@ -912,7 +976,11 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           onFovAngleChanged={handleFovAngleChanged}
           floorPlanOpacity={floorPlanOpacity}
           fovDisplayMode={fovMode}
-          onCanvasClick={() => {}}
+          onCanvasClick={(x, y) => {
+            if (pendingPlaceDeviceId) {
+              handleCanvasClickForPlacement(x, y)
+            }
+          }}
           onCableCreated={async (cable) => {
             // Route MDF IDs to mdf_idf_id instead of from/to_device_id (FK constraint)
             const mdfIds = new Set(mdfIdfs.map(m => m.id))
@@ -1005,6 +1073,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
               onUpdateDevice={handleUpdateDevice}
               onDuplicate={handleDeviceCopy}
               onDelete={handleDeviceDelete}
+              onRemoveFromMap={handleRemoveFromMap}
               scalePxPerFt={scalePxPerFt}
               mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
               showIrRange={showIrRange}
