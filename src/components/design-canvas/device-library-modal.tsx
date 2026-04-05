@@ -100,10 +100,29 @@ export function DeviceLibraryModal({ category, onClose, onSelect }: DeviceLibrar
   const [envFilter, setEnvFilter] = useState<'all' | 'indoor' | 'outdoor'>('all')
   const [aiFilter, setAiFilter] = useState<'all' | 'ai' | 'non-ai'>('all')
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [brandsWidth, setBrandsWidth] = useState(200)
+  const [modelsWidth, setModelsWidth] = useState(260)
+  const resizingRef = useRef<{ col: 'brands' | 'models'; startX: number; startW: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   // Load favorites from localStorage on mount
   useEffect(() => { setFavorites(loadFavorites()) }, [])
+
+  // Column resize drag handlers
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      const r = resizingRef.current
+      if (!r) return
+      const delta = e.clientX - r.startX
+      const newW = Math.max(120, Math.min(500, r.startW + delta))
+      if (r.col === 'brands') setBrandsWidth(newW)
+      else setModelsWidth(newW)
+    }
+    const onMouseUp = () => { resizingRef.current = null; document.body.style.cursor = '' }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    return () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp) }
+  }, [])
 
   // Fetch all devices for the active category
   useEffect(() => {
@@ -508,11 +527,11 @@ export function DeviceLibraryModal({ category, onClose, onSelect }: DeviceLibrar
             </div>
 
             {/* ── 3 Columns ── */}
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, userSelect: resizingRef.current ? 'none' : undefined }}>
               {/* ── Brands Column ── */}
               <div style={{
-                width: 200, borderRight: `1px solid ${C.border}`, overflow: 'auto',
-                display: 'flex', flexDirection: 'column',
+                width: brandsWidth, minWidth: 120, overflow: 'auto',
+                display: 'flex', flexDirection: 'column', flexShrink: 0,
               }}>
                 <div style={{
                   padding: '8px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
@@ -563,10 +582,21 @@ export function DeviceLibraryModal({ category, onClose, onSelect }: DeviceLibrar
                 )}
               </div>
 
+              {/* ── Resize handle: Brands ↔ Models ── */}
+              <div
+                onMouseDown={e => { resizingRef.current = { col: 'brands', startX: e.clientX, startW: brandsWidth }; document.body.style.cursor = 'col-resize' }}
+                style={{
+                  width: 4, cursor: 'col-resize', background: C.border, flexShrink: 0,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = ACCENT)}
+                onMouseLeave={e => { if (!resizingRef.current) e.currentTarget.style.background = C.border }}
+              />
+
               {/* ── Models Column ── */}
               <div style={{
-                width: 260, borderRight: `1px solid ${C.border}`, overflow: 'auto',
-                display: 'flex', flexDirection: 'column',
+                width: modelsWidth, minWidth: 120, overflow: 'auto',
+                display: 'flex', flexDirection: 'column', flexShrink: 0,
               }}>
                 <div style={{
                   padding: '8px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
@@ -607,6 +637,17 @@ export function DeviceLibraryModal({ category, onClose, onSelect }: DeviceLibrar
                   ))
                 )}
               </div>
+
+              {/* ── Resize handle: Models ↔ Info ── */}
+              <div
+                onMouseDown={e => { resizingRef.current = { col: 'models', startX: e.clientX, startW: modelsWidth }; document.body.style.cursor = 'col-resize' }}
+                style={{
+                  width: 4, cursor: 'col-resize', background: C.border, flexShrink: 0,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = ACCENT)}
+                onMouseLeave={e => { if (!resizingRef.current) e.currentTarget.style.background = C.border }}
+              />
 
               {/* ── Info Panel ── */}
               <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
