@@ -35,6 +35,8 @@ import { CanvasArea } from './canvas-area'
 import type { DeviceFovData } from './fov-data-types'
 import { LeftPanel } from './left-panel'
 import { RightPanel } from './right-panel'
+import { FovPanel } from './fov-panel'
+import { DeviceProfilePanel } from './device-profile-panel'
 import { MdfRightPanel } from './mdf-right-panel'
 import { WallRightPanel } from './wall-right-panel'
 import { DeviceLibraryModal } from './device-library-modal'
@@ -125,6 +127,8 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const [showBlindSpot, setShowBlindSpot] = useState(false)
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null)
   const [showSimulatedView, setShowSimulatedView] = useState(false)
+  const [showFovPanel, setShowFovPanel] = useState(false)
+  const [showDeviceProfile, setShowDeviceProfile] = useState(false)
 
   /* ── Canvas ref for zoom-to-device ── */
   const canvasRef = useRef<{ zoomToDevice?: (devId: string) => void } | null>(null)
@@ -968,15 +972,36 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           onSelectImager={(idx) => setSelectedImagerIdx(idx)}
         />
 
-        {/* ── RIGHT PANEL (300px, overlay) ── */}
+        {/* ── RIGHT PANEL + STACKING PANELS ── */}
         {selectedDevice && (
           <div style={{
             position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 10,
-            boxShadow: '-4px 0 20px rgba(0,0,0,0.5)',
+            display: 'flex',
           }}>
+            {/* Device Profile Panel (540px, leftmost when open) */}
+            {showDeviceProfile && (
+              <DeviceProfilePanel
+                device={selectedDevice}
+                onClose={() => setShowDeviceProfile(false)}
+                onUpdateDevice={handleUpdateDevice}
+                mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
+              />
+            )}
+
+            {/* FoV Panel (680px, between device profile and right panel) */}
+            {showFovPanel && (
+              <FovPanel
+                device={selectedDevice}
+                onClose={() => setShowFovPanel(false)}
+                onUpdateDevice={handleUpdateDevice}
+              />
+            )}
+
+            {/* Right Panel (280px, always rightmost when device selected) */}
+            <div style={{ boxShadow: '-4px 0 20px rgba(0,0,0,0.5)' }}>
             <RightPanel
               device={selectedDevice}
-              onClose={() => setSelectedDeviceId(null)}
+              onClose={() => { setSelectedDeviceId(null); setShowFovPanel(false); setShowDeviceProfile(false) }}
               onUpdateDevice={handleUpdateDevice}
               onDuplicate={handleDeviceCopy}
               onDelete={handleDeviceDelete}
@@ -1001,7 +1026,10 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 for (const c of toDelete) await deleteCable(c.id)
               }}
               onShowSimulatedView={() => setShowSimulatedView(true)}
+              onOpenFovPanel={() => setShowFovPanel(prev => !prev)}
+              onOpenDeviceProfile={() => setShowDeviceProfile(prev => !prev)}
             />
+            </div>
           </div>
         )}
 
@@ -1219,3 +1247,4 @@ function btnStyle(active: boolean): React.CSSProperties {
     transition: 'all 0.12s',
   }
 }
+
