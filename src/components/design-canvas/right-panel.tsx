@@ -1,46 +1,28 @@
 'use client'
 /**
- * RightPanel — Device properties panel (DesignPro pattern).
+ * RightPanel — Device properties panel.
  *
- * Tabs: FoV | Acc | Lens | License
- * FoV: editable label, model, focal/distance/height/tilt/rotation, DORI
- * Acc: mount type, environment, wiring, recording
- * Lens: device specs from library
- * License: placeholder
+ * Tabs: FoV | Acc | Profile | Rec
+ * FoV: merged FoV + Lens — quick controls, DORI, device specs, notes
+ * Acc: mount type, environment, license fields
+ * Profile: opens DeviceProfilePanel sidebar
+ * Rec: recording profile — scene type, camera profile (FPS 1-60, smart codec), lighting, duration, schedule
+ *
+ * 24-color palette. Only visible when a device is selected on canvas.
  */
 
 import React, { useState, useCallback, useMemo } from 'react'
-import { X, Copy, Trash2, Cable, ChevronDown, ChevronRight, Lock, Unlock } from 'lucide-react'
+import { X, Copy, Trash2, ChevronDown, ChevronRight, Lock, Unlock, Settings } from 'lucide-react'
 import { C } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
 
-/* ─── Color Palette ─── */
+/* ─── 24 Colors ─── */
 const COLOR_PALETTE = [
-  '#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899',
-  '#dc2626','#ea580c','#ca8a04','#16a34a','#0891b2','#2563eb','#7c3aed','#db2777',
+  '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899',
+  '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#0891b2', '#2563eb', '#7c3aed', '#db2777',
+  '#991b1b', '#9a3412', '#713f12', '#065f46', '#164e63', '#1e3a5f', '#4c1d95', '#831843',
 ]
-
-/* ─── Collapsible Section ─── */
-function Section({ title, defaultOpen = false, children }: {
-  title: string; defaultOpen?: boolean; children: React.ReactNode
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-  return (
-    <div style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
-      <button onClick={() => setOpen(!open)} style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 6,
-        padding: '8px 16px', background: 'none', border: 'none',
-        color: C.text, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-        fontFamily: 'inherit', textAlign: 'left',
-      }}>
-        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        {title}
-      </button>
-      {open && <div style={{ padding: '0 16px 10px' }}>{children}</div>}
-    </div>
-  )
-}
 
 /* ─── Mount Types ─── */
 const MOUNT_TYPES = ['Ceiling', 'Wall', 'Pole', 'Pendant'] as const
@@ -65,7 +47,11 @@ interface Props {
   selectedImagerIdx?: number | null
   onSelectImager?: (idx: number | null) => void
   onShowSimulatedView?: () => void
+  onOpenFovPanel?: () => void
+  onOpenDeviceProfile?: () => void
 }
+
+type TabId = 'fov' | 'acc' | 'profile' | 'rec'
 
 /* ─── Stat Row ─── */
 function StatRow({ label, value, unit, color }: {
@@ -142,6 +128,9 @@ function DoriFeedback({ resolutionW, sensorW, focalLength, targetDist }: {
               fontSize: 8, fontWeight: 600,
               color: isActive ? tier.color : isMet ? `${tier.color}90` : C.textDim,
               lineHeight: 1.2,
+              boxShadow: isActive ? `0 0 8px ${tier.color}40` : 'none',
+              transform: isActive ? 'scale(1.04)' : 'none',
+              transition: 'all 0.2s',
             }}>
               {tier.label}
               {hasSensor && <div style={{ fontSize: 7, fontWeight: 400, marginTop: 2, opacity: 0.7 }}>{tier.threshold}+</div>}
@@ -158,6 +147,50 @@ function DoriFeedback({ resolutionW, sensorW, focalLength, targetDist }: {
   )
 }
 
+/* ─── Section (collapsible) ─── */
+function Section({ title, defaultOpen = false, children }: {
+  title: string; defaultOpen?: boolean; children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div style={{ borderBottom: `1px solid ${C.borderSubtle}` }}>
+      <button onClick={() => setOpen(!open)} style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+        padding: '8px 16px', background: 'none', border: 'none',
+        color: C.text, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+        fontFamily: 'inherit', textAlign: 'left',
+      }}>
+        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        {title}
+      </button>
+      {open && <div style={{ padding: '0 16px 10px' }}>{children}</div>}
+    </div>
+  )
+}
+
+/* ─── Button Toggle Group ─── */
+function BtnGroup({ options, value, onChange }: {
+  options: string[]; value: string; onChange: (v: string) => void
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 3 }}>
+      {options.map(opt => {
+        const active = value === opt
+        return (
+          <button key={opt} onClick={() => onChange(opt)}
+            style={{
+              flex: 1, padding: '5px 0', fontSize: 9, fontWeight: 600,
+              borderRadius: 4, border: `1px solid ${active ? C.accent : C.border}`,
+              background: active ? C.accentSubtle : 'transparent',
+              color: active ? C.accent : C.textMuted, cursor: 'pointer', fontFamily: 'inherit',
+              boxShadow: active ? `0 0 8px ${C.accent}20` : 'none',
+            }}>{opt}</button>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ─── Component ─── */
 export function RightPanel({
   device, onClose, onUpdateDevice, onDuplicate, onDelete, scalePxPerFt, mdfIdfs,
@@ -167,8 +200,9 @@ export function RightPanel({
   onDisconnectCable,
   selectedImagerIdx, onSelectImager,
   onShowSimulatedView,
+  onOpenFovPanel, onOpenDeviceProfile,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<'fov' | 'acc' | 'lens' | 'license'>('fov')
+  const [activeTab, setActiveTab] = useState<TabId>('fov')
   const props = useMemo(() => (device.properties ?? {}) as Record<string, unknown>, [device.properties])
   const isCamera = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(device.category)
 
@@ -187,22 +221,12 @@ export function RightPanel({
     ? 2 * Math.atan(sensorW / (2 * focalLength)) * (180 / Math.PI)
     : fovAngle
 
-  // Check if cable is connected to this device
-  const hasCableConnected = !!(props.cable_type || props.switch_assignment || props.port_assignment)
-
-  // Est cable distance
-  const estCableFt = (() => {
-    if (!mdfIdfs || mdfIdfs.length === 0) return 0
-    let nearest = Infinity
-    for (const node of mdfIdfs) {
-      const dx = device.position_x - node.position_x
-      const dy = device.position_y - node.position_y
-      const distPx = Math.sqrt(dx * dx + dy * dy)
-      const distFt = distPx / (scalePxPerFt || 10)
-      if (distFt < nearest) nearest = distFt
+  const handleTabSwitch = (tab: TabId) => {
+    setActiveTab(tab)
+    if (tab === 'profile') {
+      onOpenDeviceProfile?.()
     }
-    return nearest === Infinity ? 0 : Math.round(nearest)
-  })()
+  }
 
   return (
     <div style={{
@@ -245,7 +269,7 @@ export function RightPanel({
         <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{
             fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
-            background: `${C.accent}20`, color: C.accent, letterSpacing: 0.5, textTransform: 'uppercase',
+            background: C.accentSubtle, color: C.accent, letterSpacing: 0.5, textTransform: 'uppercase',
           }}>
             {device.category.replace(/_/g, ' ')}
           </span>
@@ -254,39 +278,39 @@ export function RightPanel({
           </span>
         </div>
 
-        {/* Select Model link */}
+        {/* Change Model */}
         {isCamera && (
           <button onClick={() => onChangeModel?.(device.id)}
             style={{
               marginTop: 6, width: '100%', padding: '5px 10px', fontSize: 10,
-              color: C.accent, background: `${C.accent}08`, border: `1px dashed ${C.accent}40`,
-              borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-              textAlign: 'left',
+              color: C.textDim, background: 'transparent',
+              border: `1px dashed ${C.border}`, borderRadius: 4,
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, textAlign: 'left',
             }}>
             Change Model →
           </button>
         )}
 
-        {/* Floating color bar */}
+        {/* 24-color palette */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 8 }}>
           {COLOR_PALETTE.map(c => (
             <button key={c} onClick={() => onUpdateDevice(device.id, { color_hex: c })}
               style={{
                 width: 14, height: 14, borderRadius: 2, background: c, border: 'none', cursor: 'pointer',
                 outline: (device as unknown as Record<string, unknown>).color_hex === c ? '2px solid #fff' : 'none',
-                outlineOffset: 1,
+                outlineOffset: 1, transition: 'transform 0.15s',
               }} />
           ))}
         </div>
       </div>
 
-      {/* ── Tab Bar ── */}
+      {/* ── Tab Bar: FoV | Acc | Profile | Rec ── */}
       <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, background: C.bgSurface }}>
-        {(['fov', 'acc', 'lens', 'license'] as const).map(tab => {
+        {(['fov', 'acc', 'profile', 'rec'] as const).map(tab => {
           const active = activeTab === tab
-          const label = tab === 'fov' ? 'FoV' : tab === 'acc' ? 'Acc' : tab === 'lens' ? 'Lens' : 'License'
+          const label = tab === 'fov' ? 'FoV' : tab === 'acc' ? 'Acc' : tab === 'profile' ? 'Profile' : 'Rec'
           return (
-            <button key={tab} onClick={() => setActiveTab(tab)}
+            <button key={tab} onClick={() => handleTabSwitch(tab)}
               style={{
                 flex: 1, padding: '8px 0', fontSize: 11, fontWeight: active ? 600 : 400,
                 color: active ? C.accent : C.textMuted,
@@ -303,10 +327,20 @@ export function RightPanel({
       {/* ── Tab Content ── */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
 
-        {/* ═══ FoV Tab ═══ */}
+        {/* ═══ FoV Tab (merged FoV + Lens) ═══ */}
         {activeTab === 'fov' && isCamera && (
           <>
-            {/* Editable camera parameters (DesignPro pattern) */}
+            {/* Open FoV Panel button */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <button onClick={() => onOpenFovPanel?.()} style={{
+                width: '100%', padding: '10px 14px', fontSize: 12, fontWeight: 700,
+                color: C.accent, background: C.accentSubtle,
+                border: `1px solid ${C.accent}40`, borderRadius: 6,
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+              }}>Open FoV Panel →</button>
+            </div>
+
+            {/* Quick controls */}
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
               <EditableRow label="Focal Length" value={focalLength} unit="mm" step={0.1} min={0.1}
                 onChange={v => updateProp('focal_length', v)} />
@@ -329,7 +363,7 @@ export function RightPanel({
                           style={{
                             padding: '2px 8px', fontSize: 10, fontWeight: 600,
                             borderRadius: 3, border: `1px solid ${active ? C.accent : C.border}`,
-                            background: active ? `${C.accent}20` : 'transparent',
+                            background: active ? C.accentSubtle : 'transparent',
                             color: active ? C.accent : C.textMuted, cursor: 'pointer', fontFamily: 'inherit',
                           }}>{v}°</button>
                       )
@@ -342,7 +376,7 @@ export function RightPanel({
             {/* DORI feedback */}
             <DoriFeedback
               resolutionW={Number(props.resolution_w) || 0}
-              sensorW={Number(props.sensor_w) || Number(props.sensor_width) || 0}
+              sensorW={sensorW}
               focalLength={focalLength}
               targetDist={targetDist}
             />
@@ -350,7 +384,6 @@ export function RightPanel({
             {/* Multi-sensor controls */}
             {(device.category === 'multisensor_quad' || device.category === 'multisensor_dual') && (
               <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
-                {/* Lock Camera toggle */}
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   marginBottom: 8, padding: '6px 8px', background: props.locked ? '#22c55e15' : C.bgActive,
@@ -373,7 +406,6 @@ export function RightPanel({
                     {props.locked ? 'Unlock' : 'Lock'}
                   </button>
                 </div>
-                {/* Sensor heads */}
                 <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>
                   Sensor Heads ({device.category === 'multisensor_quad' ? 4 : 2})
                 </div>
@@ -424,6 +456,42 @@ export function RightPanel({
               </div>
             )}
 
+            {/* Device Specs (merged from Lens tab) */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>Device Specs</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
+                {([
+                  ['Vendor', props.vendor || '—'],
+                  ['Model', props.model || '—'],
+                  ['Part #', props.partnumber || '—'],
+                  ['Form', props.form || '—'],
+                  ['Max Res', props.resolution_w ? `${props.resolution_w}x${props.resolution_h}` : (props.resolution ? String(props.resolution) : '—')],
+                  ['FPS', props.fps ? `${props.fps}fps` : '—'],
+                  ['Focal', props.focal_length ? `${props.focal_length}mm` : '—'],
+                  ['Lens', props.focal_type || '—'],
+                  ['AOV', props.aov || '—'],
+                  ['Sensor', props.sensor_w ? `${props.sensor_w}mm` : '—'],
+                  ['IR', props.ir || (props.ir_range ? `${props.ir_range}ft` : '—')],
+                  ['NDAA', props.ndaa_compliant === true ? 'Yes' : props.ndaa_compliant === false ? 'No' : '—'],
+                  ['Env', props.environment || '—'],
+                  ['Codecs', props.codecs || '—'],
+                ] as [string, string][]).filter(([, v]) => v !== '—').map(([k, v]) => (
+                  <div key={k} style={{ fontSize: 10 }}>
+                    <span style={{ color: C.textDim }}>{k}: </span>
+                    <span style={{ color: C.text, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)' }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* H-FOV / V-FOV computed */}
+              {sensorW > 0 && focalLength > 0 && (
+                <div style={{ marginTop: 8, padding: '6px 10px', background: C.bgActive, borderRadius: 4, border: `1px solid ${C.border}` }}>
+                  <StatRow label="H-FOV" value={hFov.toFixed(1)} unit="°" />
+                  <StatRow label="V-FOV" value={(hFov * 0.75).toFixed(1)} unit="°" />
+                </div>
+              )}
+            </div>
+
             {/* Notes */}
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Notes</div>
@@ -440,7 +508,7 @@ export function RightPanel({
           </>
         )}
 
-        {/* FoV tab for non-camera devices */}
+        {/* FoV tab for non-camera */}
         {activeTab === 'fov' && !isCamera && (
           <div style={{ padding: '16px' }}>
             <div style={{ fontSize: 11, color: C.textDim, textAlign: 'center' }}>
@@ -451,26 +519,16 @@ export function RightPanel({
 
         {/* ═══ Acc Tab ═══ */}
         {activeTab === 'acc' && (
-          <div style={{ padding: '0' }}>
+          <div>
             {/* Mount Type */}
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Mount Type</div>
-              <div style={{ display: 'flex', gap: 3 }}>
-                {MOUNT_TYPES.map(mt => {
-                  const active = (props.mount_type || 'Ceiling') === mt
-                  return (
-                    <button key={mt} onClick={() => updateProp('mount_type', mt)}
-                      style={{
-                        flex: 1, padding: '5px 0', fontSize: 9, fontWeight: 600,
-                        borderRadius: 4, border: `1px solid ${active ? C.accent : C.border}`,
-                        background: active ? `${C.accent}20` : 'transparent',
-                        color: active ? C.accent : C.textMuted, cursor: 'pointer', fontFamily: 'inherit',
-                      }}>{mt}</button>
-                  )
-                })}
-              </div>
-              {/* Height warning */}
-              <div style={{ marginTop: 6, padding: '4px 8px', background: C.bgActive, borderRadius: 4, border: `1px solid ${C.border}` }}>
+              <BtnGroup
+                options={[...MOUNT_TYPES]}
+                value={String(props.mount_type || 'Ceiling')}
+                onChange={v => updateProp('mount_type', v)}
+              />
+              <div style={{ marginTop: 6, padding: '6px 8px', background: C.bgActive, borderRadius: 4, border: `1px solid ${C.border}` }}>
                 <StatRow label="Install Height" value={installHeight} unit="ft" />
                 {installHeight > 12 ? (
                   <div style={{ fontSize: 9, color: '#f59e0b', fontWeight: 600, marginTop: 2 }}>⚠ Lift required — {installHeight}ft</div>
@@ -483,162 +541,80 @@ export function RightPanel({
             {/* Environment */}
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Environment</div>
-              <div style={{ display: 'flex', gap: 3 }}>
-                {['Indoor', 'Outdoor'].map(env => {
-                  const active = (props.environment || 'Indoor') === env
-                  return (
-                    <button key={env} onClick={() => updateProp('environment', env)}
-                      style={{
-                        flex: 1, padding: '5px 0', fontSize: 10, fontWeight: 600,
-                        borderRadius: 4, border: `1px solid ${active ? C.accent : C.border}`,
-                        background: active ? `${C.accent}20` : 'transparent',
-                        color: active ? C.accent : C.textMuted, cursor: 'pointer', fontFamily: 'inherit',
-                      }}>{env}</button>
-                  )
-                })}
-              </div>
+              <BtnGroup
+                options={['Indoor', 'Outdoor']}
+                value={String(props.environment || 'Indoor')}
+                onChange={v => updateProp('environment', v)}
+              />
             </div>
 
-            {/* PoE / Power */}
+            {/* License */}
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
-              <StatRow label="PoE Standard" value={String(props.poe_standard || '-')} />
-              <StatRow label="Wattage" value={props.wattage ? `${props.wattage}` : '-'} unit="W" />
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>License</div>
+              <EditableRow label="License Type" value={0} unit="" onChange={() => {}} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                <span style={{ fontSize: 10, color: C.textDim }}>License Type</span>
+                <select value={String(props.license_type || 'subscription')}
+                  onChange={e => updateProp('license_type', e.target.value)}
+                  style={{
+                    width: 100, padding: '2px 6px', background: C.bgActive,
+                    border: `1px solid ${C.border}`, borderRadius: 3,
+                    color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none',
+                  }}>
+                  <option value="subscription">Subscription</option>
+                  <option value="perpetual">Perpetual</option>
+                  <option value="included">Included</option>
+                  <option value="none">None</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                <span style={{ fontSize: 10, color: C.textDim }}>SKU</span>
+                <input value={String(props.license_sku || '')} placeholder="LIC-..."
+                  onChange={e => updateProp('license_sku', e.target.value)}
+                  style={{
+                    width: 100, padding: '2px 6px', background: C.bgActive,
+                    border: `1px solid ${C.border}`, borderRadius: 3,
+                    color: C.text, fontSize: 10, fontFamily: 'monospace', outline: 'none', textAlign: 'right',
+                  }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                <span style={{ fontSize: 10, color: C.textDim }}>Term</span>
+                <select value={String(props.license_term || '1')}
+                  onChange={e => updateProp('license_term', e.target.value)}
+                  style={{
+                    width: 100, padding: '2px 6px', background: C.bgActive,
+                    border: `1px solid ${C.border}`, borderRadius: 3,
+                    color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none',
+                  }}>
+                  <option value="1">1 Year</option>
+                  <option value="3">3 Year</option>
+                  <option value="5">5 Year</option>
+                  <option value="10">10 Year</option>
+                </select>
+              </div>
+              <EditableRow label="Annual Cost" value={Number(props.license_annual_cost) || 0} unit="$" step={1} min={0}
+                onChange={v => updateProp('license_annual_cost', v)} />
             </div>
 
-            {/* Wiring */}
-            <Section title="Wiring" defaultOpen={hasCableConnected}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {[
-                  { key: 'cable_type', label: 'Cable Type', ph: 'Cat6, Cat6a…' },
-                  { key: 'switch_assignment', label: 'Switch', ph: 'SW-01' },
-                  { key: 'port_assignment', label: 'Port', ph: 'Port 1' },
-                  { key: 'cable_length', label: 'Cable Length (ft)', ph: estCableFt > 0 ? `~${estCableFt} (auto)` : '125' },
-                ].map(f => (
-                  <div key={f.key}>
-                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>{f.label}</div>
-                    <input value={String(props[f.key] || '')} placeholder={f.ph}
-                      onChange={e => updateProp(f.key, e.target.value)}
-                      style={{
-                        width: '100%', padding: '4px 8px', background: C.bgActive,
-                        border: `1px solid ${C.border}`, borderRadius: 3,
-                        color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none',
-                      }} />
-                  </div>
-                ))}
-                {/* Est cable to MDF — only show when cable is connected */}
-                {hasCableConnected && estCableFt > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: C.bgActive, borderRadius: 4, border: `1px solid ${C.border}` }}>
-                    <Cable size={12} style={{ color: C.accent, flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 10, color: C.textDim }}>Est. cable to MDF</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: 'monospace' }}>{estCableFt} ft</div>
-                    </div>
-                  </div>
-                )}
-                {onDisconnectCable && (
-                  <button onClick={() => onDisconnectCable(device.id)}
-                    style={{
-                      marginTop: 4, padding: '4px 8px', fontSize: 10,
-                      background: 'transparent', border: '1px solid #ef4444',
-                      borderRadius: 3, color: '#ef4444', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
-                    }}>Disconnect</button>
-                )}
-              </div>
-            </Section>
-
-            {/* Recording */}
-            {isCamera && (
-              <Section title="Recording">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div>
-                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Codec</div>
-                    <div style={{ display: 'flex', gap: 3 }}>
-                      {['H.264', 'H.264+', 'H.265'].map(c => {
-                        const active = (props.codec || 'H.265') === c
-                        return (
-                          <button key={c} onClick={() => updateProp('codec', c)}
-                            style={{
-                              flex: 1, padding: '3px 0', fontSize: 9, fontWeight: 500,
-                              borderRadius: 3, border: `1px solid ${active ? C.accent : C.border}`,
-                              background: active ? `${C.accent}20` : 'transparent',
-                              color: active ? C.accent : C.textMuted, cursor: 'pointer', fontFamily: 'inherit',
-                            }}>{c}</button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Recording Mode</div>
-                    <div style={{ display: 'flex', gap: 3 }}>
-                      {['Continuous', 'Motion', 'Motion+Obj', 'None'].map(m => {
-                        const active = (props.recording_mode || 'Continuous') === m
-                        return (
-                          <button key={m} onClick={() => updateProp('recording_mode', m)}
-                            style={{
-                              flex: 1, padding: '3px 0', fontSize: 8, fontWeight: 500,
-                              borderRadius: 3, border: `1px solid ${active ? C.accent : C.border}`,
-                              background: active ? `${C.accent}20` : 'transparent',
-                              color: active ? C.accent : C.textMuted, cursor: 'pointer', fontFamily: 'inherit',
-                            }}>{m}</button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>FPS</div>
-                      <input type="number" value={Number(props.recording_fps) || 15}
-                        onChange={e => updateProp('recording_fps', Number(e.target.value))}
-                        style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 10, fontFamily: 'monospace', outline: 'none' }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Retention (days)</div>
-                      <input type="number" value={Number(props.retention_days) || 30}
-                        onChange={e => updateProp('retention_days', Number(e.target.value))}
-                        style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 10, fontFamily: 'monospace', outline: 'none' }} />
-                    </div>
-                  </div>
-                </div>
-              </Section>
-            )}
-
-            {/* Access Control config */}
+            {/* Access Control config — only for door/ACS devices */}
             {['access_control', 'door', 'door_controller', 'card_reader', 'electric_strike', 'maglock'].includes(device.category) && (
               <Section title="Door Configuration" defaultOpen>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div>
                     <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Door Type</div>
-                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                      {['Standard', 'ADA Auto-Operator', 'Mantrap', 'Mantrap + ADA'].map(t => {
-                        const active = (props.door_type || 'Standard') === t
-                        return (
-                          <button key={t} onClick={() => updateProp('door_type', t)}
-                            style={{
-                              padding: '3px 6px', fontSize: 8, fontWeight: 600, borderRadius: 3,
-                              border: `1px solid ${active ? C.accent : C.border}`,
-                              background: active ? `${C.accent}20` : 'transparent',
-                              color: active ? C.accent : C.textMuted, cursor: 'pointer', fontFamily: 'inherit',
-                            }}>{t}</button>
-                        )
-                      })}
-                    </div>
+                    <BtnGroup
+                      options={['Standard', 'ADA Auto-Operator', 'Mantrap', 'Mantrap + ADA']}
+                      value={String(props.door_type || 'Standard')}
+                      onChange={v => updateProp('door_type', v)}
+                    />
                   </div>
                   <div>
                     <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Lock Type</div>
-                    <div style={{ display: 'flex', gap: 3 }}>
-                      {['Electric Strike', 'Magnetic Lock', 'Electrified Hardware'].map(t => {
-                        const active = (props.lock_type || 'Electric Strike') === t
-                        return (
-                          <button key={t} onClick={() => updateProp('lock_type', t)}
-                            style={{
-                              flex: 1, padding: '3px 0', fontSize: 8, fontWeight: 600, borderRadius: 3,
-                              border: `1px solid ${active ? C.accent : C.border}`,
-                              background: active ? `${C.accent}20` : 'transparent',
-                              color: active ? C.accent : C.textMuted, cursor: 'pointer', fontFamily: 'inherit',
-                            }}>{t}</button>
-                        )
-                      })}
-                    </div>
+                    <BtnGroup
+                      options={['Electric Strike', 'Magnetic Lock', 'Electrified Hardware']}
+                      value={String(props.lock_type || 'Electric Strike')}
+                      onChange={v => updateProp('lock_type', v)}
+                    />
                   </div>
                 </div>
               </Section>
@@ -646,59 +622,205 @@ export function RightPanel({
           </div>
         )}
 
-        {/* ═══ Lens Tab ═══ */}
-        {activeTab === 'lens' && (
-          <div style={{ padding: '10px 16px' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>Device Specifications</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
-              {([
-                ['Vendor', props.vendor || '—'],
-                ['Model', props.model || '—'],
-                ['Part #', props.partnumber || '—'],
-                ['Form', props.form || '—'],
-                ['Max Res', props.resolution_w ? `${props.resolution_w}x${props.resolution_h}` : (props.resolution ? String(props.resolution) : '—')],
-                ['FPS', props.fps ? `${props.fps}fps` : '—'],
-                ['Focal Length', props.focal_length ? `${props.focal_length}mm` : '—'],
-                ['Lens Type', props.focal_type || '—'],
-                ['AOV', props.aov || '—'],
-                ['Sensor', props.sensor_w ? `${props.sensor_w}mm` : '—'],
-                ['PoE', props.poe_standard || '—'],
-                ['Power', props.wattage ? `${props.wattage}W` : '—'],
-                ['IR', props.ir || (props.ir_range ? `${props.ir_range}ft` : '—')],
-                ['NDAA', props.ndaa_compliant === true ? 'Yes' : props.ndaa_compliant === false ? 'No' : '—'],
-                ['Environment', props.environment || '—'],
-                ['Codecs', props.codecs || '—'],
-                ['IP Rating', props.ip_rating || '—'],
-                ['Low Light', props.super_low_light === true ? 'Yes' : props.super_low_light === false ? 'No' : '—'],
-              ] as [string, string][]).filter(([, v]) => v !== '—').map(([k, v]) => (
-                <div key={k} style={{ fontSize: 10 }}>
-                  <span style={{ color: C.textDim }}>{k}: </span>
-                  <span style={{ color: C.text, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)' }}>{v}</span>
-                </div>
-              ))}
+        {/* ═══ Profile Tab ═══ */}
+        {activeTab === 'profile' && (
+          <div style={{ padding: '20px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Full device lifecycle management</div>
+            <button onClick={() => onOpenDeviceProfile?.()} style={{
+              width: '100%', padding: '10px 14px', fontSize: 12, fontWeight: 700,
+              color: C.accent, background: C.accentSubtle,
+              border: `1px solid ${C.accent}40`, borderRadius: 6,
+              cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+            }}>Open Device Profile →</button>
+            <div style={{ marginTop: 16, fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>
+              Device Profile • Installation<br />
+              Configuration • Maintenance<br />
+              Activity Log • Accessories • Notes
             </div>
-
-            {/* H-FOV / V-FOV computed */}
-            {sensorW > 0 && focalLength > 0 && (
-              <div style={{ marginTop: 12, padding: '8px 10px', background: C.bgActive, borderRadius: 4, border: `1px solid ${C.border}` }}>
-                <StatRow label="H-FOV" value={hFov.toFixed(1)} unit="°" />
-                <StatRow label="V-FOV" value={(hFov * 0.75).toFixed(1)} unit="°" />
-              </div>
-            )}
           </div>
         )}
 
-        {/* ═══ License Tab ═══ */}
-        {activeTab === 'license' && (
-          <div style={{ padding: '16px' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 12 }}>License & Analytics</div>
-            <div style={{ padding: 20, textAlign: 'center', color: C.textDim, fontSize: 11 }}>
-              License and analytics configuration coming soon.
+        {/* ═══ Rec Tab — Recording Profile ═══ */}
+        {activeTab === 'rec' && (
+          <div>
+            {/* Scene Type */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Scene Type</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  width: 40, height: 30, borderRadius: 4, background: C.bgActive,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0,
+                }}>🏬</div>
+                <select value={String(props.scene_type || 'retail_indoor')}
+                  onChange={e => updateProp('scene_type', e.target.value)}
+                  style={{
+                    flex: 1, padding: '6px 8px', background: C.bgActive,
+                    border: `1px solid ${C.border}`, borderRadius: 4,
+                    color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none',
+                  }}>
+                  <option value="retail_indoor">Retail — Indoor</option>
+                  <option value="hallway_indoor">Hallway — Indoor</option>
+                  <option value="parking_outdoor">Parking — Outdoor</option>
+                  <option value="perimeter_outdoor">Perimeter — Outdoor</option>
+                  <option value="lobby_indoor">Lobby — Indoor</option>
+                  <option value="warehouse_indoor">Warehouse — Indoor</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Camera Profile */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Camera Profile</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <RecField label="FPS">
+                  <input type="number" min={1} max={60} value={Number(props.recording_fps) || 30}
+                    onChange={e => updateProp('recording_fps', Number(e.target.value))}
+                    style={{ width: '100%', padding: '4px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 10, fontFamily: 'monospace', outline: 'none' }} />
+                </RecField>
+                <RecField label="Sub Stream">
+                  <select value={String(props.sub_stream || 'on')} onChange={e => updateProp('sub_stream', e.target.value)}
+                    style={{ width: '100%', padding: '4px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none' }}>
+                    <option value="on">On</option><option value="off">Off</option>
+                  </select>
+                </RecField>
+                <RecField label="Codec">
+                  <select value={String(props.codec || 'H.265')} onChange={e => updateProp('codec', e.target.value)}
+                    style={{ width: '100%', padding: '4px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none' }}>
+                    <option value="H.264">H.264</option><option value="H.265">H.265</option><option value="MJPEG">MJPEG</option>
+                  </select>
+                </RecField>
+                <RecField label="Sub FPS">
+                  <input type="number" min={1} max={60} value={Number(props.sub_fps) || 7}
+                    onChange={e => updateProp('sub_fps', Number(e.target.value))}
+                    style={{ width: '100%', padding: '4px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 10, fontFamily: 'monospace', outline: 'none' }} />
+                </RecField>
+                <RecField label="Smart Codec">
+                  <select value={String(props.smart_codec || 'off')} onChange={e => updateProp('smart_codec', e.target.value)}
+                    style={{ width: '100%', padding: '4px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none' }}>
+                    <option value="off">Off</option><option value="wisestream">WiseStream</option><option value="zipstream">Zipstream</option><option value="smart_plus">Smart+</option>
+                  </select>
+                </RecField>
+                <RecField label="Bitrate">
+                  <select value={String(props.bitrate_mode || 'cbr')} onChange={e => updateProp('bitrate_mode', e.target.value)}
+                    style={{ width: '100%', padding: '4px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none' }}>
+                    <option value="vbr">VBR</option><option value="cbr">CBR</option>
+                  </select>
+                </RecField>
+              </div>
+              {/* Link to Device Configuration */}
+              <button onClick={() => { onOpenDeviceProfile?.() }} style={{
+                display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '6px 10px',
+                background: 'rgba(43,186,160,0.06)', border: '1px solid rgba(43,186,160,0.2)',
+                borderRadius: 5, color: '#2bbaa0', fontSize: 10, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'inherit', width: '100%',
+              }}>
+                <Settings size={12} /> View in Device Configuration
+              </button>
+            </div>
+
+            {/* Lighting Condition */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Lighting Condition</div>
+              <BtnGroup
+                options={['☀ Day', '🌙 Night', '💡 Illuminated']}
+                value={String(props.lighting_condition || '☀ Day')}
+                onChange={v => updateProp('lighting_condition', v)}
+              />
+              {/* 24h timeline */}
+              <div style={{ marginTop: 8, display: 'flex', gap: 1 }}>
+                {Array.from({ length: 24 }, (_, h) => {
+                  const isDaylight = h >= 7 && h <= 19
+                  const isTwilight = (h >= 5 && h < 7) || (h > 19 && h <= 21)
+                  return (
+                    <div key={h} style={{
+                      flex: 1, height: 8, borderRadius: 2,
+                      background: isDaylight ? '#e8853a' : isTwilight ? '#d4a726' : C.textDim,
+                      opacity: isDaylight ? 1 : isTwilight ? 0.6 : 0.3,
+                    }} />
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                {[0, 6, 12, 18, 24].map(h => (
+                  <span key={h} style={{ fontSize: 7, color: C.textDim }}>{h}</span>
+                ))}
+              </div>
+            </div>
+
+            {/* Recording Duration */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Recording Duration</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={() => updateProp('retention_days', Math.max(1, (Number(props.retention_days) || 30) - 1))} style={{
+                  width: 24, height: 24, borderRadius: 4, border: `1px solid ${C.border}`,
+                  background: C.bgActive, color: C.textDim, cursor: 'pointer', fontSize: 14,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>−</button>
+                <input type="number" value={Number(props.retention_days) || 30} min={1}
+                  onChange={e => updateProp('retention_days', Number(e.target.value))}
+                  style={{
+                    width: 48, padding: '4px 6px', background: C.bgActive,
+                    border: `1px solid ${C.border}`, borderRadius: 4,
+                    color: C.text, fontSize: 12, fontFamily: 'monospace',
+                    textAlign: 'center', outline: 'none', fontWeight: 700,
+                  }} />
+                <span style={{ fontSize: 11, color: C.textMuted }}>days</span>
+                <button onClick={() => updateProp('retention_days', (Number(props.retention_days) || 30) + 1)} style={{
+                  width: 24, height: 24, borderRadius: 4, border: `1px solid ${C.border}`,
+                  background: C.bgActive, color: C.textDim, cursor: 'pointer', fontSize: 14,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>+</button>
+              </div>
+            </div>
+
+            {/* Recording Schedule */}
+            <div style={{ padding: '10px 16px' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Recording Schedule</div>
+              <select value={String(props.recording_schedule || 'continuous')}
+                onChange={e => updateProp('recording_schedule', e.target.value)}
+                style={{
+                  width: '100%', padding: '5px 8px', background: C.bgActive,
+                  border: `1px solid ${C.border}`, borderRadius: 4,
+                  color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none', marginBottom: 8,
+                }}>
+                <option value="continuous">Continuous</option>
+                <option value="event">Event Only</option>
+                <option value="scheduled">Scheduled</option>
+              </select>
+              <BtnGroup
+                options={['● Continuous', '● Event', '○ None']}
+                value={String(props.recording_type || '● Continuous')}
+                onChange={v => updateProp('recording_type', v)}
+              />
+              {/* Weekly schedule mini grid */}
+              <div style={{ marginTop: 8 }}>
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 1 }}>
+                    <span style={{ fontSize: 7, color: C.textDim, width: 18, flexShrink: 0 }}>{day}</span>
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <div key={h} style={{
+                        flex: 1, height: 6, borderRadius: 1,
+                        background: '#34c77b', opacity: 0.7,
+                      }} />
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
       </div>
+    </div>
+  )
+}
+
+/* ─── Rec field helper ─── */
+function RecField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>{label}</div>
+      {children}
     </div>
   )
 }
