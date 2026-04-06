@@ -12,7 +12,7 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react'
-import { X, Copy, Trash2, ChevronDown, ChevronRight, Lock, Unlock, Settings, MapPinOff } from 'lucide-react'
+import { X, Copy, Trash2, ChevronDown, ChevronRight, Lock, Unlock, Settings, MapPinOff, Cctv, Server } from 'lucide-react'
 import { C } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
@@ -45,6 +45,7 @@ interface Props {
   showBlindSpot?: boolean
   onToggleBlindSpot?: (show: boolean) => void
   onDisconnectCable?: (deviceId: string) => void
+  cables?: Array<{ id: string; from_device_id?: string | null; to_device_id?: string | null; mdf_idf_id?: string | null; cable_type?: string; length_ft?: number; total_length_ft?: number }>
   selectedImagerIdx?: number | null
   onSelectImager?: (idx: number | null) => void
   onShowSimulatedView?: () => void
@@ -198,7 +199,7 @@ export function RightPanel({
   onChangeModel,
   showIrRange = true, onToggleIrRange, hiddenPpfZones, onTogglePpfZone,
   showBlindSpot = false, onToggleBlindSpot,
-  onDisconnectCable,
+  onDisconnectCable, cables,
   selectedImagerIdx, onSelectImager,
   onShowSimulatedView,
   onOpenFovPanel, onOpenDeviceProfile,
@@ -523,6 +524,52 @@ export function RightPanel({
             </div>
           </div>
         )}
+
+        {/* ═══ Cabling to Network Closet (shows on FoV tab for cameras) ═══ */}
+        {activeTab === 'fov' && isCamera && (() => {
+          const connCable = cables?.find(c => c.from_device_id === device.id || c.to_device_id === device.id)
+          const connMdf = connCable?.mdf_idf_id ? (mdfIdfs ?? []).find(m => m.id === connCable.mdf_idf_id) : null
+          return (
+            <div style={{ padding: '10px 16px', borderTop: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.text, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Cabling to Network Closet
+              </div>
+              {connCable ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/* Connection diagram */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: C.bgActive, borderRadius: 6 }}>
+                    <div style={{ width: 20, height: 14, borderRadius: 2, border: `1.5px solid ${C.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Cctv size={8} color={C.accent} />
+                    </div>
+                    <div style={{ flex: 1, height: 0, borderTop: `2px dashed #f97316` }} />
+                    <div style={{ width: 20, height: 14, borderRadius: 2, background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Server size={8} color="#fff" />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10 }}>
+                    <span style={{ color: C.textMuted }}>Length: <strong style={{ color: C.text }}>{Math.round(connCable.total_length_ft || connCable.length_ft || 0)} ft</strong></span>
+                    {connMdf && <span style={{ color: C.accent, fontWeight: 600, fontSize: 9 }}>{connMdf.name} →</span>}
+                  </div>
+                  {onDisconnectCable && (
+                    <button onClick={() => onDisconnectCable(device.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                        padding: '4px 8px', borderRadius: 4, fontSize: 9, fontWeight: 600,
+                        border: `1px solid #ef4444`, background: 'rgba(239,68,68,0.06)',
+                        color: '#ef4444', cursor: 'pointer', fontFamily: 'inherit',
+                      }}>
+                      <X size={9} /> Disconnect
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div style={{ fontSize: 10, color: C.textDim, fontStyle: 'italic' }}>
+                  Not cabled — use Cable tool to connect to MDF/IDF
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* ═══ Acc Tab ═══ */}
         {activeTab === 'acc' && (

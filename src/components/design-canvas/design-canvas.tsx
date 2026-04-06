@@ -1084,6 +1084,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
               onRemoveFromMap={handleRemoveFromMap}
               scalePxPerFt={scalePxPerFt}
               onChangeModel={handleChangeModel}
+              cables={cables.filter(c => c.area_id === activeAreaId)}
               mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
               showIrRange={showIrRange}
               onToggleIrRange={setShowIrRange}

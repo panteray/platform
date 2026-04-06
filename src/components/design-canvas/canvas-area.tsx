@@ -244,6 +244,11 @@ function CanvasArea(props: Props) {
   const groundOverlayRef = useRef<GOverlay | null>(null)
   const contextMenuRef = useRef<{ deviceId: string; x: number; y: number } | null>(null)
   const draggingDeviceRef = useRef<string | null>(null)
+  // Cable drawing state
+  const cableStartRef = useRef<{ id: string; type: 'device' | 'mdf'; x: number; y: number } | null>(null)
+  const cablePreviewRef = useRef<google.maps.Polyline | null>(null)
+  const activeToolRef = useRef(activeTool)
+  useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
   const mdfMarkersRef = useRef<Map<string, GMarker>>(new Map())
   const cablePolylinesRef = useRef<google.maps.Polyline[]>([])
   const wallPolylinesRef = useRef<google.maps.Polyline[]>([])
@@ -290,6 +295,95 @@ function CanvasArea(props: Props) {
   useEffect(() => { onMdfIdfMovedRef.current = onMdfIdfMoved }, [onMdfIdfMoved])
   const onMdfSelectedRef = useRef(onMdfSelected)
   useEffect(() => { onMdfSelectedRef.current = onMdfSelected }, [onMdfSelected])
+  const onCableCreatedRef = useRef(onCableCreated)
+  useEffect(() => { onCableCreatedRef.current = onCableCreated }, [onCableCreated])
+  const onToolChangeRef = useRef(onToolChange)
+  useEffect(() => { onToolChangeRef.current = onToolChange }, [onToolChange])
+
+  // ── Cable drawing: click device/MDF → click another device/MDF to create cable ──
+  const handleCableClick = useCallback((id: string, type: 'device' | 'mdf', px: number, py: number) => {
+    const start = cableStartRef.current
+    if (!start) {
+      // First click — start cable
+      cableStartRef.current = { id, type, x: px, y: py }
+      // Show preview polyline
+      const ctx = geoContextRef.current
+      if (mapRef.current && ctx) {
+        const { lat, lng } = canvasPixelsToLatLng(px, py, ctx)
+        cablePreviewRef.current = new google.maps.Polyline({
+          path: [{ lat, lng }, { lat, lng }],
+          strokeColor: '#f97316',
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          map: mapRef.current,
+          clickable: false,
+          zIndex: 3,
+          icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 2 }, offset: '0', repeat: '10px' }],
+        })
+        // Update preview on mouse move
+        const startPx = { x: px, y: py }
+        const moveListener = mapRef.current.addListener('mousemove', (e: google.maps.MapMouseEvent) => {
+          if (e.latLng && cablePreviewRef.current && geoContextRef.current) {
+            const startLatLng = canvasPixelsToLatLng(startPx.x, startPx.y, geoContextRef.current)
+            cablePreviewRef.current.setPath([startLatLng, { lat: e.latLng.lat(), lng: e.latLng.lng() }])
+          }
+        })
+        // Store listener for cleanup
+        ;(cablePreviewRef.current as unknown as Record<string, unknown>).__moveListener = moveListener
+      }
+      return
+    }
+
+    // Second click — complete cable (can't cable to self)
+    if (start.id === id) {
+      cableStartRef.current = null
+      if (cablePreviewRef.current) {
+        const ml = (cablePreviewRef.current as unknown as Record<string, unknown>).__moveListener as google.maps.MapsEventListener | undefined
+        ml?.remove()
+        cablePreviewRef.current.setMap(null)
+        cablePreviewRef.current = null
+      }
+      return
+    }
+
+    // Calculate cable length from pixel distance
+    const dx = start.x - px
+    const dy = start.y - py
+    const distPx = Math.sqrt(dx * dx + dy * dy)
+    const lengthFt = scalePxPerFt > 0 ? Math.round(distPx / scalePxPerFt) : Math.round(distPx)
+
+    // Create cable with waypoints
+    onCableCreatedRef.current?.({
+      from_device_id: start.type === 'device' ? start.id : (type === 'device' ? id : start.id),
+      to_device_id: type === 'device' ? id : (start.type === 'device' ? start.id : null),
+      waypoints: [{ x: start.x, y: start.y }, { x: px, y: py }],
+      length_ft: lengthFt,
+    })
+
+    // Clean up
+    cableStartRef.current = null
+    if (cablePreviewRef.current) {
+      const ml = (cablePreviewRef.current as unknown as Record<string, unknown>).__moveListener as google.maps.MapsEventListener | undefined
+      ml?.remove()
+      cablePreviewRef.current.setMap(null)
+      cablePreviewRef.current = null
+    }
+    // Return to select tool
+    onToolChangeRef.current?.('select')
+  }, [scalePxPerFt])
+
+  // Cancel cable drawing on Escape or tool change away from cable
+  useEffect(() => {
+    if (activeTool !== 'cable' && cableStartRef.current) {
+      cableStartRef.current = null
+      if (cablePreviewRef.current) {
+        const ml = (cablePreviewRef.current as unknown as Record<string, unknown>).__moveListener as google.maps.MapsEventListener | undefined
+        ml?.remove()
+        cablePreviewRef.current.setMap(null)
+        cablePreviewRef.current = null
+      }
+    }
+  }, [activeTool])
 
   // Google Maps script loading (reuse cached script from satellite-map if present)
   const [mapReady, setMapReady] = useState(false)
@@ -447,9 +541,13 @@ function CanvasArea(props: Props) {
           title: dev.label || 'Device',
         })
 
-        // Marker click → select (uses ref to avoid stale closure)
+        // Marker click → select or cable mode
         const devId = dev.id
         marker.addListener('click', () => {
+          if (activeToolRef.current === 'cable') {
+            handleCableClick(devId, 'device', dev.position_x, dev.position_y)
+            return
+          }
           onSelectDeviceRef.current(devId)
         })
 
@@ -529,6 +627,10 @@ function CanvasArea(props: Props) {
 
         const mdfId = mdf.id
         marker.addListener('click', () => {
+          if (activeToolRef.current === 'cable') {
+            handleCableClick(mdfId, 'mdf', mdf.position_x, mdf.position_y)
+            return
+          }
           onMdfSelectedRef.current?.(mdfId)
         })
         marker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
@@ -571,15 +673,19 @@ function CanvasArea(props: Props) {
         const { lat, lng } = canvasPixelsToLatLng(wp.x, wp.y, geoContext)
         return { lat, lng }
       })
-      const color = cable.color_hex || '#3b82f6'
+      const color = cable.color_hex || '#f97316'
       const polyline = new google.maps.Polyline({
         path,
         strokeColor: color,
-        strokeOpacity: 0.8,
-        strokeWeight: 2,
+        strokeOpacity: 0,
+        strokeWeight: 0,
         map,
         clickable: false,
-        zIndex: 0,
+        zIndex: 1,
+        icons: [{
+          icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, strokeColor: color, scale: 2 },
+          offset: '0', repeat: '10px',
+        }],
       })
       cablePolylinesRef.current.push(polyline)
     }

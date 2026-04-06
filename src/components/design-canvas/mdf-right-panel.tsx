@@ -174,6 +174,23 @@ export function MdfRightPanel({
       {/* ── Scrollable Content ── */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
 
+        {/* Color selector */}
+        <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: C.textDim, marginBottom: 6 }}>Color</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {MDF_COLORS.map(clr => (
+              <button key={clr} onClick={() => onUpdateMdf(mdf.id, { color_hex: clr })}
+                style={{
+                  width: 22, height: 22, borderRadius: '50%', background: clr,
+                  border: mdfColor === clr ? '2.5px solid #fff' : '1.5px solid rgba(255,255,255,0.2)',
+                  cursor: 'pointer', boxShadow: mdfColor === clr ? `0 0 0 1.5px ${clr}` : 'none',
+                  transition: 'all 0.15s',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
         {/* Location */}
         <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: C.textDim, marginBottom: 4 }}>
