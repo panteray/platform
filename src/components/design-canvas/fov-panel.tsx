@@ -41,9 +41,25 @@ export function FovPanel({ device, onClose, onUpdateDevice }: Props) {
   const resolutionW = Number(props.resolution_w) || 0
   const resolutionH = Number(props.resolution_h) || 0
 
+  // Parse varifocal lens range from focal_length string (e.g. "3.7 - 9.4" or "3.7")
+  const focalLengthStr = String(props.focal_length || props.focal_length_mm || '')
+  const focalParts = focalLengthStr.match(/([\d.]+)\s*[-~]\s*([\d.]+)/)
+  const focalMin = focalParts ? parseFloat(focalParts[1]) : focalLength
+  const focalMax = focalParts ? parseFloat(focalParts[2]) : focalLength
+  const isVarifocal = focalMax > focalMin
+
+  // Compute H-FoV from current focal length + sensor width
   const hFov = sensorW > 0 && focalLength > 0
     ? 2 * Math.atan(sensorW / (2 * focalLength)) * (180 / Math.PI)
     : Number(props.fov_angle) || 90
+
+  // H-FoV range from varifocal lens (wider FOV = shorter focal length)
+  const hFovMax = sensorW > 0 && focalMin > 0
+    ? Math.round(2 * Math.atan(sensorW / (2 * focalMin)) * (180 / Math.PI) * 10) / 10
+    : 180
+  const hFovMin = sensorW > 0 && focalMax > 0
+    ? Math.round(2 * Math.atan(sensorW / (2 * focalMax)) * (180 / Math.PI) * 10) / 10
+    : 5
 
   const hasSensor = resolutionW > 0 && sensorW > 0 && focalLength > 0
   const ppf = hasSensor ? calculatePpfAtDistance(resolutionW, sensorW, focalLength, targetDist) : 0
@@ -51,6 +67,18 @@ export function FovPanel({ device, onClose, onUpdateDevice }: Props) {
 
   const updateProp = (key: string, value: unknown) => {
     onUpdateDevice(device.id, { properties: { ...props, [key]: value } })
+  }
+
+  // When H-FoV changes, back-calculate focal length: fl = sensorW / (2 * tan(hFov/2))
+  const handleHFovChange = (newHFov: number) => {
+    if (sensorW > 0) {
+      const newFocal = Math.round((sensorW / (2 * Math.tan((newHFov / 2) * Math.PI / 180))) * 100) / 100
+      // Clamp to varifocal range
+      const clampedFocal = Math.max(focalMin, Math.min(focalMax, newFocal))
+      onUpdateDevice(device.id, { properties: { ...props, focal_length: clampedFocal, fov_angle: newHFov } })
+    } else {
+      updateProp('fov_angle', newHFov)
+    }
   }
 
   // SVG diagram math
@@ -128,14 +156,15 @@ export function FovPanel({ device, onClose, onUpdateDevice }: Props) {
           Setting
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 28px' }}>
-          {/* H-FoV */}
+          {/* H-FoV — editable within varifocal range, back-calculates focal length */}
           <ControlRow
-            label="Horizontal FoV"
+            label={isVarifocal ? `Horizontal FoV (${focalMin}–${focalMax}mm)` : 'Horizontal FoV'}
             value={Math.round(hFov * 10) / 10}
             unit="°"
-            min={1} max={360} step={0.1}
-            readOnly={sensorW > 0 && focalLength > 0}
-            onChange={(v) => updateProp('fov_angle', v)}
+            min={isVarifocal ? hFovMin : 1}
+            max={isVarifocal ? hFovMax : 360}
+            step={0.1}
+            onChange={handleHFovChange}
           />
           {/* Install Height */}
           <ControlRow
