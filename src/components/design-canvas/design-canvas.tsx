@@ -982,6 +982,9 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           onCanvasClick={(x, y) => {
             if (pendingPlaceDeviceId) {
               handleCanvasClickForPlacement(x, y)
+            } else if (activeTool === 'mdf_idf') {
+              addInfrastructure({ design_id: designId, area_id: activeAreaId, name: `MDF-${(mdfIdfs.filter(m => m.area_id === activeAreaId).length + 1).toString().padStart(2, '0')}`, position_x: Math.round(x), position_y: Math.round(y) })
+              setActiveTool('select')
             }
           }}
           onCableCreated={async (cable) => {

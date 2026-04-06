@@ -244,6 +244,9 @@ function CanvasArea(props: Props) {
   const groundOverlayRef = useRef<GOverlay | null>(null)
   const contextMenuRef = useRef<{ deviceId: string; x: number; y: number } | null>(null)
   const draggingDeviceRef = useRef<string | null>(null)
+  const mdfMarkersRef = useRef<Map<string, GMarker>>(new Map())
+  const cablePolylinesRef = useRef<google.maps.Polyline[]>([])
+  const wallPolylinesRef = useRef<google.maps.Polyline[]>([])
   const fovPolygonListenersRef = useRef<google.maps.MapsEventListener[]>([])
   const isDraggingFovRef = useRef(false)
   // IPVM-style drag handles: per-sensor person icon (rotation+distance) + 2 arc-edge circles (FOV angle)
@@ -283,6 +286,10 @@ function CanvasArea(props: Props) {
   useEffect(() => { fovDataRef.current = fovData }, [fovData])
   const onDeviceUpdatePropRef = useRef(onDeviceUpdateProp)
   useEffect(() => { onDeviceUpdatePropRef.current = onDeviceUpdateProp }, [onDeviceUpdateProp])
+  const onMdfIdfMovedRef = useRef(onMdfIdfMoved)
+  useEffect(() => { onMdfIdfMovedRef.current = onMdfIdfMoved }, [onMdfIdfMoved])
+  const onMdfSelectedRef = useRef(onMdfSelected)
+  useEffect(() => { onMdfSelectedRef.current = onMdfSelected }, [onMdfSelected])
 
   // Google Maps script loading (reuse cached script from satellite-map if present)
   const [mapReady, setMapReady] = useState(false)
@@ -487,6 +494,160 @@ function CanvasArea(props: Props) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- mapReady triggers re-run after map init
   }, [devices, selectedDeviceId, geoContext, mapReady])
+
+  // Update MDF/IDF markers on Google Maps
+  useEffect(() => {
+    if (!mapRef.current || !geoContext) return
+    const map = mapRef.current
+    const seen = new Set<string>()
+    const nodes = mdfIdfs ?? []
+
+    for (const mdf of nodes) {
+      seen.add(mdf.id)
+      const { lat, lng } = canvasPixelsToLatLng(mdf.position_x, mdf.position_y, geoContext)
+      let marker = mdfMarkersRef.current.get(mdf.id)
+
+      const mdfIcon: google.maps.Symbol = {
+        path: 'M-8,-10 L8,-10 L8,10 L-8,10 Z M-5,-7 L5,-7 L5,-3 L-5,-3 Z M-5,0 L5,0 L5,4 L-5,4 Z M-5,7 L5,7',
+        fillColor: mdf.color_hex || '#64748b',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 1.5,
+        scale: 1.3,
+        anchor: new google.maps.Point(0, 0),
+      }
+
+      if (!marker) {
+        marker = new google.maps.Marker({
+          position: { lat, lng },
+          map,
+          icon: mdfIcon,
+          draggable: true,
+          zIndex: 5,
+          title: mdf.name || 'MDF/IDF',
+        })
+
+        const mdfId = mdf.id
+        marker.addListener('click', () => {
+          onMdfSelectedRef.current?.(mdfId)
+        })
+        marker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+          const ctx = geoContextRef.current
+          if (e.latLng && ctx) {
+            const pos = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
+            onMdfIdfMovedRef.current?.(mdfId, Math.round(pos.x), Math.round(pos.y))
+          }
+        })
+
+        mdfMarkersRef.current.set(mdf.id, marker)
+      } else {
+        marker.setPosition({ lat, lng })
+        marker.setIcon(mdfIcon)
+      }
+    }
+
+    // Remove markers for deleted MDF/IDF nodes
+    for (const [id, marker] of mdfMarkersRef.current) {
+      if (!seen.has(id)) {
+        marker.setMap(null)
+        mdfMarkersRef.current.delete(id)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mdfIdfs, geoContext, mapReady])
+
+  // Render cable polylines on Google Maps
+  useEffect(() => {
+    // Clear old polylines
+    for (const pl of cablePolylinesRef.current) pl.setMap(null)
+    cablePolylinesRef.current = []
+
+    if (!mapRef.current || !geoContext || !cables.length) return
+    const map = mapRef.current
+
+    for (const cable of cables) {
+      if (!cable.waypoints || cable.waypoints.length < 2) continue
+      const path = cable.waypoints.map(wp => {
+        const { lat, lng } = canvasPixelsToLatLng(wp.x, wp.y, geoContext)
+        return { lat, lng }
+      })
+      const color = cable.color_hex || '#3b82f6'
+      const polyline = new google.maps.Polyline({
+        path,
+        strokeColor: color,
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        map,
+        clickable: false,
+        zIndex: 0,
+      })
+      cablePolylinesRef.current.push(polyline)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cables, geoContext, mapReady])
+
+  // Render wall polylines on Google Maps
+  useEffect(() => {
+    // Clear old wall lines
+    for (const pl of wallPolylinesRef.current) pl.setMap(null)
+    wallPolylinesRef.current = []
+
+    if (!mapRef.current || !geoContext || !walls?.length) return
+    const map = mapRef.current
+
+    for (const wall of walls) {
+      if (!wall.points || wall.points.length < 2) continue
+      const path = wall.points.map(pt => {
+        const { lat, lng } = canvasPixelsToLatLng(pt.x, pt.y, geoContext)
+        return { lat, lng }
+      })
+      const polyline = new google.maps.Polyline({
+        path,
+        strokeColor: '#ef4444',
+        strokeOpacity: 0.9,
+        strokeWeight: 3,
+        map,
+        clickable: false,
+        zIndex: 2,
+      })
+      wallPolylinesRef.current.push(polyline)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walls, geoContext, mapReady])
+
+  // Render floor plan as GroundOverlay
+  useEffect(() => {
+    if (groundOverlayRef.current) {
+      groundOverlayRef.current.setMap(null)
+      groundOverlayRef.current = null
+    }
+
+    if (!mapRef.current || !floorPlan || !geoContext) return
+    const fileUrl = floorPlan.file_url
+    if (!fileUrl) return
+
+    const map = mapRef.current
+    const fpW = floorPlan.width || 1000
+    const fpH = floorPlan.height || 800
+    const opacity = floorPlanOpacity ?? floorPlan.opacity ?? 0.6
+
+    // Convert floor plan pixel dimensions to lat/lng bounds
+    // Floor plan is centered at origin (0,0) and extends to (fpW, fpH) in canvas pixels
+    const sw = canvasPixelsToLatLng(0, fpH, geoContext)
+    const ne = canvasPixelsToLatLng(fpW, 0, geoContext)
+    const bounds = new google.maps.LatLngBounds(
+      new google.maps.LatLng(sw.lat, sw.lng),
+      new google.maps.LatLng(ne.lat, ne.lng),
+    )
+
+    const overlay = new google.maps.GroundOverlay(fileUrl, bounds, {
+      opacity,
+      clickable: false,
+    })
+    overlay.setMap(map)
+    groundOverlayRef.current = overlay
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floorPlan, floorPlanOpacity, geoContext, mapReady])
 
   // Update FOV polygons
   useEffect(() => {
@@ -909,25 +1070,6 @@ function CanvasArea(props: Props) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDeviceId, devices, fovData, showFovCones, geoContext, hiddenPpfZones, mapReady])
-
-  // Update floor plan overlay
-  useEffect(() => {
-    if (!mapRef.current || !floorPlan || !geoContext) {
-      if (groundOverlayRef.current) {
-        groundOverlayRef.current.setMap(null)
-        groundOverlayRef.current = null
-      }
-      return
-    }
-
-    const map = mapRef.current
-    if (groundOverlayRef.current) {
-      groundOverlayRef.current.setMap(null)
-    }
-
-    // For now, floor plan overlay is deferred (no image URL support)
-    // This would require floorPlan.image_url or similar
-  }, [floorPlan, geoContext])
 
   // Context menu handler
   const handleContextMenuAction = (action: 'copy' | 'delete' | 'preview') => {
