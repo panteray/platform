@@ -41,6 +41,8 @@ interface Props {
   onClose: () => void
   onUpdateDevice: (id: string, updates: Record<string, unknown>) => void
   mdfIdfs?: DesignMdfIdf[]
+  onChangeModel?: (id: string) => void
+  cables?: Array<{ id: string; from_device_id?: string | null; to_device_id?: string | null; mdf_idf_id?: string | null; cable_type?: string; length_ft?: number; total_length_ft?: number }>
 }
 
 /* ─── Form Field Components ─── */
@@ -155,7 +157,7 @@ function CalcLink({ icon, label, onClick }: { icon: React.ReactNode; label: stri
 }
 
 /* ─── Component ─── */
-export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs }: Props) {
+export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, onChangeModel, cables }: Props) {
   const [activeSection, setActiveSection] = useState<SectionId>('profile')
   const props = useMemo(() => (device.properties ?? {}) as Record<string, unknown>, [device.properties])
 
@@ -248,7 +250,18 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs }:
             </FieldRow>
             <FieldRow>
               <Field label="Manufacturer"><TextInput value={str('vendor')} onChange={v => updateProp('vendor', v)} /></Field>
-              <Field label="Model #"><TextInput value={str('model')} onChange={v => updateProp('model', v)} /></Field>
+              <Field label="Model #">
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <TextInput value={str('model')} onChange={v => updateProp('model', v)} />
+                  {onChangeModel && (
+                    <button onClick={() => onChangeModel(device.id)} style={{
+                      padding: '4px 8px', background: 'transparent', border: `1px solid ${C.border}`,
+                      borderRadius: 4, color: C.accent, fontSize: 9, fontWeight: 600,
+                      cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                    }}>Change</button>
+                  )}
+                </div>
+              </Field>
             </FieldRow>
             <FieldRow>
               <Field label="Device Price"><TextInput value={String(num('device_price'))} type="number" onChange={v => updateProp('device_price', Number(v))} /></Field>
@@ -337,6 +350,21 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs }:
 
             <Divider />
             <SectionLabel>Cabling</SectionLabel>
+            {(() => {
+              // Auto-populate from canvas cable if connected
+              const connCable = cables?.find(c => c.from_device_id === device.id || c.to_device_id === device.id)
+              const connMdf = connCable?.mdf_idf_id ? (mdfIdfs ?? []).find(m => m.id === connCable.mdf_idf_id) : null
+              return connCable ? (
+                <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 6, background: 'rgba(34,197,94,0.06)', borderRadius: 4, padding: '6px 8px', border: '1px solid rgba(34,197,94,0.15)' }}>
+                  Connected via canvas cable — {connCable.cable_type || 'Cat6'} · {Math.round(connCable.total_length_ft || connCable.length_ft || 0)} ft
+                  {connMdf && <> · MDF: {connMdf.name}</>}
+                </div>
+              ) : (
+                <div style={{ padding: '6px 0', fontSize: 10, color: C.textDim, fontStyle: 'italic', marginBottom: 6 }}>
+                  Not cabled — draw a cable on canvas to connect
+                </div>
+              )
+            })()}
             <FieldRow>
               <Field label="MDF / IDF">
                 <SelectInput value={str('mdf_idf', '')} onChange={v => updateProp('mdf_idf', v)} options={[

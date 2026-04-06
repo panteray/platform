@@ -10,7 +10,7 @@
  * Data cross-references from canvas device properties.
  */
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useRef, useCallback } from 'react'
 import { X } from 'lucide-react'
 import { C } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
@@ -181,11 +181,7 @@ export function FovPanel({ device, onClose, onUpdateDevice }: Props) {
                 transition: 'all 0.2s',
                 opacity: isMet ? 1 : 0.4,
               }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 6, background: C.bgHover,
-                  margin: '0 auto 6px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 16,
-                }}>🧑</div>
+                <DoriPreview tier={tier.key} size={36} />
                 <div style={{ fontSize: 9, fontWeight: 700, color: isActive ? C.accent : C.text, marginBottom: 2 }}>
                   {tier.label}
                 </div>
@@ -306,23 +302,124 @@ export function FovPanel({ device, onClose, onUpdateDevice }: Props) {
   )
 }
 
-/* ─── Control Row (label + bar + input + spinner + unit) ─── */
+/* ─── DORI Preview — CSS face + plate with progressive pixelation ─── */
+const BLUR_MAP: Record<string, number> = {
+  identification: 0,
+  recognition: 1,
+  observation: 2.5,
+  detection: 4,
+  monitor: 7,
+}
+function DoriPreview({ tier, size }: { tier: string; size: number }) {
+  const blur = BLUR_MAP[tier] ?? 4
+  return (
+    <div style={{
+      width: size, height: size + 14, margin: '0 auto 4px',
+      display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center',
+    }}>
+      {/* Face — SVG with CSS blur */}
+      <div style={{
+        width: size, height: size * 0.7, borderRadius: 4, background: C.bgHover,
+        overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        filter: `blur(${blur}px)`,
+      }}>
+        <svg width={size * 0.7} height={size * 0.6} viewBox="0 0 24 22">
+          {/* Head */}
+          <ellipse cx={12} cy={8} rx={7} ry={8} fill="#c9a37b" />
+          {/* Hair */}
+          <ellipse cx={12} cy={5} rx={7.5} ry={5} fill="#4a3728" />
+          {/* Eyes */}
+          <ellipse cx={9} cy={9} rx={1.2} ry={0.9} fill="#2c1810" />
+          <ellipse cx={15} cy={9} rx={1.2} ry={0.9} fill="#2c1810" />
+          {/* Nose */}
+          <ellipse cx={12} cy={11.5} rx={0.8} ry={0.5} fill="#b8926a" />
+          {/* Mouth */}
+          <path d="M10 13.5 Q12 15 14 13.5" fill="none" stroke="#8b6650" strokeWidth={0.7} />
+          {/* Shoulders */}
+          <path d="M3 22 Q6 16 12 16 Q18 16 21 22" fill="#4a6fa5" />
+        </svg>
+      </div>
+      {/* Plate */}
+      <div style={{
+        fontSize: 6, fontWeight: 700, fontFamily: 'monospace',
+        background: '#f0f0f0', color: '#1a1a1a', padding: '1px 3px',
+        borderRadius: 2, border: '0.5px solid #999', letterSpacing: 0.5,
+        filter: `blur(${blur * 0.7}px)`,
+        lineHeight: 1.2,
+      }}>
+        ABC 1234
+      </div>
+    </div>
+  )
+}
+
+/* ─── Control Row (label + FUNCTIONAL slider + input + spinner + unit) ─── */
 function ControlRow({ label, value, unit, min, max, step, readOnly, onChange }: {
   label: string; value: number; unit: string; min: number; max: number; step: number
   readOnly?: boolean; onChange: (v: number) => void
 }) {
+  const barRef = useRef<HTMLDivElement>(null)
+  const dragging = useRef(false)
   const pct = ((value - min) / (max - min)) * 100
+
+  const valueFromMouseX = useCallback((clientX: number) => {
+    const bar = barRef.current
+    if (!bar) return value
+    const rect = bar.getBoundingClientRect()
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    const raw = min + ratio * (max - min)
+    // Snap to step
+    return Math.round(raw / step) * step
+  }, [min, max, step, value])
+
+  const handleBarMouseDown = useCallback((e: React.MouseEvent) => {
+    if (readOnly) return
+    e.preventDefault()
+    dragging.current = true
+    const newVal = valueFromMouseX(e.clientX)
+    onChange(Math.max(min, Math.min(max, newVal)))
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging.current) return
+      const v = valueFromMouseX(ev.clientX)
+      onChange(Math.max(min, Math.min(max, v)))
+    }
+    const onUp = () => {
+      dragging.current = false
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [readOnly, valueFromMouseX, onChange, min, max])
+
   return (
     <div>
       <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {/* Bar */}
-        <div style={{ flex: 1, height: 4, background: C.bgActive, borderRadius: 2, position: 'relative', cursor: readOnly ? 'default' : 'pointer' }}>
-          <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${Math.min(100, Math.max(0, pct))}%`, background: C.accent, borderRadius: 2 }} />
+        {/* Bar — functional drag slider */}
+        <div
+          ref={barRef}
+          onMouseDown={handleBarMouseDown}
+          style={{
+            flex: 1, height: 6, background: C.bgActive, borderRadius: 3,
+            position: 'relative', cursor: readOnly ? 'default' : 'pointer',
+          }}
+        >
           <div style={{
-            position: 'absolute', top: '50%', left: `${Math.min(100, Math.max(0, pct))}%`,
-            transform: 'translate(-50%,-50%)', width: 14, height: 14, borderRadius: '50%',
-            background: C.accent, border: '2.5px solid var(--canvas-text)', cursor: readOnly ? 'default' : 'grab',
+            position: 'absolute', left: 0, top: 0, height: '100%',
+            width: `${Math.min(100, Math.max(0, pct))}%`,
+            background: C.accent, borderRadius: 3,
+          }} />
+          <div style={{
+            position: 'absolute', top: '50%',
+            left: `${Math.min(100, Math.max(0, pct))}%`,
+            transform: 'translate(-50%,-50%)',
+            width: 16, height: 16, borderRadius: '50%',
+            background: C.accent, border: '3px solid var(--canvas-text)',
+            cursor: readOnly ? 'default' : 'grab',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+            transition: dragging.current ? 'none' : 'left 0.1s',
           }} />
         </div>
         {/* Input */}

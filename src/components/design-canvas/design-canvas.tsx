@@ -130,6 +130,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const [showFovPanel, setShowFovPanel] = useState(false)
   const [showDeviceProfile, setShowDeviceProfile] = useState(false)
   const [pendingPlaceDeviceId, setPendingPlaceDeviceId] = useState<string | null>(null)
+  const [changingModelDeviceId, setChangingModelDeviceId] = useState<string | null>(null)
 
   /* ── Canvas ref for zoom-to-device ── */
   const canvasRef = useRef<{ zoomToDevice?: (devId: string) => void } | null>(null)
@@ -536,6 +537,12 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     }
   }, [devices, addDevice, deleteDevice, designId])
 
+  // Change Model: opens library modal, on select updates existing device instead of creating new
+  const handleChangeModel = useCallback((deviceId: string) => {
+    setChangingModelDeviceId(deviceId)
+    setShowCatalog(true)
+  }, [])
+
   // Auto-label prefix by category
   const getNextLabel = useCallback((category: string) => {
     const prefix = LABEL_PREFIX[category] || 'DEV'
@@ -546,6 +553,32 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
 
   const handleDeviceSelected = useCallback(async (item: DeviceSearchResult) => {
     setShowCatalog(false)
+
+    // If changing model on existing device, update it instead of creating new
+    if (changingModelDeviceId) {
+      const devId = changingModelDeviceId
+      setChangingModelDeviceId(null)
+      const existingDev = devices.find(d => d.id === devId)
+      if (existingDev) {
+        const existingProps = (existingDev.properties ?? {}) as Record<string, unknown>
+        const newSpecs: Record<string, unknown> = { ...(item.specs ?? {}) }
+        if (item.vendor) newSpecs.vendor = item.vendor
+        if (item.model) newSpecs.model = item.model
+        if (item.resolution) newSpecs.resolution = item.resolution
+        if (item.focal_length) newSpecs.focal_length = parseFloat(item.focal_length)
+        if (item.aov) newSpecs.aov = item.aov
+        if (item.form) newSpecs.form = item.form
+        if (item.imager_count) newSpecs.imager_count = item.imager_count
+        // Preserve user-set properties (position, rotation, unplaced, etc.)
+        const merged = { ...existingProps, ...newSpecs }
+        await updateDevice(devId, {
+          device_library_item_id: item.id,
+          properties: merged,
+          label: `${existingDev.label?.split(' — ')[0] || 'DEV'} — ${item.vendor} ${item.model}`,
+        })
+      }
+      return
+    }
 
     // Derive specific camera type from subcategory OR form for correct icon + FOV matching
     // e.g., subcategory="dome" OR form="Dome" → category="dome" instead of generic "cctv"
@@ -673,7 +706,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     } catch (err) {
       console.error('Failed to add device:', err)
     }
-  }, [addDevice, designId, activeAreaId, setSelectedDeviceId, getNextLabel])
+  }, [addDevice, designId, activeAreaId, setSelectedDeviceId, getNextLabel, changingModelDeviceId, devices, updateDevice])
 
   const handleUpdateDevice = useCallback((id: string, updates: Record<string, unknown>) => {
     updateDevice(id, updates)
@@ -1053,6 +1086,8 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 onClose={() => setShowDeviceProfile(false)}
                 onUpdateDevice={handleUpdateDevice}
                 mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
+                onChangeModel={handleChangeModel}
+                cables={cables.filter(c => c.area_id === activeAreaId)}
               />
             )}
 
@@ -1075,6 +1110,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
               onDelete={handleDeviceDelete}
               onRemoveFromMap={handleRemoveFromMap}
               scalePxPerFt={scalePxPerFt}
+              onChangeModel={handleChangeModel}
               mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
               showIrRange={showIrRange}
               onToggleIrRange={setShowIrRange}

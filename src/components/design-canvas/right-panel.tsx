@@ -653,26 +653,11 @@ export function RightPanel({
             {/* Scene Type */}
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Scene Type</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  width: 40, height: 30, borderRadius: 4, background: C.bgActive,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0,
-                }}>🏬</div>
-                <select value={String(props.scene_type || 'retail_indoor')}
-                  onChange={e => updateProp('scene_type', e.target.value)}
-                  style={{
-                    flex: 1, padding: '6px 8px', background: C.bgActive,
-                    border: `1px solid ${C.border}`, borderRadius: 4,
-                    color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none',
-                  }}>
-                  <option value="retail_indoor">Retail — Indoor</option>
-                  <option value="hallway_indoor">Hallway — Indoor</option>
-                  <option value="parking_outdoor">Parking — Outdoor</option>
-                  <option value="perimeter_outdoor">Perimeter — Outdoor</option>
-                  <option value="lobby_indoor">Lobby — Indoor</option>
-                  <option value="warehouse_indoor">Warehouse — Indoor</option>
-                </select>
-              </div>
+              <BtnGroup
+                options={['Indoor', 'Outdoor']}
+                value={String(props.scene_type || 'Indoor')}
+                onChange={v => updateProp('scene_type', v)}
+              />
             </div>
 
             {/* Camera Profile */}
@@ -729,8 +714,8 @@ export function RightPanel({
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Lighting Condition</div>
               <BtnGroup
-                options={['☀ Day', '🌙 Night', '💡 Illuminated']}
-                value={String(props.lighting_condition || '☀ Day')}
+                options={['Day', 'Night', 'Illuminated']}
+                value={String(props.lighting_condition || 'Day')}
                 onChange={v => updateProp('lighting_condition', v)}
               />
               {/* 24h timeline */}
@@ -780,40 +765,11 @@ export function RightPanel({
               </div>
             </div>
 
-            {/* Recording Schedule */}
-            <div style={{ padding: '10px 16px' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Recording Schedule</div>
-              <select value={String(props.recording_schedule || 'continuous')}
-                onChange={e => updateProp('recording_schedule', e.target.value)}
-                style={{
-                  width: '100%', padding: '5px 8px', background: C.bgActive,
-                  border: `1px solid ${C.border}`, borderRadius: 4,
-                  color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none', marginBottom: 8,
-                }}>
-                <option value="continuous">Continuous</option>
-                <option value="event">Event Only</option>
-                <option value="scheduled">Scheduled</option>
-              </select>
-              <BtnGroup
-                options={['● Continuous', '● Event', '○ None']}
-                value={String(props.recording_type || '● Continuous')}
-                onChange={v => updateProp('recording_type', v)}
-              />
-              {/* Weekly schedule mini grid */}
-              <div style={{ marginTop: 8 }}>
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 1 }}>
-                    <span style={{ fontSize: 7, color: C.textDim, width: 18, flexShrink: 0 }}>{day}</span>
-                    {Array.from({ length: 24 }, (_, h) => (
-                      <div key={h} style={{
-                        flex: 1, height: 6, borderRadius: 1,
-                        background: '#34c77b', opacity: 0.7,
-                      }} />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Recording Schedule — Interactive Weekly Grid */}
+            <RecordingScheduleGrid
+              schedule={(props.recording_schedule_grid || null) as never}
+              onChange={grid => updateProp('recording_schedule_grid', grid)}
+            />
           </div>
         )}
 
@@ -828,6 +784,119 @@ function RecField({ label, children }: { label: string; children: React.ReactNod
     <div>
       <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>{label}</div>
       {children}
+    </div>
+  )
+}
+
+/* ─── Interactive Weekly Recording Schedule Grid (Hanwha DesignPro style) ─── */
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
+const EVENT_PCTS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100] as const
+type CellMode = 'continuous' | 'event' | 'none'
+type ScheduleGrid = Record<string, Record<string, { mode: CellMode; pct?: number }>>
+
+function initGrid(): ScheduleGrid {
+  const g: ScheduleGrid = {}
+  for (const d of DAYS) {
+    g[d] = {}
+    for (let h = 0; h < 24; h++) g[d][h] = { mode: 'continuous' }
+  }
+  return g
+}
+
+function RecordingScheduleGrid({ schedule, onChange }: {
+  schedule: ScheduleGrid | null
+  onChange: (grid: ScheduleGrid) => void
+}) {
+  const grid = schedule || initGrid()
+  const [paintMode, setPaintMode] = React.useState<CellMode>('continuous')
+  const [eventPct, setEventPct] = React.useState(50)
+  const isPainting = React.useRef(false)
+
+  const paintCell = (day: string, hour: number) => {
+    const next = JSON.parse(JSON.stringify(grid)) as ScheduleGrid
+    if (!next[day]) next[day] = {}
+    next[day][hour] = paintMode === 'event' ? { mode: 'event', pct: eventPct } : { mode: paintMode }
+    onChange(next)
+  }
+
+  const cellColor = (mode: CellMode) => mode === 'continuous' ? '#34c77b' : mode === 'event' ? '#f59e0b' : C.bgActive
+
+  React.useEffect(() => {
+    const up = () => { isPainting.current = false }
+    document.addEventListener('mouseup', up)
+    return () => document.removeEventListener('mouseup', up)
+  }, [])
+
+  return (
+    <div style={{ padding: '10px 16px' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Recording Schedule</div>
+
+      {/* Paint mode selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
+        {([['continuous', 'Continuous', '#34c77b'], ['event', 'Event', '#f59e0b'], ['none', 'No recording', C.textDim]] as const).map(([mode, lbl, clr]) => (
+          <button key={mode} onClick={() => setPaintMode(mode as CellMode)}
+            style={{
+              padding: '3px 8px', borderRadius: 4, fontSize: 9, fontWeight: 600,
+              border: `1.5px solid ${paintMode === mode ? clr : C.border}`,
+              background: paintMode === mode ? `${clr}20` : 'transparent',
+              color: paintMode === mode ? clr : C.textMuted,
+              cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', gap: 3,
+            }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: clr, display: 'inline-block' }} />
+            {lbl}
+          </button>
+        ))}
+        {paintMode === 'event' && (
+          <select value={eventPct} onChange={e => setEventPct(Number(e.target.value))}
+            style={{
+              padding: '2px 4px', background: C.bgActive, border: `1px solid ${C.border}`,
+              borderRadius: 4, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none',
+            }}>
+            {EVENT_PCTS.map(p => <option key={p} value={p}>{p}%</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Hour labels */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 1, paddingLeft: 20 }}>
+        {Array.from({ length: 24 }, (_, h) => (
+          <div key={h} style={{ flex: 1, fontSize: 5, color: C.textDim, textAlign: 'center' }}>
+            {h % 3 === 0 ? h : ''}
+          </div>
+        ))}
+      </div>
+
+      {/* Grid rows */}
+      <div style={{ userSelect: 'none' }}>
+        {DAYS.map(day => (
+          <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 1, marginBottom: 1 }}>
+            <span style={{ fontSize: 7, color: C.textDim, width: 18, flexShrink: 0 }}>{day}</span>
+            {Array.from({ length: 24 }, (_, h) => {
+              const cell = grid[day]?.[h] || { mode: 'continuous' as CellMode }
+              return (
+                <div
+                  key={h}
+                  onMouseDown={(e) => { e.preventDefault(); isPainting.current = true; paintCell(day, h) }}
+                  onMouseEnter={() => { if (isPainting.current) paintCell(day, h) }}
+                  style={{
+                    flex: 1, height: 10, borderRadius: 1, cursor: 'pointer',
+                    background: cellColor(cell.mode as CellMode),
+                    opacity: cell.mode === 'none' ? 0.3 : 0.8,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'background 0.05s',
+                  }}
+                  title={`${day} ${h}:00 — ${cell.mode}${cell.pct ? ` ${cell.pct}%` : ''}`}
+                >
+                  {cell.mode === 'event' && cell.pct && (
+                    <span style={{ fontSize: 4, color: '#fff', fontWeight: 700, lineHeight: 1 }}>{cell.pct}</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
