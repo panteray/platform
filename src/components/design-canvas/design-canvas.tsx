@@ -554,23 +554,83 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const handleDeviceSelected = useCallback(async (item: DeviceSearchResult) => {
     setShowCatalog(false)
 
-    // If changing model on existing device, update it instead of creating new
+    // ── Build full catalog specs from library item (shared by new-device and change-model) ──
+    const catalogSpecs: Record<string, unknown> = { ...(item.specs ?? {}) }
+    if (item.resolution) {
+      catalogSpecs.resolution = item.resolution
+      const [w, h] = item.resolution.split('x').map(Number)
+      if (w && h) {
+        catalogSpecs.resolution_w = w; catalogSpecs.resolution_h = h
+      } else {
+        const res = item.resolution.toLowerCase().replace(/\s/g, '')
+        const mpMatch = res.match(/^([\d.]+)mp/)
+        const pMatch = res.match(/^(\d+)p$/)
+        if (res.includes('4k') || res.includes('uhd')) {
+          catalogSpecs.resolution_w = 3840; catalogSpecs.resolution_h = 2160
+        } else if (res.includes('8k')) {
+          catalogSpecs.resolution_w = 7680; catalogSpecs.resolution_h = 4320
+        } else if (pMatch) {
+          const pH = parseInt(pMatch[1], 10)
+          catalogSpecs.resolution_h = pH
+          catalogSpecs.resolution_w = Math.round(pH * 16 / 9)
+        } else if (mpMatch) {
+          const mp = parseFloat(mpMatch[1])
+          const mpToPixels: Record<string, [number, number]> = {
+            '1.3': [1280, 960], '2': [1920, 1080], '3': [2048, 1536],
+            '4': [2560, 1440], '5': [2592, 1944], '6': [3072, 2048],
+            '8': [3840, 2160], '10': [3648, 2736], '12': [4000, 3000],
+            '12.5': [4000, 3000], '16': [4608, 3456], '20': [5120, 3840],
+            '32': [6528, 4896],
+          }
+          const exact = mpToPixels[String(mp)]
+          if (exact) { catalogSpecs.resolution_w = exact[0]; catalogSpecs.resolution_h = exact[1] }
+          else { const rW = Math.round(Math.sqrt(mp * 1_000_000 * (4 / 3))); catalogSpecs.resolution_w = rW; catalogSpecs.resolution_h = Math.round(rW * 3 / 4) }
+        }
+      }
+    }
+    if (item.poe_standard) catalogSpecs.poe_standard = item.poe_standard
+    if (item.wattage != null) catalogSpecs.wattage = item.wattage
+    if (item.ndaa_compliant != null) catalogSpecs.ndaa_compliant = item.ndaa_compliant
+    if (item.vendor) catalogSpecs.vendor = item.vendor
+    if (item.model) catalogSpecs.model = item.model
+    if (item.partnumber) catalogSpecs.partnumber = item.partnumber
+    if (item.fps) { const fpsNum = parseInt(item.fps, 10); if (fpsNum) catalogSpecs.fps = fpsNum }
+    if (item.focal_length) catalogSpecs.focal_length = parseFloat(item.focal_length)
+    if (item.focal_type) catalogSpecs.focal_type = item.focal_type
+    if (item.aov) catalogSpecs.aov = item.aov
+    if (item.form) catalogSpecs.form = item.form
+    if (item.ir) catalogSpecs.ir = item.ir
+    if (item.imager_count) catalogSpecs.imager_count = item.imager_count
+    if (item.multi_imager_type) catalogSpecs.multi_imager_type = item.multi_imager_type
+    if (item.environment) catalogSpecs.environment = item.environment
+    if (item.codecs) catalogSpecs.codecs = item.codecs
+    if (item.super_low_light != null) catalogSpecs.super_low_light = item.super_low_light
+    // Normalize JSONB spec keys
+    if (catalogSpecs.focal_length_mm && !catalogSpecs.focal_length) catalogSpecs.focal_length = parseFloat(String(catalogSpecs.focal_length_mm))
+    if (catalogSpecs.max_resolution_h && !catalogSpecs.resolution_w) catalogSpecs.resolution_w = Number(catalogSpecs.max_resolution_h)
+    if (catalogSpecs.max_resolution_v && !catalogSpecs.resolution_h) catalogSpecs.resolution_h = Number(catalogSpecs.max_resolution_v)
+    if (!catalogSpecs.sensor_w) {
+      const sw = catalogSpecs.sensor_width ?? catalogSpecs.sensor_size_w ?? catalogSpecs.sensor_w_mm
+      if (sw) catalogSpecs.sensor_w = parseFloat(String(sw))
+    }
+    if (!catalogSpecs.sensor_h) {
+      const sh = catalogSpecs.sensor_height ?? catalogSpecs.sensor_size_h ?? catalogSpecs.sensor_h_mm
+      if (sh) catalogSpecs.sensor_h = parseFloat(String(sh))
+    }
+    if (!catalogSpecs.sensor_w) { catalogSpecs.sensor_w = 5.14; catalogSpecs.sensor_h = 3.86 }
+
+    // ── If changing model on existing device, update specs without creating new ──
     if (changingModelDeviceId) {
       const devId = changingModelDeviceId
       setChangingModelDeviceId(null)
       const existingDev = devices.find(d => d.id === devId)
       if (existingDev) {
         const existingProps = (existingDev.properties ?? {}) as Record<string, unknown>
-        const newSpecs: Record<string, unknown> = { ...(item.specs ?? {}) }
-        if (item.vendor) newSpecs.vendor = item.vendor
-        if (item.model) newSpecs.model = item.model
-        if (item.resolution) newSpecs.resolution = item.resolution
-        if (item.focal_length) newSpecs.focal_length = parseFloat(item.focal_length)
-        if (item.aov) newSpecs.aov = item.aov
-        if (item.form) newSpecs.form = item.form
-        if (item.imager_count) newSpecs.imager_count = item.imager_count
-        // Preserve user-set properties (position, rotation, unplaced, etc.)
-        const merged = { ...existingProps, ...newSpecs }
+        // Preserve user-set layout properties (position, rotation, unplaced, color, etc.)
+        const preserveKeys = ['unplaced', 'target_distance', 'install_height', 'tilt_angle', 'recording_schedule_grid', 'retention_days']
+        const preserved: Record<string, unknown> = {}
+        for (const k of preserveKeys) { if (existingProps[k] !== undefined) preserved[k] = existingProps[k] }
+        const merged = { ...catalogSpecs, ...preserved }
         await updateDevice(devId, {
           device_library_item_id: item.id,
           properties: merged,
@@ -599,97 +659,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
 
     const autoLabel = getNextLabel(effectiveCategory)
 
-    // Merge top-level catalog fields into properties so specs populate in right panel
-    const catalogSpecs: Record<string, unknown> = { ...(item.specs ?? {}) }
-    if (item.resolution) {
-      catalogSpecs.resolution = item.resolution
-      // Try WxH format first (e.g. "3840x2160")
-      const [w, h] = item.resolution.split('x').map(Number)
-      if (w && h) {
-        catalogSpecs.resolution_w = w; catalogSpecs.resolution_h = h
-      } else {
-        // Parse common resolution strings (e.g. "4MP", "4K", "1080p") to pixel dimensions
-        const res = item.resolution.toLowerCase().replace(/\s/g, '')
-        const mpMatch = res.match(/^([\d.]+)mp/)
-        const pMatch = res.match(/^(\d+)p$/)
-        if (res.includes('4k') || res.includes('uhd')) {
-          catalogSpecs.resolution_w = 3840; catalogSpecs.resolution_h = 2160
-        } else if (res.includes('8k')) {
-          catalogSpecs.resolution_w = 7680; catalogSpecs.resolution_h = 4320
-        } else if (pMatch) {
-          const pH = parseInt(pMatch[1], 10)
-          catalogSpecs.resolution_h = pH
-          catalogSpecs.resolution_w = Math.round(pH * 16 / 9)
-        } else if (mpMatch) {
-          const mp = parseFloat(mpMatch[1])
-          // Standard pixel widths for common megapixel counts
-          const mpToPixels: Record<string, [number, number]> = {
-            '1.3': [1280, 960], '2': [1920, 1080], '3': [2048, 1536],
-            '4': [2560, 1440], '5': [2592, 1944], '6': [3072, 2048],
-            '8': [3840, 2160], '10': [3648, 2736], '12': [4000, 3000],
-            '12.5': [4000, 3000], '16': [4608, 3456], '20': [5120, 3840],
-            '32': [6528, 4896],
-          }
-          const exact = mpToPixels[String(mp)]
-          if (exact) {
-            catalogSpecs.resolution_w = exact[0]; catalogSpecs.resolution_h = exact[1]
-          } else {
-            // Derive from megapixels: assume 4:3 aspect ratio
-            const totalPx = mp * 1_000_000
-            const rW = Math.round(Math.sqrt(totalPx * (4 / 3)))
-            catalogSpecs.resolution_w = rW; catalogSpecs.resolution_h = Math.round(rW * 3 / 4)
-          }
-        }
-      }
-    }
-    if (item.poe_standard) catalogSpecs.poe_standard = item.poe_standard
-    if (item.wattage != null) catalogSpecs.wattage = item.wattage
-    if (item.ndaa_compliant != null) catalogSpecs.ndaa_compliant = item.ndaa_compliant
-    if (item.vendor) catalogSpecs.vendor = item.vendor
-    if (item.model) catalogSpecs.model = item.model
-    if (item.partnumber) catalogSpecs.partnumber = item.partnumber
-    // FPS comes as its own field (e.g. '30fps')
-    if (item.fps) {
-      const fpsNum = parseInt(item.fps, 10)
-      if (fpsNum) catalogSpecs.fps = fpsNum
-    }
-    // Carry over remaining device library fields
-    if (item.focal_length) catalogSpecs.focal_length = parseFloat(item.focal_length)
-    if (item.focal_type) catalogSpecs.focal_type = item.focal_type
-    if (item.aov) catalogSpecs.aov = item.aov
-    if (item.form) catalogSpecs.form = item.form
-    if (item.ir) catalogSpecs.ir = item.ir
-    if (item.imager_count) catalogSpecs.imager_count = item.imager_count
-    if (item.multi_imager_type) catalogSpecs.multi_imager_type = item.multi_imager_type
-    if (item.environment) catalogSpecs.environment = item.environment
-    if (item.codecs) catalogSpecs.codecs = item.codecs
-    if (item.super_low_light != null) catalogSpecs.super_low_light = item.super_low_light
-    // Normalize JSONB spec keys (e.g. Hanwha Vision) to canvas-expected keys
-    if (catalogSpecs.focal_length_mm && !catalogSpecs.focal_length) {
-      catalogSpecs.focal_length = parseFloat(String(catalogSpecs.focal_length_mm))
-    }
-    if (catalogSpecs.max_resolution_h && !catalogSpecs.resolution_w) {
-      catalogSpecs.resolution_w = Number(catalogSpecs.max_resolution_h)
-    }
-    if (catalogSpecs.max_resolution_v && !catalogSpecs.resolution_h) {
-      catalogSpecs.resolution_h = Number(catalogSpecs.max_resolution_v)
-    }
-    // Sensor dimensions — check JSONB aliases
-    if (!catalogSpecs.sensor_w) {
-      const sw = catalogSpecs.sensor_width ?? catalogSpecs.sensor_size_w ?? catalogSpecs.sensor_w_mm
-      if (sw) catalogSpecs.sensor_w = parseFloat(String(sw))
-    }
-    if (!catalogSpecs.sensor_h) {
-      const sh = catalogSpecs.sensor_height ?? catalogSpecs.sensor_size_h ?? catalogSpecs.sensor_h_mm
-      if (sh) catalogSpecs.sensor_h = parseFloat(String(sh))
-    }
-    // Fallback: derive sensor_w from common sensor size if still missing
-    if (!catalogSpecs.sensor_w) {
-      catalogSpecs.sensor_w = 5.14
-      catalogSpecs.sensor_h = 3.86
-    }
-
-    // Create device as unplaced (goes to pool in left sidebar)
+    // catalogSpecs already built above — just mark as unplaced for pool
     catalogSpecs.unplaced = true
 
     try {
