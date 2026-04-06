@@ -16,6 +16,8 @@ import React, { useState, useMemo, useCallback } from 'react'
 import { X, Upload, FileImage, FileText, Link2, Plus, Pencil, Wrench, Zap } from 'lucide-react'
 import { C } from './constants'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
+import { calculateMountRequirements, type MountCalcInput } from '@/lib/calculators/mount-calculator'
+import { CABLE_TYPES } from '@/lib/calculators/cable-estimator'
 
 const NAV_ITEMS = [
   { id: 'profile', label: 'Device Profile' },
@@ -343,10 +345,50 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
             </Field>
 
             <Divider />
-            <SectionLabel>Accessories</SectionLabel>
-            <AccRow name="Wall Mount Bracket — WM-100" qty={1} onEdit={() => {}} />
-            <AccRow name="Junction Box — JB-200" qty={1} onEdit={() => {}} />
-            <AddBtn label="+ Add Accessory" />
+            <SectionLabel>Accessories (from Mount Calculator)</SectionLabel>
+            {(() => {
+              const mountInput: MountCalcInput = {
+                formFactor: str('form') || device.category,
+                mountType: (str('mount_type', 'ceiling') as 'ceiling' | 'wall' | 'pole' | 'pendant'),
+                environment: (str('environment', 'indoor') as 'indoor' | 'outdoor' | 'indoor_outdoor'),
+              }
+              const mountResult = calculateMountRequirements(mountInput, num('install_height', 9))
+              const customAccessories = (props.custom_accessories || []) as Array<{ name: string; qty: number }>
+              return (
+                <>
+                  {mountResult.mounts.filter(m => m.compatible).map((m, i) => (
+                    <AccRow key={i} name={m.label} qty={1} onEdit={() => {}} />
+                  ))}
+                  {mountResult.liftRequired && (
+                    <div style={{ fontSize: 9, color: '#f97316', fontWeight: 600, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Zap size={10} /> Lift required (mount height &gt; 12ft)
+                    </div>
+                  )}
+                  {customAccessories.map((a, i) => (
+                    <AccRow key={`custom-${i}`} name={a.name} qty={a.qty} onEdit={() => {
+                      const updated = [...customAccessories]
+                      updated.splice(i, 1)
+                      updateProp('custom_accessories', updated)
+                    }} />
+                  ))}
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                    <button onClick={() => {
+                      const name = prompt('Accessory name:')
+                      if (!name) return
+                      const updated = [...customAccessories, { name, qty: 1 }]
+                      updateProp('custom_accessories', updated)
+                    }} style={{
+                      flex: 1, padding: '5px 0', fontSize: 9, fontWeight: 600, borderRadius: 4,
+                      border: `1px dashed ${C.border}`, background: 'transparent',
+                      color: C.textDim, cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                      <Plus size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />
+                      Add Accessory
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
 
             <Divider />
             <SectionLabel>Cabling</SectionLabel>
@@ -354,15 +396,27 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
               // Auto-populate from canvas cable if connected
               const connCable = cables?.find(c => c.from_device_id === device.id || c.to_device_id === device.id)
               const connMdf = connCable?.mdf_idf_id ? (mdfIdfs ?? []).find(m => m.id === connCable.mdf_idf_id) : null
-              return connCable ? (
-                <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 6, background: 'rgba(34,197,94,0.06)', borderRadius: 4, padding: '6px 8px', border: '1px solid rgba(34,197,94,0.15)' }}>
-                  Connected via canvas cable — {connCable.cable_type || 'Cat6'} · {Math.round(connCable.total_length_ft || connCable.length_ft || 0)} ft
-                  {connMdf && <> · MDF: {connMdf.name}</>}
-                </div>
-              ) : (
+              if (!connCable) return (
                 <div style={{ padding: '6px 0', fontSize: 10, color: C.textDim, fontStyle: 'italic', marginBottom: 6 }}>
                   Not cabled — draw a cable on canvas to connect
                 </div>
+              )
+              const cableLen = Math.round(connCable.total_length_ft || connCable.length_ft || 0)
+              const cableType = connCable.cable_type || 'Cat6'
+              const cableDef = CABLE_TYPES.find(ct => ct.type === cableType)
+              const overMax = cableDef && cableLen > cableDef.maxLengthFt
+              return (
+                <>
+                  <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4, background: 'rgba(34,197,94,0.06)', borderRadius: 4, padding: '6px 8px', border: '1px solid rgba(34,197,94,0.15)' }}>
+                    Connected — {cableType} · {cableLen} ft
+                    {connMdf && <> · MDF: {connMdf.name}</>}
+                  </div>
+                  {overMax && (
+                    <div style={{ fontSize: 9, color: '#ef4444', fontWeight: 600, padding: '2px 8px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Zap size={9} /> Exceeds max cable length ({cableDef.maxLengthFt} ft for {cableType})
+                    </div>
+                  )}
+                </>
               )
             })()}
             <FieldRow>
@@ -484,12 +538,58 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
         {activeSection === 'acc' && (
           <>
             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
-              Auto-populated from mount calculator. Edit or add manually.
+              Auto-populated from mount calculator based on form factor and mount type.
             </div>
-            <AccRow name="Wall Mount Bracket — WM-100" qty={1} onEdit={() => {}} />
-            <AccRow name="Junction Box — JB-200" qty={1} onEdit={() => {}} />
-            <AddBtn label="+ Add Accessory" />
-            <CalcLink icon={<Wrench size={14} />} label="Open Mount Calculator" />
+            {(() => {
+              const mountInput: MountCalcInput = {
+                formFactor: str('form') || device.category,
+                mountType: (str('mount_type', 'ceiling') as 'ceiling' | 'wall' | 'pole' | 'pendant'),
+                environment: (str('environment', 'indoor') as 'indoor' | 'outdoor' | 'indoor_outdoor'),
+              }
+              const mountResult = calculateMountRequirements(mountInput, num('install_height', 9))
+              const customAccessories = (props.custom_accessories || []) as Array<{ name: string; qty: number }>
+              return (
+                <>
+                  <SectionLabel>Required</SectionLabel>
+                  {mountResult.mounts.filter(m => m.required && m.compatible).map((m, i) => (
+                    <AccRow key={`req-${i}`} name={m.label} qty={1} onEdit={() => {}} />
+                  ))}
+                  {mountResult.mounts.filter(m => m.required && m.compatible).length === 0 && (
+                    <div style={{ fontSize: 10, color: C.textDim, padding: '4px 0', fontStyle: 'italic' }}>None required</div>
+                  )}
+                  <SectionLabel>Optional</SectionLabel>
+                  {mountResult.mounts.filter(m => !m.required && m.compatible).map((m, i) => (
+                    <AccRow key={`opt-${i}`} name={`${m.label}${m.notes ? ` — ${m.notes}` : ''}`} qty={1} onEdit={() => {}} />
+                  ))}
+                  {mountResult.liftRequired && (
+                    <div style={{ fontSize: 9, color: '#f97316', fontWeight: 600, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Zap size={10} /> Lift required (height &gt; 12ft)
+                    </div>
+                  )}
+                  {customAccessories.length > 0 && <SectionLabel>Custom</SectionLabel>}
+                  {customAccessories.map((a, i) => (
+                    <AccRow key={`custom-${i}`} name={a.name} qty={a.qty} onEdit={() => {
+                      const updated = [...customAccessories]
+                      updated.splice(i, 1)
+                      updateProp('custom_accessories', updated)
+                    }} />
+                  ))}
+                  <button onClick={() => {
+                    const name = prompt('Accessory name:')
+                    if (!name) return
+                    const updated = [...customAccessories, { name, qty: 1 }]
+                    updateProp('custom_accessories', updated)
+                  }} style={{
+                    width: '100%', padding: '5px 0', fontSize: 9, fontWeight: 600, borderRadius: 4,
+                    border: `1px dashed ${C.border}`, background: 'transparent', marginTop: 6,
+                    color: C.textDim, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                    <Plus size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />
+                    Add Custom Accessory
+                  </button>
+                </>
+              )
+            })()}
           </>
         )}
 
