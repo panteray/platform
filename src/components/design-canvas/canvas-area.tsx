@@ -304,6 +304,8 @@ function CanvasArea(props: Props) {
   useEffect(() => { onMdfIdfMovedRef.current = onMdfIdfMoved }, [onMdfIdfMoved])
   const onMdfSelectedRef = useRef(onMdfSelected)
   useEffect(() => { onMdfSelectedRef.current = onMdfSelected }, [onMdfSelected])
+  const onMdfIdfDeletedRef = useRef(onMdfIdfDeleted)
+  useEffect(() => { onMdfIdfDeletedRef.current = onMdfIdfDeleted }, [onMdfIdfDeleted])
   const onCableCreatedRef = useRef(onCableCreated)
   useEffect(() => { onCableCreatedRef.current = onCableCreated }, [onCableCreated])
   const onToolChangeRef = useRef(onToolChange)
@@ -365,7 +367,26 @@ function CanvasArea(props: Props) {
     }
   }, [calcWaypointLengthFt])
 
-  // Step 1: Click MDF → Step 2: Click Device → Step 3: Route waypoints → Double-click/Enter to finish
+  // Finish cable routing: commits the cable to DB
+  const finishCableRouting = useCallback(() => {
+    const draw = cableDrawRef.current
+    if (!draw || draw.phase !== 'routing' || !draw.mdfPx || !draw.devicePx || !draw.deviceId) return
+
+    const allWaypoints = [draw.mdfPx, ...draw.waypoints, draw.devicePx]
+    const lengthFt = calcWaypointLengthFt(allWaypoints)
+
+    onCableCreatedRef.current?.({
+      from_device_id: draw.deviceId,
+      to_device_id: null,
+      waypoints: allWaypoints,
+      length_ft: lengthFt,
+    })
+
+    cleanupCableDraw()
+    onToolChangeRef.current?.('select')
+  }, [calcWaypointLengthFt, cleanupCableDraw])
+
+  // Step 1: Click MDF → Step 2: Click Device → Step 3: Route waypoints → click device/dblclick/Enter to finish
   const handleCableClick = useCallback((id: string, type: 'device' | 'mdf', px: number, py: number) => {
     const draw = cableDrawRef.current
 
@@ -404,9 +425,23 @@ function CanvasArea(props: Props) {
       return
     }
 
-    // ── Phase: routing — clicking a device/MDF finishes routing ──
-    // (shouldn't normally happen since map clicks add waypoints, but handle gracefully)
-  }, [showCablePreview])
+    // ── Phase: routing — clicking the connected device snaps/finishes the cable ──
+    if (draw.phase === 'routing') {
+      if (type === 'device' && id === draw.deviceId) {
+        // Snap to the connected device — finish routing
+        finishCableRouting()
+      }
+      // Clicking any other device or MDF during routing also finishes
+      // (user is done routing, snap the endpoint)
+      if (type === 'device') {
+        // Update device endpoint to the clicked device
+        draw.deviceId = id
+        draw.devicePx = { x: px, y: py }
+        finishCableRouting()
+      }
+      return
+    }
+  }, [showCablePreview, finishCableRouting])
 
   // Map click during cable routing phase → add waypoint between MDF and device
   const handleCableMapClick = useCallback((x: number, y: number) => {
@@ -420,25 +455,6 @@ function CanvasArea(props: Props) {
       showCablePreview(allPts)
     }
   }, [showCablePreview])
-
-  // Finish cable routing: double-click or Enter commits the cable
-  const finishCableRouting = useCallback(() => {
-    const draw = cableDrawRef.current
-    if (!draw || draw.phase !== 'routing' || !draw.mdfPx || !draw.devicePx || !draw.deviceId) return
-
-    const allWaypoints = [draw.mdfPx, ...draw.waypoints, draw.devicePx]
-    const lengthFt = calcWaypointLengthFt(allWaypoints)
-
-    onCableCreatedRef.current?.({
-      from_device_id: draw.deviceId,
-      to_device_id: null,
-      waypoints: allWaypoints,
-      length_ft: lengthFt,
-    })
-
-    cleanupCableDraw()
-    onToolChangeRef.current?.('select')
-  }, [calcWaypointLengthFt, cleanupCableDraw])
 
   // Cancel / finish cable drawing
   useEffect(() => {
@@ -716,6 +732,11 @@ function CanvasArea(props: Props) {
             return
           }
           onMdfSelectedRef.current?.(mdfId)
+        })
+        marker.addListener('rightclick', () => {
+          if (confirm(`Delete ${mdf.name || 'MDF/IDF'} from map?`)) {
+            onMdfIdfDeletedRef.current?.(mdfId)
+          }
         })
         marker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
           const ctx = geoContextRef.current
