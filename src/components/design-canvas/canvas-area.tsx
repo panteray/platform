@@ -254,7 +254,7 @@ function CanvasArea(props: Props) {
     waypoints: Array<{ x: number; y: number }>
   } | null>(null)
   const cablePreviewRef = useRef<google.maps.Polyline | null>(null)
-  const cableLabelRef = useRef<google.maps.InfoWindow | null>(null)
+  const cableLabelRef = useRef<google.maps.Marker | null>(null)
   const cableMoveListenerRef = useRef<google.maps.MapsEventListener | null>(null)
   const activeToolRef = useRef(activeTool)
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
@@ -306,6 +306,8 @@ function CanvasArea(props: Props) {
   useEffect(() => { onMdfSelectedRef.current = onMdfSelected }, [onMdfSelected])
   const onMdfIdfDeletedRef = useRef(onMdfIdfDeleted)
   useEffect(() => { onMdfIdfDeletedRef.current = onMdfIdfDeleted }, [onMdfIdfDeleted])
+  const mdfIdfsRef = useRef(mdfIdfs)
+  useEffect(() => { mdfIdfsRef.current = mdfIdfs }, [mdfIdfs])
   // Cable click handler ref — avoids stale closure in marker listeners
   const handleCableClickRef = useRef<(id: string, type: 'device' | 'mdf', px: number, py: number) => void>(() => {})
   const onCableCreatedRef = useRef(onCableCreated)
@@ -320,7 +322,7 @@ function CanvasArea(props: Props) {
     cableMoveListenerRef.current = null
     cablePreviewRef.current?.setMap(null)
     cablePreviewRef.current = null
-    cableLabelRef.current?.close()
+    cableLabelRef.current?.setMap(null)
     cableLabelRef.current = null
   }, [])
 
@@ -357,14 +359,18 @@ function CanvasArea(props: Props) {
     const allPts = mousePixel ? [...pts, mousePixel] : pts
     const ft = calcWaypointLengthFt(allPts)
     const lastPt = path[path.length - 1]
+    // Use a Marker with label for distance display (non-clickable, doesn't block clicks)
     if (!cableLabelRef.current) {
-      cableLabelRef.current = new google.maps.InfoWindow({
-        content: `<div style="font:bold 13px Inter,sans-serif;color:#f97316;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:4px">${ft} ft</div>`,
-        position: lastPt, disableAutoPan: true,
+      cableLabelRef.current = new google.maps.Marker({
+        position: lastPt,
+        map: mapRef.current,
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
+        label: { text: `${ft} ft`, color: '#f97316', fontWeight: 'bold', fontSize: '13px' },
+        clickable: false,
+        zIndex: 20,
       })
-      cableLabelRef.current.open(mapRef.current)
     } else {
-      cableLabelRef.current.setContent(`<div style="font:bold 13px Inter,sans-serif;color:#f97316;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:4px">${ft} ft</div>`)
+      cableLabelRef.current.setLabel({ text: `${ft} ft`, color: '#f97316', fontWeight: 'bold', fontSize: '13px' })
       if (lastPt) cableLabelRef.current.setPosition(lastPt)
     }
   }, [calcWaypointLengthFt])
@@ -545,22 +551,69 @@ function CanvasArea(props: Props) {
 
     mapRef.current = map
 
-    // Map click → deselect device
+    // Map click → cable mode proximity check, then deselect/canvas click
     map.addListener('click', (e: google.maps.MapMouseEvent) => {
       setContextMenuVisible(false)
-      if (e.latLng) {
-        const ctx = geoContextRef.current
-        // Cable routing phase: map clicks add waypoints
-        if (activeToolRef.current === 'cable' && cableDrawRef.current?.phase === 'routing' && ctx) {
-          const { x, y } = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
-          handleCableMapClick(x, y)
+      if (!e.latLng) return
+      const ctx = geoContextRef.current
+      if (!ctx) return
+      const { x: clickX, y: clickY } = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
+
+      // ── Cable mode: proximity snap to nearest device/MDF ──
+      if (activeToolRef.current === 'cable') {
+        const draw = cableDrawRef.current
+        const SNAP_RADIUS = 30 // pixels
+
+        // Check proximity to MDF markers (for pick_mdf phase)
+        if (!draw || draw.phase === 'pick_mdf') {
+          const mdfNodes = mdfIdfsRef.current ?? []
+          for (const m of mdfNodes) {
+            const dx = clickX - m.position_x
+            const dy = clickY - m.position_y
+            if (Math.sqrt(dx * dx + dy * dy) < SNAP_RADIUS) {
+              handleCableClickRef.current(m.id, 'mdf', m.position_x, m.position_y)
+              return
+            }
+          }
+          return // must click near an MDF
+        }
+
+        // Check proximity to device markers (for pick_device phase)
+        if (draw.phase === 'pick_device') {
+          const devs = devicesRef.current
+          for (const d of devs) {
+            const dx = clickX - d.position_x
+            const dy = clickY - d.position_y
+            if (Math.sqrt(dx * dx + dy * dy) < SNAP_RADIUS) {
+              handleCableClickRef.current(d.id, 'device', d.position_x, d.position_y)
+              return
+            }
+          }
+          return // must click near a device
+        }
+
+        // Routing phase: check snap to device first, then add waypoint
+        if (draw.phase === 'routing') {
+          const devs = devicesRef.current
+          for (const d of devs) {
+            const dx = clickX - d.position_x
+            const dy = clickY - d.position_y
+            if (Math.sqrt(dx * dx + dy * dy) < SNAP_RADIUS) {
+              handleCableClickRef.current(d.id, 'device', d.position_x, d.position_y)
+              return
+            }
+          }
+          // Not near a device — add waypoint
+          handleCableMapClick(clickX, clickY)
           return
         }
-        onSelectDeviceRef.current(null)
-        if (onCanvasClickRef.current && ctx) {
-          const { x, y } = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
-          onCanvasClickRef.current(x, y)
-        }
+        return
+      }
+
+      // ── Normal mode ──
+      onSelectDeviceRef.current(null)
+      if (onCanvasClickRef.current) {
+        onCanvasClickRef.current(clickX, clickY)
       }
     })
 
