@@ -306,6 +306,8 @@ function CanvasArea(props: Props) {
   useEffect(() => { onMdfSelectedRef.current = onMdfSelected }, [onMdfSelected])
   const onMdfIdfDeletedRef = useRef(onMdfIdfDeleted)
   useEffect(() => { onMdfIdfDeletedRef.current = onMdfIdfDeleted }, [onMdfIdfDeleted])
+  // Cable click handler ref — avoids stale closure in marker listeners
+  const handleCableClickRef = useRef<(id: string, type: 'device' | 'mdf', px: number, py: number) => void>(() => {})
   const onCableCreatedRef = useRef(onCableCreated)
   useEffect(() => { onCableCreatedRef.current = onCableCreated }, [onCableCreated])
   const onToolChangeRef = useRef(onToolChange)
@@ -442,6 +444,8 @@ function CanvasArea(props: Props) {
       return
     }
   }, [showCablePreview, finishCableRouting])
+  // Keep ref in sync so marker listeners always use latest version
+  useEffect(() => { handleCableClickRef.current = handleCableClick }, [handleCableClick])
 
   // Map click during cable routing phase → add waypoint between MDF and device
   const handleCableMapClick = useCallback((x: number, y: number) => {
@@ -641,11 +645,12 @@ function CanvasArea(props: Props) {
           title: dev.label || 'Device',
         })
 
-        // Marker click → select or cable mode
+        // Marker click → select or cable mode (uses refs to avoid stale closures)
         const devId = dev.id
         marker.addListener('click', () => {
           if (activeToolRef.current === 'cable') {
-            handleCableClick(devId, 'device', dev.position_x, dev.position_y)
+            const d = devicesRef.current.find(dd => dd.id === devId)
+            handleCableClickRef.current(devId, 'device', d?.position_x ?? 0, d?.position_y ?? 0)
             return
           }
           onSelectDeviceRef.current(devId)
@@ -726,9 +731,11 @@ function CanvasArea(props: Props) {
         })
 
         const mdfId = mdf.id
+        const mdfPosX = mdf.position_x
+        const mdfPosY = mdf.position_y
         marker.addListener('click', () => {
           if (activeToolRef.current === 'cable') {
-            handleCableClick(mdfId, 'mdf', mdf.position_x, mdf.position_y)
+            handleCableClickRef.current(mdfId, 'mdf', mdfPosX, mdfPosY)
             return
           }
           onMdfSelectedRef.current?.(mdfId)
