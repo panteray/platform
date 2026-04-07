@@ -244,9 +244,18 @@ function CanvasArea(props: Props) {
   const groundOverlayRef = useRef<GOverlay | null>(null)
   const contextMenuRef = useRef<{ deviceId: string; x: number; y: number } | null>(null)
   const draggingDeviceRef = useRef<string | null>(null)
-  // Cable drawing state
-  const cableStartRef = useRef<{ id: string; type: 'device' | 'mdf'; x: number; y: number } | null>(null)
+  // Cable drawing state — MDF first → Device → then route waypoints
+  const cableDrawRef = useRef<{
+    phase: 'pick_mdf' | 'pick_device' | 'routing'
+    mdfId?: string
+    mdfPx?: { x: number; y: number }
+    deviceId?: string
+    devicePx?: { x: number; y: number }
+    waypoints: Array<{ x: number; y: number }>
+  } | null>(null)
   const cablePreviewRef = useRef<google.maps.Polyline | null>(null)
+  const cableLabelRef = useRef<google.maps.InfoWindow | null>(null)
+  const cableMoveListenerRef = useRef<google.maps.MapsEventListener | null>(null)
   const activeToolRef = useRef(activeTool)
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
   const mdfMarkersRef = useRef<Map<string, GMarker>>(new Map())
@@ -300,90 +309,159 @@ function CanvasArea(props: Props) {
   const onToolChangeRef = useRef(onToolChange)
   useEffect(() => { onToolChangeRef.current = onToolChange }, [onToolChange])
 
-  // ── Cable drawing: click device/MDF → click another device/MDF to create cable ──
+  // ── Cable drawing helpers ──
+  const cleanupCableDraw = useCallback(() => {
+    cableDrawRef.current = null
+    cableMoveListenerRef.current?.remove()
+    cableMoveListenerRef.current = null
+    cablePreviewRef.current?.setMap(null)
+    cablePreviewRef.current = null
+    cableLabelRef.current?.close()
+    cableLabelRef.current = null
+  }, [])
+
+  const calcWaypointLengthFt = useCallback((pts: Array<{ x: number; y: number }>) => {
+    let total = 0
+    for (let i = 1; i < pts.length; i++) {
+      const dx = pts[i].x - pts[i - 1].x
+      const dy = pts[i].y - pts[i - 1].y
+      total += Math.sqrt(dx * dx + dy * dy)
+    }
+    return scalePxPerFt > 0 ? Math.round(total / scalePxPerFt) : Math.round(total)
+  }, [scalePxPerFt])
+
+  // Show/update the preview polyline + length label
+  const showCablePreview = useCallback((pts: Array<{ x: number; y: number }>, mouseLat?: number, mouseLng?: number) => {
+    const ctx = geoContextRef.current
+    if (!ctx || !mapRef.current) return
+    const path = pts.map(pt => canvasPixelsToLatLng(pt.x, pt.y, ctx))
+    if (mouseLat !== undefined && mouseLng !== undefined) path.push({ lat: mouseLat, lng: mouseLng })
+
+    if (!cablePreviewRef.current) {
+      cablePreviewRef.current = new google.maps.Polyline({
+        path, strokeColor: '#f97316', strokeOpacity: 0, strokeWeight: 0,
+        map: mapRef.current, clickable: false, zIndex: 5,
+        icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#f97316', scale: 2.5 }, offset: '0', repeat: '8px' }],
+      })
+    } else {
+      cablePreviewRef.current.setPath(path)
+    }
+
+    // Length label
+    const mousePixel = (mouseLat !== undefined && mouseLng !== undefined)
+      ? latLngToCanvasPixels(mouseLat, mouseLng, ctx) : null
+    const allPts = mousePixel ? [...pts, mousePixel] : pts
+    const ft = calcWaypointLengthFt(allPts)
+    const lastPt = path[path.length - 1]
+    if (!cableLabelRef.current) {
+      cableLabelRef.current = new google.maps.InfoWindow({
+        content: `<div style="font:bold 13px Inter,sans-serif;color:#f97316;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:4px">${ft} ft</div>`,
+        position: lastPt, disableAutoPan: true,
+      })
+      cableLabelRef.current.open(mapRef.current)
+    } else {
+      cableLabelRef.current.setContent(`<div style="font:bold 13px Inter,sans-serif;color:#f97316;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:4px">${ft} ft</div>`)
+      if (lastPt) cableLabelRef.current.setPosition(lastPt)
+    }
+  }, [calcWaypointLengthFt])
+
+  // Step 1: Click MDF → Step 2: Click Device → Step 3: Route waypoints → Double-click/Enter to finish
   const handleCableClick = useCallback((id: string, type: 'device' | 'mdf', px: number, py: number) => {
-    const start = cableStartRef.current
-    if (!start) {
-      // First click — start cable
-      cableStartRef.current = { id, type, x: px, y: py }
-      // Show preview polyline
+    const draw = cableDrawRef.current
+
+    // ── Phase: pick_mdf — first click must be MDF ──
+    if (!draw || draw.phase === 'pick_mdf') {
+      if (type !== 'mdf') return // ignore non-MDF clicks
+      cableDrawRef.current = { phase: 'pick_device', mdfId: id, mdfPx: { x: px, y: py }, waypoints: [] }
+      // Show preview from MDF following mouse
       const ctx = geoContextRef.current
       if (mapRef.current && ctx) {
-        const { lat, lng } = canvasPixelsToLatLng(px, py, ctx)
-        cablePreviewRef.current = new google.maps.Polyline({
-          path: [{ lat, lng }, { lat, lng }],
-          strokeColor: '#f97316',
-          strokeOpacity: 0.8,
-          strokeWeight: 2,
-          map: mapRef.current,
-          clickable: false,
-          zIndex: 3,
-          icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 2 }, offset: '0', repeat: '10px' }],
-        })
-        // Update preview on mouse move
-        const startPx = { x: px, y: py }
-        const moveListener = mapRef.current.addListener('mousemove', (e: google.maps.MapMouseEvent) => {
-          if (e.latLng && cablePreviewRef.current && geoContextRef.current) {
-            const startLatLng = canvasPixelsToLatLng(startPx.x, startPx.y, geoContextRef.current)
-            cablePreviewRef.current.setPath([startLatLng, { lat: e.latLng.lat(), lng: e.latLng.lng() }])
+        cableMoveListenerRef.current = mapRef.current.addListener('mousemove', (e: google.maps.MapMouseEvent) => {
+          const d = cableDrawRef.current
+          if (!d || !e.latLng) return
+          if (d.phase === 'pick_device' && d.mdfPx) {
+            showCablePreview([d.mdfPx], e.latLng.lat(), e.latLng.lng())
+          } else if (d.phase === 'routing' && d.mdfPx && d.devicePx) {
+            const allPts = [d.mdfPx, ...d.waypoints, d.devicePx]
+            // During routing, show line from MDF → waypoints → mouse → device
+            // Insert mouse position before last point (device)
+            const routePts = [d.mdfPx, ...d.waypoints]
+            showCablePreview(routePts, e.latLng.lat(), e.latLng.lng())
           }
         })
-        // Store listener for cleanup
-        ;(cablePreviewRef.current as unknown as Record<string, unknown>).__moveListener = moveListener
       }
       return
     }
 
-    // Second click — complete cable (can't cable to self)
-    if (start.id === id) {
-      cableStartRef.current = null
-      if (cablePreviewRef.current) {
-        const ml = (cablePreviewRef.current as unknown as Record<string, unknown>).__moveListener as google.maps.MapsEventListener | undefined
-        ml?.remove()
-        cablePreviewRef.current.setMap(null)
-        cablePreviewRef.current = null
-      }
+    // ── Phase: pick_device — second click must be Device ──
+    if (draw.phase === 'pick_device') {
+      if (type !== 'device') return // ignore non-device clicks
+      draw.phase = 'routing'
+      draw.deviceId = id
+      draw.devicePx = { x: px, y: py }
+      // Show straight line MDF → Device, user can now click map to add waypoints
+      showCablePreview([draw.mdfPx!, { x: px, y: py }])
       return
     }
 
-    // Calculate cable length from pixel distance
-    const dx = start.x - px
-    const dy = start.y - py
-    const distPx = Math.sqrt(dx * dx + dy * dy)
-    const lengthFt = scalePxPerFt > 0 ? Math.round(distPx / scalePxPerFt) : Math.round(distPx)
+    // ── Phase: routing — clicking a device/MDF finishes routing ──
+    // (shouldn't normally happen since map clicks add waypoints, but handle gracefully)
+  }, [showCablePreview])
 
-    // Create cable with waypoints
+  // Map click during cable routing phase → add waypoint between MDF and device
+  const handleCableMapClick = useCallback((x: number, y: number) => {
+    const draw = cableDrawRef.current
+    if (!draw) return
+
+    if (draw.phase === 'routing') {
+      draw.waypoints.push({ x: Math.round(x), y: Math.round(y) })
+      // Rebuild full path: MDF → waypoints → device
+      const allPts = [draw.mdfPx!, ...draw.waypoints, draw.devicePx!]
+      showCablePreview(allPts)
+    }
+  }, [showCablePreview])
+
+  // Finish cable routing: double-click or Enter commits the cable
+  const finishCableRouting = useCallback(() => {
+    const draw = cableDrawRef.current
+    if (!draw || draw.phase !== 'routing' || !draw.mdfPx || !draw.devicePx || !draw.deviceId) return
+
+    const allWaypoints = [draw.mdfPx, ...draw.waypoints, draw.devicePx]
+    const lengthFt = calcWaypointLengthFt(allWaypoints)
+
     onCableCreatedRef.current?.({
-      from_device_id: start.type === 'device' ? start.id : (type === 'device' ? id : start.id),
-      to_device_id: type === 'device' ? id : (start.type === 'device' ? start.id : null),
-      waypoints: [{ x: start.x, y: start.y }, { x: px, y: py }],
+      from_device_id: draw.deviceId,
+      to_device_id: null,
+      waypoints: allWaypoints,
       length_ft: lengthFt,
     })
 
-    // Clean up
-    cableStartRef.current = null
-    if (cablePreviewRef.current) {
-      const ml = (cablePreviewRef.current as unknown as Record<string, unknown>).__moveListener as google.maps.MapsEventListener | undefined
-      ml?.remove()
-      cablePreviewRef.current.setMap(null)
-      cablePreviewRef.current = null
-    }
-    // Return to select tool
+    cleanupCableDraw()
     onToolChangeRef.current?.('select')
-  }, [scalePxPerFt])
+  }, [calcWaypointLengthFt, cleanupCableDraw])
 
-  // Cancel cable drawing on Escape or tool change away from cable
+  // Cancel / finish cable drawing
   useEffect(() => {
-    if (activeTool !== 'cable' && cableStartRef.current) {
-      cableStartRef.current = null
-      if (cablePreviewRef.current) {
-        const ml = (cablePreviewRef.current as unknown as Record<string, unknown>).__moveListener as google.maps.MapsEventListener | undefined
-        ml?.remove()
-        cablePreviewRef.current.setMap(null)
-        cablePreviewRef.current = null
+    if (activeTool !== 'cable' && cableDrawRef.current) cleanupCableDraw()
+  }, [activeTool, cleanupCableDraw])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && cableDrawRef.current) {
+        cleanupCableDraw()
+        onToolChangeRef.current?.('select')
+      }
+      if (e.key === 'Enter' && cableDrawRef.current?.phase === 'routing') {
+        finishCableRouting()
       }
     }
-  }, [activeTool])
+    const onDblClick = () => {
+      if (cableDrawRef.current?.phase === 'routing') finishCableRouting()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('dblclick', onDblClick)
+    return () => { document.removeEventListener('keydown', onKeyDown); document.removeEventListener('dblclick', onDblClick) }
+  }, [cleanupCableDraw, finishCableRouting])
 
   // Google Maps script loading (reuse cached script from satellite-map if present)
   const [mapReady, setMapReady] = useState(false)
@@ -451,8 +529,14 @@ function CanvasArea(props: Props) {
     map.addListener('click', (e: google.maps.MapMouseEvent) => {
       setContextMenuVisible(false)
       if (e.latLng) {
-        onSelectDeviceRef.current(null)
         const ctx = geoContextRef.current
+        // Cable routing phase: map clicks add waypoints
+        if (activeToolRef.current === 'cable' && cableDrawRef.current?.phase === 'routing' && ctx) {
+          const { x, y } = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
+          handleCableMapClick(x, y)
+          return
+        }
+        onSelectDeviceRef.current(null)
         if (onCanvasClickRef.current && ctx) {
           const { x, y } = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
           onCanvasClickRef.current(x, y)
