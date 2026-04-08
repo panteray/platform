@@ -560,17 +560,24 @@ function CanvasArea(props: Props) {
       const { x: clickX, y: clickY } = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
 
       // ── Cable mode: proximity snap to nearest device/MDF ──
+      // Uses lat/lng distance (feet) for zoom-independent snap detection
       if (activeToolRef.current === 'cable') {
         const draw = cableDrawRef.current
-        const SNAP_RADIUS = 30 // pixels
+        const SNAP_FT = 50 // snap radius in feet — works at any zoom level
+        const clickLat = e.latLng.lat()
+        const clickLng = e.latLng.lng()
+
+        // Helper: check if click is near a position (in feet)
+        const nearPos = (px: number, py: number) => {
+          const pos = canvasPixelsToLatLng(px, py, ctx)
+          return haversineDistanceFt(clickLat, clickLng, pos.lat, pos.lng) < SNAP_FT
+        }
 
         // Check proximity to MDF markers (for pick_mdf phase)
         if (!draw || draw.phase === 'pick_mdf') {
           const mdfNodes = mdfIdfsRef.current ?? []
           for (const m of mdfNodes) {
-            const dx = clickX - m.position_x
-            const dy = clickY - m.position_y
-            if (Math.sqrt(dx * dx + dy * dy) < SNAP_RADIUS) {
+            if (nearPos(m.position_x, m.position_y)) {
               handleCableClickRef.current(m.id, 'mdf', m.position_x, m.position_y)
               return
             }
@@ -582,9 +589,7 @@ function CanvasArea(props: Props) {
         if (draw.phase === 'pick_device') {
           const devs = devicesRef.current
           for (const d of devs) {
-            const dx = clickX - d.position_x
-            const dy = clickY - d.position_y
-            if (Math.sqrt(dx * dx + dy * dy) < SNAP_RADIUS) {
+            if (nearPos(d.position_x, d.position_y)) {
               handleCableClickRef.current(d.id, 'device', d.position_x, d.position_y)
               return
             }
@@ -596,9 +601,7 @@ function CanvasArea(props: Props) {
         if (draw.phase === 'routing') {
           const devs = devicesRef.current
           for (const d of devs) {
-            const dx = clickX - d.position_x
-            const dy = clickY - d.position_y
-            if (Math.sqrt(dx * dx + dy * dy) < SNAP_RADIUS) {
+            if (nearPos(d.position_x, d.position_y)) {
               handleCableClickRef.current(d.id, 'device', d.position_x, d.position_y)
               return
             }
