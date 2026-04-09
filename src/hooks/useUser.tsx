@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@/types/database'
-import type { UserRole, UserType } from '@/types/enums'
+import type { UserRole } from '@/types/enums'
 
 interface UserState {
   user: User | null
@@ -15,6 +15,18 @@ interface UserState {
   loading: boolean
 }
 
+const defaultState: UserState = {
+  user: null,
+  authId: null,
+  orgId: null,
+  userRole: null,
+  isGlobalAdmin: false,
+  userTypes: [],
+  loading: true,
+}
+
+const UserContext = createContext<UserState>(defaultState)
+
 // Safe JWT decode with try/catch
 function decodeJwtPayload(token: string): Record<string, any> {
   try {
@@ -22,23 +34,13 @@ function decodeJwtPayload(token: string): Record<string, any> {
       .replace(/-/g, '+')
       .replace(/_/g, '/')
     return JSON.parse(atob(base64))
-  } catch (err) {
-    // Optionally log error in dev
-    // console.error('JWT decode failed:', err)
+  } catch {
     return {}
   }
 }
 
-export function useUser(): UserState {
-  const [state, setState] = useState<UserState>({
-    user: null,
-    authId: null,
-    orgId: null,
-    userRole: null,
-    isGlobalAdmin: false,
-    userTypes: [],
-    loading: true,
-  })
+export function UserProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<UserState>(defaultState)
 
   useEffect(() => {
     const supabase = createClient()
@@ -78,5 +80,9 @@ export function useUser(): UserState {
     return () => subscription.unsubscribe()
   }, [])
 
-  return state
+  return <UserContext.Provider value={state}>{children}</UserContext.Provider>
+}
+
+export function useUser(): UserState {
+  return useContext(UserContext)
 }

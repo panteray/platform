@@ -28,7 +28,7 @@ interface ManagerDashboardProps {
 }
 
 export function ManagerDashboard({ brandColor }: ManagerDashboardProps) {
-  const [stats, setStats] = useState({ customers: 0, manufacturers: 0, subcontractors: 0, distributors: 0, opportunities: 0 })
+  const [stats, setStats] = useState<Record<string, number | null>>({ customers: 0, manufacturers: 0, subcontractors: 0, distributors: 0, opportunities: 0 })
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
@@ -39,11 +39,11 @@ export function ManagerDashboard({ brandColor }: ManagerDashboardProps) {
     const distRes = await supabase.from('distributors').select('id', { count: 'exact', head: true })
     const oppsRes = await supabase.from('opportunities').select('id', { count: 'exact', head: true })
     setStats({
-      customers: customersRes.count ?? 0,
-      manufacturers: mfrsRes.count ?? 0,
-      subcontractors: subsRes.count ?? 0,
-      distributors: distRes.count ?? 0,
-      opportunities: oppsRes.count ?? 0,
+      customers: customersRes.error ? null : (customersRes.count ?? 0),
+      manufacturers: mfrsRes.error ? null : (mfrsRes.count ?? 0),
+      subcontractors: subsRes.error ? null : (subsRes.count ?? 0),
+      distributors: distRes.error ? null : (distRes.count ?? 0),
+      opportunities: oppsRes.error ? null : (oppsRes.count ?? 0),
     })
     setLoading(false)
   }, [])

@@ -21,7 +21,7 @@ interface RecentCustomer {
 }
 
 export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashboardProps) {
-  const [stats, setStats] = useState({ users: 0, opps: 0, projects: 0, customers: 0, manufacturers: 0, subcontractors: 0, distributors: 0 })
+  const [stats, setStats] = useState<Record<string, number | null>>({ users: 0, opps: 0, projects: 0, customers: 0, manufacturers: 0, subcontractors: 0, distributors: 0 })
   const [recentCustomers, setRecentCustomers] = useState<RecentCustomer[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -41,13 +41,13 @@ export function OrgAdminDashboard({ brandColor, divisionFilter }: OrgAdminDashbo
       .limit(5)
 
     setStats({
-      users: usersRes.count ?? 0,
-      opps: oppsRes.count ?? 0,
-      projects: projectsRes.count ?? 0,
-      customers: customersRes.count ?? 0,
-      manufacturers: mfrsRes.count ?? 0,
-      subcontractors: subsRes.count ?? 0,
-      distributors: distRes.count ?? 0,
+      users: usersRes.error ? null : (usersRes.count ?? 0),
+      opps: oppsRes.error ? null : (oppsRes.count ?? 0),
+      projects: projectsRes.error ? null : (projectsRes.count ?? 0),
+      customers: customersRes.error ? null : (customersRes.count ?? 0),
+      manufacturers: mfrsRes.error ? null : (mfrsRes.count ?? 0),
+      subcontractors: subsRes.error ? null : (subsRes.count ?? 0),
+      distributors: distRes.error ? null : (distRes.count ?? 0),
     })
     setRecentCustomers(recent ?? [])
     setLoading(false)

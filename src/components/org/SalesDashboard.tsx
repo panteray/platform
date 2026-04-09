@@ -15,14 +15,17 @@ const placeholderWidgets = [
 interface SalesDashboardProps { brandColor?: string | null; divisionFilter: string }
 
 export function SalesDashboard({ brandColor }: SalesDashboardProps) {
-  const [stats, setStats] = useState({ opportunities: 0, customers: 0 })
+  const [stats, setStats] = useState<{ opportunities: number | null; customers: number | null }>({ opportunities: 0, customers: 0 })
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
     const supabase = createClient()
     const oppsRes = await supabase.from('opportunities').select('id', { count: 'exact', head: true })
     const custRes = await supabase.from('customers').select('id', { count: 'exact', head: true })
-    setStats({ opportunities: oppsRes.count ?? 0, customers: custRes.count ?? 0 })
+    setStats({
+      opportunities: oppsRes.error ? null : (oppsRes.count ?? 0),
+      customers: custRes.error ? null : (custRes.count ?? 0),
+    })
     setLoading(false)
   }, [])
 

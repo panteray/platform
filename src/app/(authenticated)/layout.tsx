@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { SidebarRouter } from '@/components/layout/SidebarRouter'
 import { Topbar } from '@/components/layout/Topbar'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AuthenticatedShell } from '@/components/layout/AuthenticatedShell'
 
 export default async function AuthenticatedLayout({
   children,
@@ -17,16 +18,18 @@ export default async function AuthenticatedLayout({
   }
 
   return (
-    <TooltipProvider>
-      <div className="flex h-screen overflow-hidden bg-background">
-        <SidebarRouter />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar />
-          <main className="flex-1 overflow-y-auto p-6">
-            {children}
-          </main>
+    <AuthenticatedShell>
+      <TooltipProvider>
+        <div className="flex h-screen overflow-hidden bg-background">
+          <SidebarRouter />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <Topbar />
+            <main className="flex-1 overflow-y-auto p-6">
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
-    </TooltipProvider>
+      </TooltipProvider>
+    </AuthenticatedShell>
   )
 }

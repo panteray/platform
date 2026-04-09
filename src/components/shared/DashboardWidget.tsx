@@ -45,7 +45,7 @@ export function DashboardWidget({
             <p className="text-[13px] text-muted-foreground">{emptyMessage}</p>
           ) : (
             <p className="font-mono text-2xl font-semibold tabular-nums text-foreground">
-              {value ?? 0}
+              {value === null ? '—' : (value ?? 0)}
             </p>
           )}
           {description && (

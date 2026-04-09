@@ -16,13 +16,14 @@ const placeholderWidgets = [
 interface PresalesDashboardProps { brandColor?: string | null; divisionFilter: string }
 
 export function PresalesDashboard({ brandColor }: PresalesDashboardProps) {
-  const [oppCount, setOppCount] = useState(0)
+  const [oppCount, setOppCount] = useState<number | null>(0)
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
     const supabase = createClient()
-    const { count } = await supabase.from('opportunities').select('id', { count: 'exact', head: true })
-    setOppCount(count ?? 0); setLoading(false)
+    const { count, error } = await supabase.from('opportunities').select('id', { count: 'exact', head: true })
+    setOppCount(error ? null : (count ?? 0))
+    setLoading(false)
   }, [])
 
   useEffect(() => { const t = setTimeout(() => { void loadData() }, 0); return () => clearTimeout(t) }, [loadData])
