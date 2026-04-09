@@ -39,7 +39,7 @@ export default function OpportunitiesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-lg font-medium">Opportunities</h1><p className="text-sm text-muted-foreground">{opportunities.length} opportunities in pipeline</p></div>
+        <div><h1 className="font-display text-2xl font-bold tracking-tight">Opportunities</h1><p className="text-sm text-muted-foreground">{opportunities.length} opportunities in pipeline</p></div>
         <Link href="/org/opportunities/create" className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-4 w-4" />New Opportunity</Link>
       </div>
 

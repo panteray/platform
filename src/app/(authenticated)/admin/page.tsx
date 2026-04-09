@@ -22,7 +22,7 @@ export default function AdminDashboard() {
         <span className="text-foreground">Dashboard</span>
       </div>
 
-      <h1 className="mb-5 text-lg font-medium">Dashboard</h1>
+      <h1 className="mb-5 font-display text-2xl font-bold tracking-tight">Dashboard</h1>
 
       <SummaryCards organizations={organizations} />
 

@@ -14,7 +14,7 @@ export default function ManufacturersPage() {
   async function handleDelete(id: string) { if (!confirm('Delete this manufacturer?')) return; await deleteManufacturer(id) }
   return (
     <div>
-      <div className="mb-6"><h1 className="text-lg font-medium">Manufacturers</h1><p className="mt-1 text-sm text-muted-foreground">Manage manufacturer relationships and compliance</p></div>
+      <div className="mb-6"><h1 className="font-display text-2xl font-bold tracking-tight">Manufacturers</h1><p className="mt-1 text-sm text-muted-foreground">Manage manufacturer relationships and compliance</p></div>
       {showCreate && <div className="mb-4"><ManufacturerForm onSave={handleCreate} onCancel={() => setShowCreate(false)} saving={saving} /></div>}
       <ManufacturerTable manufacturers={manufacturers} loading={loading} onDelete={handleDelete} onCreateClick={() => setShowCreate(true)} />
     </div>

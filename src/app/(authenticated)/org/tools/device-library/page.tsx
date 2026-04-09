@@ -253,7 +253,7 @@ export default function DeviceLibraryPage() {
   if (userLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">Device Library</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Device Library</h1>
         <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
@@ -262,7 +262,7 @@ export default function DeviceLibraryPage() {
   if (!hasAccess) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">Device Library</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Device Library</h1>
         <p className="text-sm text-muted-foreground">You do not have access to the Device Library.</p>
       </div>
     )
@@ -273,7 +273,7 @@ export default function DeviceLibraryPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Device Library</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Device Library</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Browse hardware specifications across all device categories</p>
         </div>
         <div className="flex items-center gap-2">

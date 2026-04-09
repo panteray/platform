@@ -130,7 +130,7 @@ export default function AdminDeviceLibraryPage() {
   if (userLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">Device Library Review</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Device Library Review</h1>
         <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
@@ -139,7 +139,7 @@ export default function AdminDeviceLibraryPage() {
   if (userRole !== 'GLOBAL_ADMIN' && userRole !== 'GLOBAL_MANAGER') {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">Device Library Review</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Device Library Review</h1>
         <p className="text-sm text-muted-foreground">Global admin access required.</p>
       </div>
     )
@@ -147,7 +147,7 @@ export default function AdminDeviceLibraryPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold text-foreground">Device Library — Review Queue</h1>
+      <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Device Library — Review Queue</h1>
       <p className="text-sm text-muted-foreground">
         Review community contributions to the global device library.
       </p>

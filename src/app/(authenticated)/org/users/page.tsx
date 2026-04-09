@@ -74,7 +74,7 @@ export default function OrgUsersPage() {
           <ChevronRight className="h-3 w-3" />
           <span className="text-foreground">Users</span>
         </div>
-        <h1 className="mb-4 text-lg font-medium">Users</h1>
+        <h1 className="mb-4 font-display text-2xl font-bold tracking-tight">Users</h1>
         <div className="rounded-lg border border-border bg-card px-5 py-8 text-center text-sm text-muted-foreground">
           You do not have permission to manage users. Contact your organization admin.
         </div>
@@ -90,7 +90,7 @@ export default function OrgUsersPage() {
         <span className="text-foreground">Users</span>
       </div>
 
-      <h1 className="mb-4 text-lg font-medium">Users</h1>
+      <h1 className="mb-4 font-display text-2xl font-bold tracking-tight">Users</h1>
 
       <OrgUserTable
         users={users}

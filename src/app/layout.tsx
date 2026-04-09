@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Red_Rose, Epilogue } from 'next/font/google'
+import { Red_Rose, Epilogue, JetBrains_Mono } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { ThemeProvider } from '@/components/layout/ThemeProvider'
 import './globals.css'
@@ -13,9 +13,16 @@ const redRose = Red_Rose({
 
 const epilogue = Epilogue({
   subsets: ['latin'],
-  variable: '--font-mono',
+  variable: '--font-body',
   display: 'swap',
   weight: ['400', '500', '600', '700'],
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
+  weight: ['400', '500', '600'],
 })
 
 export const metadata: Metadata = {
@@ -27,7 +34,8 @@ export const metadata: Metadata = {
   },
 }
 
-const themeScript = `(function(){try{var t=localStorage.getItem('panteray-theme');if(t==='light'||t==='dark'){document.documentElement.classList.add(t)}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})();`
+/* FOUC prevention: apply saved theme class before paint. Daylight = :root (no class needed). */
+const themeScript = `(function(){try{var t=localStorage.getItem('panteray-theme');var v=['morning','dusk','midnight'];if(v.indexOf(t)!==-1){document.documentElement.classList.add(t)}}catch(e){}})();`
 
 export default function RootLayout({
   children,
@@ -35,11 +43,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`dark ${redRose.variable} ${epilogue.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${redRose.variable} ${epilogue.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="font-display">
+      <body className="font-sans">
         <ThemeProvider>
           {children}
           <Toaster position="top-right" />

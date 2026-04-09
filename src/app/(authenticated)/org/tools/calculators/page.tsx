@@ -32,8 +32,8 @@ export default function CalculatorsPage() {
 
   return (
     <div style={{ padding: 24, fontFamily: "'Inter', sans-serif" }}>
-      <h1 style={{ fontSize: 20, fontWeight: 700, color: C.text, marginBottom: 4 }}>Calculators</h1>
-      <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 24 }}>
+      <h1 className="font-display text-2xl font-bold tracking-tight" style={{ color: C.text, marginBottom: 4 }}>Calculators</h1>
+      <p className="text-sm" style={{ color: C.textMuted, marginBottom: 24 }}>
         Engineering calculator tools — standalone mode. Also available integrated from the design canvas.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>

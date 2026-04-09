@@ -4,16 +4,17 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pt-purple/40 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        default: 'bg-gradient-to-b from-pt-purple-light to-pt-purple text-white shadow-pt-sm hover:from-pt-purple hover:to-pt-purple-dark',
+        default: 'bg-primary text-primary-foreground shadow-pt-sm hover:bg-primary/90',
         destructive: 'bg-destructive text-destructive-foreground shadow-pt-sm hover:bg-destructive/90',
-        outline: 'border border-border/60 bg-transparent shadow-pt-sm hover:bg-accent hover:text-accent-foreground',
+        outline: 'border border-border bg-transparent shadow-pt-sm hover:bg-accent hover:text-accent-foreground',
         secondary: 'bg-secondary text-secondary-foreground shadow-pt-sm hover:bg-secondary/80',
-        ghost: 'hover:bg-accent/60 hover:text-accent-foreground',
-        link: 'text-pt-purple underline-offset-4 hover:underline',
+        ghost: 'hover:bg-accent hover:text-accent-foreground',
+        link: 'text-primary underline-offset-4 hover:underline',
+        accent: 'bg-primary/10 text-primary hover:bg-primary/20',
       },
       size: {
         default: 'h-9 px-4 py-2',

@@ -118,7 +118,7 @@ export default function ManagementPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-lg font-medium">Management</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight">Management</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Organization settings, user management, and configuration
         </p>

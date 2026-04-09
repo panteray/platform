@@ -30,7 +30,7 @@ export default function SubcontractorsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-lg font-medium">Subcontractors</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight">Subcontractors</h1>
         <p className="mt-1 text-sm text-muted-foreground">Manage subcontractor onboarding and compliance</p>
       </div>
       {showCreate && (

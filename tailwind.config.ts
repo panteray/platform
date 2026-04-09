@@ -51,7 +51,11 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        // Brand palette
+        elevated: {
+          DEFAULT: 'hsl(var(--elevated))',
+          border: 'hsl(var(--elevated-border))',
+        },
+        // Brand palette (static, for canvas/non-theme contexts)
         pt: {
           purple: '#522F82',
           'purple-dark': '#45266D',
@@ -65,6 +69,7 @@ const config: Config = {
         },
       },
       fontFamily: {
+        sans: ['var(--font-body)', 'system-ui', 'sans-serif'],
         display: ['var(--font-display)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
       },
@@ -74,9 +79,10 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       boxShadow: {
-        'pt-sm': '0 1px 2px rgba(15, 23, 42, 0.06)',
-        'pt-md': '0 4px 12px rgba(15, 23, 42, 0.08)',
-        'pt-lg': '0 12px 28px rgba(15, 23, 42, 0.12)',
+        'pt-sm': '0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06)',
+        'pt-md': '0 4px 12px rgba(0, 0, 0, 0.10), 0 2px 4px rgba(0, 0, 0, 0.06)',
+        'pt-lg': '0 12px 32px rgba(0, 0, 0, 0.14), 0 4px 8px rgba(0, 0, 0, 0.08)',
+        'pt-glow': '0 0 20px rgba(82, 47, 130, 0.15)',
       },
     },
   },

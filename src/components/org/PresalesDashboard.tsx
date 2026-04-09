@@ -31,8 +31,8 @@ export function PresalesDashboard({ brandColor }: PresalesDashboardProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">Presales Dashboard</h1>
-        <p className="mt-0.5 text-[13px] text-muted-foreground">Design and estimation pipeline overview</p>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Presales Dashboard</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">Design and estimation pipeline overview</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <DashboardWidget label="OPPs In Progress" icon={Briefcase} value={oppCount} description="Opportunities in design" loading={loading} brandColor={brandColor} accentIndex={0} />

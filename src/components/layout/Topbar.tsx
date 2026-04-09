@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { Search, Sun, Moon, Bell, ChevronRight } from 'lucide-react'
-import { useTheme } from '@/components/layout/ThemeProvider'
+import { Search, Sunrise, Sun, Sunset, Moon, Bell, ChevronRight, Check } from 'lucide-react'
+import { useTheme, type Theme } from '@/components/layout/ThemeProvider'
 import { useNotifications } from '@/hooks/useNotifications'
 import { NotificationPanel } from '@/components/layout/NotificationPanel'
 import { useUser } from '@/hooks/useUser'
@@ -28,6 +28,13 @@ const ROUTE_LABELS: Record<string, string> = {
   '/org/tools/device-library': 'Device Library',
   '/org/tools/calculators': 'Calculators',
   '/dashboard': 'Dashboard',
+}
+
+const THEME_META: Record<Theme, { icon: typeof Sun; label: string }> = {
+  morning: { icon: Sunrise, label: 'Morning' },
+  daylight: { icon: Sun, label: 'Daylight' },
+  dusk: { icon: Sunset, label: 'Dusk' },
+  midnight: { icon: Moon, label: 'Midnight' },
 }
 
 function buildBreadcrumbs(pathname: string): { label: string; href?: string }[] {
@@ -61,10 +68,62 @@ function buildBreadcrumbs(pathname: string): { label: string; href?: string }[] 
   return crumbs
 }
 
+function ThemeSelector() {
+  const { theme, setTheme, themes } = useTheme()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const CurrentIcon = THEME_META[theme].icon
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+        onClick={() => setOpen((o) => !o)}
+        title={`Theme: ${THEME_META[theme].label}`}
+      >
+        <CurrentIcon className="h-4 w-4" />
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1.5 w-44 overflow-hidden rounded-lg border border-border bg-card p-1 shadow-pt-md">
+          {themes.map((t) => {
+            const meta = THEME_META[t]
+            const Icon = meta.icon
+            const active = t === theme
+            return (
+              <button
+                key={t}
+                onClick={() => { setTheme(t); setOpen(false) }}
+                className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors ${
+                  active ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-accent'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1 text-left">{meta.label}</span>
+                {active && <Check className="h-3.5 w-3.5 shrink-0" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Topbar() {
   const router = useRouter()
   const pathname = usePathname()
-  const { theme, toggleTheme } = useTheme()
   const { notifications } = useNotifications(50)
   const { userRole } = useUser()
   const [notifOpen, setNotifOpen] = useState(false)
@@ -75,11 +134,11 @@ export function Topbar() {
   const roleLbl = userRole ? roleLabel(userRole as UserRole) : null
 
   return (
-    <header className="flex h-12 min-h-[48px] items-center justify-between border-b border-border/50 bg-card/60 px-5 backdrop-blur-sm">
+    <header className="flex h-12 min-h-[48px] items-center justify-between border-b border-border bg-card px-5">
       {/* Left: Breadcrumb + Search */}
       <div className="flex flex-1 items-center gap-5">
         {/* Breadcrumb */}
-        <nav className="flex shrink-0 items-center gap-1.5 text-[13px]">
+        <nav className="flex shrink-0 items-center gap-1.5 text-sm">
           {crumbs.map((crumb, i) => (
             <span key={i} className="flex items-center gap-1.5">
               {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/70" />}
@@ -100,12 +159,12 @@ export function Topbar() {
         </nav>
 
         {/* Search */}
-        <div className="flex max-w-[320px] flex-1 items-center gap-2 rounded-lg border border-border/40 bg-background/50 px-3 py-1.5">
-          <Search className="h-3.5 w-3.5 text-muted-foreground/80" />
+        <div className="flex max-w-[320px] flex-1 items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-1.5">
+          <Search className="h-3.5 w-3.5 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search..."
-            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
         </div>
       </div>
@@ -122,24 +181,16 @@ export function Topbar() {
           >
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-pt-purple px-1 text-[9px] font-semibold text-white">
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
           </Button>
           <NotificationPanel open={notifOpen} onClose={handleCloseNotif} />
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleTheme}
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </Button>
+        <ThemeSelector />
         {roleLbl && (
-          <span className="ml-1.5 rounded-md bg-pt-purple/10 px-2 py-0.5 text-[11px] font-medium text-pt-purple-light">
+          <span className="ml-1.5 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
             {roleLbl}
           </span>
         )}

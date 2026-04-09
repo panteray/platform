@@ -60,7 +60,7 @@ export default function OrganizationsPage() {
       </div>
 
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-lg font-medium">Organizations</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight">Organizations</h1>
         <Button size="sm" className="gap-1.5" onClick={() => setFormOpen(true)}>
           <Plus className="h-4 w-4" /> Add organization
         </Button>

@@ -104,7 +104,7 @@ export default function DesignsPage() {
   if (userLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">Designs</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Designs</h1>
         <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
@@ -113,7 +113,7 @@ export default function DesignsPage() {
   if (!hasAccess) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">Designs</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Designs</h1>
         <p className="text-sm text-muted-foreground">You do not have access to the Design Canvas.</p>
       </div>
     )
@@ -124,7 +124,7 @@ export default function DesignsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Designs</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Designs</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Design workspaces linked to opportunities
           </p>

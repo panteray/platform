@@ -3,136 +3,244 @@
 @tailwind utilities;
 
 /*
- * PANTERAY DESIGN SYSTEM
+ * PANTERAY DESIGN SYSTEM — 4 TIME-OF-DAY THEMES
  *
- * Brand palette: Purple #522F82 primary, Orange/Green/Teal accents
- * Dark surfaces: Slate scale (blue undertone) — NOT generic Zinc
- * Typography: Red Rose (display) + Epilogue (mono/numbers)
+ * Daylight (default): Crisp cool white, brand purple primary
+ * Morning: Warm cream, golden hour tones, mauve purple
+ * Dusk: Deep navy, amber/gold accents
+ * Midnight: Rich charcoal, lilac purple
  *
- * To add a theme: copy a theme block, change class + values.
+ * Brand palette: Purple #522F82 primary, context-shifted per theme
+ * Typography: Red Rose (display) + Epilogue (body) + JetBrains Mono (data)
+ *
  * All pairings meet WCAG AA (4.5:1 text, 3:1 UI).
  */
 
 @layer base {
 
   /* ================================================================
-   * LIGHT THEME
+   * DAYLIGHT — Default theme. Crisp, high-contrast, professional.
    * ================================================================ */
-  :root,
-  .light {
+  :root {
     color-scheme: light;
 
     /* --- Surfaces --- */
-    --background:           210 40% 98%;      /* #F8FAFC slate-50 */
-    --card:                 0 0% 100%;        /* #FFFFFF */
-    --secondary:            210 40% 96.1%;    /* #F1F5F9 slate-100 */
-    --muted:                210 40% 96.1%;    /* #F1F5F9 */
-    --accent:               210 40% 96.1%;    /* #F1F5F9 */
+    --background:           220 20% 97%;        /* #F5F6F8 cool off-white */
+    --card:                 0 0% 100%;           /* #FFFFFF */
+    --secondary:            220 16% 93%;         /* #ECEEF2 */
+    --muted:                220 16% 93%;
+    --accent:               220 16% 93%;
     --popover:              0 0% 100%;
+    --elevated:             0 0% 100%;
 
     /* --- Text --- */
-    --foreground:           222.2 47.4% 11.2%;  /* #1E293B slate-800, 13.5:1 */
-    --card-foreground:      222.2 47.4% 11.2%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted-foreground:     215.4 16.3% 46.9%;  /* #64748B slate-500, 4.6:1 */
-    --accent-foreground:    222.2 47.4% 11.2%;
-    --popover-foreground:   222.2 47.4% 11.2%;
+    --foreground:           224 50% 13%;         /* #111827 near-black */
+    --card-foreground:      224 50% 13%;
+    --secondary-foreground: 224 50% 13%;
+    --muted-foreground:     220 13% 46%;         /* #64748B */
+    --accent-foreground:    224 50% 13%;
+    --popover-foreground:   224 50% 13%;
 
     /* --- Borders --- */
-    --border:               214.3 31.8% 91.4%;  /* #E2E8F0 slate-200 */
-    --input:                214.3 31.8% 91.4%;
+    --border:               220 20% 88%;         /* #D8DCE4 visible */
+    --input:                220 20% 88%;
+    --elevated-border:      220 20% 85%;
 
     /* --- Interactive (brand purple) --- */
-    --primary:              271 47% 35%;      /* #522F82 */
-    --primary-foreground:   0 0% 100%;        /* white — 8.2:1 */
+    --primary:              271 47% 35%;         /* #522F82 */
+    --primary-foreground:   0 0% 100%;
     --ring:                 271 47% 35%;
 
     /* --- Status --- */
-    --destructive:          0 84.2% 60.2%;
+    --destructive:          0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --success:              142 71% 45%;
+    --success:              152 60% 38%;
     --success-foreground:   0 0% 100%;
     --warning:              38 92% 50%;
     --warning-foreground:   0 0% 0%;
-    --info:                 174 60% 38%;      /* teal brand */
+    --info:                 174 60% 38%;
     --info-foreground:      0 0% 100%;
 
     /* --- Canvas (hex for Fabric.js) --- */
-    --canvas-bg:            #F8FAFC;
-    --canvas-bg-surface:    #F1F5F9;
+    --canvas-bg:            #F5F6F8;
+    --canvas-bg-surface:    #ECEEF2;
     --canvas-bg-panel:      #FFFFFF;
-    --canvas-bg-hover:      #E2E8F0;
-    --canvas-bg-active:     #E2E8F0;
-    --canvas-border:        #CBD5E1;
-    --canvas-border-subtle: #E2E8F0;
-    --canvas-text:          #1E293B;
+    --canvas-bg-hover:      #D8DCE4;
+    --canvas-bg-active:     #D8DCE4;
+    --canvas-border:        #B8BEC9;
+    --canvas-border-subtle: #D8DCE4;
+    --canvas-text:          #111827;
     --canvas-text-muted:    #64748B;
     --canvas-text-dim:      #94A3B8;
     --canvas-accent:        #522F82;
     --canvas-accent-hover:  #45266D;
-    --canvas-accent-subtle: rgba(82, 47, 130, 0.06);
-    --canvas-grid-dot:      rgba(30, 41, 59, 0.08);
+    --canvas-accent-subtle: rgba(82, 47, 130, 0.08);
+    --canvas-grid-dot:      rgba(17, 24, 39, 0.10);
 
     /* --- Layout --- */
     --radius: 0.625rem;
   }
 
   /* ================================================================
-   * DARK THEME — Slate scale (blue undertone)
+   * MORNING — Warm cream, golden hour, early shift.
    * ================================================================ */
-  .dark {
+  .morning {
+    color-scheme: light;
+
+    --background:           36 33% 96%;          /* #FAF7F2 warm cream */
+    --card:                 40 30% 99%;           /* #FEFDFB warm white */
+    --secondary:            34 25% 92%;           /* #F0EBDF */
+    --muted:                34 25% 92%;
+    --accent:               34 25% 92%;
+    --popover:              40 30% 99%;
+    --elevated:             40 30% 99%;
+
+    --foreground:           24 20% 16%;           /* #302820 warm near-black */
+    --card-foreground:      24 20% 16%;
+    --secondary-foreground: 24 20% 16%;
+    --muted-foreground:     28 12% 48%;           /* #837568 warm gray */
+    --accent-foreground:    24 20% 16%;
+    --popover-foreground:   24 20% 16%;
+
+    --border:               32 20% 85%;           /* #DDD4C6 warm border */
+    --input:                32 20% 85%;
+    --elevated-border:      32 20% 82%;
+
+    --primary:              271 40% 38%;          /* #6B4380 warmer purple */
+    --primary-foreground:   0 0% 100%;
+    --ring:                 271 40% 38%;
+
+    --destructive:          4 78% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --success:              145 55% 40%;
+    --success-foreground:   0 0% 100%;
+    --warning:              32 88% 48%;
+    --warning-foreground:   0 0% 0%;
+    --info:                 174 50% 38%;
+    --info-foreground:      0 0% 100%;
+
+    --canvas-bg:            #FAF7F2;
+    --canvas-bg-surface:    #F0EBDF;
+    --canvas-bg-panel:      #FEFDFB;
+    --canvas-bg-hover:      #DDD4C6;
+    --canvas-bg-active:     #DDD4C6;
+    --canvas-border:        #C4B8A6;
+    --canvas-border-subtle: #DDD4C6;
+    --canvas-text:          #302820;
+    --canvas-text-muted:    #837568;
+    --canvas-text-dim:      #A89888;
+    --canvas-accent:        #6B4380;
+    --canvas-accent-hover:  #522F82;
+    --canvas-accent-subtle: rgba(107, 67, 128, 0.08);
+    --canvas-grid-dot:      rgba(48, 40, 32, 0.08);
+  }
+
+  /* ================================================================
+   * DUSK — Deep navy + amber accents. Evening shift operations.
+   * ================================================================ */
+  .dusk {
     color-scheme: dark;
 
-    /* --- Surfaces --- */
-    --background:           222.2 84% 4.9%;   /* #020617 slate-950 */
-    --card:                 217.2 32.6% 17.5%; /* #1E293B slate-800 */
-    --secondary:            217.2 32.6% 17.5%;
-    --muted:                215.3 25% 26.7%;   /* #334155 slate-700 */
-    --accent:               217.2 32.6% 17.5%;
-    --popover:              222.2 84% 4.9%;
+    --background:           224 50% 8%;           /* #0C1425 deep navy */
+    --card:                 224 40% 14%;           /* #172033 navy card */
+    --secondary:            224 35% 18%;           /* #1E2B42 */
+    --muted:                224 30% 22%;           /* #2A3752 */
+    --accent:               224 35% 18%;
+    --popover:              224 50% 8%;
+    --elevated:             224 38% 16%;
 
-    /* --- Text --- */
-    --foreground:           210 40% 98%;      /* #F8FAFC — 18.1:1 */
-    --card-foreground:      210 40% 98%;
-    --secondary-foreground: 210 40% 98%;
-    --muted-foreground:     215 20% 75.3%;    /* #B4C0D0 — 9.8:1 on dark bg */
-    --accent-foreground:    210 40% 98%;
-    --popover-foreground:   210 40% 98%;
+    --foreground:           40 25% 92%;            /* #F0EBDF warm white */
+    --card-foreground:      40 25% 92%;
+    --secondary-foreground: 40 25% 92%;
+    --muted-foreground:     220 15% 65%;           /* #97A3B8 */
+    --accent-foreground:    40 25% 92%;
+    --popover-foreground:   40 25% 92%;
 
-    /* --- Borders --- */
-    --border:               215.3 25% 26.7%;  /* #334155 slate-700 */
-    --input:                215.3 25% 26.7%;
+    --border:               224 25% 22%;           /* #2E3A50 */
+    --input:                224 25% 22%;
+    --elevated-border:      224 25% 25%;
 
-    /* --- Interactive (brand purple, lighter for dark) --- */
-    --primary:              271 39% 47%;      /* #6B46A6 purple-light */
-    --primary-foreground:   0 0% 100%;        /* 5.8:1 */
-    --ring:                 271 39% 47%;
+    --primary:              38 85% 55%;            /* #E8A820 amber gold */
+    --primary-foreground:   224 50% 8%;            /* dark text on gold */
+    --ring:                 38 85% 55%;
 
-    /* --- Status --- */
-    --destructive:          0 62.8% 30.6%;
+    --destructive:          0 62% 45%;
     --destructive-foreground: 0 0% 98%;
-    --success:              142 71% 29%;
+    --success:              152 55% 42%;
     --success-foreground:   0 0% 98%;
-    --warning:              38 92% 30%;
-    --warning-foreground:   0 0% 98%;
-    --info:                 174 60% 25%;
+    --warning:              38 90% 55%;
+    --warning-foreground:   0 0% 0%;
+    --info:                 174 50% 40%;
     --info-foreground:      0 0% 98%;
 
-    /* --- Canvas (hex for Fabric.js) --- */
-    --canvas-bg:            #020617;
-    --canvas-bg-surface:    #0F172A;
-    --canvas-bg-panel:      #1E293B;
-    --canvas-bg-hover:      #334155;
-    --canvas-bg-active:     #334155;
-    --canvas-border:        #334155;
-    --canvas-border-subtle: #1E293B;
-    --canvas-text:          #F8FAFC;
-    --canvas-text-muted:    #94A3B8;
+    --canvas-bg:            #0C1425;
+    --canvas-bg-surface:    #131D30;
+    --canvas-bg-panel:      #172033;
+    --canvas-bg-hover:      #2A3752;
+    --canvas-bg-active:     #2A3752;
+    --canvas-border:        #2E3A50;
+    --canvas-border-subtle: #1E2B42;
+    --canvas-text:          #F0EBDF;
+    --canvas-text-muted:    #97A3B8;
     --canvas-text-dim:      #64748B;
-    --canvas-accent:        #6B46A6;
-    --canvas-accent-hover:  #522F82;
-    --canvas-accent-subtle: rgba(107, 70, 166, 0.12);
-    --canvas-grid-dot:      rgba(248, 250, 252, 0.04);
+    --canvas-accent:        #E8A820;
+    --canvas-accent-hover:  #D49A18;
+    --canvas-accent-subtle: rgba(232, 168, 32, 0.12);
+    --canvas-grid-dot:      rgba(240, 235, 223, 0.05);
+  }
+
+  /* ================================================================
+   * MIDNIGHT — Rich charcoal, lilac accents. Refined dark mode.
+   * ================================================================ */
+  .midnight {
+    color-scheme: dark;
+
+    --background:           240 10% 6%;            /* #0E0F14 almost black */
+    --card:                 240 8% 12%;             /* #1A1B24 charcoal */
+    --secondary:            240 7% 16%;             /* #242530 */
+    --muted:                240 6% 20%;             /* #30313C */
+    --accent:               240 7% 16%;
+    --popover:              240 10% 6%;
+    --elevated:             240 8% 14%;
+
+    --foreground:           0 0% 93%;               /* #EDEDED */
+    --card-foreground:      0 0% 93%;
+    --secondary-foreground: 0 0% 93%;
+    --muted-foreground:     240 5% 58%;             /* #8E8FA0 */
+    --accent-foreground:    0 0% 93%;
+    --popover-foreground:   0 0% 93%;
+
+    --border:               240 6% 20%;             /* #30313C */
+    --input:                240 6% 20%;
+    --elevated-border:      240 6% 23%;
+
+    --primary:              271 40% 65%;            /* #A78BCC lilac */
+    --primary-foreground:   240 10% 6%;             /* dark text on lilac */
+    --ring:                 271 40% 65%;
+
+    --destructive:          0 55% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --success:              152 50% 40%;
+    --success-foreground:   0 0% 98%;
+    --warning:              38 80% 50%;
+    --warning-foreground:   0 0% 0%;
+    --info:                 174 45% 42%;
+    --info-foreground:      0 0% 98%;
+
+    --canvas-bg:            #0E0F14;
+    --canvas-bg-surface:    #151620;
+    --canvas-bg-panel:      #1A1B24;
+    --canvas-bg-hover:      #30313C;
+    --canvas-bg-active:     #30313C;
+    --canvas-border:        #30313C;
+    --canvas-border-subtle: #1A1B24;
+    --canvas-text:          #EDEDED;
+    --canvas-text-muted:    #8E8FA0;
+    --canvas-text-dim:      #5E5F70;
+    --canvas-accent:        #A78BCC;
+    --canvas-accent-hover:  #8B6BB5;
+    --canvas-accent-subtle: rgba(167, 139, 204, 0.12);
+    --canvas-grid-dot:      rgba(237, 237, 237, 0.04);
   }
 }
 
@@ -145,16 +253,26 @@
   }
 }
 
-/* Subtle gradient utilities */
+/* Theme-adaptive gradient utilities */
 @layer utilities {
   .gradient-brand {
-    background: linear-gradient(135deg, #522F82 0%, #6B46A6 50%, #45266D 100%);
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%);
   }
-  .gradient-surface-dark {
-    background: linear-gradient(180deg, #0F172A 0%, #020617 100%);
+}
+
+/* Consistent table styling */
+@layer components {
+  .pt-table thead tr {
+    @apply border-b border-border bg-secondary/50;
   }
-  .gradient-glow-purple {
-    background: radial-gradient(ellipse at 50% 0%, rgba(107, 70, 166, 0.15) 0%, transparent 60%);
+  .pt-table thead th {
+    @apply px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground;
+  }
+  .pt-table tbody tr {
+    @apply border-b border-border transition-colors hover:bg-accent/50;
+  }
+  .pt-table tbody td {
+    @apply px-4 py-3 text-sm;
   }
 }
 

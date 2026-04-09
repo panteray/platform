@@ -55,14 +55,17 @@ function NavLink({
     <Link
       href={item.href}
       className={cn(
-        'flex items-center rounded-lg text-[13px] font-normal transition-all duration-150',
+        'relative flex items-center rounded-lg text-sm transition-all duration-150',
         collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2',
         active
-          ? 'bg-pt-purple/10 text-pt-purple-light dark:bg-pt-purple/15 dark:text-pt-purple-light'
-          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+          ? 'bg-primary/15 text-primary font-medium'
+          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
       )}
     >
-      <PtIcon name={item.icon} className={cn(active && 'text-pt-purple dark:text-pt-purple-light')} />
+      {active && !collapsed && (
+        <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-primary" />
+      )}
+      <PtIcon name={item.icon} className={cn(active && 'text-primary')} />
       {!collapsed && <span>{item.label}</span>}
     </Link>
   )
@@ -110,7 +113,7 @@ export function OrgSidebar() {
   return (
     <aside
       className={cn(
-        'flex flex-col border-r border-border/60 bg-card/80 backdrop-blur-sm transition-all duration-200',
+        'flex flex-col border-r border-border bg-card transition-all duration-200',
         collapsed ? 'w-16 min-w-[64px]' : 'w-60 min-w-[240px]'
       )}
     >
@@ -125,14 +128,14 @@ export function OrgSidebar() {
           <div className="flex items-center gap-2.5 px-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/logo-app-icon.svg" alt="Panteray" className="h-8 w-8 rounded-lg" />
-            <span className="text-lg font-semibold tracking-tight text-foreground">Panteray</span>
+            <span className="font-display text-lg font-semibold tracking-tight text-foreground">Panteray</span>
           </div>
         )}
       </div>
 
       {/* User */}
       <div className={cn(
-        'flex items-center border-b border-border/40 pb-4 pt-2',
+        'flex items-center border-b border-border pb-4 pt-2',
         collapsed ? 'justify-center px-2' : 'gap-3 px-4'
       )}>
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pt-purple to-pt-purple-dark text-[11px] font-semibold text-white">
@@ -140,8 +143,8 @@ export function OrgSidebar() {
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="truncate text-[13px] font-medium text-foreground">{displayName}</div>
-            <div className="text-[11px] text-muted-foreground">{userRole ?? 'Loading...'}</div>
+            <div className="truncate text-sm font-medium text-foreground">{displayName}</div>
+            <div className="text-xs text-muted-foreground uppercase">{userRole ?? 'Loading...'}</div>
           </div>
         )}
       </div>
@@ -158,8 +161,8 @@ export function OrgSidebar() {
         {canCRM && (
           <>
             <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
-              <div className="border-t border-border/30" />
-              {!collapsed && <p className="mt-2.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">CRM</p>}
+              <div className="border-t border-border" />
+              {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">CRM</p>}
             </div>
             {crmNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
@@ -171,8 +174,8 @@ export function OrgSidebar() {
         {canTools && (
           <>
             <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
-              <div className="border-t border-border/30" />
-              {!collapsed && <p className="mt-2.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Tools</p>}
+              <div className="border-t border-border" />
+              {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Tools</p>}
             </div>
             {toolsNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
@@ -182,7 +185,7 @@ export function OrgSidebar() {
 
         {/* Settings */}
         <div className={cn('pt-3', collapsed ? 'px-1' : 'px-2')}>
-          <div className="border-t border-border/30" />
+          <div className="border-t border-border" />
         </div>
         {bottomNav.map((item) => (
           <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
@@ -190,29 +193,29 @@ export function OrgSidebar() {
       </nav>
 
       {/* Bottom */}
-      <div className="border-t border-border/40">
+      <div className="border-t border-border">
         {mounted && (
           <div className={cn('py-1', collapsed ? 'px-2' : 'px-2')}>
             <button
               onClick={toggle}
               className={cn(
-                'flex w-full items-center rounded-lg py-2 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground',
+                'flex w-full items-center rounded-lg py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                 collapsed ? 'justify-center px-2' : 'gap-3 px-3'
               )}
             >
               <PtIcon name="collapse" />
-              {!collapsed && <span className="text-[13px]">Collapse</span>}
+              {!collapsed && <span className="text-sm">Collapse</span>}
             </button>
           </div>
         )}
 
-        <div className={cn('border-t border-border/40 py-1', collapsed ? 'px-2' : 'px-2')}>
+        <div className={cn('border-t border-border py-1', collapsed ? 'px-2' : 'px-2')}>
           {collapsed ? (
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
                 <button
                   onClick={handleLogout}
-                  className="flex w-full items-center justify-center rounded-lg p-2.5 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                  className="flex w-full items-center justify-center rounded-lg p-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   <PtIcon name="sign-out" />
                 </button>
@@ -222,7 +225,7 @@ export function OrgSidebar() {
           ) : (
             <button
               onClick={handleLogout}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <PtIcon name="sign-out" />
               Sign Out
