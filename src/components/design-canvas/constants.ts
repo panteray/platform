@@ -56,6 +56,14 @@ export const COLORS_48 = [
   '#78716c', '#57534e', '#a8a29e', '#d6d3d1', '#fbbf24', '#b45309', '#92400e', '#451a03',
 ] as const
 
+/** Device category → cable color (matches device marker color on map) */
+export const DEVICE_CATEGORY_COLORS: Record<string, string> = {
+  cctv: '#3b82f6', dome: '#3b82f6', bullet: '#3b82f6', turret: '#3b82f6',
+  ptz: '#8b5cf6', fisheye: '#06b6d4', multisensor_quad: '#a855f7', multisensor_dual: '#a855f7',
+  access_control: '#f97316', network: '#22c55e', av: '#eab308', vape_environmental: '#ef4444',
+  speaker: '#eab308', intercom: '#f97316', door: '#f97316',
+}
+
 /** Default cable colors by cable type */
 export const CABLE_DEFAULT_COLORS: Record<string, string> = {
   cat6: '#3b82f6',        // blue

@@ -65,6 +65,7 @@ interface Props {
   onFovAngleChanged?: (deviceId: string, fovAngle: number) => void
   onCanvasClick?: (x: number, y: number) => void
   onCableCreated?: (cable: { from_device_id: string; to_device_id: string | null; waypoints: Array<{ x: number; y: number }>; length_ft: number }) => void
+  onCableUpdated?: (cableId: string, waypoints: Array<{ x: number; y: number }>, lengthFt: number) => void
   mdfIdfs?: DesignMdfIdf[]
   onMdfIdfPlaced?: (x: number, y: number) => void
   onDragCommit?: (s: unknown) => void
@@ -135,6 +136,16 @@ const CAMERA_CATEGORIES = new Set([
   'cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual',
 ])
 
+/** Distance from point (px,py) to line segment (ax,ay)→(bx,by) in pixels */
+function pointToSegmentDist(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax, dy = by - ay
+  const lenSq = dx * dx + dy * dy
+  if (lenSq === 0) return Math.sqrt((px - ax) ** 2 + (py - ay) ** 2)
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq))
+  const projX = ax + t * dx, projY = ay + t * dy
+  return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2)
+}
+
 /** Signed angle difference (shortest path), result in [-180, 180] */
 function angleDiff(a: number, b: number): number {
   let d = ((a - b + 540) % 360) - 180
@@ -201,6 +212,7 @@ function CanvasArea(props: Props) {
     onFovAngleChanged,
     onCanvasClick,
     onCableCreated,
+    onCableUpdated,
     mdfIdfs,
     onMdfIdfPlaced,
     onDragCommit,
@@ -256,10 +268,15 @@ function CanvasArea(props: Props) {
   const cablePreviewRef = useRef<google.maps.Polyline | null>(null)
   const cableLabelRef = useRef<google.maps.Marker | null>(null)
   const cableMoveListenerRef = useRef<google.maps.MapsEventListener | null>(null)
+  const cableSnapHighlightRef = useRef<google.maps.Marker | null>(null)
+  const cableWaypointPreviewRef = useRef<google.maps.Marker | null>(null)
   const activeToolRef = useRef(activeTool)
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
   const mdfMarkersRef = useRef<Map<string, GMarker>>(new Map())
   const cablePolylinesRef = useRef<google.maps.Polyline[]>([])
+  const cableWaypointMarkersRef = useRef<google.maps.Marker[]>([])
+  const cablesRef = useRef(cables)
+  useEffect(() => { cablesRef.current = cables }, [cables])
   const wallPolylinesRef = useRef<google.maps.Polyline[]>([])
   const fovPolygonListenersRef = useRef<google.maps.MapsEventListener[]>([])
   const isDraggingFovRef = useRef(false)
@@ -312,6 +329,8 @@ function CanvasArea(props: Props) {
   const handleCableClickRef = useRef<(id: string, type: 'device' | 'mdf', px: number, py: number) => void>(() => {})
   const onCableCreatedRef = useRef(onCableCreated)
   useEffect(() => { onCableCreatedRef.current = onCableCreated }, [onCableCreated])
+  const onCableUpdatedRef = useRef(onCableUpdated)
+  useEffect(() => { onCableUpdatedRef.current = onCableUpdated }, [onCableUpdated])
   const onToolChangeRef = useRef(onToolChange)
   useEffect(() => { onToolChangeRef.current = onToolChange }, [onToolChange])
 
@@ -324,6 +343,10 @@ function CanvasArea(props: Props) {
     cablePreviewRef.current = null
     cableLabelRef.current?.setMap(null)
     cableLabelRef.current = null
+    cableSnapHighlightRef.current?.setMap(null)
+    cableSnapHighlightRef.current = null
+    cableWaypointPreviewRef.current?.setMap(null)
+    cableWaypointPreviewRef.current = null
   }, [])
 
   const calcWaypointLengthFt = useCallback((pts: Array<{ x: number; y: number }>) => {
@@ -408,14 +431,48 @@ function CanvasArea(props: Props) {
         cableMoveListenerRef.current = mapRef.current.addListener('mousemove', (e: google.maps.MapMouseEvent) => {
           const d = cableDrawRef.current
           if (!d || !e.latLng) return
+          const mouseLat = e.latLng.lat(), mouseLng = e.latLng.lng()
+
           if (d.phase === 'pick_device' && d.mdfPx) {
-            showCablePreview([d.mdfPx], e.latLng.lat(), e.latLng.lng())
-          } else if (d.phase === 'routing' && d.mdfPx && d.devicePx) {
-            const allPts = [d.mdfPx, ...d.waypoints, d.devicePx]
-            // During routing, show line from MDF → waypoints → mouse → device
-            // Insert mouse position before last point (device)
+            showCablePreview([d.mdfPx], mouseLat, mouseLng)
+          } else if (d.phase === 'routing' && d.mdfPx) {
             const routePts = [d.mdfPx, ...d.waypoints]
-            showCablePreview(routePts, e.latLng.lat(), e.latLng.lng())
+            showCablePreview(routePts, mouseLat, mouseLng)
+          }
+
+          // ── Snap highlight: show ring around nearest device when within snap radius ──
+          const SNAP_FT = 50
+          const devs = devicesRef.current
+          let snapped = false
+          for (const dev of devs) {
+            const devPos = canvasPixelsToLatLng(dev.position_x, dev.position_y, ctx)
+            if (haversineDistanceFt(mouseLat, mouseLng, devPos.lat, devPos.lng) < SNAP_FT) {
+              if (!cableSnapHighlightRef.current) {
+                cableSnapHighlightRef.current = new google.maps.Marker({
+                  position: devPos, map: mapRef.current!, clickable: false, zIndex: 15,
+                  icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: '#22c55e', fillOpacity: 0.25, strokeColor: '#22c55e', strokeWeight: 2 },
+                })
+              } else {
+                cableSnapHighlightRef.current.setPosition(devPos)
+                cableSnapHighlightRef.current.setMap(mapRef.current!)
+              }
+              snapped = true
+              break
+            }
+          }
+          if (!snapped) cableSnapHighlightRef.current?.setMap(null)
+
+          // ── Waypoint preview dot at cursor during routing ──
+          if (d.phase === 'routing') {
+            if (!cableWaypointPreviewRef.current) {
+              cableWaypointPreviewRef.current = new google.maps.Marker({
+                position: { lat: mouseLat, lng: mouseLng }, map: mapRef.current!, clickable: false, zIndex: 12,
+                icon: { path: google.maps.SymbolPath.CIRCLE, scale: 4, fillColor: '#f97316', fillOpacity: 0.6, strokeColor: '#f97316', strokeWeight: 1 },
+              })
+            } else {
+              cableWaypointPreviewRef.current.setPosition({ lat: mouseLat, lng: mouseLng })
+              cableWaypointPreviewRef.current.setMap(mapRef.current!)
+            }
           }
         })
       }
@@ -826,39 +883,112 @@ function CanvasArea(props: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mdfIdfs, geoContext, mapReady])
 
-  // Render cable polylines on Google Maps
+  // Render cable polylines + waypoint markers on Google Maps
+  // Supports: click polyline to insert waypoint, drag waypoint to move, right-click to delete
   useEffect(() => {
-    // Clear old polylines
+    // Clear old polylines + waypoint markers
     for (const pl of cablePolylinesRef.current) pl.setMap(null)
     cablePolylinesRef.current = []
+    for (const m of cableWaypointMarkersRef.current) m.setMap(null)
+    cableWaypointMarkersRef.current = []
 
     if (!mapRef.current || !geoContext || !cables.length) return
     const map = mapRef.current
+    const ctx = geoContext
 
     for (const cable of cables) {
       if (!cable.waypoints || cable.waypoints.length < 2) continue
-      const path = cable.waypoints.map(wp => {
-        const { lat, lng } = canvasPixelsToLatLng(wp.x, wp.y, geoContext)
-        return { lat, lng }
-      })
-      const color = cable.color_hex || '#f97316'
+      const path = cable.waypoints.map(wp => canvasPixelsToLatLng(wp.x, wp.y, ctx))
+      const color = cable.color_hex || '#3b82f6'
+
+      // Dashed polyline (IPVM style)
       const polyline = new google.maps.Polyline({
         path,
         strokeColor: color,
         strokeOpacity: 0,
         strokeWeight: 0,
         map,
-        clickable: false,
+        clickable: true,
         zIndex: 1,
         icons: [{
           icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, strokeColor: color, scale: 2 },
           offset: '0', repeat: '10px',
         }],
       })
+
+      // Click on polyline → insert waypoint at closest segment point
+      const cableId = cable.id
+      polyline.addListener('click', (e: google.maps.PolyMouseEvent) => {
+        if (!e.latLng) return
+        const currentCable = cablesRef.current.find(c => c.id === cableId)
+        if (!currentCable?.waypoints || currentCable.waypoints.length < 2) return
+        const clickPx = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
+        // Find which segment the click is closest to
+        let bestIdx = 1
+        let bestDist = Infinity
+        for (let i = 0; i < currentCable.waypoints.length - 1; i++) {
+          const a = currentCable.waypoints[i]
+          const b = currentCable.waypoints[i + 1]
+          const dist = pointToSegmentDist(clickPx.x, clickPx.y, a.x, a.y, b.x, b.y)
+          if (dist < bestDist) { bestDist = dist; bestIdx = i + 1 }
+        }
+        const newWp = [...currentCable.waypoints]
+        newWp.splice(bestIdx, 0, { x: Math.round(clickPx.x), y: Math.round(clickPx.y) })
+        const len = calcWaypointLengthFt(newWp)
+        onCableUpdatedRef.current?.(cableId, newWp, len)
+      })
+
       cablePolylinesRef.current.push(polyline)
+
+      // Waypoint dot markers (skip first and last = MDF/device endpoints)
+      for (let wpIdx = 1; wpIdx < cable.waypoints.length - 1; wpIdx++) {
+        const wp = cable.waypoints[wpIdx]
+        const pos = canvasPixelsToLatLng(wp.x, wp.y, ctx)
+        const marker = new google.maps.Marker({
+          position: pos,
+          map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 5,
+            fillColor: '#ffffff',
+            fillOpacity: 1,
+            strokeColor: color,
+            strokeWeight: 2,
+          },
+          draggable: true,
+          clickable: true,
+          zIndex: 10,
+          title: 'Drag to move, right-click to delete',
+        })
+
+        // Drag waypoint to new position
+        const wpIndex = wpIdx
+        marker.addListener('dragend', () => {
+          const newPos = marker.getPosition()
+          if (!newPos) return
+          const currentCable = cablesRef.current.find(c => c.id === cableId)
+          if (!currentCable?.waypoints) return
+          const px = latLngToCanvasPixels(newPos.lat(), newPos.lng(), ctx)
+          const newWp = [...currentCable.waypoints]
+          newWp[wpIndex] = { x: Math.round(px.x), y: Math.round(px.y) }
+          const len = calcWaypointLengthFt(newWp)
+          onCableUpdatedRef.current?.(cableId, newWp, len)
+        })
+
+        // Right-click → delete waypoint
+        marker.addListener('rightclick', () => {
+          const currentCable = cablesRef.current.find(c => c.id === cableId)
+          if (!currentCable?.waypoints || currentCable.waypoints.length <= 2) return
+          const newWp = currentCable.waypoints.filter((_, i) => i !== wpIndex)
+          const len = calcWaypointLengthFt(newWp)
+          onCableUpdatedRef.current?.(cableId, newWp, len)
+        })
+
+        cableWaypointMarkersRef.current.push(marker)
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cables, geoContext, mapReady])
+  }, [cables, geoContext, mapReady, calcWaypointLengthFt])
 
   // Render wall polylines on Google Maps
   useEffect(() => {

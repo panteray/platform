@@ -39,6 +39,7 @@ export interface DesignCanvasState {
   updateDeviceProps: (deviceId: string, propUpdates: Record<string, unknown>) => Promise<void>
   deleteDevice: (deviceId: string) => Promise<boolean>
   addCable: (data: Record<string, unknown>) => Promise<DesignCable | null>
+  updateCable: (id: string, data: Record<string, unknown>) => Promise<unknown>
   deleteCable: (cableId: string) => Promise<boolean>
   addInfrastructure: (data: Record<string, unknown>) => Promise<DesignMdfIdf | null>
   updateInfrastructure: (id: string, data: Record<string, unknown>) => Promise<unknown>
@@ -386,7 +387,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     setActiveAreaId, setSelectedDeviceId, setSelectedCableId,
     addArea, updateArea, deleteArea, uploadFloorPlan, deleteFloorPlan,
     addDevice, updateDevice, updateDeviceProps, deleteDevice,
-    addCable: cableCrud.add, deleteCable: cableCrud.remove,
+    addCable: cableCrud.add, updateCable: cableCrud.update, deleteCable: cableCrud.remove,
     addInfrastructure: infraCrud.add,
     updateInfrastructure: infraCrud.update,
     deleteInfrastructure: infraCrud.remove,

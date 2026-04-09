@@ -30,7 +30,7 @@ import {
   Square, Settings, Maximize2, ZoomIn, ZoomOut, LockKeyhole, Locate, Fence,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { C, PPF_CHART, type CanvasTool, type IconTabId, ICON_TABS } from './constants'
+import { C, PPF_CHART, type CanvasTool, type IconTabId, ICON_TABS, DEVICE_CATEGORY_COLORS } from './constants'
 import { CanvasArea } from './canvas-area'
 import type { DeviceFovData } from './fov-data-types'
 import { LeftPanel } from './left-panel'
@@ -101,7 +101,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     setActiveAreaId, setSelectedDeviceId,
     addArea, updateArea, deleteArea, uploadFloorPlan, deleteFloorPlan,
     addDevice, updateDevice, updateDeviceProps, deleteDevice,
-    addCable, deleteCable, addInfrastructure, updateInfrastructure, deleteInfrastructure,
+    addCable, updateCable, deleteCable, addInfrastructure, updateInfrastructure, deleteInfrastructure,
   } = state
 
   /* ── UI state ── */
@@ -1016,7 +1016,16 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
               payload.mdf_idf_id = cable.to_device_id
               delete payload.to_device_id
             }
+            // Auto-color cable to match connected device category (IPVM pattern)
+            const connDeviceId = fromIsMdf ? cable.to_device_id : cable.from_device_id
+            if (connDeviceId) {
+              const dev = devices.find(d => d.id === connDeviceId)
+              if (dev) payload.color_hex = DEVICE_CATEGORY_COLORS[dev.category] || '#3b82f6'
+            }
             await addCable(payload)
+          }}
+          onCableUpdated={async (cableId, waypoints, lengthFt) => {
+            await updateCable(cableId, { waypoints, length_ft: lengthFt })
           }}
           mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
           onMdfIdfPlaced={async (x, y) => {
@@ -1103,6 +1112,29 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                   c => c.from_device_id === deviceId || c.to_device_id === deviceId
                 )
                 for (const c of toDelete) await deleteCable(c.id)
+              }}
+              onConnectToMdf={async (deviceId) => {
+                // Auto-connect device to nearest MDF with straight-line cable
+                const dev = devices.find(d => d.id === deviceId)
+                const areaMdfs = mdfIdfs.filter(m => m.area_id === activeAreaId)
+                if (!dev || areaMdfs.length === 0) { toast.warning('No MDF/IDF in this area'); return }
+                // Check if device already cabled
+                const alreadyCabled = cables.find(c => c.from_device_id === deviceId || c.to_device_id === deviceId)
+                if (alreadyCabled) { toast.warning('Device already has a cable to MDF. Remove existing cable first.'); return }
+                // Find nearest MDF
+                let nearest = areaMdfs[0]
+                let minDist = Infinity
+                for (const m of areaMdfs) {
+                  const dx = dev.position_x - m.position_x
+                  const dy = dev.position_y - m.position_y
+                  const dist = Math.sqrt(dx * dx + dy * dy)
+                  if (dist < minDist) { minDist = dist; nearest = m }
+                }
+                const waypoints = [{ x: nearest.position_x, y: nearest.position_y }, { x: dev.position_x, y: dev.position_y }]
+                const lengthFt = scalePxPerFt > 0 ? Math.round(minDist / scalePxPerFt) : Math.round(minDist)
+                const color = DEVICE_CATEGORY_COLORS[dev.category] || '#3b82f6'
+                await addCable({ design_id: designId, area_id: activeAreaId, mdf_idf_id: nearest.id, from_device_id: deviceId, waypoints, length_ft: lengthFt, color_hex: color })
+                toast.success(`Connected to ${nearest.name}`)
               }}
               onShowSimulatedView={() => setShowSimulatedView(true)}
               onOpenFovPanel={() => setShowFovPanel(prev => !prev)}

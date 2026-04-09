@@ -45,6 +45,7 @@ interface Props {
   showBlindSpot?: boolean
   onToggleBlindSpot?: (show: boolean) => void
   onDisconnectCable?: (deviceId: string) => void
+  onConnectToMdf?: (deviceId: string) => void
   cables?: Array<{ id: string; from_device_id?: string | null; to_device_id?: string | null; mdf_idf_id?: string | null; cable_type?: string; length_ft?: number; total_length_ft?: number }>
   selectedImagerIdx?: number | null
   onSelectImager?: (idx: number | null) => void
@@ -199,7 +200,7 @@ export function RightPanel({
   onChangeModel,
   showIrRange = true, onToggleIrRange, hiddenPpfZones, onTogglePpfZone,
   showBlindSpot = false, onToggleBlindSpot,
-  onDisconnectCable, cables,
+  onDisconnectCable, onConnectToMdf, cables,
   selectedImagerIdx, onSelectImager,
   onShowSimulatedView,
   onOpenFovPanel, onOpenDeviceProfile,
@@ -563,8 +564,24 @@ export function RightPanel({
                   )}
                 </div>
               ) : (
-                <div style={{ fontSize: 10, color: C.textDim, fontStyle: 'italic' }}>
-                  Not cabled — use Cable tool to connect to MDF/IDF
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {onConnectToMdf && (mdfIdfs ?? []).length > 0 ? (
+                    <button
+                      onClick={() => onConnectToMdf(device.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                        padding: '6px 10px', borderRadius: 5, fontSize: 10, fontWeight: 600,
+                        border: `1px solid ${C.accent}40`, background: `${C.accent}10`,
+                        color: C.accent, cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      <Server size={10} /> Connect to Network Closet
+                    </button>
+                  ) : (
+                    <div style={{ fontSize: 10, color: C.textDim, fontStyle: 'italic' }}>
+                      {(mdfIdfs ?? []).length === 0 ? 'No MDF/IDF placed — add one first' : 'Not cabled'}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
