@@ -446,7 +446,23 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
 
   const handleDeviceMoved = useCallback((id: string, x: number, y: number) => {
     updateDevice(id, { position_x: x, position_y: y })
-  }, [updateDevice])
+    // Move cable endpoint to follow device
+    for (const c of cables) {
+      if (c.from_device_id === id || c.to_device_id === id) {
+        if (!c.waypoints || c.waypoints.length < 2) continue
+        const newWp = [...c.waypoints]
+        // Device is always the last waypoint
+        newWp[newWp.length - 1] = { x: Math.round(x), y: Math.round(y) }
+        const len = newWp.reduce((sum, wp, i) => {
+          if (i === 0) return 0
+          const dx = wp.x - newWp[i - 1].x, dy = wp.y - newWp[i - 1].y
+          return sum + Math.sqrt(dx * dx + dy * dy)
+        }, 0)
+        const lengthFt = scalePxPerFt > 0 ? Math.round(len / scalePxPerFt) : Math.round(len)
+        updateCable(c.id, { waypoints: newWp, length_ft: lengthFt })
+      }
+    }
+  }, [updateDevice, cables, updateCable, scalePxPerFt])
 
   const handleDeviceRotated = useCallback((id: string, angle: number) => {
     updateDevice(id, { rotation: angle })
@@ -1033,6 +1049,21 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           }}
           onMdfIdfMoved={async (id, x, y) => {
             await updateInfrastructure(id, { position_x: x, position_y: y })
+            // Move cable start waypoint to follow MDF
+            for (const c of cables) {
+              if (c.mdf_idf_id === id) {
+                if (!c.waypoints || c.waypoints.length < 2) continue
+                const newWp = [...c.waypoints]
+                newWp[0] = { x: Math.round(x), y: Math.round(y) }
+                const len = newWp.reduce((sum, wp, i) => {
+                  if (i === 0) return 0
+                  const dx = wp.x - newWp[i - 1].x, dy = wp.y - newWp[i - 1].y
+                  return sum + Math.sqrt(dx * dx + dy * dy)
+                }, 0)
+                const lengthFt = scalePxPerFt > 0 ? Math.round(len / scalePxPerFt) : Math.round(len)
+                await updateCable(c.id, { waypoints: newWp, length_ft: lengthFt })
+              }
+            }
           }}
           onMdfIdfDeleted={async (id) => {
             await deleteInfrastructure(id)
