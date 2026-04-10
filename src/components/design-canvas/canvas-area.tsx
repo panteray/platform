@@ -258,7 +258,7 @@ function CanvasArea(props: Props) {
   const draggingDeviceRef = useRef<string | null>(null)
   // Cable drawing state — MDF first → Device → then route waypoints
   const cableDrawRef = useRef<{
-    phase: 'pick_mdf' | 'pick_device' | 'routing'
+    phase: 'pick_mdf' | 'routing'
     mdfId?: string
     mdfPx?: { x: number; y: number }
     deviceId?: string
@@ -417,30 +417,28 @@ function CanvasArea(props: Props) {
     onToolChangeRef.current?.('select')
   }, [calcWaypointLengthFt, cleanupCableDraw])
 
-  // Step 1: Click MDF → Step 2: Click Device → Step 3: Route waypoints → click device/dblclick/Enter to finish
+  // IPVM flow: Click MDF → click map for waypoints → click device to finish
   const handleCableClick = useCallback((id: string, type: 'device' | 'mdf', px: number, py: number) => {
     const draw = cableDrawRef.current
 
     // ── Phase: pick_mdf — first click must be MDF ──
     if (!draw || draw.phase === 'pick_mdf') {
       if (type !== 'mdf') return // ignore non-MDF clicks
-      cableDrawRef.current = { phase: 'pick_device', mdfId: id, mdfPx: { x: px, y: py }, waypoints: [] }
+      // Go straight to routing — no pick_device phase (IPVM pattern)
+      cableDrawRef.current = { phase: 'routing', mdfId: id, mdfPx: { x: px, y: py }, waypoints: [] }
       // Show preview from MDF following mouse
       const ctx = geoContextRef.current
       if (mapRef.current && ctx) {
         cableMoveListenerRef.current = mapRef.current.addListener('mousemove', (e: google.maps.MapMouseEvent) => {
           const d = cableDrawRef.current
-          if (!d || !e.latLng) return
+          if (!d || !e.latLng || d.phase !== 'routing' || !d.mdfPx) return
           const mouseLat = e.latLng.lat(), mouseLng = e.latLng.lng()
 
-          if (d.phase === 'pick_device' && d.mdfPx) {
-            showCablePreview([d.mdfPx], mouseLat, mouseLng)
-          } else if (d.phase === 'routing' && d.mdfPx) {
-            const routePts = [d.mdfPx, ...d.waypoints]
-            showCablePreview(routePts, mouseLat, mouseLng)
-          }
+          // Rubber-band preview: MDF → waypoints → cursor
+          const routePts = [d.mdfPx, ...d.waypoints]
+          showCablePreview(routePts, mouseLat, mouseLng)
 
-          // ── Snap highlight: show ring around nearest device when within snap radius ──
+          // ── Snap highlight: green ring around nearest device within snap radius ──
           const SNAP_FT = 50
           const devs = devicesRef.current
           let snapped = false
@@ -462,65 +460,41 @@ function CanvasArea(props: Props) {
           }
           if (!snapped) cableSnapHighlightRef.current?.setMap(null)
 
-          // ── Waypoint preview dot at cursor during routing ──
-          if (d.phase === 'routing') {
-            if (!cableWaypointPreviewRef.current) {
-              cableWaypointPreviewRef.current = new google.maps.Marker({
-                position: { lat: mouseLat, lng: mouseLng }, map: mapRef.current!, clickable: false, zIndex: 12,
-                icon: { path: google.maps.SymbolPath.CIRCLE, scale: 4, fillColor: '#f97316', fillOpacity: 0.6, strokeColor: '#f97316', strokeWeight: 1 },
-              })
-            } else {
-              cableWaypointPreviewRef.current.setPosition({ lat: mouseLat, lng: mouseLng })
-              cableWaypointPreviewRef.current.setMap(mapRef.current!)
-            }
+          // ── Waypoint preview dot at cursor ──
+          if (!cableWaypointPreviewRef.current) {
+            cableWaypointPreviewRef.current = new google.maps.Marker({
+              position: { lat: mouseLat, lng: mouseLng }, map: mapRef.current!, clickable: false, zIndex: 12,
+              icon: { path: google.maps.SymbolPath.CIRCLE, scale: 4, fillColor: '#f97316', fillOpacity: 0.6, strokeColor: '#f97316', strokeWeight: 1 },
+            })
+          } else {
+            cableWaypointPreviewRef.current.setPosition({ lat: mouseLat, lng: mouseLng })
+            cableWaypointPreviewRef.current.setMap(mapRef.current!)
           }
         })
       }
       return
     }
 
-    // ── Phase: pick_device — second click must be Device ──
-    if (draw.phase === 'pick_device') {
-      if (type !== 'device') return // ignore non-device clicks
-      draw.phase = 'routing'
+    // ── Phase: routing — clicking a device finishes the cable ──
+    if (draw.phase === 'routing' && type === 'device') {
       draw.deviceId = id
       draw.devicePx = { x: px, y: py }
-      // Show straight line MDF → Device, user can now click map to add waypoints
-      showCablePreview([draw.mdfPx!, { x: px, y: py }])
-      return
-    }
-
-    // ── Phase: routing — clicking the connected device snaps/finishes the cable ──
-    if (draw.phase === 'routing') {
-      if (type === 'device' && id === draw.deviceId) {
-        // Snap to the connected device — finish routing
-        finishCableRouting()
-      }
-      // Clicking any other device or MDF during routing also finishes
-      // (user is done routing, snap the endpoint)
-      if (type === 'device') {
-        // Update device endpoint to the clicked device
-        draw.deviceId = id
-        draw.devicePx = { x: px, y: py }
-        finishCableRouting()
-      }
+      finishCableRouting()
       return
     }
   }, [showCablePreview, finishCableRouting])
   // Keep ref in sync so marker listeners always use latest version
   useEffect(() => { handleCableClickRef.current = handleCableClick }, [handleCableClick])
 
-  // Map click during cable routing phase → add waypoint between MDF and device
+  // Map click during cable routing phase → add waypoint (IPVM: click map for turns, click device to finish)
   const handleCableMapClick = useCallback((x: number, y: number) => {
     const draw = cableDrawRef.current
-    if (!draw) return
+    if (!draw || draw.phase !== 'routing') return
 
-    if (draw.phase === 'routing') {
-      draw.waypoints.push({ x: Math.round(x), y: Math.round(y) })
-      // Rebuild full path: MDF → waypoints → device
-      const allPts = [draw.mdfPx!, ...draw.waypoints, draw.devicePx!]
-      showCablePreview(allPts)
-    }
+    draw.waypoints.push({ x: Math.round(x), y: Math.round(y) })
+    // Preview: MDF → waypoints (no device endpoint yet — user clicks device to finish)
+    const routePts = [draw.mdfPx!, ...draw.waypoints]
+    showCablePreview(routePts)
   }, [showCablePreview])
 
   // Cancel / finish cable drawing
@@ -630,7 +604,7 @@ function CanvasArea(props: Props) {
           return haversineDistanceFt(clickLat, clickLng, pos.lat, pos.lng) < SNAP_FT
         }
 
-        // Check proximity to MDF markers (for pick_mdf phase)
+        // Phase: pick_mdf — must click near an MDF to start
         if (!draw || draw.phase === 'pick_mdf') {
           const mdfNodes = mdfIdfsRef.current ?? []
           for (const m of mdfNodes) {
@@ -639,23 +613,12 @@ function CanvasArea(props: Props) {
               return
             }
           }
-          return // must click near an MDF
+          return // must click near an MDF to start
         }
 
-        // Check proximity to device markers (for pick_device phase)
-        if (draw.phase === 'pick_device') {
-          const devs = devicesRef.current
-          for (const d of devs) {
-            if (nearPos(d.position_x, d.position_y)) {
-              handleCableClickRef.current(d.id, 'device', d.position_x, d.position_y)
-              return
-            }
-          }
-          return // must click near a device
-        }
-
-        // Routing phase: check snap to device first, then add waypoint
+        // Phase: routing — click device to finish, click map to add waypoint
         if (draw.phase === 'routing') {
+          // Check device snap first — clicking device finishes the cable
           const devs = devicesRef.current
           for (const d of devs) {
             if (nearPos(d.position_x, d.position_y)) {
