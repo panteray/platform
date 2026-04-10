@@ -399,16 +399,17 @@ function CanvasArea(props: Props) {
   }, [calcWaypointLengthFt])
 
   // Finish cable routing: commits the cable to DB
+  // Sends mdfId as from_device_id so design-canvas.tsx routing detects it and moves to mdf_idf_id
   const finishCableRouting = useCallback(() => {
     const draw = cableDrawRef.current
-    if (!draw || draw.phase !== 'routing' || !draw.mdfPx || !draw.devicePx || !draw.deviceId) return
+    if (!draw || draw.phase !== 'routing' || !draw.mdfPx || !draw.devicePx || !draw.deviceId || !draw.mdfId) return
 
     const allWaypoints = [draw.mdfPx, ...draw.waypoints, draw.devicePx]
     const lengthFt = calcWaypointLengthFt(allWaypoints)
 
     onCableCreatedRef.current?.({
-      from_device_id: draw.deviceId,
-      to_device_id: null,
+      from_device_id: draw.mdfId,
+      to_device_id: draw.deviceId,
       waypoints: allWaypoints,
       length_ft: lengthFt,
     })
