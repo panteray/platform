@@ -451,7 +451,6 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       if (c.from_device_id === id || c.to_device_id === id) {
         if (!c.waypoints || c.waypoints.length < 2) continue
         const newWp = [...c.waypoints]
-        // Device is always the last waypoint
         newWp[newWp.length - 1] = { x: Math.round(x), y: Math.round(y) }
         const len = newWp.reduce((sum, wp, i) => {
           if (i === 0) return 0
@@ -459,7 +458,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           return sum + Math.sqrt(dx * dx + dy * dy)
         }, 0)
         const lengthFt = scalePxPerFt > 0 ? Math.round(len / scalePxPerFt) : Math.round(len)
-        updateCable(c.id, { waypoints: newWp, length_ft: lengthFt })
+        updateCable(c.id, { waypoints: newWp, length_ft: lengthFt, total_length_ft: lengthFt + (c.service_loop_ft || 0) })
       }
     }
   }, [updateDevice, cables, updateCable, scalePxPerFt])
@@ -1041,7 +1040,8 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
             await addCable(payload)
           }}
           onCableUpdated={async (cableId, waypoints, lengthFt) => {
-            await updateCable(cableId, { waypoints, length_ft: lengthFt })
+            const cable = cables.find(c => c.id === cableId)
+            await updateCable(cableId, { waypoints, length_ft: lengthFt, total_length_ft: lengthFt + (cable?.service_loop_ft || 0) })
           }}
           mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
           onMdfIdfPlaced={async (x, y) => {
@@ -1061,7 +1061,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                   return sum + Math.sqrt(dx * dx + dy * dy)
                 }, 0)
                 const lengthFt = scalePxPerFt > 0 ? Math.round(len / scalePxPerFt) : Math.round(len)
-                await updateCable(c.id, { waypoints: newWp, length_ft: lengthFt })
+                await updateCable(c.id, { waypoints: newWp, length_ft: lengthFt, total_length_ft: lengthFt + (c.service_loop_ft || 0) })
               }
             }
           }}
