@@ -29,7 +29,7 @@ export async function PATCH(
   const admin = createAdminClient()
 
   const allowed: Record<string, unknown> = {}
-  for (const f of ['area_id','canvas_id','cable_type','label','waypoints','length_ft','slack_pct','total_length_ft','service_loop_ft','from_device_id','to_device_id','mdf_idf_id','color_hex']) {
+  for (const f of ['area_id','canvas_id','cable_type','label','waypoints','length_ft','slack_pct','service_loop_ft','from_device_id','to_device_id','mdf_idf_id','color_hex']) {
     if (body[f] !== undefined) allowed[f] = body[f]
   }
   if (Object.keys(allowed).length === 0) return NextResponse.json({ error: 'No updatable fields' }, { status: 400 })

@@ -548,7 +548,7 @@ export function RightPanel({
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10 }}>
-                    <span style={{ color: C.textMuted }}>Length: <strong style={{ color: C.text }}>{Math.round(connCable.total_length_ft || connCable.length_ft || 0)} ft</strong></span>
+                    <span style={{ color: C.textMuted }}>Length: <strong style={{ color: C.text }}>{Math.round(connCable.length_ft || 0)} ft</strong></span>
                     {connMdf && <span style={{ color: C.accent, fontWeight: 600, fontSize: 9 }}>{connMdf.name} →</span>}
                   </div>
                   {onDisconnectCable && (

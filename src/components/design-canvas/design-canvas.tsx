@@ -458,7 +458,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           return sum + Math.sqrt(dx * dx + dy * dy)
         }, 0)
         const lengthFt = scalePxPerFt > 0 ? Math.round(len / scalePxPerFt) : Math.round(len)
-        updateCable(c.id, { waypoints: newWp, length_ft: lengthFt, total_length_ft: lengthFt + (c.service_loop_ft || 0) })
+        updateCable(c.id, { waypoints: newWp, length_ft: lengthFt, })
       }
     }
   }, [updateDevice, cables, updateCable, scalePxPerFt])
@@ -1041,7 +1041,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           }}
           onCableUpdated={async (cableId, waypoints, lengthFt) => {
             const cable = cables.find(c => c.id === cableId)
-            await updateCable(cableId, { waypoints, length_ft: lengthFt, total_length_ft: lengthFt + (cable?.service_loop_ft || 0) })
+            await updateCable(cableId, { waypoints, length_ft: lengthFt })
           }}
           mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
           onMdfIdfPlaced={async (x, y) => {
@@ -1061,7 +1061,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                   return sum + Math.sqrt(dx * dx + dy * dy)
                 }, 0)
                 const lengthFt = scalePxPerFt > 0 ? Math.round(len / scalePxPerFt) : Math.round(len)
-                await updateCable(c.id, { waypoints: newWp, length_ft: lengthFt, total_length_ft: lengthFt + (c.service_loop_ft || 0) })
+                await updateCable(c.id, { waypoints: newWp, length_ft: lengthFt })
               }
             }
           }}
