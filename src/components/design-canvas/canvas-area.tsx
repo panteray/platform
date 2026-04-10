@@ -746,7 +746,32 @@ function CanvasArea(props: Props) {
           draggingDeviceRef.current = devId
         })
 
-        // Marker drag end → convert lat/lng back to px, call onDeviceMoved
+        // Marker drag (continuous) → update cable polyline in real-time
+        marker.addListener('drag', (e: google.maps.MapMouseEvent) => {
+          if (!e.latLng) return
+          const ctx = geoContextRef.current
+          if (!ctx) return
+          const dragLat = e.latLng.lat(), dragLng = e.latLng.lng()
+          const cbs = cablesRef.current
+          const polys = cablePolylinesRef.current
+          // cablePolylinesRef is built in same order as cables that have waypoints >= 2
+          let polyIdx = 0
+          for (const c of cbs) {
+            if (!c.waypoints || c.waypoints.length < 2) continue
+            if (c.from_device_id === devId || c.to_device_id === devId) {
+              if (polyIdx < polys.length) {
+                const path = c.waypoints.map((wp, i) => {
+                  if (i === c.waypoints.length - 1) return { lat: dragLat, lng: dragLng }
+                  return canvasPixelsToLatLng(wp.x, wp.y, ctx)
+                })
+                polys[polyIdx].setPath(path)
+              }
+            }
+            polyIdx++
+          }
+        })
+
+        // Marker drag end → convert lat/lng back to px, call onDeviceMoved (persists cable update)
         marker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
           draggingDeviceRef.current = null
           const ctx = geoContextRef.current
@@ -822,6 +847,30 @@ function CanvasArea(props: Props) {
             onMdfIdfDeletedRef.current?.(mdfId)
           }
         })
+        // MDF drag (continuous) → update cable polyline start in real-time
+        marker.addListener('drag', (e: google.maps.MapMouseEvent) => {
+          if (!e.latLng) return
+          const ctx = geoContextRef.current
+          if (!ctx) return
+          const dragLat = e.latLng.lat(), dragLng = e.latLng.lng()
+          const cbs = cablesRef.current
+          const polys = cablePolylinesRef.current
+          let polyIdx = 0
+          for (const c of cbs) {
+            if (!c.waypoints || c.waypoints.length < 2) continue
+            if (c.mdf_idf_id === mdfId) {
+              if (polyIdx < polys.length) {
+                const path = c.waypoints.map((wp, i) => {
+                  if (i === 0) return { lat: dragLat, lng: dragLng }
+                  return canvasPixelsToLatLng(wp.x, wp.y, ctx)
+                })
+                polys[polyIdx].setPath(path)
+              }
+            }
+            polyIdx++
+          }
+        })
+
         marker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
           const ctx = geoContextRef.current
           if (e.latLng && ctx) {
