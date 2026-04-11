@@ -446,12 +446,17 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
 
   const handleDeviceMoved = useCallback((id: string, x: number, y: number) => {
     updateDevice(id, { position_x: x, position_y: y })
-    // Move cable endpoint to follow device
+    // Move correct cable endpoint to follow device (first wp for from_device, last wp for to_device)
     for (const c of cables) {
       if (c.from_device_id === id || c.to_device_id === id) {
         if (!c.waypoints || c.waypoints.length < 2) continue
         const newWp = [...c.waypoints]
-        newWp[newWp.length - 1] = { x: Math.round(x), y: Math.round(y) }
+        const isFrom = c.from_device_id === id
+        if (isFrom) {
+          newWp[0] = { x: Math.round(x), y: Math.round(y) }
+        } else {
+          newWp[newWp.length - 1] = { x: Math.round(x), y: Math.round(y) }
+        }
         const len = newWp.reduce((sum, wp, i) => {
           if (i === 0) return 0
           const dx = wp.x - newWp[i - 1].x, dy = wp.y - newWp[i - 1].y
