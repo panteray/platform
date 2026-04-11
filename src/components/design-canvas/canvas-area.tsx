@@ -29,6 +29,7 @@ import {
 } from './geo-math'
 import type { DesignDevice, DesignCable, DesignFloorPlan, DesignMdfIdf } from '@/types/database'
 import type { DeviceFovData, FovTier } from './fov-data-types'
+import { clipFovByWalls } from './polygon-clip'
 import { useMapsApiKey } from './use-maps-api-key'
 
 export type { DeviceFovData, FovTier } from './fov-data-types'
@@ -1688,6 +1689,12 @@ function CanvasArea(props: Props) {
     const newPolygons: GPolygon[] = []
     const newSelectedPolygons: GPolygon[] = []
 
+    // Pre-convert walls to lat/lng once (used for all FOV polygon clipping)
+    const wallsLatLngCache = (wallsRef.current ?? []).map(w => ({
+      id: w.id,
+      points: w.points.map(pt => canvasPixelsToLatLng(pt.x, pt.y, geoContext)),
+    }))
+
     for (const [devId, data] of fovData) {
       const dev = devices.find((d) => d.id === devId)
       if (!dev) continue
@@ -1735,6 +1742,11 @@ function CanvasArea(props: Props) {
               radiusFt: tier.distanceFt,
               steps: Math.max(24, Math.min(48, Math.round(effectiveHFov))),
             })
+          }
+
+          // Clip FOV polygon by walls (Sutherland-Hodgman)
+          if (wallsLatLngCache.length > 0) {
+            path = clipFovByWalls(path, wallsLatLngCache, { lat: camLat, lng: camLng })
           }
 
           if (path.length < 3) continue
@@ -1793,6 +1805,7 @@ function CanvasArea(props: Props) {
     hiddenPpfZones,
     fovDisplayMode,
     mapReady,
+    walls,
   ])
 
   // IPVM-style FOV handle markers: per-sensor person icon (rotation+distance) + 2 arc-edge circles (FOV angle)
