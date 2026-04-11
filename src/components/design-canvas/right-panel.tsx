@@ -239,6 +239,10 @@ export function RightPanel({
       <div style={{ padding: '12px 16px 8px', borderBottom: `1px solid ${C.border}` }}>
         {/* Actions row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, marginBottom: 6 }}>
+          <button onClick={() => onOpenDeviceProfile?.()} title="Open Device Profile"
+            style={{ background: 'none', border: 'none', color: C.accent, cursor: 'pointer', padding: 4, borderRadius: 4, marginRight: 'auto' }}>
+            <Settings size={14} />
+          </button>
           <button onClick={() => onDuplicate(device.id)} title="Duplicate"
             style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', padding: 4, borderRadius: 4 }}>
             <Copy size={14} />
@@ -524,7 +528,7 @@ export function RightPanel({
               <div style={{ marginTop: 6, padding: '6px 8px', background: C.bgActive, borderRadius: 4, border: `1px solid ${C.border}` }}>
                 <StatRow label="Install Height" value={installHeight} unit="ft" />
                 {installHeight > 12 ? (
-                  <div style={{ fontSize: 9, color: '#f59e0b', fontWeight: 600, marginTop: 2 }}>⚠ Lift required — {installHeight}ft</div>
+                  <div style={{ fontSize: 9, color: '#ef4444', fontWeight: 700, marginTop: 2, background: 'rgba(239,68,68,0.08)', padding: '3px 6px', borderRadius: 3, border: '1px solid rgba(239,68,68,0.2)' }}>⚠ LIFT REQUIRED — {installHeight}ft install height</div>
                 ) : (
                   <div style={{ fontSize: 9, color: '#22c55e', fontWeight: 600, marginTop: 2 }}>✓ Standard ladder access</div>
                 )}
@@ -706,6 +710,47 @@ export function RightPanel({
               />
             </div>
 
+            {/* Recording Resolution — filtered by camera's max */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Recording Resolution</div>
+              {(() => {
+                const maxW = Number(props.resolution_w) || 1920
+                const maxH = Number(props.resolution_h) || 1080
+                const maxMp = Math.round((maxW * maxH) / 1e6 * 10) / 10
+                const allResolutions = [
+                  { label: '1080p (2MP)', w: 1920, h: 1080, mp: 2 },
+                  { label: '3MP', w: 2048, h: 1536, mp: 3 },
+                  { label: '4MP (1440p)', w: 2560, h: 1440, mp: 4 },
+                  { label: '5MP', w: 2592, h: 1944, mp: 5 },
+                  { label: '4K / 8MP', w: 3840, h: 2160, mp: 8 },
+                  { label: '12MP', w: 4000, h: 3000, mp: 12 },
+                  { label: '8K / 33MP', w: 7680, h: 4320, mp: 33 },
+                ]
+                const available = allResolutions.filter(r => r.mp <= maxMp + 0.5)
+                const currentRecW = Number(props.recording_resolution_w) || maxW
+                const currentRecH = Number(props.recording_resolution_h) || maxH
+                const currentKey = `${currentRecW}x${currentRecH}`
+                return (
+                  <div>
+                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 4 }}>
+                      Camera max: <strong style={{ color: C.text }}>{maxW}×{maxH}</strong> ({maxMp}MP)
+                    </div>
+                    <select value={currentKey}
+                      onChange={e => {
+                        const [w, h] = e.target.value.split('x').map(Number)
+                        updateProp('recording_resolution_w', w)
+                        updateProp('recording_resolution_h', h)
+                      }}
+                      style={{ width: '100%', padding: '5px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 11, fontFamily: 'inherit', outline: 'none' }}>
+                      {available.map(r => (
+                        <option key={`${r.w}x${r.h}`} value={`${r.w}x${r.h}`}>{r.label} ({r.w}×{r.h})</option>
+                      ))}
+                    </select>
+                  </div>
+                )
+              })()}
+            </div>
+
             {/* Camera Profile */}
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Camera Profile</div>
@@ -816,6 +861,43 @@ export function RightPanel({
               schedule={(props.recording_schedule_grid || null) as never}
               onChange={grid => updateProp('recording_schedule_grid', grid)}
             />
+
+            {/* ── Storage Estimate (from this camera's recording profile) ── */}
+            {isCamera && (() => {
+              const recW = Number(props.recording_resolution_w) || Number(props.resolution_w) || 1920
+              const recH = Number(props.recording_resolution_h) || Number(props.resolution_h) || 1080
+              const recMp = Math.round((recW * recH) / 1e6 * 10) / 10
+              const fps = Number(props.recording_fps) || 30
+              const codec = String(props.codec || 'H.265')
+              const retDays = Number(props.retention_days) || 30
+              // Bitrate estimate: base from resolution, adjusted by codec + fps
+              const baseMbps = recMp <= 2 ? 2 : recMp <= 4 ? 4 : recMp <= 5 ? 5 : recMp <= 8 ? 8 : recMp <= 12 ? 12 : 16
+              const codecMult = codec === 'H.264' ? 1.5 : codec === 'MJPEG' ? 3 : 1.0
+              const fpsMult = fps / 30
+              const smartMult = props.smart_codec && props.smart_codec !== 'off' ? 0.6 : 1.0
+              const bitrateMbps = Math.round(baseMbps * codecMult * fpsMult * smartMult * 10) / 10
+              const storageGbPerDay = (bitrateMbps * 3600 * 24) / 8 / 1024
+              const totalStorageGb = Math.round(storageGbPerDay * retDays)
+              const totalStorageTb = (totalStorageGb / 1024).toFixed(2)
+              return (
+                <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Storage Estimate</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                    <div style={{ padding: '6px 8px', background: C.bgActive, borderRadius: 4, textAlign: 'center' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.accent, fontFamily: 'monospace' }}>{bitrateMbps}</div>
+                      <div style={{ fontSize: 8, color: C.textDim }}>Mbps</div>
+                    </div>
+                    <div style={{ padding: '6px 8px', background: C.bgActive, borderRadius: 4, textAlign: 'center' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.accent, fontFamily: 'monospace' }}>{totalStorageGb < 1024 ? totalStorageGb + ' GB' : totalStorageTb + ' TB'}</div>
+                      <div style={{ fontSize: 8, color: C.textDim }}>{retDays}d retention</div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 8, color: C.textDim, marginTop: 4 }}>
+                    {recW}×{recH} · {codec} · {fps}fps · {props.smart_codec && props.smart_codec !== 'off' ? String(props.smart_codec) : 'no smart codec'}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )}
 
