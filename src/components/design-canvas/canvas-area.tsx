@@ -299,6 +299,8 @@ function CanvasArea(props: Props) {
   const cableWaypointMarkersRef = useRef<google.maps.Marker[]>([])
   const cableMiddleMarkersRef = useRef<google.maps.Marker[]>([])
   const cableWarningMarkersRef = useRef<google.maps.Marker[]>([])
+  const cableDistanceOverlaysRef = useRef<google.maps.OverlayView[]>([])
+  const wireTooltipRef = useRef<{ show: (pos: google.maps.LatLng) => void; hide: () => void } | null>(null)
   const cablesRef = useRef(cables)
   useEffect(() => { cablesRef.current = cables }, [cables])
   const wallPolylinesRef = useRef<google.maps.Polyline[]>([])
@@ -870,6 +872,50 @@ function CanvasArea(props: Props) {
 
     mapRef.current = map
 
+    // Wire tooltip overlay (IPVM TooltipOverlay pattern) — shows once on first cable interaction
+    {
+      class WireTooltip extends google.maps.OverlayView {
+        private div: HTMLDivElement | null = null
+        private position: google.maps.LatLng | null = null
+        private timer: ReturnType<typeof setTimeout> | null = null
+        constructor(mapInst: google.maps.Map) { super(); this.setMap(mapInst) }
+        onAdd() {
+          const div = document.createElement('div')
+          div.style.cssText = 'position:absolute;transform:translate(-50%,calc(-100% - 14px));padding:6px 10px;border-radius:6px;font-size:11px;font-weight:500;font-family:system-ui,sans-serif;white-space:nowrap;pointer-events:none;background:rgba(30,41,59,0.92);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);visibility:hidden;opacity:0;transition:visibility 0s linear 200ms,opacity 200ms'
+          this.div = div
+          this.getPanes()?.floatPane.appendChild(div)
+        }
+        show(pos: google.maps.LatLng, text = 'Drag midpoints to add turns · Right-click to remove') {
+          if (!this.div) return
+          if (this.timer) clearTimeout(this.timer)
+          this.position = pos
+          this.div.textContent = text
+          this.div.style.visibility = 'visible'
+          this.div.style.opacity = '1'
+          this.div.style.transition = 'visibility 0s linear 0s, opacity 200ms'
+          this.draw()
+          this.timer = setTimeout(() => this.hide(), 3000)
+        }
+        hide() {
+          if (!this.div) return
+          if (this.timer) clearTimeout(this.timer)
+          this.div.style.visibility = 'hidden'
+          this.div.style.opacity = '0'
+          this.div.style.transition = 'visibility 0s linear 200ms, opacity 200ms'
+        }
+        draw() {
+          if (!this.div || !this.position) return
+          const proj = this.getProjection()
+          if (!proj) return
+          const px = proj.fromLatLngToDivPixel(this.position)
+          if (px) { this.div.style.left = px.x + 'px'; this.div.style.top = px.y + 'px' }
+        }
+        onRemove() { this.div?.parentNode?.removeChild(this.div); this.div = null }
+      }
+      const tooltip = new WireTooltip(map)
+      wireTooltipRef.current = { show: (pos) => tooltip.show(pos), hide: () => tooltip.hide() }
+    }
+
     // Map click → cable mode proximity check, then deselect/canvas click
     map.addListener('click', (e: google.maps.MapMouseEvent) => {
       setContextMenuVisible(false)
@@ -1205,6 +1251,8 @@ function CanvasArea(props: Props) {
     cableMiddleMarkersRef.current = []
     for (const m of cableWarningMarkersRef.current) m.setMap(null)
     cableWarningMarkersRef.current = []
+    for (const o of cableDistanceOverlaysRef.current) o.setMap(null)
+    cableDistanceOverlaysRef.current = []
 
     if (!mapRef.current || !geoContext || !cables.length) return
     const map = mapRef.current
@@ -1249,6 +1297,15 @@ function CanvasArea(props: Props) {
         newWp.splice(bestIdx, 0, { x: Math.round(clickPx.x), y: Math.round(clickPx.y) })
         const len = calcWaypointLengthFt(newWp)
         onCableUpdatedRef.current?.(cableId, newWp, len)
+      })
+
+      // Show tooltip on first hover over cable
+      let tooltipShown = false
+      polyline.addListener('mouseover', (e: google.maps.PolyMouseEvent) => {
+        if (!tooltipShown && e.latLng && wireTooltipRef.current) {
+          wireTooltipRef.current.show(e.latLng)
+          tooltipShown = true
+        }
       })
 
       cablePolylinesRef.current.push(polyline)
@@ -1303,7 +1360,10 @@ function CanvasArea(props: Props) {
         cableWaypointMarkersRef.current.push(marker)
       }
 
-      // ── Middle markers (IPVM: drag midpoint to insert new vertex) ──
+      // ── Middle markers (IPVM Wire/index.js pattern) ──
+      // Draggable dots at midpoint of each segment. Drag >10px to split the segment
+      // and insert a new vertex. During drag, the polyline updates in real-time.
+      const polylineForCable = polyline // capture reference for drag updates
       for (let segIdx = 0; segIdx < cable.waypoints.length - 1; segIdx++) {
         const a = cable.waypoints[segIdx], b = cable.waypoints[segIdx + 1]
         const midPx = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
@@ -1313,9 +1373,9 @@ function CanvasArea(props: Props) {
           position: midPos,
           map,
           icon: {
-            path: google.maps.SymbolPath.CIRCLE, scale: 4,
-            fillColor: color, fillOpacity: 0.4,
-            strokeColor: color, strokeWeight: 1.5,
+            path: google.maps.SymbolPath.CIRCLE, scale: 5,
+            fillColor: color, fillOpacity: 0.55,
+            strokeColor: color, strokeWeight: 2,
           },
           draggable: true, clickable: true, zIndex: 8,
           cursor: 'grab',
@@ -1323,42 +1383,43 @@ function CanvasArea(props: Props) {
         })
 
         const segIndex = segIdx
-        let dragStartPixel: google.maps.Point | null = null
+        let startLatLng: google.maps.LatLng | null = null
         let hasSplit = false
 
         middleMarker.addListener('dragstart', (e: google.maps.MapMouseEvent) => {
           hasSplit = false
-          if (e.latLng && mapRef.current) {
-            const proj = mapRef.current.getProjection()
-            if (proj) {
-              const scale = 1 << (mapRef.current.getZoom() ?? 1)
-              const pt = proj.fromLatLngToPoint(e.latLng)
-              dragStartPixel = pt ? new google.maps.Point(pt.x * scale, pt.y * scale) : null
-            }
-          }
+          startLatLng = e.latLng ?? null
         })
 
         middleMarker.addListener('drag', (e: google.maps.MapMouseEvent) => {
-          if (hasSplit || !e.latLng || !dragStartPixel || !mapRef.current) return
-          const proj = mapRef.current.getProjection()
-          if (!proj) return
-          const scale = 1 << (mapRef.current.getZoom() ?? 1)
-          const pt = proj.fromLatLngToPoint(e.latLng)
-          if (!pt) return
-          const dx = pt.x * scale - dragStartPixel.x
-          const dy = pt.y * scale - dragStartPixel.y
-          if (Math.sqrt(dx * dx + dy * dy) > MIDDLE_SPLIT_PX) {
-            hasSplit = true
+          if (!e.latLng || !startLatLng || !mapRef.current) return
+
+          if (!hasSplit) {
+            // Check if dragged far enough (screen pixels)
+            const dist = screenPixelDist(mapRef.current, startLatLng.lat(), startLatLng.lng(), e.latLng.lat(), e.latLng.lng())
+            if (dist > MIDDLE_SPLIT_PX) {
+              // Split: insert the drag point into the polyline path
+              hasSplit = true
+              polylineForCable.getPath().insertAt(segIndex + 1, e.latLng)
+            } else {
+              // Not far enough — snap back to midpoint
+              middleMarker.setPosition(midPos)
+              return
+            }
+          }
+
+          // After split: update the inserted point to follow drag in real-time
+          if (hasSplit) {
+            polylineForCable.getPath().setAt(segIndex + 1, e.latLng)
           }
         })
 
         middleMarker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
           if (!hasSplit || !e.latLng) {
-            // Snap back — didn't drag far enough
             middleMarker.setPosition(midPos)
             return
           }
-          // Insert new vertex at drag end position
+          // Commit: insert new vertex into cable waypoints
           const currentCable = cablesRef.current.find(c => c.id === cableId)
           if (!currentCable?.waypoints) return
           const px = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
@@ -1366,43 +1427,88 @@ function CanvasArea(props: Props) {
           newWp.splice(segIndex + 1, 0, { x: Math.round(px.x), y: Math.round(px.y) })
           const len = calcWaypointLengthFt(newWp)
           onCableUpdatedRef.current?.(cableId, newWp, len)
-          dragStartPixel = null
+          startLatLng = null
         })
 
-        // Hover feedback
+        // Hover: enlarge + brighten (IPVM pattern)
         middleMarker.addListener('mouseover', () => {
           const icon = middleMarker.getIcon() as google.maps.Symbol
-          middleMarker.setIcon({ ...icon, fillOpacity: 0.8, scale: 5 })
+          middleMarker.setIcon({ ...icon, fillOpacity: 0.8, scale: 6 })
         })
         middleMarker.addListener('mouseout', () => {
           const icon = middleMarker.getIcon() as google.maps.Symbol
-          middleMarker.setIcon({ ...icon, fillOpacity: 0.4, scale: 4 })
+          middleMarker.setIcon({ ...icon, fillOpacity: 0.55, scale: 5 })
         })
 
         cableMiddleMarkersRef.current.push(middleMarker)
       }
 
-      // ── Distance warning marker (>328ft for Cat6, IPVM pattern) ──
+      // ── Distance overlay (IPVM MeasurementLineOverlay pattern) ──
+      // Floating label at cable midpoint showing length, styled with cable color
       const lengthFt = calcWaypointLengthFt(cable.waypoints)
-      if (lengthFt > 328) {
-        // Place warning at midpoint of cable
-        const midIdx = Math.floor(cable.waypoints.length / 2)
-        const midWp = cable.waypoints[midIdx]
-        const midPos = canvasPixelsToLatLng(midWp.x, midWp.y, ctx)
-        const warningMarker = new google.maps.Marker({
-          position: midPos,
-          map,
-          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
-          label: {
-            text: `⚠ ${lengthFt} ft`,
-            color: '#ef4444',
-            fontWeight: 'bold',
-            fontSize: '11px',
-          },
-          clickable: false,
-          zIndex: 15,
-        })
-        cableWarningMarkersRef.current.push(warningMarker)
+      const isOverLimit = lengthFt > 328
+      {
+        // Calculate midpoint of middle segment for label placement
+        const midSegIdx = Math.floor((cable.waypoints.length - 1) / 2)
+        const segA = cable.waypoints[midSegIdx], segB = cable.waypoints[midSegIdx + 1]
+        if (segA && segB) {
+          const midPx = { x: (segA.x + segB.x) / 2, y: (segA.y + segB.y) / 2 }
+          const midLatLng = canvasPixelsToLatLng(midPx.x, midPx.y, ctx)
+
+          // Custom OverlayView for crisp distance label (IPVM style)
+          class CableDistanceOverlay extends google.maps.OverlayView {
+            private div: HTMLDivElement | null = null
+            private position: google.maps.LatLng
+            constructor(pos: google.maps.LatLng, mapInst: google.maps.Map) {
+              super()
+              this.position = pos
+              this.setMap(mapInst)
+            }
+            onAdd() {
+              const div = document.createElement('div')
+              div.style.position = 'absolute'
+              div.style.transform = 'translate(-50%, -100%)'
+              div.style.padding = '2px 6px'
+              div.style.borderRadius = '4px'
+              div.style.fontSize = '10px'
+              div.style.fontWeight = '600'
+              div.style.fontFamily = 'system-ui, sans-serif'
+              div.style.whiteSpace = 'nowrap'
+              div.style.pointerEvents = 'none'
+              div.style.lineHeight = '1.3'
+              if (isOverLimit) {
+                div.style.background = 'rgba(239, 68, 68, 0.9)'
+                div.style.color = '#ffffff'
+                div.textContent = `⚠ ${lengthFt} ft`
+              } else {
+                div.style.background = 'rgba(0, 0, 0, 0.7)'
+                div.style.color = '#ffffff'
+                div.textContent = `${lengthFt} ft`
+              }
+              this.div = div
+              this.getPanes()?.floatPane.appendChild(div)
+            }
+            draw() {
+              if (!this.div) return
+              const proj = this.getProjection()
+              if (!proj) return
+              const px = proj.fromLatLngToDivPixel(this.position)
+              if (px) {
+                this.div.style.left = px.x + 'px'
+                this.div.style.top = (px.y - 8) + 'px'
+              }
+            }
+            onRemove() {
+              this.div?.parentNode?.removeChild(this.div)
+              this.div = null
+            }
+          }
+
+          const overlay = new CableDistanceOverlay(
+            new google.maps.LatLng(midLatLng.lat, midLatLng.lng), map
+          )
+          cableDistanceOverlaysRef.current.push(overlay)
+        }
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
