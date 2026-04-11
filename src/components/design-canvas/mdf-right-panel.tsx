@@ -81,8 +81,8 @@ export function MdfRightPanel({
     return Math.sqrt(dx * dx + dy * dy) / (scalePxPerFt || 10)
   }, [mdf, scalePxPerFt])
 
-  // Total cable lengths
-  const totalCableLength = mdfCables.reduce((sum, cb) => sum + (cb.total_length_ft || cb.length_ft || 0), 0)
+  // Total cable lengths — use length_ft only (total_length_ft includes service loop from DB, causes double-count)
+  const totalCableLength = mdfCables.reduce((sum, cb) => sum + (cb.length_ft || 0), 0)
   const totalWithServiceLoop = totalCableLength + (mdfCables.length * serviceLoop)
 
   const handleNameSave = () => {

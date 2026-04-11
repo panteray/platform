@@ -30,7 +30,7 @@ import {
   Square, Settings, Maximize2, ZoomIn, ZoomOut, LockKeyhole, Locate, Fence,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { C, PPF_CHART, type CanvasTool, type IconTabId, ICON_TABS, DEVICE_CATEGORY_COLORS } from './constants'
+import { C, type CanvasTool, type IconTabId, ICON_TABS, DEVICE_CATEGORY_COLORS } from './constants'
 import { CanvasArea } from './canvas-area'
 import type { DeviceFovData } from './fov-data-types'
 import { LeftPanel } from './left-panel'
@@ -1332,19 +1332,6 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         background: C.bgSurface, borderTop: `1px solid ${C.border}`,
         fontSize: 10, color: C.textMuted, flexShrink: 0,
       }}>
-        {/* PPF Legend */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginRight: 16 }}>
-          {PPF_CHART.slice(1, 5).map(tier => (
-            <div key={tier.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 2, background: tier.color, opacity: 0.8 }} />
-              <span style={{ fontSize: 9 }}>{tier.label}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Separator */}
-        <div style={{ width: 1, height: 16, background: C.border, margin: '0 8px' }} />
-
         {/* Device counts */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -1357,6 +1344,19 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
             <Wifi size={11} /> {networkCount} network
           </span>
           <span>Total: {areaDevices.length}</span>
+        </div>
+
+        {/* Separator */}
+        <div style={{ width: 1, height: 16, background: C.border, margin: '0 8px' }} />
+
+        {/* Cable tally */}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <Cable size={11} /> {areaCables.length} {areaCables.length === 1 ? 'run' : 'runs'}
+          </span>
+          <span style={{ fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace", fontWeight: 600 }}>
+            {areaCables.reduce((sum, c) => sum + (c.length_ft || 0), 0)} ft
+          </span>
         </div>
 
         {/* Spacer */}
