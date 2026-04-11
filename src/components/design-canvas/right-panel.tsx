@@ -54,7 +54,7 @@ interface Props {
   onOpenDeviceProfile?: () => void
 }
 
-type TabId = 'fov' | 'acc' | 'profile' | 'rec'
+type TabId = 'fov' | 'acc' | 'settings' | 'rec'
 
 /* ─── Stat Row ─── */
 function StatRow({ label, value, unit, color }: {
@@ -226,9 +226,6 @@ export function RightPanel({
 
   const handleTabSwitch = (tab: TabId) => {
     setActiveTab(tab)
-    if (tab === 'profile') {
-      onOpenDeviceProfile?.()
-    }
   }
 
   return (
@@ -313,11 +310,11 @@ export function RightPanel({
         </div>
       </div>
 
-      {/* ── Tab Bar: FoV | Acc | Profile | Rec ── */}
+      {/* ── Tab Bar: FoV | Acc | Settings | Rec ── */}
       <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, background: C.bgSurface }}>
-        {(['fov', 'acc', 'profile', 'rec'] as const).map(tab => {
+        {(['fov', 'acc', 'settings', 'rec'] as const).map(tab => {
           const active = activeTab === tab
-          const label = tab === 'fov' ? 'FoV' : tab === 'acc' ? 'Acc' : tab === 'profile' ? 'Profile' : 'Rec'
+          const label = tab === 'fov' ? 'FoV' : tab === 'acc' ? 'Acc' : tab === 'settings' ? 'Settings' : 'Rec'
           return (
             <button key={tab} onClick={() => handleTabSwitch(tab)}
               style={{
@@ -619,19 +616,79 @@ export function RightPanel({
         )}
 
         {/* ═══ Profile Tab ═══ */}
-        {activeTab === 'profile' && (
-          <div style={{ padding: '20px 14px', textAlign: 'center' }}>
-            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Full device lifecycle management</div>
-            <button onClick={() => onOpenDeviceProfile?.()} style={{
-              width: '100%', padding: '10px 14px', fontSize: 12, fontWeight: 700,
-              color: C.accent, background: C.accentSubtle,
-              border: `1px solid ${C.accent}40`, borderRadius: 6,
-              cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
-            }}>Open Device Profile →</button>
-            <div style={{ marginTop: 16, fontSize: 10, color: C.textDim, lineHeight: 1.6 }}>
-              Device Profile • Installation<br />
-              Configuration • Maintenance<br />
-              Activity Log • Accessories • Notes
+        {activeTab === 'settings' && (
+          <div>
+            {/* IP Settings */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>IP Settings</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>IP Address</div>
+                  <input type="text" value={String(props.ip_address || '')} placeholder="192.168.1.100"
+                    onChange={e => updateProp('ip_address', e.target.value)}
+                    style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, fontFamily: "'SF Mono', 'Cascadia Code', monospace", outline: 'none' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  <div>
+                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Subnet Mask</div>
+                    <input type="text" value={String(props.subnet_mask || '')} placeholder="255.255.255.0"
+                      onChange={e => updateProp('subnet_mask', e.target.value)}
+                      style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, fontFamily: "'SF Mono', 'Cascadia Code', monospace", outline: 'none' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Gateway</div>
+                    <input type="text" value={String(props.gateway || '')} placeholder="192.168.1.1"
+                      onChange={e => updateProp('gateway', e.target.value)}
+                      style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, fontFamily: "'SF Mono', 'Cascadia Code', monospace", outline: 'none' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  <div>
+                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>HTTP Port</div>
+                    <input type="number" value={String(props.http_port || '')} placeholder="80"
+                      onChange={e => updateProp('http_port', Number(e.target.value) || null)}
+                      style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, fontFamily: "'SF Mono', 'Cascadia Code', monospace", outline: 'none' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>RTSP Port</div>
+                    <input type="number" value={String(props.rtsp_port || '')} placeholder="554"
+                      onChange={e => updateProp('rtsp_port', Number(e.target.value) || null)}
+                      style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, fontFamily: "'SF Mono', 'Cascadia Code', monospace", outline: 'none' }} />
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>MAC Address</div>
+                  <input type="text" value={String(props.mac_address || '')} placeholder="00:1A:2B:3C:4D:5E"
+                    onChange={e => updateProp('mac_address', e.target.value)}
+                    style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, fontFamily: "'SF Mono', 'Cascadia Code', monospace", outline: 'none' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Username</div>
+                  <input type="text" value={String(props.device_username || '')} placeholder="admin"
+                    onChange={e => updateProp('device_username', e.target.value)}
+                    style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, outline: 'none' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Password</div>
+                  <input type="password" value={String(props.device_password || '')} placeholder="••••••••"
+                    onChange={e => updateProp('device_password', e.target.value)}
+                    style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, outline: 'none' }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Device Profile link */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <button onClick={() => onOpenDeviceProfile?.()} style={{
+                width: '100%', padding: '8px 14px', fontSize: 11, fontWeight: 600,
+                color: C.accent, background: C.accentSubtle,
+                border: `1px solid ${C.accent}40`, borderRadius: 4,
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+              }}>Open Device Profile →</button>
+              <div style={{ marginTop: 8, fontSize: 9, color: C.textDim, lineHeight: 1.6, textAlign: 'center' }}>
+                Device Profile · Installation · Configuration<br />
+                Maintenance · Activity Log · Accessories · Notes
+              </div>
             </div>
           </div>
         )}

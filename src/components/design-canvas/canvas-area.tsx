@@ -1751,16 +1751,18 @@ function CanvasArea(props: Props) {
 
           if (path.length < 3) continue
 
+          // Selected camera: brighter FOV. Unselected: dimmer.
+          const selectMult = isSelected ? 1.4 : (selectedDeviceId ? 0.4 : 1.0)
           const poly = new google.maps.Polygon({
             paths: path,
             fillColor,
-            fillOpacity: gradOpacity * 0.85,
+            fillOpacity: Math.min(0.75, gradOpacity * 0.85 * selectMult),
             strokeColor: t === 0 ? fillColor : 'transparent',
-            strokeOpacity: t === 0 ? 0.55 : 0,
-            strokeWeight: t === 0 ? 2 : 0,
+            strokeOpacity: t === 0 ? (isSelected ? 0.8 : 0.35) : 0,
+            strokeWeight: t === 0 ? (isSelected ? 2.5 : 1.5) : 0,
             map,
             clickable: false,
-            zIndex: sensorRotations.length > 1 ? 1 + sIdx : 1,
+            zIndex: isSelected ? 5 : (sensorRotations.length > 1 ? 1 + sIdx : 1),
           })
           newPolygons.push(poly)
           if (isSelected) newSelectedPolygons.push(poly)
