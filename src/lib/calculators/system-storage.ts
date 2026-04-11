@@ -362,6 +362,17 @@ export function canvasDevicesToCameraSpecs(
       const lib = 'libraryItem' in d ? d.libraryItem : null;
       const libSpecs = ((lib?.specs ?? {}) as Record<string, unknown>);
 
+      // Map rec-tab codec strings to Compression type
+      const rawCodec = (props.codec as string) || (props.compression as string) || (libSpecs.compression as string) || undefined
+      const compressionMap: Record<string, Compression> = { 'H.264': 'h264', 'H.265': 'h265', 'H.265+': 'h265plus', 'h264': 'h264', 'h265': 'h265', 'h265plus': 'h265plus' }
+      const compression = rawCodec ? (compressionMap[rawCodec] || 'h265') : undefined
+
+      // Smart codec: rec tab stores string ('off'|'wisestream'|...), calculator expects boolean
+      const smartCodecRaw = props.smart_codec
+      const smartCodecBool = typeof smartCodecRaw === 'boolean' ? smartCodecRaw :
+        typeof smartCodecRaw === 'string' ? (smartCodecRaw !== 'off' && smartCodecRaw !== '') :
+        libSpecs.smart_codec !== undefined ? (libSpecs.smart_codec as boolean) : undefined
+
       return {
         cameraId: d.id,
         label: d.label,
@@ -370,26 +381,23 @@ export function canvasDevicesToCameraSpecs(
           (lib?.resolution as string) ||
           undefined,
         resolutionW:
+          (props.recording_resolution_w as number) ||
           (props.resolution_w as number) ||
           (libSpecs.resolution_w as number) ||
           undefined,
         resolutionH:
+          (props.recording_resolution_h as number) ||
           (props.resolution_h as number) ||
           (libSpecs.resolution_h as number) ||
           undefined,
         fps:
+          (props.recording_fps as number) ||
           (props.fps as number) ||
           (lib?.fps ? parseInt(lib.fps, 10) : undefined) ||
           (libSpecs.fps as number) ||
           undefined,
-        compression:
-          ((props.compression as string) ||
-          (libSpecs.compression as string) ||
-          undefined) as Compression | undefined,
-        smartCodec:
-          props.smart_codec !== undefined ? (props.smart_codec as boolean) :
-          libSpecs.smart_codec !== undefined ? (libSpecs.smart_codec as boolean) :
-          undefined,
+        compression,
+        smartCodec: smartCodecBool,
         motionPercent:
           (props.motion_percent as number) ||
           (libSpecs.motion_percent as number) ||

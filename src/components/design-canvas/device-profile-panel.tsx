@@ -45,6 +45,7 @@ interface Props {
   mdfIdfs?: DesignMdfIdf[]
   onChangeModel?: (id: string) => void
   cables?: Array<{ id: string; from_device_id?: string | null; to_device_id?: string | null; mdf_idf_id?: string | null; cable_type?: string; length_ft?: number; total_length_ft?: number }>
+  onOpenHardwareCalc?: () => void
 }
 
 /* ─── Form Field Components ─── */
@@ -159,7 +160,7 @@ function CalcLink({ icon, label, onClick }: { icon: React.ReactNode; label: stri
 }
 
 /* ─── Component ─── */
-export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, onChangeModel, cables }: Props) {
+export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, onChangeModel, cables, onOpenHardwareCalc }: Props) {
   const [activeSection, setActiveSection] = useState<SectionId>('profile')
   const props = useMemo(() => (device.properties ?? {}) as Record<string, unknown>, [device.properties])
 
@@ -491,7 +492,7 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
                 <RecStat label="Retention" value={`${num('retention_days', 30)} days`} />
               </div>
             </div>
-            <CalcLink icon={<Zap size={14} />} label="Open in Hardware Calculator" />
+            <CalcLink icon={<Zap size={14} />} label="Open in Hardware Calculator" onClick={onOpenHardwareCalc} />
 
             {/* Config Notes */}
             <Divider />
