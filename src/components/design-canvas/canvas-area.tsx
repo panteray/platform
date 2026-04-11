@@ -278,6 +278,15 @@ function CanvasArea(props: Props) {
   const cablesRef = useRef(cables)
   useEffect(() => { cablesRef.current = cables }, [cables])
   const wallPolylinesRef = useRef<google.maps.Polyline[]>([])
+
+  // ── Wall drawing state ──
+  const wallDrawRef = useRef<{ points: Array<{ x: number; y: number }> } | null>(null)
+  const wallPreviewRef = useRef<google.maps.Polyline | null>(null)
+  const wallFollowerRef = useRef<google.maps.Polyline | null>(null)
+  const wallSnapMarkerRef = useRef<google.maps.Marker | null>(null)
+  const wallMoveListenerRef = useRef<google.maps.MapsEventListener | null>(null)
+  const wallVertexMarkersRef = useRef<google.maps.Marker[]>([])
+
   const fovPolygonListenersRef = useRef<google.maps.MapsEventListener[]>([])
   const isDraggingFovRef = useRef(false)
   // IPVM-style drag handles: per-sensor person icon (rotation+distance) + 2 arc-edge circles (FOV angle)
@@ -333,6 +342,10 @@ function CanvasArea(props: Props) {
   useEffect(() => { onCableUpdatedRef.current = onCableUpdated }, [onCableUpdated])
   const onToolChangeRef = useRef(onToolChange)
   useEffect(() => { onToolChangeRef.current = onToolChange }, [onToolChange])
+  const onWallCreatedRef = useRef(onWallCreated)
+  useEffect(() => { onWallCreatedRef.current = onWallCreated }, [onWallCreated])
+  const wallsRef = useRef(walls)
+  useEffect(() => { wallsRef.current = walls }, [walls])
 
   // ── Cable drawing helpers ──
   const cleanupCableDraw = useCallback(() => {
@@ -521,6 +534,229 @@ function CanvasArea(props: Props) {
     return () => { document.removeEventListener('keydown', onKeyDown); document.removeEventListener('dblclick', onDblClick) }
   }, [cleanupCableDraw, finishCableRouting])
 
+  // ── Wall drawing helpers ──
+  const WALL_SNAP_PX = 12 // pixel distance for snap-to-vertex detection
+  const WALL_CLOSE_PX = 15 // pixel distance to close/complete wall by clicking first vertex
+
+  const cleanupWallDraw = useCallback(() => {
+    wallDrawRef.current = null
+    wallMoveListenerRef.current?.remove()
+    wallMoveListenerRef.current = null
+    wallPreviewRef.current?.setMap(null)
+    wallPreviewRef.current = null
+    wallFollowerRef.current?.setMap(null)
+    wallFollowerRef.current = null
+    wallSnapMarkerRef.current?.setMap(null)
+    wallSnapMarkerRef.current = null
+    for (const m of wallVertexMarkersRef.current) m.setMap(null)
+    wallVertexMarkersRef.current = []
+  }, [])
+
+  /** Snap a canvas pixel position to the nearest existing wall vertex or edge point. */
+  const snapToWallVertex = useCallback((px: { x: number; y: number }): { x: number; y: number; snapped: boolean } => {
+    const allWalls = wallsRef.current ?? []
+    const drawPts = wallDrawRef.current?.points ?? []
+    let bestDist = WALL_SNAP_PX * WALL_SNAP_PX // squared threshold
+    let bestPt = px
+    let snapped = false
+
+    // Check all existing wall vertices
+    for (const wall of allWalls) {
+      for (const pt of wall.points) {
+        const dx = pt.x - px.x, dy = pt.y - px.y
+        const d2 = dx * dx + dy * dy
+        if (d2 < bestDist) { bestDist = d2; bestPt = { x: pt.x, y: pt.y }; snapped = true }
+      }
+    }
+
+    // Check vertices of the wall currently being drawn (for self-snap, especially first point to close)
+    for (const pt of drawPts) {
+      const dx = pt.x - px.x, dy = pt.y - px.y
+      const d2 = dx * dx + dy * dy
+      if (d2 < bestDist) { bestDist = d2; bestPt = { x: pt.x, y: pt.y }; snapped = true }
+    }
+
+    // Snap to nearest point on existing wall edges (perpendicular projection)
+    for (const wall of allWalls) {
+      const pts = wall.points
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], b = pts[i + 1]
+        const abx = b.x - a.x, aby = b.y - a.y
+        const len2 = abx * abx + aby * aby
+        if (len2 === 0) continue
+        const t = Math.max(0, Math.min(1, ((px.x - a.x) * abx + (px.y - a.y) * aby) / len2))
+        const proj = { x: a.x + t * abx, y: a.y + t * aby }
+        const dx = proj.x - px.x, dy = proj.y - px.y
+        const d2 = dx * dx + dy * dy
+        if (d2 < bestDist) { bestDist = d2; bestPt = proj; snapped = true }
+      }
+    }
+
+    return { ...bestPt, snapped }
+  }, [])
+
+  /** Show the wall preview polyline (confirmed vertices) */
+  const showWallPreview = useCallback((pts: Array<{ x: number; y: number }>) => {
+    const ctx = geoContextRef.current
+    if (!ctx || !mapRef.current) return
+    const path = pts.map(pt => canvasPixelsToLatLng(pt.x, pt.y, ctx))
+
+    if (!wallPreviewRef.current) {
+      wallPreviewRef.current = new google.maps.Polyline({
+        path, strokeColor: '#ef4444', strokeOpacity: 0.9, strokeWeight: 3,
+        map: mapRef.current, clickable: false, zIndex: 10,
+      })
+    } else {
+      wallPreviewRef.current.setPath(path)
+    }
+  }, [])
+
+  /** Show the follower line (last confirmed vertex → cursor) */
+  const showWallFollower = useCallback((from: { x: number; y: number }, to: { x: number; y: number }) => {
+    const ctx = geoContextRef.current
+    if (!ctx || !mapRef.current) return
+    const path = [canvasPixelsToLatLng(from.x, from.y, ctx), canvasPixelsToLatLng(to.x, to.y, ctx)]
+
+    if (!wallFollowerRef.current) {
+      wallFollowerRef.current = new google.maps.Polyline({
+        path, strokeColor: '#ef4444', strokeOpacity: 0.4, strokeWeight: 2,
+        map: mapRef.current, clickable: false, zIndex: 9,
+        icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.6, strokeColor: '#ef4444', scale: 2 }, offset: '0', repeat: '10px' }],
+      })
+    } else {
+      wallFollowerRef.current.setPath(path)
+    }
+  }, [])
+
+  /** Show/hide snap indicator marker */
+  const showWallSnapIndicator = useCallback((pos: { x: number; y: number } | null) => {
+    if (!pos) {
+      wallSnapMarkerRef.current?.setVisible(false)
+      return
+    }
+    const ctx = geoContextRef.current
+    if (!ctx || !mapRef.current) return
+    const ll = canvasPixelsToLatLng(pos.x, pos.y, ctx)
+
+    if (!wallSnapMarkerRef.current) {
+      wallSnapMarkerRef.current = new google.maps.Marker({
+        position: ll, map: mapRef.current, clickable: false, zIndex: 20,
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: '#22c55e', fillOpacity: 0.9, strokeColor: '#fff', strokeWeight: 2 },
+      })
+    } else {
+      wallSnapMarkerRef.current.setPosition(ll)
+      wallSnapMarkerRef.current.setVisible(true)
+    }
+  }, [])
+
+  /** Add a vertex marker dot to the map for visual feedback */
+  const addWallVertexMarker = useCallback((pos: { x: number; y: number }) => {
+    const ctx = geoContextRef.current
+    if (!ctx || !mapRef.current) return
+    const ll = canvasPixelsToLatLng(pos.x, pos.y, ctx)
+    const marker = new google.maps.Marker({
+      position: ll, map: mapRef.current, clickable: false, zIndex: 11,
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 4, fillColor: '#ef4444', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 1.5 },
+    })
+    wallVertexMarkersRef.current.push(marker)
+  }, [])
+
+  /** Complete wall drawing — save and cleanup */
+  const completeWallDraw = useCallback(() => {
+    const draw = wallDrawRef.current
+    if (!draw || draw.points.length < 2) { cleanupWallDraw(); return }
+    onWallCreatedRef.current?.(draw.points)
+    cleanupWallDraw()
+    onToolChangeRef.current?.('select')
+  }, [cleanupWallDraw])
+
+  /** Handle map click in wall mode — add vertex or complete */
+  const handleWallMapClick = useCallback((clickX: number, clickY: number) => {
+    const snapped = snapToWallVertex({ x: clickX, y: clickY })
+    const pt = { x: Math.round(snapped.x), y: Math.round(snapped.y) }
+
+    if (!wallDrawRef.current) {
+      // First click — start wall
+      wallDrawRef.current = { points: [pt] }
+      showWallPreview([pt])
+      addWallVertexMarker(pt)
+
+      // Start mouse-move listener for follower line
+      if (mapRef.current) {
+        wallMoveListenerRef.current = mapRef.current.addListener('mousemove', (e: google.maps.MapMouseEvent) => {
+          const ctx = geoContextRef.current
+          if (!ctx || !wallDrawRef.current || !e.latLng) return
+          const { x: mx, y: my } = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
+          const ms = snapToWallVertex({ x: mx, y: my })
+          const lastPt = wallDrawRef.current.points[wallDrawRef.current.points.length - 1]
+          showWallFollower(lastPt, ms)
+          showWallSnapIndicator(ms.snapped ? ms : null)
+        })
+      }
+      return
+    }
+
+    const draw = wallDrawRef.current
+    const firstPt = draw.points[0]
+
+    // Check if clicking near first vertex → close the wall
+    if (draw.points.length >= 3) {
+      const dx = pt.x - firstPt.x, dy = pt.y - firstPt.y
+      if (Math.sqrt(dx * dx + dy * dy) < WALL_CLOSE_PX) {
+        // Close the wall — add first point again to form a loop
+        draw.points.push({ ...firstPt })
+        completeWallDraw()
+        return
+      }
+    }
+
+    // Add vertex
+    draw.points.push(pt)
+    showWallPreview(draw.points)
+    addWallVertexMarker(pt)
+  }, [snapToWallVertex, showWallPreview, showWallFollower, showWallSnapIndicator, addWallVertexMarker, completeWallDraw])
+
+  const handleWallMapClickRef = useRef(handleWallMapClick)
+  useEffect(() => { handleWallMapClickRef.current = handleWallMapClick }, [handleWallMapClick])
+
+  // Cancel / finish wall drawing
+  useEffect(() => {
+    if (activeTool !== 'wall' && wallDrawRef.current) cleanupWallDraw()
+  }, [activeTool, cleanupWallDraw])
+
+  // Cursor change for wall mode
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (activeTool === 'wall') {
+      map.setOptions({ draggableCursor: 'crosshair' })
+    } else {
+      // Only reset if we were the ones that set it
+      map.setOptions({ draggableCursor: '' })
+    }
+  }, [activeTool])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && wallDrawRef.current) {
+        cleanupWallDraw()
+        onToolChangeRef.current?.('select')
+      }
+      // Enter with 2+ points → complete the wall (open polyline, not closed)
+      if (e.key === 'Enter' && wallDrawRef.current && wallDrawRef.current.points.length >= 2) {
+        completeWallDraw()
+      }
+    }
+    const onDblClick = () => {
+      if (wallDrawRef.current && wallDrawRef.current.points.length >= 2) {
+        completeWallDraw()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('dblclick', onDblClick)
+    return () => { document.removeEventListener('keydown', onKeyDown); document.removeEventListener('dblclick', onDblClick) }
+  }, [cleanupWallDraw, completeWallDraw])
+
   // Google Maps script loading (reuse cached script from satellite-map if present)
   const [mapReady, setMapReady] = useState(false)
   useEffect(() => {
@@ -631,6 +867,12 @@ function CanvasArea(props: Props) {
           handleCableMapClick(clickX, clickY)
           return
         }
+        return
+      }
+
+      // ── Wall mode: click to add vertices ──
+      if (activeToolRef.current === 'wall') {
+        handleWallMapClickRef.current(clickX, clickY)
         return
       }
 
