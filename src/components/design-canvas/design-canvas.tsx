@@ -1115,11 +1115,13 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
             toast.success('Wall created')
           }}
           onWallDeleted={(id) => { setWalls(prev => prev.filter(w => w.id !== id)); if (selectedWallId === id) setSelectedWallId(null) }}
+          onWallUpdated={(id, updates) => { setWalls(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w)) }}
+          selectedWallId={selectedWallId}
           onMdfSelected={(id) => { setSelectedMdfId(id); setSelectedDeviceId(null) }}
           showIrRange={showIrRange}
           hiddenPpfZones={hiddenPpfZones}
           showBlindSpot={showBlindSpot}
-          onWallSelected={(id) => { setSelectedWallId(id); setSelectedDeviceId(null); setSelectedMdfId(null) }}
+          onWallSelected={(id) => { setSelectedWallId(id); if (id) { setSelectedDeviceId(null); setSelectedMdfId(null) } }}
           onSelectImager={(idx) => setSelectedImagerIdx(idx)}
         />
 

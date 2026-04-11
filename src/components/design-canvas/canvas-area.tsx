@@ -80,9 +80,11 @@ interface Props {
   geoContext?: DesignGeoContext | null
   onFloorPlanError?: (msg: string) => void
   onZoomChange?: (zoom: number) => void
-  walls?: Array<{ id: string; points: Array<{ x: number; y: number }> }>
+  walls?: Array<{ id: string; points: Array<{ x: number; y: number }>; color?: string; opacity?: number }>
   onWallCreated?: (pts: Array<{ x: number; y: number }>) => void
   onWallDeleted?: (id: string) => void
+  onWallUpdated?: (id: string, updates: Record<string, unknown>) => void
+  selectedWallId?: string | null
   onDeviceUpdateProp?: (id: string, prop: string, val: any) => void
   onUndo?: () => void
   onRedo?: () => void
@@ -94,7 +96,7 @@ interface Props {
   showIrRange?: boolean
   hiddenPpfZones?: Set<string>
   showBlindSpot?: boolean
-  onWallSelected?: (id: string) => void
+  onWallSelected?: (id: string | null) => void
   onSelectImager?: (idx: number | null) => void
   zoomToPointRef?: React.MutableRefObject<((x: number, y: number) => void) | null>
   canvasActionsRef?: React.MutableRefObject<{ zoomIn: () => void; zoomOut: () => void; fitToView: () => void } | null>
@@ -248,6 +250,8 @@ function CanvasArea(props: Props) {
     walls,
     onWallCreated,
     onWallDeleted,
+    onWallUpdated,
+    selectedWallId,
     onDeviceUpdateProp,
     onUndo,
     onRedo,
@@ -362,8 +366,15 @@ function CanvasArea(props: Props) {
   useEffect(() => { onToolChangeRef.current = onToolChange }, [onToolChange])
   const onWallCreatedRef = useRef(onWallCreated)
   useEffect(() => { onWallCreatedRef.current = onWallCreated }, [onWallCreated])
+  const onWallUpdatedRef = useRef(onWallUpdated)
+  useEffect(() => { onWallUpdatedRef.current = onWallUpdated }, [onWallUpdated])
+  const onWallSelectedRef = useRef(onWallSelected)
+  useEffect(() => { onWallSelectedRef.current = onWallSelected }, [onWallSelected])
   const wallsRef = useRef(walls)
   useEffect(() => { wallsRef.current = walls }, [walls])
+  const selectedWallIdRef = useRef(selectedWallId)
+  useEffect(() => { selectedWallIdRef.current = selectedWallId }, [selectedWallId])
+  const wallVertexEditMarkersRef = useRef<google.maps.Marker[]>([])
 
   // ── Cable drawing helpers ──
   const cleanupCableDraw = useCallback(() => {
@@ -894,8 +905,9 @@ function CanvasArea(props: Props) {
         return
       }
 
-      // ── Normal mode ──
+      // ── Normal mode ── deselect everything
       onSelectDeviceRef.current(null)
+      if (selectedWallIdRef.current) onWallSelectedRef.current?.(null)
       if (onCanvasClickRef.current) {
         onCanvasClickRef.current(clickX, clickY)
       }
@@ -1266,34 +1278,130 @@ function CanvasArea(props: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cables, geoContext, mapReady, calcWaypointLengthFt])
 
-  // Render wall polylines on Google Maps
+  // Render wall polylines on Google Maps — clickable, selectable, with vertex editing
   useEffect(() => {
-    // Clear old wall lines
+    // Clear old wall lines + vertex edit markers
     for (const pl of wallPolylinesRef.current) pl.setMap(null)
     wallPolylinesRef.current = []
+    for (const m of wallVertexEditMarkersRef.current) m.setMap(null)
+    wallVertexEditMarkersRef.current = []
 
     if (!mapRef.current || !geoContext || !walls?.length) return
     const map = mapRef.current
+    const ctx = geoContext
 
     for (const wall of walls) {
       if (!wall.points || wall.points.length < 2) continue
+      const wallId = wall.id
+      const color = wall.color || '#ef4444'
+      const isSelected = wall.id === selectedWallId
+
       const path = wall.points.map(pt => {
-        const { lat, lng } = canvasPixelsToLatLng(pt.x, pt.y, geoContext)
+        const { lat, lng } = canvasPixelsToLatLng(pt.x, pt.y, ctx)
         return { lat, lng }
       })
+
+      // Polyline — fat invisible stroke for click hit area + visible colored line
       const polyline = new google.maps.Polyline({
         path,
-        strokeColor: '#ef4444',
-        strokeOpacity: 0.9,
-        strokeWeight: 3,
+        strokeColor: color,
+        strokeOpacity: 0,
+        strokeWeight: 8,  // invisible wide click target
         map,
-        clickable: false,
-        zIndex: 2,
+        clickable: true,
+        zIndex: isSelected ? 8 : 3,
+        icons: [{
+          icon: {
+            path: 'M 0,-1 0,1',
+            strokeOpacity: wall.opacity ?? 0.9,
+            strokeColor: color,
+            scale: isSelected ? 3 : 2.5,
+          },
+          offset: '0',
+          repeat: '1px',  // near-solid line appearance
+        }],
       })
+
+      // Click wall polyline → select it OR insert a vertex if already selected
+      polyline.addListener('click', (e: google.maps.PolyMouseEvent) => {
+        if (!e.latLng) return
+        const currentWalls = wallsRef.current ?? []
+        const currentWall = currentWalls.find(w => w.id === wallId)
+
+        // If this wall is already selected → insert a vertex
+        if (selectedWallIdRef.current === wallId && currentWall) {
+          const clickPx = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
+          let bestIdx = 1
+          let bestDist = Infinity
+          for (let i = 0; i < currentWall.points.length - 1; i++) {
+            const a = currentWall.points[i], b = currentWall.points[i + 1]
+            const dist = pointToSegmentDist(clickPx.x, clickPx.y, a.x, a.y, b.x, b.y)
+            if (dist < bestDist) { bestDist = dist; bestIdx = i + 1 }
+          }
+          const newPts = [...currentWall.points]
+          newPts.splice(bestIdx, 0, { x: Math.round(clickPx.x), y: Math.round(clickPx.y) })
+          onWallUpdatedRef.current?.(wallId, { points: newPts })
+          return
+        }
+
+        // Otherwise → select this wall
+        onWallSelectedRef.current?.(wallId)
+      })
+
       wallPolylinesRef.current.push(polyline)
+
+      // Draggable vertex markers — only for the selected wall
+      if (isSelected) {
+        for (let vIdx = 0; vIdx < wall.points.length; vIdx++) {
+          const pt = wall.points[vIdx]
+          const pos = canvasPixelsToLatLng(pt.x, pt.y, ctx)
+          const vertexIdx = vIdx // closure capture
+
+          const marker = new google.maps.Marker({
+            position: pos,
+            map,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 5,
+              fillColor: '#ffffff',
+              fillOpacity: 1,
+              strokeColor: color,
+              strokeWeight: 2,
+            },
+            draggable: true,
+            clickable: true,
+            zIndex: 12,
+            cursor: 'grab',
+          })
+
+          // Drag vertex → update wall points
+          marker.addListener('dragend', () => {
+            const newPos = marker.getPosition()
+            if (!newPos) return
+            const currentWalls = wallsRef.current ?? []
+            const currentWall = currentWalls.find(w => w.id === wallId)
+            if (!currentWall) return
+            const px = latLngToCanvasPixels(newPos.lat(), newPos.lng(), ctx)
+            const newPts = [...currentWall.points]
+            newPts[vertexIdx] = { x: Math.round(px.x), y: Math.round(px.y) }
+            onWallUpdatedRef.current?.(wallId, { points: newPts })
+          })
+
+          // Right-click vertex → delete it (if wall has >2 points)
+          marker.addListener('rightclick', () => {
+            const currentWalls = wallsRef.current ?? []
+            const currentWall = currentWalls.find(w => w.id === wallId)
+            if (!currentWall || currentWall.points.length <= 2) return
+            const newPts = currentWall.points.filter((_, i) => i !== vertexIdx)
+            onWallUpdatedRef.current?.(wallId, { points: newPts })
+          })
+
+          wallVertexEditMarkersRef.current.push(marker)
+        }
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walls, geoContext, mapReady])
+  }, [walls, geoContext, mapReady, selectedWallId])
 
   // Render floor plan as GroundOverlay
   useEffect(() => {
