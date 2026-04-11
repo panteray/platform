@@ -831,12 +831,44 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         {/* Separator */}
         <div style={{ width: 1, height: 18, background: C.border, margin: '0 8px' }} />
 
-        {/* Tool strip */}
+        {/* Tool strip — grouped: Navigation | Drawing | Infrastructure */}
         {[
           { id: 'select' as CanvasTool, icon: <MousePointer size={13} />, label: 'Select' },
           { id: 'pan' as CanvasTool, icon: <Hand size={13} />, label: 'Pan' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setActiveTool(t.id)}
+            title={t.label}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px',
+              background: activeTool === t.id ? C.accentSubtle : 'transparent',
+              border: activeTool === t.id ? `1px solid ${C.accent}40` : '1px solid transparent',
+              borderRadius: 3, color: activeTool === t.id ? C.accent : C.textMuted,
+              fontSize: 10, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            {t.icon}
+            <span>{t.label}</span>
+          </button>
+        ))}
+        <div style={{ width: 1, height: 14, background: C.border, margin: '0 2px', opacity: 0.5 }} />
+        {[
           { id: 'measure' as CanvasTool, icon: <Ruler size={13} />, label: 'Measure' },
           { id: 'scale' as CanvasTool, icon: <Crosshair size={13} />, label: 'Scale' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setActiveTool(t.id)}
+            title={t.label}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px',
+              background: activeTool === t.id ? C.accentSubtle : 'transparent',
+              border: activeTool === t.id ? `1px solid ${C.accent}40` : '1px solid transparent',
+              borderRadius: 3, color: activeTool === t.id ? C.accent : C.textMuted,
+              fontSize: 10, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            {t.icon}
+            <span>{t.label}</span>
+          </button>
+        ))}
+        <div style={{ width: 1, height: 14, background: C.border, margin: '0 2px', opacity: 0.5 }} />
+        {[
           { id: 'cable' as CanvasTool, icon: <Cable size={13} />, label: 'Cable' },
           { id: 'mdf_idf' as CanvasTool, icon: <Server size={13} />, label: 'MDF/IDF' },
           { id: 'wall' as CanvasTool, icon: <Fence size={13} />, label: 'Wall' },

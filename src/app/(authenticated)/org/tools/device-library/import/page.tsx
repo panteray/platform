@@ -82,7 +82,7 @@ export default function DeviceImportPage() {
   if (userLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">Import Devices</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Import Devices</h1>
         <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
@@ -91,7 +91,7 @@ export default function DeviceImportPage() {
   if (!hasAccess) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">Import Devices</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Import Devices</h1>
         <p className="text-sm text-muted-foreground">Access denied.</p>
       </div>
     )
@@ -107,7 +107,7 @@ export default function DeviceImportPage() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <h1 className="text-2xl font-semibold text-foreground">Import Devices</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Import Devices</h1>
       </div>
 
       {error && (

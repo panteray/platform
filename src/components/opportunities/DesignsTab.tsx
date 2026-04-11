@@ -90,7 +90,7 @@ export function DesignsTab({ oppId, oppNumber, projectName }: DesignsTabProps) {
             <div
               key={d.id}
               onClick={() => router.push(`/org/designs/${d.id}`)}
-              className="flex items-center justify-between rounded-lg border border-border p-3 hover:bg-muted/30 cursor-pointer transition-colors"
+              className="flex items-center justify-between rounded-lg border border-border bg-card p-3 shadow-pt-sm cursor-pointer transition-all duration-150 hover:border-primary/30 hover:shadow-pt-md"
             >
               <div className="flex items-center gap-3">
                 <PenTool className="h-4 w-4 text-muted-foreground" />

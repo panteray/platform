@@ -113,7 +113,7 @@ export function DeviceTypeAhead({
             if (results.length > 0) setOpen(true)
           }}
           placeholder={placeholder}
-          className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
+          className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         {loading && (
           <div className="absolute right-2.5 top-2.5">

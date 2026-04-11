@@ -257,13 +257,13 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             ref={searchRef}
             value={query}
             onChange={e => handleSearch(e.target.value)}
             placeholder="Search vendor, model, part number..."
-            className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#2b8fce] focus:outline-none"
+            className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           {query && (
             <button onClick={() => setQuery('')} className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground">

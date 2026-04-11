@@ -62,11 +62,14 @@ export default function OppDetailPage() {
         {opp.project_name && <span className="text-sm text-muted-foreground">— {opp.project_name}</span>}
       </div>
 
-      {/* Tabs */}
-      <div className="mb-3 flex gap-0 border-b border-border overflow-x-auto">
-        {TABS.map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`border-b-2 px-3 py-2 text-[13px] font-medium transition-colors whitespace-nowrap ${tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{t}</button>
-        ))}
+      {/* Tabs — scrollable with fade indicators */}
+      <div className="relative mb-3">
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 z-10 w-8 bg-gradient-to-l from-background to-transparent" />
+        <div className="flex gap-0 border-b border-border overflow-x-auto scrollbar-hide">
+          {TABS.map((t) => (
+            <button key={t} onClick={() => setTab(t)} className={`border-b-2 px-3 py-2 text-[13px] font-medium transition-colors whitespace-nowrap ${tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{t}</button>
+          ))}
+        </div>
       </div>
 
       {/* Tab Content */}

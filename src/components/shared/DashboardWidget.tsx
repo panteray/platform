@@ -30,12 +30,12 @@ export function DashboardWidget({
   const accent = brandColor || ACCENT_COLORS[accentIndex % ACCENT_COLORS.length]
 
   return (
-    <div className="group overflow-hidden rounded-xl border border-border bg-card shadow-pt-sm transition-all duration-150 hover:border-primary/30 hover:shadow-pt-md">
+    <div className="group overflow-hidden rounded-lg border border-border bg-card shadow-pt-sm transition-all duration-150 hover:border-primary/30 hover:shadow-pt-md">
       {/* Colored accent line */}
       <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}80)` }} />
       <div className="p-4">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p className="text-xs font-semibold text-muted-foreground">{label}</p>
           <Icon className="h-4 w-4 text-muted-foreground/60" />
         </div>
         <div className="mt-3">

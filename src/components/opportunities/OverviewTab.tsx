@@ -133,13 +133,16 @@ export function OverviewTab({ opp, callerRole, onUpdate }: Props) {
       {/* Status Pills */}
       <div>
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Status Detail</p>
-        <div className="flex gap-0.5 overflow-x-auto pb-1">
-          {PIPELINE_STATUSES.map((s, idx) => {
-            const isCurrent = s === opp.status
-            const isPast = idx < currentStatusIdx
-            return <div key={s} className={`flex-shrink-0 rounded px-2 py-1 text-[10px] font-medium leading-tight ${isCurrent ? 'bg-primary text-primary-foreground' : isPast ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`} title={OPP_STATUS_LABELS[s]}>{(OPP_STATUS_LABELS[s] ?? s.replace(/_/g, ' ')).slice(0, 10)}</div>
-          })}
-          {(opp.status === 'ON_HOLD' || opp.status === 'CLOSED') && <div className="flex-shrink-0 rounded px-2 py-1 text-[10px] font-medium leading-tight bg-yellow-500/20 text-yellow-600">{opp.status.replace(/_/g, ' ')}</div>}
+        <div className="relative">
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 z-10 w-6 bg-gradient-to-l from-card to-transparent" />
+          <div className="flex gap-0.5 overflow-x-auto scrollbar-hide pb-1">
+            {PIPELINE_STATUSES.map((s, idx) => {
+              const isCurrent = s === opp.status
+              const isPast = idx < currentStatusIdx
+              return <div key={s} className={`flex-shrink-0 rounded px-2 py-1 text-[10px] font-medium leading-tight whitespace-nowrap ${isCurrent ? 'bg-primary text-primary-foreground' : isPast ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`} title={OPP_STATUS_LABELS[s]}>{OPP_STATUS_LABELS[s] ?? s.replace(/_/g, ' ')}</div>
+            })}
+            {(opp.status === 'ON_HOLD' || opp.status === 'CLOSED') && <div className="flex-shrink-0 rounded px-2 py-1 text-[10px] font-medium leading-tight whitespace-nowrap bg-yellow-500/20 text-yellow-600">{opp.status.replace(/_/g, ' ')}</div>}
+          </div>
         </div>
       </div>
 

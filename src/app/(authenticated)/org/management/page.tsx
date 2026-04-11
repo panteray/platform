@@ -135,10 +135,10 @@ export default function ManagementPage() {
                 key={section.href}
                 href={isFuture ? '#' : section.href}
                 onClick={isFuture ? (e) => e.preventDefault() : undefined}
-                className={`group flex items-start gap-3.5 rounded-lg border border-border bg-card p-5 transition-colors ${
+                className={`group flex items-start gap-3.5 rounded-lg border border-border bg-card p-5 shadow-pt-sm transition-all duration-150 ${
                   isFuture
                     ? 'cursor-default opacity-50'
-                    : 'hover:bg-muted/50'
+                    : 'hover:border-primary/30 hover:shadow-pt-md'
                 }`}
               >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted/30">

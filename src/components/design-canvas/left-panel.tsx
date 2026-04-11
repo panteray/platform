@@ -172,7 +172,7 @@ export function LeftPanel({
                 <span style={{ color: catColor, flexShrink: 0 }}>{catIcon}</span>
                 {isCollapsed ? <ChevronRight size={12} color={C.textDim} /> : <ChevronDown size={12} color={C.textDim} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
+                  <div title={group.modelName} style={{
                     fontSize: 11, fontWeight: 600, color: C.text,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>
@@ -240,7 +240,7 @@ export function LeftPanel({
                         onMouseLeave={e => { if (!sel) e.currentTarget.style.background = sel ? C.accentSubtle : 'transparent' }}
                       >
                         <MapPin size={10} color="#22c55e" style={{ flexShrink: 0 }} />
-                        <span style={{
+                        <span title={d.label || 'Unnamed'} style={{
                           flex: 1, fontSize: 10, color: sel ? C.text : C.textMuted,
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         }}>

@@ -164,7 +164,7 @@ export default function EnrichPage() {
   if (userLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">Enrich Devices</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Enrich Devices</h1>
         <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     )
@@ -173,7 +173,7 @@ export default function EnrichPage() {
   if (!hasAccess) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">Enrich Devices</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Enrich Devices</h1>
         <p className="text-sm text-muted-foreground">Access denied.</p>
       </div>
     )
@@ -190,7 +190,7 @@ export default function EnrichPage() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Enrich Devices</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Enrich Devices</h1>
           <p className="text-sm text-muted-foreground">AI fills missing camera specs from device knowledge</p>
         </div>
       </div>

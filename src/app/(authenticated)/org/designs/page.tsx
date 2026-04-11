@@ -174,13 +174,13 @@ export default function DesignsPage() {
         <div className="flex items-center gap-2">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search designs..."
-              className="h-9 w-60 rounded-md border border-border bg-secondary pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-9 w-60 rounded-md border border-border bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
 
@@ -231,7 +231,7 @@ export default function DesignsPage() {
               <div
                 key={d.id}
                 onClick={() => router.push(`/org/designs/${d.id}`)}
-                className="group rounded-lg border border-border bg-card p-4 cursor-pointer hover:border-border/80 hover:bg-accent/30 transition-all"
+                className="group rounded-lg border border-border bg-card p-4 shadow-pt-sm cursor-pointer transition-all duration-150 hover:border-primary/30 hover:shadow-pt-md"
               >
                 {/* Card header */}
                 <div className="flex items-start justify-between mb-3">

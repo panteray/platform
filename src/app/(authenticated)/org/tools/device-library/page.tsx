@@ -278,11 +278,11 @@ export default function DeviceLibraryPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link href="/org/tools/device-library/import"
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+            className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors">
             <Upload className="h-4 w-4" /> Import Devices
           </Link>
           <Link href="/org/tools/device-library/enrich"
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors">
+            className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors">
             <Sparkles className="h-4 w-4" /> Enrich Devices
           </Link>
         </div>
