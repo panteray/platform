@@ -43,7 +43,7 @@ import { DeviceLibraryModal } from './device-library-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { getFovConeTiers, calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { SimulatedView } from './simulated-view'
-import { buildDesignGeoContext, feetPerPixelAtZoom } from './geo-math'
+import { buildDesignGeoContext, feetPerPixelAtZoom, canvasPixelsToLatLng } from './geo-math'
 import type { DesignDevice, DeviceSearchResult } from '@/types/database'
 
 /* ─── Props ─── */
@@ -447,6 +447,8 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const handleDeviceMoved = useCallback((id: string, x: number, y: number) => {
     updateDevice(id, { position_x: x, position_y: y })
     // Move correct cable endpoint to follow device (first wp for from_device, last wp for to_device)
+    const hasGeometry = typeof google !== 'undefined' && google.maps?.geometry?.spherical?.computeDistanceBetween
+
     for (const c of cables) {
       if (c.from_device_id === id || c.to_device_id === id) {
         if (!c.waypoints || c.waypoints.length < 2) continue
@@ -457,16 +459,34 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         } else {
           newWp[newWp.length - 1] = { x: Math.round(x), y: Math.round(y) }
         }
-        const len = newWp.reduce((sum, wp, i) => {
-          if (i === 0) return 0
-          const dx = wp.x - newWp[i - 1].x, dy = wp.y - newWp[i - 1].y
-          return sum + Math.sqrt(dx * dx + dy * dy)
-        }, 0)
-        const lengthFt = scalePxPerFt > 0 ? Math.round(len / scalePxPerFt) : Math.round(len)
-        updateCable(c.id, { waypoints: newWp, length_ft: lengthFt, })
+
+        let lengthFt: number
+        if (designGeoContext && hasGeometry) {
+          // Geodesic distance (accurate)
+          let totalMeters = 0
+          for (let i = 1; i < newWp.length; i++) {
+            const a = canvasPixelsToLatLng(newWp[i - 1].x, newWp[i - 1].y, designGeoContext)
+            const b = canvasPixelsToLatLng(newWp[i].x, newWp[i].y, designGeoContext)
+            totalMeters += google.maps.geometry.spherical.computeDistanceBetween(
+              new google.maps.LatLng(a.lat, a.lng),
+              new google.maps.LatLng(b.lat, b.lng),
+            )
+          }
+          lengthFt = Math.round(totalMeters * 3.28084)
+        } else {
+          // Fallback: pixel Euclidean
+          const len = newWp.reduce((sum, wp, i) => {
+            if (i === 0) return 0
+            const dx = wp.x - newWp[i - 1].x, dy = wp.y - newWp[i - 1].y
+            return sum + Math.sqrt(dx * dx + dy * dy)
+          }, 0)
+          lengthFt = scalePxPerFt > 0 ? Math.round(len / scalePxPerFt) : Math.round(len)
+        }
+
+        updateCable(c.id, { waypoints: newWp, length_ft: lengthFt })
       }
     }
-  }, [updateDevice, cables, updateCable, scalePxPerFt])
+  }, [updateDevice, cables, updateCable, scalePxPerFt, designGeoContext])
 
   const handleDeviceRotated = useCallback((id: string, angle: number) => {
     updateDevice(id, { rotation: angle })
@@ -1086,18 +1106,31 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           }}
           onMdfIdfMoved={async (id, x, y) => {
             await updateInfrastructure(id, { position_x: x, position_y: y })
+            const hasGeo = typeof google !== 'undefined' && google.maps?.geometry?.spherical?.computeDistanceBetween
             // Move cable start waypoint to follow MDF
             for (const c of cables) {
               if (c.mdf_idf_id === id) {
                 if (!c.waypoints || c.waypoints.length < 2) continue
                 const newWp = [...c.waypoints]
                 newWp[0] = { x: Math.round(x), y: Math.round(y) }
-                const len = newWp.reduce((sum, wp, i) => {
-                  if (i === 0) return 0
-                  const dx = wp.x - newWp[i - 1].x, dy = wp.y - newWp[i - 1].y
-                  return sum + Math.sqrt(dx * dx + dy * dy)
-                }, 0)
-                const lengthFt = scalePxPerFt > 0 ? Math.round(len / scalePxPerFt) : Math.round(len)
+                let lengthFt: number
+                if (designGeoContext && hasGeo) {
+                  let totalMeters = 0
+                  for (let i = 1; i < newWp.length; i++) {
+                    const a = canvasPixelsToLatLng(newWp[i - 1].x, newWp[i - 1].y, designGeoContext)
+                    const b = canvasPixelsToLatLng(newWp[i].x, newWp[i].y, designGeoContext)
+                    totalMeters += google.maps.geometry.spherical.computeDistanceBetween(
+                      new google.maps.LatLng(a.lat, a.lng), new google.maps.LatLng(b.lat, b.lng))
+                  }
+                  lengthFt = Math.round(totalMeters * 3.28084)
+                } else {
+                  const len = newWp.reduce((sum, wp, i) => {
+                    if (i === 0) return 0
+                    const dx = wp.x - newWp[i - 1].x, dy = wp.y - newWp[i - 1].y
+                    return sum + Math.sqrt(dx * dx + dy * dy)
+                  }, 0)
+                  lengthFt = scalePxPerFt > 0 ? Math.round(len / scalePxPerFt) : Math.round(len)
+                }
                 await updateCable(c.id, { waypoints: newWp, length_ft: lengthFt })
               }
             }

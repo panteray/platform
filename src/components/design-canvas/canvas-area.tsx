@@ -297,6 +297,8 @@ function CanvasArea(props: Props) {
   const mdfMarkersRef = useRef<Map<string, GMarker>>(new Map())
   const cablePolylinesRef = useRef<google.maps.Polyline[]>([])
   const cableWaypointMarkersRef = useRef<google.maps.Marker[]>([])
+  const cableMiddleMarkersRef = useRef<google.maps.Marker[]>([])
+  const cableWarningMarkersRef = useRef<google.maps.Marker[]>([])
   const cablesRef = useRef(cables)
   useEffect(() => { cablesRef.current = cables }, [cables])
   const wallPolylinesRef = useRef<google.maps.Polyline[]>([])
@@ -391,7 +393,27 @@ function CanvasArea(props: Props) {
     cableWaypointPreviewRef.current = null
   }, [])
 
+  /** Calculate cable length in feet using geodesic distance (google.maps.geometry).
+   *  Falls back to pixel Euclidean ÷ scalePxPerFt if geometry library not loaded. */
   const calcWaypointLengthFt = useCallback((pts: Array<{ x: number; y: number }>) => {
+    const ctx = geoContextRef.current
+    const hasGeometry = typeof google !== 'undefined' && google.maps?.geometry?.spherical?.computeDistanceBetween
+
+    if (ctx && hasGeometry) {
+      // Geodesic: convert each waypoint to LatLng and sum real-world distances
+      let totalMeters = 0
+      for (let i = 1; i < pts.length; i++) {
+        const a = canvasPixelsToLatLng(pts[i - 1].x, pts[i - 1].y, ctx)
+        const b = canvasPixelsToLatLng(pts[i].x, pts[i].y, ctx)
+        totalMeters += google.maps.geometry.spherical.computeDistanceBetween(
+          new google.maps.LatLng(a.lat, a.lng),
+          new google.maps.LatLng(b.lat, b.lng),
+        )
+      }
+      return Math.round(totalMeters * 3.28084) // meters → feet
+    }
+
+    // Fallback: pixel Euclidean ÷ scalePxPerFt
     let total = 0
     for (let i = 1; i < pts.length; i++) {
       const dx = pts[i].x - pts[i - 1].x
@@ -806,7 +828,7 @@ function CanvasArea(props: Props) {
       return
     }
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&v=weekly`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&v=weekly&libraries=geometry`
     script.async = true
     script.defer = true
     script.onload = () => {
@@ -1171,30 +1193,36 @@ function CanvasArea(props: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mdfIdfs, geoContext, mapReady])
 
-  // Render cable polylines + waypoint markers on Google Maps
-  // Supports: click polyline to insert waypoint, drag waypoint to move, right-click to delete
+  // Render cable polylines + waypoint markers + middle markers + distance warnings on Google Maps
+  // IPVM pattern: vertex markers (drag to move, right-click delete) + middle markers (drag to split/insert)
   useEffect(() => {
-    // Clear old polylines + waypoint markers
+    // Clear old polylines + all marker types
     for (const pl of cablePolylinesRef.current) pl.setMap(null)
     cablePolylinesRef.current = []
     for (const m of cableWaypointMarkersRef.current) m.setMap(null)
     cableWaypointMarkersRef.current = []
+    for (const m of cableMiddleMarkersRef.current) m.setMap(null)
+    cableMiddleMarkersRef.current = []
+    for (const m of cableWarningMarkersRef.current) m.setMap(null)
+    cableWarningMarkersRef.current = []
 
     if (!mapRef.current || !geoContext || !cables.length) return
     const map = mapRef.current
     const ctx = geoContext
+    const MIDDLE_SPLIT_PX = 10 // IPVM: drag middle marker >10px from start to split
 
     for (const cable of cables) {
       if (!cable.waypoints || cable.waypoints.length < 2) continue
       const path = cable.waypoints.map(wp => canvasPixelsToLatLng(wp.x, wp.y, ctx))
       const color = cable.color_hex || '#3b82f6'
+      const cableId = cable.id
 
       // Dashed polyline (IPVM style — fat invisible stroke for click hit area)
       const polyline = new google.maps.Polyline({
         path,
         strokeColor: color,
         strokeOpacity: 0,
-        strokeWeight: 10,  // invisible but wide click target (IPVM uses 10)
+        strokeWeight: 10,
         map,
         clickable: true,
         zIndex: 5,
@@ -1205,18 +1233,15 @@ function CanvasArea(props: Props) {
       })
 
       // Click on polyline → insert waypoint at closest segment point
-      const cableId = cable.id
       polyline.addListener('click', (e: google.maps.PolyMouseEvent) => {
         if (!e.latLng) return
         const currentCable = cablesRef.current.find(c => c.id === cableId)
         if (!currentCable?.waypoints || currentCable.waypoints.length < 2) return
         const clickPx = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
-        // Find which segment the click is closest to
         let bestIdx = 1
         let bestDist = Infinity
         for (let i = 0; i < currentCable.waypoints.length - 1; i++) {
-          const a = currentCable.waypoints[i]
-          const b = currentCable.waypoints[i + 1]
+          const a = currentCable.waypoints[i], b = currentCable.waypoints[i + 1]
           const dist = pointToSegmentDist(clickPx.x, clickPx.y, a.x, a.y, b.x, b.y)
           if (dist < bestDist) { bestDist = dist; bestIdx = i + 1 }
         }
@@ -1228,7 +1253,7 @@ function CanvasArea(props: Props) {
 
       cablePolylinesRef.current.push(polyline)
 
-      // Waypoint dot markers (skip first and last = MDF/device endpoints)
+      // ── Vertex markers (skip first and last = MDF/device endpoints) ──
       for (let wpIdx = 1; wpIdx < cable.waypoints.length - 1; wpIdx++) {
         const wp = cable.waypoints[wpIdx]
         const pos = canvasPixelsToLatLng(wp.x, wp.y, ctx)
@@ -1236,20 +1261,14 @@ function CanvasArea(props: Props) {
           position: pos,
           map,
           icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 5,
-            fillColor: '#ffffff',
-            fillOpacity: 1,
-            strokeColor: color,
-            strokeWeight: 2,
+            path: google.maps.SymbolPath.CIRCLE, scale: 6,
+            fillColor: '#ffffff', fillOpacity: 1,
+            strokeColor: color, strokeWeight: 2,
           },
-          draggable: true,
-          clickable: true,
-          zIndex: 10,
+          draggable: true, clickable: true, zIndex: 10,
           title: 'Drag to move, right-click to delete',
         })
 
-        // Drag waypoint to new position
         const wpIndex = wpIdx
         marker.addListener('dragend', () => {
           const newPos = marker.getPosition()
@@ -1263,7 +1282,6 @@ function CanvasArea(props: Props) {
           onCableUpdatedRef.current?.(cableId, newWp, len)
         })
 
-        // Right-click → delete waypoint
         marker.addListener('rightclick', () => {
           const currentCable = cablesRef.current.find(c => c.id === cableId)
           if (!currentCable?.waypoints || currentCable.waypoints.length <= 2) return
@@ -1272,7 +1290,119 @@ function CanvasArea(props: Props) {
           onCableUpdatedRef.current?.(cableId, newWp, len)
         })
 
+        // Hover feedback (IPVM pattern)
+        marker.addListener('mouseover', () => {
+          const icon = marker.getIcon() as google.maps.Symbol
+          marker.setIcon({ ...icon, fillOpacity: 0.8, scale: 7 })
+        })
+        marker.addListener('mouseout', () => {
+          const icon = marker.getIcon() as google.maps.Symbol
+          marker.setIcon({ ...icon, fillOpacity: 1, scale: 6 })
+        })
+
         cableWaypointMarkersRef.current.push(marker)
+      }
+
+      // ── Middle markers (IPVM: drag midpoint to insert new vertex) ──
+      for (let segIdx = 0; segIdx < cable.waypoints.length - 1; segIdx++) {
+        const a = cable.waypoints[segIdx], b = cable.waypoints[segIdx + 1]
+        const midPx = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+        const midPos = canvasPixelsToLatLng(midPx.x, midPx.y, ctx)
+
+        const middleMarker = new google.maps.Marker({
+          position: midPos,
+          map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE, scale: 4,
+            fillColor: color, fillOpacity: 0.4,
+            strokeColor: color, strokeWeight: 1.5,
+          },
+          draggable: true, clickable: true, zIndex: 8,
+          cursor: 'grab',
+          title: 'Drag to add a turn',
+        })
+
+        const segIndex = segIdx
+        let dragStartPixel: google.maps.Point | null = null
+        let hasSplit = false
+
+        middleMarker.addListener('dragstart', (e: google.maps.MapMouseEvent) => {
+          hasSplit = false
+          if (e.latLng && mapRef.current) {
+            const proj = mapRef.current.getProjection()
+            if (proj) {
+              const scale = 1 << (mapRef.current.getZoom() ?? 1)
+              const pt = proj.fromLatLngToPoint(e.latLng)
+              dragStartPixel = pt ? new google.maps.Point(pt.x * scale, pt.y * scale) : null
+            }
+          }
+        })
+
+        middleMarker.addListener('drag', (e: google.maps.MapMouseEvent) => {
+          if (hasSplit || !e.latLng || !dragStartPixel || !mapRef.current) return
+          const proj = mapRef.current.getProjection()
+          if (!proj) return
+          const scale = 1 << (mapRef.current.getZoom() ?? 1)
+          const pt = proj.fromLatLngToPoint(e.latLng)
+          if (!pt) return
+          const dx = pt.x * scale - dragStartPixel.x
+          const dy = pt.y * scale - dragStartPixel.y
+          if (Math.sqrt(dx * dx + dy * dy) > MIDDLE_SPLIT_PX) {
+            hasSplit = true
+          }
+        })
+
+        middleMarker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+          if (!hasSplit || !e.latLng) {
+            // Snap back — didn't drag far enough
+            middleMarker.setPosition(midPos)
+            return
+          }
+          // Insert new vertex at drag end position
+          const currentCable = cablesRef.current.find(c => c.id === cableId)
+          if (!currentCable?.waypoints) return
+          const px = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
+          const newWp = [...currentCable.waypoints]
+          newWp.splice(segIndex + 1, 0, { x: Math.round(px.x), y: Math.round(px.y) })
+          const len = calcWaypointLengthFt(newWp)
+          onCableUpdatedRef.current?.(cableId, newWp, len)
+          dragStartPixel = null
+        })
+
+        // Hover feedback
+        middleMarker.addListener('mouseover', () => {
+          const icon = middleMarker.getIcon() as google.maps.Symbol
+          middleMarker.setIcon({ ...icon, fillOpacity: 0.8, scale: 5 })
+        })
+        middleMarker.addListener('mouseout', () => {
+          const icon = middleMarker.getIcon() as google.maps.Symbol
+          middleMarker.setIcon({ ...icon, fillOpacity: 0.4, scale: 4 })
+        })
+
+        cableMiddleMarkersRef.current.push(middleMarker)
+      }
+
+      // ── Distance warning marker (>328ft for Cat6, IPVM pattern) ──
+      const lengthFt = calcWaypointLengthFt(cable.waypoints)
+      if (lengthFt > 328) {
+        // Place warning at midpoint of cable
+        const midIdx = Math.floor(cable.waypoints.length / 2)
+        const midWp = cable.waypoints[midIdx]
+        const midPos = canvasPixelsToLatLng(midWp.x, midWp.y, ctx)
+        const warningMarker = new google.maps.Marker({
+          position: midPos,
+          map,
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
+          label: {
+            text: `⚠ ${lengthFt} ft`,
+            color: '#ef4444',
+            fontWeight: 'bold',
+            fontSize: '11px',
+          },
+          clickable: false,
+          zIndex: 15,
+        })
+        cableWarningMarkersRef.current.push(warningMarker)
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
