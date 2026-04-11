@@ -71,10 +71,15 @@ export async function POST(
   const formData = await req.formData()
   const file = formData.get('file') as File | null
   const areaId = formData.get('area_id') as string | null
+  const widthStr = formData.get('width') as string | null
+  const heightStr = formData.get('height') as string | null
 
   if (!file || !areaId) {
     return NextResponse.json({ error: 'file and area_id required' }, { status: 400 })
   }
+
+  const width = widthStr ? parseInt(widthStr, 10) : null
+  const height = heightStr ? parseInt(heightStr, 10) : null
 
   const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
   const allowedExts = ['png', 'jpg', 'jpeg', 'svg', 'pdf']
@@ -109,6 +114,8 @@ export async function POST(
       area_id: areaId,
       file_url: storagePath,
       opacity: 1.0,
+      ...(width ? { width } : {}),
+      ...(height ? { height } : {}),
     })
     .select()
     .single()

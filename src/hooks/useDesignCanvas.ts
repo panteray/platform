@@ -32,7 +32,7 @@ export interface DesignCanvasState {
   addArea: (name: string, canvasType: string) => Promise<DesignArea | null>
   updateArea: (areaId: string, data: Record<string, unknown>) => Promise<boolean>
   deleteArea: (areaId: string) => Promise<boolean>
-  uploadFloorPlan: (areaId: string, file: File) => Promise<DesignFloorPlan | null>
+  uploadFloorPlan: (areaId: string, file: File, width?: number, height?: number) => Promise<DesignFloorPlan | null>
   deleteFloorPlan: (planId: string) => Promise<boolean>
   addDevice: (data: Record<string, unknown>) => Promise<DesignDevice | null>
   updateDevice: (deviceId: string, data: Record<string, unknown>) => Promise<DesignDevice | null>
@@ -298,11 +298,13 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     } catch { toast.error('Failed to delete area'); return false }
   }, [designId, activeAreaId, areas, fetchDesign])
 
-  const uploadFloorPlan = useCallback(async (areaId: string, file: File): Promise<DesignFloorPlan | null> => {
+  const uploadFloorPlan = useCallback(async (areaId: string, file: File, width?: number, height?: number): Promise<DesignFloorPlan | null> => {
     try {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('area_id', areaId)
+      if (width) formData.append('width', String(width))
+      if (height) formData.append('height', String(height))
       const res = await fetch(`/api/org/designs/${designId}/floor-plans`, { method: 'POST', body: formData })
       if (!res.ok) { toast.error('Floor plan upload failed'); return null }
       const json = await res.json()

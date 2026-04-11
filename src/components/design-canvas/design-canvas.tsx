@@ -39,6 +39,7 @@ import { FovPanel } from './fov-panel'
 import { DeviceProfilePanel } from './device-profile-panel'
 import { MdfRightPanel } from './mdf-right-panel'
 import { WallRightPanel } from './wall-right-panel'
+import { FloorPlanUploadModal } from './floor-plan-upload-modal'
 import { DeviceLibraryModal } from './device-library-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { getFovConeTiers, calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
@@ -722,15 +723,28 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     updateDevice(id, updates)
   }, [updateDevice])
 
-  const handleFloorPlanUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !activeAreaId) return
+  const [showFloorPlanModal, setShowFloorPlanModal] = useState(false)
+
+  const handleFloorPlanImport = useCallback(async (result: {
+    file: File; width: number; height: number; mode: 'new_area' | 'overlay'; areaName?: string
+  }) => {
     try {
-      await uploadFloorPlan(activeAreaId, file)
+      if (result.mode === 'new_area') {
+        // Create new area, then upload floor plan to it
+        const newArea = await addArea(result.areaName || 'Floor Plan', 'FLOOR_PLAN')
+        if (!newArea) { toast.error('Failed to create area'); return }
+        await uploadFloorPlan(newArea.id, result.file, result.width, result.height)
+        setActiveAreaId(newArea.id)
+      } else {
+        // Overlay on current area
+        if (!activeAreaId) { toast.error('No active area'); return }
+        await uploadFloorPlan(activeAreaId, result.file, result.width, result.height)
+      }
+      setShowFloorPlanModal(false)
     } catch (err) {
-      console.error('Failed to upload floor plan:', err)
+      console.error('Floor plan import failed:', err)
     }
-  }, [activeAreaId, uploadFloorPlan])
+  }, [activeAreaId, addArea, uploadFloorPlan, setActiveAreaId])
 
   /* ── Loading / Error ── */
   if (loading) return (
@@ -790,11 +804,10 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         <div style={{ flex: 1 }} />
 
         {/* Right actions */}
-        <label style={{ ...btnStyle(false), padding: '4px 10px', gap: 4 }} title="Upload Floor Plan">
+        <button onClick={() => setShowFloorPlanModal(true)} style={{ ...btnStyle(false), padding: '4px 10px', gap: 4 }} title="Import Floor Plan">
           <Upload size={13} />
           <span style={{ fontSize: 10 }}>Floor Plan</span>
-          <input type="file" accept="image/*" hidden onChange={handleFloorPlanUpload} />
-        </label>
+        </button>
         {activeFloorPlan && (
           <button
             onClick={async () => {
@@ -1443,6 +1456,16 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           category={activeCategory === 'door' ? 'access_control' : activeCategory === 'network' ? 'network' : activeCategory === 'av' ? 'av' : 'cctv'}
           onClose={() => setShowCatalog(false)}
           onSelect={handleDeviceSelected}
+        />
+      )}
+
+      {/* ═══════ FLOOR PLAN UPLOAD MODAL ═══════ */}
+      {showFloorPlanModal && (
+        <FloorPlanUploadModal
+          onSubmit={handleFloorPlanImport}
+          onClose={() => setShowFloorPlanModal(false)}
+          hasActiveArea={!!activeAreaId}
+          suggestedAreaName={`Area ${String.fromCharCode(65 + areas.length)}`}
         />
       )}
     </div>
