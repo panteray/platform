@@ -12,9 +12,10 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react'
-import { X, Copy, Trash2, ChevronDown, ChevronRight, Settings, MapPinOff, Cctv, Server } from 'lucide-react'
+import { X, Copy, Trash2, ChevronDown, ChevronRight, Settings, MapPinOff, Cctv, Server, Plus } from 'lucide-react'
 import { C } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
+import { calculateMountRequirements, type MountCalcInput } from '@/lib/calculators/mount-calculator'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
 
 /* ─── 24 Colors ─── */
@@ -544,6 +545,90 @@ export function RightPanel({
                 onChange={v => updateProp('environment', v)}
               />
             </div>
+
+            {/* Mount Calculator — auto-generated + editable */}
+            {isCamera && (() => {
+              const mountInput: MountCalcInput = {
+                formFactor: String(props.form || device.category),
+                mountType: (String(props.mount_type || 'Ceiling').toLowerCase() as 'ceiling' | 'wall' | 'pole' | 'pendant'),
+                environment: (String(props.environment || 'Indoor').toLowerCase() as 'indoor' | 'outdoor' | 'indoor_outdoor'),
+              }
+              const mountResult = calculateMountRequirements(mountInput, installHeight)
+              const customAccessories = (props.custom_accessories || []) as Array<{ name: string; qty: number }>
+              return (
+                <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Mount Accessories</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {/* Auto-calculated mounts */}
+                    {mountResult.mounts.filter(m => m.compatible).map((m, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '4px 8px', background: C.bgActive, borderRadius: 4, fontSize: 10,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: m.required ? C.accent : C.textDim, display: 'inline-block' }} />
+                          <span style={{ color: C.text, fontWeight: 500 }}>{m.label}</span>
+                        </div>
+                        <span style={{ fontSize: 8, color: m.required ? C.accent : C.textDim, fontWeight: 600 }}>
+                          {m.required ? 'REQ' : 'OPT'}
+                        </span>
+                      </div>
+                    ))}
+                    {mountResult.mounts.filter(m => m.compatible).length === 0 && (
+                      <div style={{ fontSize: 9, color: C.textDim, fontStyle: 'italic', padding: 4 }}>No mount accessories for this configuration</div>
+                    )}
+
+                    {/* Custom accessories — editable */}
+                    {customAccessories.map((a, i) => (
+                      <div key={`custom-${i}`} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '4px 8px', background: 'rgba(59,130,246,0.06)', borderRadius: 4, fontSize: 10,
+                        border: '1px solid rgba(59,130,246,0.15)',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+                          <input value={a.name} onChange={e => {
+                            const updated = [...customAccessories]
+                            updated[i] = { ...a, name: e.target.value }
+                            updateProp('custom_accessories', updated)
+                          }} style={{ background: 'transparent', border: 'none', color: C.text, fontSize: 10, fontWeight: 500, outline: 'none', width: 120 }} />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <input type="number" min={1} value={a.qty} onChange={e => {
+                            const updated = [...customAccessories]
+                            updated[i] = { ...a, qty: Math.max(1, Number(e.target.value)) }
+                            updateProp('custom_accessories', updated)
+                          }} style={{ width: 28, padding: '1px 3px', background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 2, color: C.text, fontSize: 9, fontFamily: 'monospace', outline: 'none', textAlign: 'center' }} />
+                          <button onClick={() => {
+                            const updated = customAccessories.filter((_, idx) => idx !== i)
+                            updateProp('custom_accessories', updated)
+                          }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 1, opacity: 0.5 }}>
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Add custom accessory button */}
+                    <button onClick={() => {
+                      const updated = [...customAccessories, { name: 'Custom Item', qty: 1 }]
+                      updateProp('custom_accessories', updated)
+                    }} style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px',
+                      background: 'transparent', border: `1px dashed ${C.border}`, borderRadius: 4,
+                      color: C.textDim, fontSize: 9, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                      <Plus size={10} /> Add Accessory
+                    </button>
+                  </div>
+                  {mountResult.liftRequired && (
+                    <div style={{ marginTop: 6, fontSize: 9, color: '#ef4444', fontWeight: 700, background: 'rgba(239,68,68,0.08)', padding: '3px 6px', borderRadius: 3, border: '1px solid rgba(239,68,68,0.2)' }}>
+                      ⚠ LIFT REQUIRED — {installHeight}ft
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* License */}
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>

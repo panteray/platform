@@ -259,7 +259,7 @@ export function DesignDashboard({ designId, onNavigateCanvas }: DesignDashboardP
     catch { return null }
   }, [devices])
 
-  const cableTotal = useMemo(() => cables.reduce((s, c) => s + (c.total_length_ft ?? 0), 0), [cables])
+  const cableTotal = useMemo(() => cables.reduce((s, c) => s + (c.length_ft ?? 0), 0), [cables])
 
   const risk = useMemo(() => {
     const camScore = counts.cam <= 10 ? counts.cam : counts.cam <= 50 ? 10 + (counts.cam - 10) * 0.5 : 30 + (counts.cam - 50) * 0.3

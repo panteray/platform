@@ -361,8 +361,8 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
                     <AccRow key={i} name={m.label} qty={1} onEdit={() => {}} />
                   ))}
                   {mountResult.liftRequired && (
-                    <div style={{ fontSize: 9, color: '#f97316', fontWeight: 600, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Zap size={10} /> Lift required (mount height &gt; 12ft)
+                    <div style={{ fontSize: 9, color: '#ef4444', fontWeight: 700, padding: '4px 8px', marginTop: 4, background: 'rgba(239,68,68,0.08)', borderRadius: 3, border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Zap size={10} /> ⚠ LIFT REQUIRED — mount height &gt; 12ft
                     </div>
                   )}
                   {customAccessories.map((a, i) => (
