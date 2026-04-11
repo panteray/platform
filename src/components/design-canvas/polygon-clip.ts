@@ -1,9 +1,12 @@
 /**
- * Polygon Clipping for Wall Occlusion — Google Maps version.
+ * Wall Occlusion for FOV Cones — Google Maps version.
  *
- * Clips FOV cone polygons against wall segments using the
- * Sutherland–Hodgman algorithm. This is a proper polygon boolean
- * operation, replacing the per-point ray-cast hack from the Fabric version.
+ * Uses ray-casting from the camera through each FOV polygon vertex.
+ * If a ray intersects a wall segment, the vertex is moved to the
+ * intersection point (the wall blocks the view beyond it).
+ *
+ * This correctly handles finite wall segments — FOV wraps around
+ * wall endpoints instead of being cut by an infinite half-plane.
  *
  * Works in lat/lng space (small enough areas that equirectangular is fine).
  */
@@ -13,78 +16,52 @@ interface Point {
   lng: number
 }
 
-interface WallSegment {
-  a: Point
-  b: Point
-}
-
 /**
- * Clip a polygon against a single line (half-plane clipping).
- * Keeps the side of the line where the camera is located.
+ * Test if ray from `origin` through `dir` intersects segment A→B.
+ * Returns the parametric t along the ray (0..1 = within FOV distance),
+ * or null if no intersection.
  *
- * Uses Sutherland–Hodgman single-edge clip.
+ * Uses 2D cross-product method in lat/lng space.
  */
-function clipPolygonByHalfPlane(
-  polygon: Point[],
-  wallA: Point,
-  wallB: Point,
-  cameraInside: boolean,
-): Point[] {
-  if (polygon.length < 3) return polygon
+function raySegmentIntersect(
+  origin: Point,
+  target: Point,
+  segA: Point,
+  segB: Point,
+): number | null {
+  const dx = target.lng - origin.lng
+  const dy = target.lat - origin.lat
+  const sx = segB.lng - segA.lng
+  const sy = segB.lat - segA.lat
 
-  // Wall edge vector
-  const edgeDx = wallB.lng - wallA.lng
-  const edgeDy = wallB.lat - wallA.lat
+  const denom = dx * sy - dy * sx
+  if (Math.abs(denom) < 1e-14) return null // parallel
 
-  function side(p: Point): number {
-    return edgeDx * (p.lat - wallA.lat) - edgeDy * (p.lng - wallA.lng)
+  const t = ((segA.lng - origin.lng) * sy - (segA.lat - origin.lat) * sx) / denom
+  const u = ((segA.lng - origin.lng) * dy - (segA.lat - origin.lat) * dx) / denom
+
+  // t must be > 0 (in front of camera) and <= 1 (within FOV range)
+  // u must be in [0, 1] (on the wall segment, not the infinite line)
+  if (t > 0.001 && t <= 1.0 && u >= 0 && u <= 1) {
+    return t
   }
-
-  // Determine which side the camera is on
-  const insideSign = cameraInside ? 1 : -1
-
-  function isInside(p: Point): boolean {
-    return side(p) * insideSign >= 0
-  }
-
-  function intersect(p1: Point, p2: Point): Point {
-    const s1 = side(p1)
-    const s2 = side(p2)
-    const t = s1 / (s1 - s2)
-    return {
-      lat: p1.lat + t * (p2.lat - p1.lat),
-      lng: p1.lng + t * (p2.lng - p1.lng),
-    }
-  }
-
-  const output: Point[] = []
-  for (let i = 0; i < polygon.length; i++) {
-    const current = polygon[i]
-    const next = polygon[(i + 1) % polygon.length]
-    const curIn = isInside(current)
-    const nextIn = isInside(next)
-
-    if (curIn) {
-      output.push(current)
-      if (!nextIn) {
-        output.push(intersect(current, next))
-      }
-    } else if (nextIn) {
-      output.push(intersect(current, next))
-    }
-  }
-
-  return output
+  return null
 }
 
 /**
- * Clip a FOV cone polygon against all wall segments.
- * The camera position determines which side of each wall to keep.
+ * Clip an FOV cone polygon against wall segments using ray-casting.
  *
- * @param polygon - The FOV cone polygon points (lat/lng)
- * @param walls - Array of wall definitions with point arrays
- * @param camera - Camera position (lat/lng) — always on the "keep" side
- * @returns Clipped polygon points
+ * For each vertex of the FOV polygon (except the camera/apex point),
+ * cast a ray from the camera. If it hits a wall segment before reaching
+ * the vertex, move the vertex to the intersection point.
+ *
+ * The first point of the polygon is assumed to be the camera position
+ * (cone apex). It is never clipped.
+ *
+ * @param polygon - FOV cone polygon (first point = camera apex)
+ * @param walls - Array of walls with point arrays
+ * @param camera - Camera position (lat/lng)
+ * @returns Occluded polygon
  */
 export function clipFovByWalls(
   polygon: Point[],
@@ -93,27 +70,53 @@ export function clipFovByWalls(
 ): Point[] {
   if (!walls || walls.length === 0 || polygon.length < 3) return polygon
 
-  let clipped = [...polygon]
-
+  // Collect all wall segments
+  const segments: Array<{ a: Point; b: Point }> = []
   for (const wall of walls) {
     for (let i = 0; i < wall.points.length - 1; i++) {
-      const wallA = wall.points[i]
-      const wallB = wall.points[i + 1]
+      segments.push({ a: wall.points[i], b: wall.points[i + 1] })
+    }
+  }
+  if (segments.length === 0) return polygon
 
-      // Determine which side the camera is on
-      const edgeDx = wallB.lng - wallA.lng
-      const edgeDy = wallB.lat - wallA.lat
-      const camSide = edgeDx * (camera.lat - wallA.lat) - edgeDy * (camera.lng - wallA.lng)
+  // For each polygon vertex, ray-cast from camera and check wall intersections
+  const result: Point[] = []
 
-      if (Math.abs(camSide) < 1e-12) continue // Camera is ON the wall line, skip
+  for (let i = 0; i < polygon.length; i++) {
+    const vertex = polygon[i]
 
-      clipped = clipPolygonByHalfPlane(clipped, wallA, wallB, camSide > 0)
+    // Skip if this vertex IS the camera (apex of the cone — distance ~0)
+    const distToCam = Math.sqrt(
+      (vertex.lat - camera.lat) ** 2 + (vertex.lng - camera.lng) ** 2
+    )
+    if (distToCam < 1e-10) {
+      result.push(vertex)
+      continue
+    }
 
-      if (clipped.length < 3) return clipped // Fully clipped away
+    // Cast ray from camera to this vertex — find nearest wall intersection
+    let nearestT = 1.0 // 1.0 = full distance to vertex (no obstruction)
+
+    for (const seg of segments) {
+      const t = raySegmentIntersect(camera, vertex, seg.a, seg.b)
+      if (t !== null && t < nearestT) {
+        nearestT = t
+      }
+    }
+
+    if (nearestT < 0.999) {
+      // Wall blocks before vertex — move vertex to intersection point
+      result.push({
+        lat: camera.lat + nearestT * (vertex.lat - camera.lat),
+        lng: camera.lng + nearestT * (vertex.lng - camera.lng),
+      })
+    } else {
+      // No wall in the way — keep original vertex
+      result.push(vertex)
     }
   }
 
-  return clipped
+  return result
 }
 
 /**
