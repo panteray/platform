@@ -136,6 +136,24 @@ const CAMERA_CATEGORIES = new Set([
   'cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual',
 ])
 
+/** Screen pixel distance between two lat/lng positions on a Google Map.
+ *  Uses the map's world projection + zoom to compute pixel separation. */
+function screenPixelDist(
+  map: google.maps.Map,
+  lat1: number, lng1: number,
+  lat2: number, lng2: number,
+): number {
+  const proj = map.getProjection()
+  if (!proj) return Infinity
+  const scale = 1 << (map.getZoom() ?? 1)
+  const a = proj.fromLatLngToPoint(new google.maps.LatLng(lat1, lng1))
+  const b = proj.fromLatLngToPoint(new google.maps.LatLng(lat2, lng2))
+  if (!a || !b) return Infinity
+  const dx = (a.x - b.x) * scale
+  const dy = (a.y - b.y) * scale
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
 /** Distance from point (px,py) to line segment (ax,ay)→(bx,by) in pixels */
 function pointToSegmentDist(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
   const dx = bx - ax, dy = by - ay
@@ -453,12 +471,12 @@ function CanvasArea(props: Props) {
           showCablePreview(routePts, mouseLat, mouseLng)
 
           // ── Snap highlight: green ring around nearest device within snap radius ──
-          const SNAP_FT = 50
+          const SNAP_PX = 30 // screen pixel snap (IPVM standard)
           const devs = devicesRef.current
           let snapped = false
           for (const dev of devs) {
             const devPos = canvasPixelsToLatLng(dev.position_x, dev.position_y, ctx)
-            if (haversineDistanceFt(mouseLat, mouseLng, devPos.lat, devPos.lng) < SNAP_FT) {
+            if (mapRef.current && screenPixelDist(mapRef.current, mouseLat, mouseLng, devPos.lat, devPos.lng) < SNAP_PX) {
               if (!cableSnapHighlightRef.current) {
                 cableSnapHighlightRef.current = new google.maps.Marker({
                   position: devPos, map: mapRef.current!, clickable: false, zIndex: 15,
@@ -828,17 +846,17 @@ function CanvasArea(props: Props) {
       const { x: clickX, y: clickY } = latLngToCanvasPixels(e.latLng.lat(), e.latLng.lng(), ctx)
 
       // ── Cable mode: proximity snap to nearest device/MDF ──
-      // Uses lat/lng distance (feet) for zoom-independent snap detection
+      // Uses screen pixel distance (30px, like IPVM) for zoom-independent snap
       if (activeToolRef.current === 'cable') {
         const draw = cableDrawRef.current
-        const SNAP_FT = 50 // snap radius in feet — works at any zoom level
+        const SNAP_PX = 30 // screen pixel snap radius (IPVM standard)
         const clickLat = e.latLng.lat()
         const clickLng = e.latLng.lng()
 
-        // Helper: check if click is near a position (in feet)
+        // Helper: check if click is near a canvas position (in screen pixels)
         const nearPos = (px: number, py: number) => {
           const pos = canvasPixelsToLatLng(px, py, ctx)
-          return haversineDistanceFt(clickLat, clickLng, pos.lat, pos.lng) < SNAP_FT
+          return screenPixelDist(map, clickLat, clickLng, pos.lat, pos.lng) < SNAP_PX
         }
 
         // Phase: pick_mdf — must click near an MDF to start
@@ -1002,8 +1020,11 @@ function CanvasArea(props: Props) {
             if (!c.waypoints || c.waypoints.length < 2) continue
             if (c.from_device_id === devId || c.to_device_id === devId) {
               if (polyIdx < polys.length) {
+                const isFrom = c.from_device_id === devId
                 const path = c.waypoints.map((wp, i) => {
-                  if (i === c.waypoints.length - 1) return { lat: dragLat, lng: dragLng }
+                  // Replace the correct endpoint: first wp if dragging from_device, last wp if dragging to_device
+                  if (isFrom && i === 0) return { lat: dragLat, lng: dragLng }
+                  if (!isFrom && i === c.waypoints.length - 1) return { lat: dragLat, lng: dragLng }
                   return canvasPixelsToLatLng(wp.x, wp.y, ctx)
                 })
                 polys[polyIdx].setPath(path)
@@ -1156,18 +1177,18 @@ function CanvasArea(props: Props) {
       const path = cable.waypoints.map(wp => canvasPixelsToLatLng(wp.x, wp.y, ctx))
       const color = cable.color_hex || '#3b82f6'
 
-      // Dashed polyline (IPVM style)
+      // Dashed polyline (IPVM style — fat invisible stroke for click hit area)
       const polyline = new google.maps.Polyline({
         path,
         strokeColor: color,
         strokeOpacity: 0,
-        strokeWeight: 0,
+        strokeWeight: 10,  // invisible but wide click target (IPVM uses 10)
         map,
         clickable: true,
-        zIndex: 1,
+        zIndex: 5,
         icons: [{
-          icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, strokeColor: color, scale: 2 },
-          offset: '0', repeat: '10px',
+          icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, strokeColor: color, scale: 2.5 },
+          offset: '0', repeat: '12px',
         }],
       })
 
