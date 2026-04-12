@@ -27,7 +27,7 @@ import {
   Download, MousePointer, Hand, Ruler, Trash2, Cable, Server,
   CircleDot, ChevronDown, X, Layers, Cctv, DoorOpen,
   Wifi, Speaker, Activity, MoreHorizontal, Crosshair,
-  Square, Settings, Maximize2, ZoomIn, ZoomOut, LockKeyhole, Locate, Fence,
+  Square, Settings, Maximize2, ZoomIn, ZoomOut, LockKeyhole, Locate, Fence, ClipboardList,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { C, type CanvasTool, type IconTabId, ICON_TABS, DEVICE_CATEGORY_COLORS } from './constants'
@@ -45,6 +45,7 @@ import { TopologyView } from './topology-view'
 import { RackElevationView } from './rack-elevation-view'
 import { VlanPlanner } from './vlan-planner'
 import { AvSignalFlow } from './av-signal-flow'
+import { ReportGenerator } from './report-generator'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { DeviceLibraryModal } from './device-library-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
@@ -801,6 +802,8 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   }, [updateDevice])
 
   const [showFloorPlanModal, setShowFloorPlanModal] = useState(false)
+  const [showObservations, setShowObservations] = useState(false)
+  const [showReportGenerator, setShowReportGenerator] = useState(false)
 
   const handleFloorPlanImport = useCallback(async (result: {
     file: File; width: number; height: number; mode: 'new_area' | 'overlay'; areaName?: string
@@ -884,6 +887,10 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         <button onClick={() => setShowFloorPlanModal(true)} style={{ ...btnStyle(false), padding: '4px 10px', gap: 4 }} title="Import Floor Plan">
           <Upload size={13} />
           <span style={{ fontSize: 10 }}>Floor Plan</span>
+        </button>
+        <button onClick={() => setShowObservations(!showObservations)} style={{ ...btnStyle(showObservations), padding: '4px 10px', gap: 4 }} title="Site Observations">
+          <ClipboardList size={13} />
+          <span style={{ fontSize: 10 }}>Notes</span>
         </button>
         {activeFloorPlan && (
           <button
@@ -1040,6 +1047,56 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       {/* ═══════════════════════════════════════════════════════════════════
           MAIN CONTENT: Icon Sidebar + Left Panel + Canvas + Right Panel
          ═══════════════════════════════════════════════════════════════════ */}
+      {/* ── INFRASTRUCTURE OBSERVATIONS PANEL ── */}
+      {showObservations && activeArea && (
+        <div style={{
+          position: 'absolute', top: 110, right: 16, width: 320, maxHeight: '70vh', zIndex: 40,
+          background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 8,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.15)', overflow: 'auto',
+        }}>
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>Site Observations</div>
+              <div style={{ fontSize: 9, color: C.textDim }}>{activeArea.name}</div>
+            </div>
+            <button onClick={() => setShowObservations(false)} style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer' }}><X size={14} /></button>
+          </div>
+          <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {([
+              ['mdf_locations', 'MDF/IDF Locations', 'Describe MDF/IDF closet locations, access...'],
+              ['conduit_paths', 'Conduit & Pathways', 'Available conduit, j-hooks, cable trays...'],
+              ['power_sources', 'Power Sources', 'Proximity to power outlets, dedicated circuits...'],
+              ['existing_network', 'Existing Network', 'Current switches, patch panels, cabling...'],
+              ['ceiling_type', 'Ceiling Type', 'Drop ceiling, open plenum, drywall, exposed...'],
+              ['site_access', 'Site Access', 'After-hours access, keys, alarm codes, escort...'],
+              ['general_notes', 'General Notes', 'Any other site observations...'],
+            ] as [string, string, string][]).map(([key, label, placeholder]) => {
+              const obs = (activeArea.infrastructure_observations ?? {}) as Record<string, string>
+              return (
+                <div key={key}>
+                  <div style={{ fontSize: 9, color: C.textDim, fontWeight: 600, marginBottom: 2 }}>{label}</div>
+                  <textarea
+                    value={obs[key] || ''}
+                    placeholder={placeholder}
+                    rows={2}
+                    onChange={e => {
+                      const updated = { ...(activeArea.infrastructure_observations ?? {}), [key]: e.target.value }
+                      updateArea(activeArea.id, { infrastructure_observations: updated })
+                    }}
+                    style={{
+                      width: '100%', padding: '4px 8px', background: C.bgActive,
+                      border: `1px solid ${C.border}`, borderRadius: 4,
+                      color: C.text, fontSize: 10, fontFamily: 'inherit', outline: 'none',
+                      resize: 'vertical', lineHeight: 1.4,
+                    }}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── REQUIREMENTS DASHBOARD (persistent) ── */}
       {activeTab === 'maps' && (
         <RequirementsBar
@@ -1324,6 +1381,27 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                     </div>
                   </div>
                 ))}
+              </div>
+              {/* Additional actions */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                <button onClick={() => setShowReportGenerator(true)}
+                  style={{
+                    flex: 1, padding: '12px 16px', background: C.bgPanel, border: `1px solid ${C.accent}`, borderRadius: 8,
+                    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.accent }}>Generate Printable Report</div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginTop: 2 }}>Camera coverage, DORI analysis, system summary — opens print dialog</div>
+                </button>
+                <button onClick={() => {
+                  toast.info('Switch to Maps tab and use browser Print (Ctrl+P) to capture the canvas view')
+                }}
+                  style={{
+                    flex: 1, padding: '12px 16px', background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 8,
+                    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>Canvas Snapshot</div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginTop: 2 }}>Download current canvas view as PNG image</div>
+                </button>
               </div>
             </div>
           </div>
@@ -1777,6 +1855,16 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           category={activeCategory === 'door' ? 'access_control' : activeCategory === 'network' ? 'network' : activeCategory === 'av' ? 'av' : 'cctv'}
           onClose={() => setShowCatalog(false)}
           onSelect={handleDeviceSelected}
+        />
+      )}
+
+      {/* ═══════ REPORT GENERATOR ═══════ */}
+      {showReportGenerator && (
+        <ReportGenerator
+          designName={design?.name || 'Design'}
+          areaName={activeArea?.name}
+          devices={areaDevices}
+          onClose={() => setShowReportGenerator(false)}
         />
       )}
 
