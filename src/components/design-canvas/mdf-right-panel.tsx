@@ -56,9 +56,10 @@ function getConnectedDeviceId(cable: DesignCable, mdfId: string): string | null 
 
 /* ─── Cable Type Labels ─── */
 const CABLE_TYPES: Record<string, string> = {
-  cat5e: 'Cat5e', cat6: 'Cat6', cat6a: 'Cat6a',
-  fiber_sm: 'Fiber SM', fiber_mm: 'Fiber MM',
-  coax: 'Coax', other: 'Other',
+  cat6: 'Cat6', cat6a: 'Cat6a', cat5e: 'Cat5e',
+  fiber_om3: 'Fiber OM3', fiber_om4: 'Fiber OM4', fiber_sm: 'Fiber SM',
+  '18_2': '18/2', '22_4': '22/4', '22_6': '22/6', '14_2': '14/2',
+  speaker: 'Speaker Wire', coax: 'Coax', other: 'Other',
 }
 
 /* ─── Component ─── */

@@ -1095,6 +1095,22 @@ export interface DesignMdfIdf {
   updated_at: string
 }
 
+export interface DesignWall {
+  id: string
+  design_id: string
+  area_id: string | null
+  org_id: string | null
+  name: string
+  points: Array<{ x: number; y: number }>
+  wall_type: string
+  height_ft: number
+  opacity: number
+  color: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
 export interface DesignZone {
   id: string
   design_id: string

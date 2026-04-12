@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import type {
   Design, DesignArea, DesignDevice, DesignCable, DesignMdfIdf,
   DesignFloorPlan, DesignZone, DesignRackSlots, DesignVlanSubnet,
-  DesignTopologyNode, DesignTopologyLink, DesignAvoipDevice,
+  DesignTopologyNode, DesignTopologyLink, DesignAvoipDevice, DesignWall,
 } from '@/types/database'
 
 export interface DesignCanvasState {
@@ -21,6 +21,10 @@ export interface DesignCanvasState {
   topologyNodes: DesignTopologyNode[]
   topologyLinks: DesignTopologyLink[]
   avoipDevices: DesignAvoipDevice[]
+  walls: DesignWall[]
+  addWall: (data: Record<string, unknown>) => Promise<DesignWall | null>
+  updateWall: (id: string, data: Record<string, unknown>) => Promise<unknown>
+  deleteWall: (id: string) => Promise<boolean>
   loading: boolean
   error: string | null
   activeAreaId: string | null
@@ -146,6 +150,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
   const [topologyNodes, setTopologyNodes] = useState<DesignTopologyNode[]>([])
   const [topologyLinks, setTopologyLinks] = useState<DesignTopologyLink[]>([])
   const [avoipDevices, setAvoipDevices] = useState<DesignAvoipDevice[]>([])
+  const [walls, setWalls] = useState<DesignWall[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeAreaId, setActiveAreaId] = useState<string | null>(null)
@@ -170,7 +175,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
       }
 
       // Parallel fetch all entities
-      const [fpRes, devRes, cabRes, infRes, zoneRes, rackRes, vlanRes, topoRes, linkRes, avRes] = await Promise.all([
+      const [fpRes, devRes, cabRes, infRes, zoneRes, rackRes, vlanRes, topoRes, linkRes, avRes, wallRes] = await Promise.all([
         fetch(`/api/org/designs/${designId}/floor-plans`),
         fetch(`/api/org/designs/${designId}/devices`),
         fetch(`/api/org/designs/${designId}/cables`),
@@ -181,6 +186,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
         fetch(`/api/org/designs/${designId}/topology`),
         fetch(`/api/org/designs/${designId}/topology-links`),
         fetch(`/api/org/designs/${designId}/avoip`),
+        fetch(`/api/org/designs/${designId}/walls`),
       ])
       if (!mountedRef.current) return
 
@@ -194,6 +200,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
       if (topoRes.ok) setTopologyNodes((await topoRes.json()).nodes ?? [])
       if (linkRes.ok) setTopologyLinks((await linkRes.json()).links ?? [])
       if (avRes.ok) setAvoipDevices((await avRes.json()).avoipDevices ?? [])
+      if (wallRes.ok) setWalls((await wallRes.json()).walls ?? [])
     } catch {
       if (!mountedRef.current) return
       setError('Network error')
@@ -381,9 +388,10 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
   const rackCrud = useCrud<DesignRackSlots>(designId, 'racks', 'rack', setRacks, 'rack')
   const vlanCrud = useCrud<DesignVlanSubnet>(designId, 'vlans', 'vlan', setVlans, 'VLAN')
   const avoipCrud = useCrud<DesignAvoipDevice>(designId, 'avoip', 'avoipDevice', setAvoipDevices, 'AV device')
+  const wallCrud = useCrud<DesignWall>(designId, 'walls', 'wall', setWalls, 'wall')
 
   return {
-    design, areas, devices, cables, mdfIdfs, floorPlans, zones, racks, vlans, topologyNodes, topologyLinks, avoipDevices,
+    design, areas, devices, cables, mdfIdfs, floorPlans, zones, racks, vlans, topologyNodes, topologyLinks, avoipDevices, walls,
     loading, error,
     activeAreaId, selectedDeviceId, selectedCableId,
     setActiveAreaId, setSelectedDeviceId, setSelectedCableId,
@@ -399,6 +407,7 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     addRack: rackCrud.add, updateRack: rackCrud.update, deleteRack: rackCrud.remove,
     addVlan: vlanCrud.add, updateVlan: vlanCrud.update, deleteVlan: vlanCrud.remove,
     addAvoipDevice: avoipCrud.add, updateAvoipDevice: avoipCrud.update, deleteAvoipDevice: avoipCrud.remove,
+    addWall: wallCrud.add, updateWall: wallCrud.update, deleteWall: wallCrud.remove,
     refetch: fetchDesign,
   }
 }

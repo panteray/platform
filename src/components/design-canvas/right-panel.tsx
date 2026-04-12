@@ -313,6 +313,34 @@ export function RightPanel({
               }} />
           ))}
         </div>
+
+        {/* Device status + condition */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 8, color: C.textDim, marginBottom: 2 }}>Status</div>
+            <select value={String(props.device_status || 'new')}
+              onChange={e => updateProp('device_status', e.target.value)}
+              style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
+              <option value="new">New</option>
+              <option value="existing_keep">Existing Keep</option>
+              <option value="existing_remove">Existing Remove</option>
+              <option value="relocate">Relocate</option>
+            </select>
+          </div>
+          {(props.device_status === 'existing_keep' || props.device_status === 'existing_remove' || props.device_status === 'relocate') && (
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 8, color: C.textDim, marginBottom: 2 }}>Condition</div>
+              <select value={String(props.device_condition || 'unknown')}
+                onChange={e => updateProp('device_condition', e.target.value)}
+                style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
+                <option value="good">Good</option>
+                <option value="fair">Fair</option>
+                <option value="poor">Poor</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Tab Bar: FoV | Acc | Settings | Rec ── */}

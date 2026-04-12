@@ -99,12 +99,13 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const router = useRouter()
   const state = useDesignCanvas(designId)
   const {
-    design, areas, devices, cables, mdfIdfs, floorPlans,
+    design, areas, devices, cables, mdfIdfs, floorPlans, walls: dbWalls,
     loading, error, activeAreaId, selectedDeviceId,
     setActiveAreaId, setSelectedDeviceId,
     addArea, updateArea, deleteArea, uploadFloorPlan, deleteFloorPlan,
     addDevice, updateDevice, updateDeviceProps, deleteDevice,
     addCable, updateCable, deleteCable, addInfrastructure, updateInfrastructure, deleteInfrastructure,
+    addWall, updateWall: updateWallDb, deleteWall: deleteWallDb,
   } = state
 
   /* ── UI state ── */
@@ -123,8 +124,14 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const [showScaleEdit, setShowScaleEdit] = useState(false)
   const [scaleEditValue, setScaleEditValue] = useState('')
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
-  const [walls, setWalls] = useState<Array<{ id: string; name?: string; points: Array<{ x: number; y: number }>; wallType?: string; heightFt?: number; opacity?: number; color?: string }>>([])
-  const wallCountRef = useRef(0)
+  // Walls from DB, filtered by active area
+  const walls = useMemo(() =>
+    dbWalls.filter(w => w.area_id === activeAreaId).map(w => ({
+      id: w.id, name: w.name, points: w.points,
+      wallType: w.wall_type, heightFt: w.height_ft, opacity: w.opacity, color: w.color,
+    }))
+  , [dbWalls, activeAreaId])
+  const wallCountRef = useRef(dbWalls.length)
   const [selectedMdfId, setSelectedMdfId] = useState<string | null>(null)
   const [showIrRange, setShowIrRange] = useState(true)
   const [hiddenPpfZones, setHiddenPpfZones] = useState<Set<string>>(new Set())
@@ -1263,6 +1270,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
               const dev = devices.find(d => d.id === connDeviceId)
               if (dev) payload.color_hex = DEVICE_CATEGORY_COLORS[dev.category] || '#3b82f6'
             }
+            if (!payload.cable_type) payload.cable_type = 'cat6'
             await addCable(payload)
           }}
           onCableUpdated={async (cableId, waypoints, lengthFt) => {
@@ -1312,13 +1320,29 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           zoomToPointRef={zoomToPointRef}
           canvasActionsRef={canvasActionsRef}
           walls={walls}
-          onWallCreated={(pts) => {
+          onWallCreated={async (pts) => {
             wallCountRef.current += 1
-            setWalls(prev => [...prev, { id: crypto.randomUUID(), name: `Wall ${wallCountRef.current}`, points: pts }])
+            await addWall({
+              design_id: designId, area_id: activeAreaId,
+              name: `Wall ${wallCountRef.current}`, points: pts,
+            })
             toast.success('Wall created')
           }}
-          onWallDeleted={(id) => { setWalls(prev => prev.filter(w => w.id !== id)); if (selectedWallId === id) setSelectedWallId(null) }}
-          onWallUpdated={(id, updates) => { setWalls(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w)) }}
+          onWallDeleted={async (id) => {
+            await deleteWallDb(id)
+            if (selectedWallId === id) setSelectedWallId(null)
+          }}
+          onWallUpdated={async (id, updates) => {
+            // Map frontend field names to DB column names
+            const dbUpdates: Record<string, unknown> = {}
+            if (updates.points !== undefined) dbUpdates.points = updates.points
+            if (updates.name !== undefined) dbUpdates.name = updates.name
+            if (updates.wallType !== undefined) dbUpdates.wall_type = updates.wallType
+            if (updates.heightFt !== undefined) dbUpdates.height_ft = updates.heightFt
+            if (updates.opacity !== undefined) dbUpdates.opacity = updates.opacity
+            if (updates.color !== undefined) dbUpdates.color = updates.color
+            await updateWallDb(id, dbUpdates)
+          }}
           selectedWallId={selectedWallId}
           onMdfSelected={(id) => { setSelectedMdfId(id); setSelectedDeviceId(null) }}
           showIrRange={showIrRange}
@@ -1480,11 +1504,18 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
               <WallRightPanel
                 wall={selectedWall}
                 onClose={() => setSelectedWallId(null)}
-                onUpdateWall={(id, updates) => {
-                  setWalls(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w))
+                onUpdateWall={async (id, updates) => {
+                  const dbUpdates: Record<string, unknown> = {}
+                  if (updates.points !== undefined) dbUpdates.points = updates.points
+                  if (updates.name !== undefined) dbUpdates.name = updates.name
+                  if (updates.wallType !== undefined) dbUpdates.wall_type = updates.wallType
+                  if (updates.heightFt !== undefined) dbUpdates.height_ft = updates.heightFt
+                  if (updates.opacity !== undefined) dbUpdates.opacity = updates.opacity
+                  if (updates.color !== undefined) dbUpdates.color = updates.color
+                  await updateWallDb(id, dbUpdates)
                 }}
-                onDelete={(id) => {
-                  setWalls(prev => prev.filter(w => w.id !== id))
+                onDelete={async (id) => {
+                  await deleteWallDb(id)
                   setSelectedWallId(null)
                 }}
                 scalePxPerFt={scalePxPerFt}
