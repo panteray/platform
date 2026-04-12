@@ -41,6 +41,7 @@ import { MdfRightPanel } from './mdf-right-panel'
 import { WallRightPanel } from './wall-right-panel'
 import { FloorPlanUploadModal } from './floor-plan-upload-modal'
 import { StorageCalculatorPanel } from './storage-calculator-panel'
+import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { DeviceLibraryModal } from './device-library-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { getFovConeTiers, calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
@@ -289,6 +290,36 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const cameraCount = useMemo(() => areaDevices.filter(d => ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(d.category)).length, [areaDevices])
   const doorCount = useMemo(() => areaDevices.filter(d => d.category === 'access_control').length, [areaDevices])
   const networkCount = useMemo(() => areaDevices.filter(d => d.category === 'network').length, [areaDevices])
+
+  // Live requirements for the persistent dashboard bar
+  const requirementsItems = useMemo((): RequirementItem[] => {
+    const totalCableFt = areaCables.reduce((s, c) => s + (c.length_ft || 0), 0)
+    // Count multi-sensor channels
+    const channelCount = areaDevices.filter(d => ['cctv','dome','bullet','turret','ptz','fisheye','multisensor_quad','multisensor_dual'].includes(d.category))
+      .reduce((s, d) => {
+        if (d.category === 'multisensor_quad') return s + 4
+        if (d.category === 'multisensor_dual') return s + 2
+        return s + 1
+      }, 0)
+    // PoE watts estimate
+    const poeWatts = areaDevices.reduce((s, d) => {
+      const p = (d.properties ?? {}) as Record<string, unknown>
+      return s + (Number(p.poe_watts) || (d.category === 'ptz' ? 60 : ['cctv','dome','bullet','turret','fisheye','multisensor_quad','multisensor_dual'].includes(d.category) ? 25 : d.category === 'access_control' ? 15 : 0))
+    }, 0)
+    // Ports = cameras + doors + network devices
+    const portCount = areaDevices.filter(d => ['cctv','dome','bullet','turret','ptz','fisheye','multisensor_quad','multisensor_dual','access_control','network'].includes(d.category)).length
+
+    return [
+      { label: 'Cameras', value: cameraCount, unit: '', status: 'normal' as const },
+      { label: 'Channels', value: channelCount, unit: 'ch', status: 'normal' as const },
+      { label: 'Doors', value: doorCount, unit: '', status: 'normal' as const },
+      { label: 'Network', value: networkCount, unit: '', status: 'normal' as const },
+      { label: 'Total', value: areaDevices.length, unit: 'dev', status: 'normal' as const },
+      { label: 'PoE', value: poeWatts, unit: 'W', status: 'normal' as const, required: poeWatts * 1.2 || 100 },
+      { label: 'Ports', value: portCount, unit: '', status: 'normal' as const, required: portCount * 1.2 || 24 },
+      { label: 'Cables', value: areaCables.length, unit: 'runs', status: 'normal' as const, required: areaCables.length * 1.1 || 10 },
+    ]
+  }, [areaDevices, areaCables, cameraCount, doorCount, networkCount])
 
   /* ── FOV data computation (cameras + non-camera coverage boundaries) ── */
   const fovData = useMemo(() => {
@@ -996,6 +1027,14 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
       {/* ═══════════════════════════════════════════════════════════════════
           MAIN CONTENT: Icon Sidebar + Left Panel + Canvas + Right Panel
          ═══════════════════════════════════════════════════════════════════ */}
+      {/* ── REQUIREMENTS DASHBOARD (persistent) ── */}
+      {activeTab === 'maps' && (
+        <RequirementsBar
+          requirements={requirementsItems}
+          cableEstimate={areaCables.length > 0 ? `${areaCables.reduce((s, c) => s + (c.length_ft || 0), 0).toLocaleString()} ft` : undefined}
+        />
+      )}
+
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
 
         {/* ── 52px ICON SIDEBAR ── */}
@@ -1483,6 +1522,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 onClose={() => setSelectedMdfId(null)}
                 onDelete={async (id) => { await deleteInfrastructure(id); setSelectedMdfId(null) }}
                 onUpdateMdf={async (id, updates) => { await updateInfrastructure(id, updates) }}
+                onUpdateCable={async (id, updates) => { await updateCable(id, updates) }}
                 onDisconnectDevice={async (cableId) => {
                   await deleteCable(cableId)
                 }}

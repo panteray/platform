@@ -30,6 +30,7 @@ interface Props {
   onClose: () => void
   onDelete: (id: string) => void
   onUpdateMdf: (id: string, updates: Record<string, unknown>) => void
+  onUpdateCable?: (id: string, updates: Record<string, unknown>) => void
   onDisconnectDevice: (cableId: string) => void
   onStartCableFromMdf: (mdfId: string) => void
 }
@@ -65,7 +66,7 @@ const CABLE_TYPES: Record<string, string> = {
 /* ─── Component ─── */
 export function MdfRightPanel({
   mdf, cables, devices, scalePxPerFt,
-  onClose, onDelete, onUpdateMdf, onDisconnectDevice, onStartCableFromMdf,
+  onClose, onDelete, onUpdateMdf, onUpdateCable, onDisconnectDevice, onStartCableFromMdf,
 }: Props) {
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState(mdf.name)
@@ -297,9 +298,15 @@ export function MdfRightPanel({
                         {dev?.label || 'Unknown Device'}
                       </div>
                       <div style={{
-                        display: 'flex', gap: 6, fontSize: 9, color: C.textDim, marginTop: 1,
+                        display: 'flex', gap: 6, fontSize: 9, color: C.textDim, marginTop: 1, alignItems: 'center',
                       }}>
-                        <span>{cType}</span>
+                        {onUpdateCable ? (
+                          <select value={cb.cable_type || 'cat6'}
+                            onChange={e => onUpdateCable(cb.id, { cable_type: e.target.value })}
+                            style={{ padding: '1px 3px', background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 2, color: C.textMuted, fontSize: 8, fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                            {Object.entries(CABLE_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                          </select>
+                        ) : <span>{cType}</span>}
                         <span>·</span>
                         <span>{Math.round(cableLen)} ft</span>
                         <span>·</span>
