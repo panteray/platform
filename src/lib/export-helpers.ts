@@ -418,3 +418,99 @@ export async function exportBomWithPricing(
   const blob = await toXlsx(rows, 'BOM with Pricing')
   downloadBlob(blob, `${sanitizeFilename(data.designName)}_BOM_Pricing.xlsx`)
 }
+
+// ---- Field Installation Manual ----
+
+export async function exportFieldManual(designId: string): Promise<void> {
+  const [bomData, hwData, cableData] = await Promise.all([
+    fetchExport<BomExport>(designId, 'bom'),
+    fetchExport<HardwareExport>(designId, 'hardware-schedule'),
+    fetchExport<CableExport>(designId, 'cable-schedule'),
+  ])
+
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, BorderStyle, ShadingType, PageBreak } = await import('docx')
+  const border = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' }
+  const borders = { top: border, bottom: border, left: border, right: border }
+  const cellMargins = { top: 60, bottom: 60, left: 80, right: 80 }
+  const h = (text: string, level: typeof HeadingLevel[keyof typeof HeadingLevel] = HeadingLevel.HEADING_1) =>
+    new Paragraph({ heading: level, children: [new TextRun({ text, font: 'Arial' })] })
+  const p = (text: string, bold = false) =>
+    new Paragraph({ children: [new TextRun({ text, font: 'Arial', size: 20, bold })] })
+
+  const children: (InstanceType<typeof Paragraph> | InstanceType<typeof Table>)[] = [
+    h(`Field Installation Manual — ${bomData.designName}`),
+    p(`Generated ${new Date().toLocaleDateString()}`),
+    p(''),
+    h('1. Equipment Summary', HeadingLevel.HEADING_2),
+  ]
+
+  // BOM table
+  const bomCols = ['Qty', 'Manufacturer', 'Model']
+  children.push(new Table({
+    width: { size: 9360, type: WidthType.DXA },
+    columnWidths: [1500, 3930, 3930],
+    rows: [
+      new TableRow({ children: bomCols.map(c => new TableCell({ borders, width: { size: c === 'Qty' ? 1500 : 3930, type: WidthType.DXA }, shading: { fill: 'E8E8E8', type: ShadingType.CLEAR }, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: c, bold: true, font: 'Arial', size: 18 })] })] })) }),
+      ...bomData.items.map(item => new TableRow({ children: [
+        new TableCell({ borders, width: { size: 1500, type: WidthType.DXA }, margins: cellMargins, children: [p(String(item.qty))] }),
+        new TableCell({ borders, width: { size: 3930, type: WidthType.DXA }, margins: cellMargins, children: [p(item.manufacturer)] }),
+        new TableCell({ borders, width: { size: 3930, type: WidthType.DXA }, margins: cellMargins, children: [p(item.model)] }),
+      ] })),
+    ],
+  }))
+
+  // Per-area install instructions
+  children.push(new Paragraph({ children: [new PageBreak()] }))
+  children.push(h('2. Installation by Area', HeadingLevel.HEADING_2))
+
+  for (const area of hwData.areas) {
+    const areaName = (area as unknown as { areaName?: string }).areaName || area.areaId
+    children.push(h(areaName, HeadingLevel.HEADING_3))
+    children.push(p(`${area.devices.length} device(s) in this area`))
+    for (const d of area.devices) {
+      const props = (d.properties ?? {}) as Record<string, unknown>
+      children.push(p(`• ${d.label} — ${String(props.manufacturer || '')} ${String(props.model || '')}`, true))
+      children.push(p(`  Mount: ${d.mount_type || 'TBD'} | Category: ${d.category}`))
+      if (Number(props.install_height) > 0) children.push(p(`  Install height: ${props.install_height}ft${Number(props.install_height) > 12 ? ' ⚠ LIFT REQUIRED' : ''}`))
+    }
+  }
+
+  // Cable schedule
+  children.push(new Paragraph({ children: [new PageBreak()] }))
+  children.push(h('3. Cable Schedule', HeadingLevel.HEADING_2))
+  children.push(p(`${cableData.cables.length} cable runs — ${cableData.totalFootage} ft total`))
+
+  const mdfMap = new Map(cableData.mdfIdfs.map(m => [m.id, m.name]))
+  for (const c of cableData.cables) {
+    const mdfName = c.mdf_idf_id ? (mdfMap.get(c.mdf_idf_id) ?? 'Unknown') : '—'
+    children.push(p(`• ${c.cable_type || 'Cat6'} — ${c.length_ft ?? 0}ft — MDF: ${mdfName}`))
+  }
+
+  // Quality checklist
+  children.push(new Paragraph({ children: [new PageBreak()] }))
+  children.push(h('4. Quality Checklist', HeadingLevel.HEADING_2))
+  const checklist = [
+    'All devices installed per approved hardware schedule',
+    'Mounting height and positioning verified',
+    'Devices properly secured and aligned',
+    'All penetrations sealed and protected',
+    'Cable properly supported and labeled at both ends',
+    'All cables tested for continuity',
+    'Devices powered on and verified operational',
+    'Live view / data stream confirmed',
+    'Work area cleaned and debris removed',
+    'Customer/PM sign-off obtained',
+  ]
+  for (const item of checklist) {
+    children.push(p(`☐ ${item}`))
+  }
+
+  const doc = new Document({
+    sections: [{
+      properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
+      children,
+    }],
+  })
+  const blob = await Packer.toBlob(doc)
+  downloadBlob(blob, `${sanitizeFilename(bomData.designName)}_Field_Manual.docx`)
+}

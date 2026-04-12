@@ -1413,6 +1413,34 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                   <div style={{ fontSize: 9, color: C.textDim, marginTop: 2 }}>Download current canvas view as PNG image</div>
                 </button>
               </div>
+              {/* Field Installation Manual */}
+              <button onClick={() => {
+                import('@/lib/export-helpers').then(m => m.exportFieldManual(designId)).catch(console.error)
+              }}
+                style={{ marginTop: 8, width: '100%', padding: '12px 16px', background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>Field Installation Manual</div>
+                <div style={{ fontSize: 9, color: C.textDim, marginTop: 2 }}>DOCX with equipment list, per-area install instructions, cable schedule, quality checklist</div>
+              </button>
+
+              {/* ISO Compliance */}
+              <button onClick={() => {
+                import('@/lib/export-helpers').then(async m => {
+                  const { calculatePpfAtDistance, classifyDori } = await import('@/lib/calculators')
+                  const camDevs = areaDevices.filter(d => ['cctv','dome','bullet','turret','ptz','fisheye','multisensor_quad','multisensor_dual'].includes(d.category))
+                  const reqs: Record<string, 'detection' | 'observation' | 'recognition' | 'identification'> = {}
+                  camDevs.forEach(d => { reqs[d.id] = 'detection' })
+                  const ppfCalc = (d: { properties: Record<string, unknown> | null }) => {
+                    const p = (d.properties ?? {}) as Record<string, unknown>
+                    return calculatePpfAtDistance(Number(p.resolution_w) || 0, Number(p.sensor_w) || 5.14, Number(p.focal_length) || 4, Number(p.target_distance) || 30)
+                  }
+                  const results = m.checkIsoCompliance(camDevs, reqs, ppfCalc, classifyDori)
+                  await m.exportIsoComplianceReport(designId, results, design?.name || 'Design')
+                }).catch(console.error)
+              }}
+                style={{ marginTop: 8, width: '100%', padding: '12px 16px', background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#22c55e' }}>ISO 62676 Compliance Report</div>
+                <div style={{ fontSize: 9, color: C.textDim, marginTop: 2 }}>DORI pass/fail analysis per camera against IEC 62676-4 thresholds</div>
+              </button>
             </div>
           </div>
         )}

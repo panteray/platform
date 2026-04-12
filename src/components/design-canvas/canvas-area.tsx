@@ -361,6 +361,7 @@ function CanvasArea(props: Props) {
   const scaleLineRef = useRef<google.maps.Polyline | null>(null)
   const onScaleCalibratedRef = useRef(onScaleCalibrated)
   useEffect(() => { onScaleCalibratedRef.current = onScaleCalibrated }, [onScaleCalibrated])
+  const ppfOverlayRef = useRef<google.maps.InfoWindow | null>(null)
   const cablesRef = useRef(cables)
   useEffect(() => { cablesRef.current = cables }, [cables])
   const wallPolylinesRef = useRef<google.maps.Polyline[]>([])
@@ -1889,9 +1890,40 @@ function CanvasArea(props: Props) {
             strokeOpacity: t === 0 ? (isSelected ? 0.8 : 0.35) : 0,
             strokeWeight: t === 0 ? (isSelected ? 2.5 : 1.5) : 0,
             map,
-            clickable: false,
+            clickable: t === 0, // outermost tier is clickable for PPF readout
             zIndex: isSelected ? 5 : (sensorRotations.length > 1 ? 1 + sIdx : 1),
           })
+
+          // Click on outermost FOV tier → show PPF at click point
+          if (t === 0) {
+            const capturedResW = Number((dev.properties as Record<string, unknown>)?.resolution_w) || 0
+            const capturedSensorW = Number((dev.properties as Record<string, unknown>)?.sensor_w) || Number((dev.properties as Record<string, unknown>)?.sensor_width) || 5.14
+            const capturedFocalLen = Number((dev.properties as Record<string, unknown>)?.focal_length) || 4
+            poly.addListener('click', (e: google.maps.PolyMouseEvent) => {
+              if (!e.latLng || capturedResW <= 0) return
+              // Distance from camera to click point in feet
+              const hasGeo = typeof google !== 'undefined' && google.maps?.geometry?.spherical?.computeDistanceBetween
+              let distFt = 0
+              if (hasGeo) {
+                const camLL = new google.maps.LatLng(camLat, camLng)
+                distFt = Math.round(google.maps.geometry.spherical.computeDistanceBetween(camLL, e.latLng) * 3.28084)
+              }
+              if (distFt <= 0) return
+              // PPF = resW / scene_width_ft; scene_width = 2 * dist * tan(atan(sensorW / (2*focalLen)))
+              const sceneWidthFt = 2 * distFt * Math.tan(Math.atan(capturedSensorW / (2 * capturedFocalLen)))
+              const ppf = sceneWidthFt > 0 ? Math.round(capturedResW / sceneWidthFt) : 0
+              const dori = ppf >= 305 ? 'Inspection' : ppf >= 76 ? 'Identification' : ppf >= 38 ? 'Recognition' : ppf >= 19 ? 'Observation' : ppf >= 8 ? 'Detection' : ppf >= 4 ? 'Monitor' : 'Below Monitor'
+
+              ppfOverlayRef.current?.close()
+              ppfOverlayRef.current = new google.maps.InfoWindow({
+                content: `<div style="font-family:system-ui;font-size:12px;padding:4px 0"><strong>${ppf} PPF</strong> <span style="color:#888">@ ${distFt}ft</span><br/><span style="font-size:10px;color:#666">${dori}</span></div>`,
+                position: e.latLng,
+              })
+              ppfOverlayRef.current.open(map)
+              setTimeout(() => ppfOverlayRef.current?.close(), 4000)
+            })
+          }
+
           newPolygons.push(poly)
           if (isSelected) newSelectedPolygons.push(poly)
         }
