@@ -205,27 +205,50 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     if (!activeArea) return null
     const lat = activeArea.satellite_lat
     const lng = activeArea.satellite_lng
-    if (lat == null || lng == null) return null
-    const zoom =
-      typeof activeArea.satellite_zoom === 'number' &&
-      activeArea.satellite_zoom >= 1 &&
-      activeArea.satellite_zoom <= 22
-        ? activeArea.satellite_zoom
-        : 18
-    return { lat, lng, zoom, opacity: 0.6 as const }
+    if (lat != null && lng != null) {
+      const zoom =
+        typeof activeArea.satellite_zoom === 'number' &&
+        activeArea.satellite_zoom >= 1 &&
+        activeArea.satellite_zoom <= 22
+          ? activeArea.satellite_zoom
+          : 18
+      return { lat, lng, zoom, opacity: 0.6 as const }
+    }
+    // Floor plan area without satellite coords — use a fixed center
+    // so GroundOverlay and geo-math work correctly.
+    // Zoom 18 at equator gives ~1.53 ft/px; scalePxPerFt is set from floor plan width.
+    return { lat: 0.0001, lng: 0.0001, zoom: 18, opacity: 0 as const }
   }, [activeArea])
 
-  // Auto-compute scalePxPerFt from satellite zoom so FOV distances match real-world satellite imagery
+  // Auto-compute scalePxPerFt from satellite zoom or floor plan dimensions
   const scaleInitialized = useRef(false)
+  const prevAreaIdRef = useRef(activeAreaId)
+  if (prevAreaIdRef.current !== activeAreaId) {
+    prevAreaIdRef.current = activeAreaId
+    scaleInitialized.current = false
+  }
   useEffect(() => {
-    if (!satelliteConfig || scaleInitialized.current) return
+    if (scaleInitialized.current) return
+
+    // Floor plan area without real satellite coords — set scale from floor plan width
+    if (activeFloorPlan?.width && (!activeArea?.satellite_lat || !activeArea?.satellite_lng)) {
+      // Assume floor plan represents ~200ft across (user can calibrate via Scale tool)
+      const assumedWidthFt = 200
+      const pxPerFt = (activeFloorPlan.width || 1000) / assumedWidthFt
+      setScalePxPerFt(pxPerFt)
+      scaleInitialized.current = true
+      return
+    }
+
+    // Satellite area — compute from zoom level
+    if (!satelliteConfig) return
     const fpp = feetPerPixelAtZoom(satelliteConfig.zoom, satelliteConfig.lat)
     if (fpp > 0) {
       const pxPerFt = 1 / fpp
       setScalePxPerFt(pxPerFt)
       scaleInitialized.current = true
     }
-  }, [satelliteConfig])
+  }, [satelliteConfig, activeFloorPlan, activeArea])
 
   /** Phase A: single geo anchor (satellite center) + scale for lat/lng ↔ `position_x`/`position_y` */
   // Fallback to default center if no satellite config — ensures markers and FOV render regardless
