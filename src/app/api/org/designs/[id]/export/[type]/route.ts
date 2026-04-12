@@ -18,14 +18,16 @@ export async function POST(
   const { data: design } = await admin.from('designs').select('id, name').eq('id', designId).eq('org_id', user.org_id).single()
   if (!design) return NextResponse.json({ error: 'Design not found' }, { status: 404 })
 
-  // Fetch all devices for this design
+  // Fetch all design data
   const { data: devices } = await admin.from('design_devices').select('*').eq('design_id', designId).order('created_at')
   const { data: cables } = await admin.from('design_cables').select('*').eq('design_id', designId).order('created_at')
   const { data: mdfIdfs } = await admin.from('design_mdf_idf').select('*').eq('design_id', designId)
+  const { data: areas } = await admin.from('design_areas').select('id, name').eq('design_id', designId)
 
   const deviceList = devices ?? []
   const cableList = cables ?? []
   const mdfIdfList = mdfIdfs ?? []
+  const areaMap = new Map((areas ?? []).map(a => [a.id, a.name]))
 
   switch (exportType as ExportType) {
     case 'bom': {
@@ -68,20 +70,21 @@ export async function POST(
 
     case 'hardware-schedule': {
       // Hardware schedule — devices grouped by area with install details
-      const areaMap = new Map<string, typeof deviceList>()
+      const devicesByArea = new Map<string, typeof deviceList>()
       for (const d of deviceList) {
         const aId = d.area_id ?? 'unassigned'
-        const list = areaMap.get(aId) ?? []
+        const list = devicesByArea.get(aId) ?? []
         list.push(d)
-        areaMap.set(aId, list)
+        devicesByArea.set(aId, list)
       }
       return NextResponse.json({
         exportType: 'hardware-schedule',
         designName: design.name,
         generatedAt: new Date().toISOString(),
         totalDevices: deviceList.length,
-        areas: Array.from(areaMap.entries()).map(([areaId, devs]) => ({
+        areas: Array.from(devicesByArea.entries()).map(([areaId, devs]) => ({
           areaId,
+          areaName: areaMap.get(areaId) || areaId,
           deviceCount: devs.length,
           devices: devs.map((d) => ({
             label: d.label,

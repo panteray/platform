@@ -13,6 +13,9 @@ import { StubTab } from '@/components/opportunities/StubTab'
 import { HuddleTab } from '@/components/opportunities/HuddleTab'
 import { DesignsTab } from '@/components/opportunities/DesignsTab'
 import { CustomerCard } from '@/components/opportunities/CustomerCard'
+import { BomTab } from '@/components/opportunities/BomTab'
+import { HardwareScheduleTab } from '@/components/opportunities/HardwareScheduleTab'
+import { SowTab } from '@/components/opportunities/SowTab'
 
 const TABS = ['Overview','Surveys','Designs','Door Compliance','Hardware Schedule','SOW','BOM','Project','Field','Risk Factors','Delivery','Huddle'] as const
 type Tab = (typeof TABS)[number]
@@ -79,9 +82,9 @@ export default function OppDetailPage() {
         {tab === 'Surveys' && <StubTab name="Surveys" />}
         {tab === 'Designs' && <DesignsTab oppId={opp.id} oppNumber={opp.opp_number ?? ''} projectName={opp.project_name ?? undefined} />}
         {tab === 'Door Compliance' && <StubTab name="Door Compliance" />}
-        {tab === 'Hardware Schedule' && <StubTab name="Hardware Schedule" />}
-        {tab === 'SOW' && <StubTab name="SOW" />}
-        {tab === 'BOM' && <StubTab name="BOM" />}
+        {tab === 'Hardware Schedule' && <HardwareScheduleTab oppId={opp.id} />}
+        {tab === 'SOW' && <SowTab oppId={opp.id} opportunity={opp} />}
+        {tab === 'BOM' && <BomTab oppId={opp.id} />}
         {tab === 'Project' && <StubTab name="Project" />}
         {tab === 'Field' && <StubTab name="Field" />}
         {tab === 'Risk Factors' && <StubTab name="Risk Factors" />}

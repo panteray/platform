@@ -1047,7 +1047,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         </div>
 
         {/* ── LEFT PANEL (200px) ── */}
-        {showLeftPanel && activeTab !== 'hardware' && (
+        {showLeftPanel && activeTab !== 'hardware' && activeTab !== 'reports' && (
           <LeftPanel
             devices={areaDevices}
             selectedId={selectedDeviceId}
@@ -1154,8 +1154,45 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           </div>
         )}
 
+        {/* ── REPORTS TAB ── */}
+        {activeTab === 'reports' && (
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', overflow: 'auto', background: C.bg, padding: 24 }}>
+            <div style={{ width: '100%', maxWidth: 600 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 16 }}>Export Reports</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  { label: 'Bill of Materials (BOM)', desc: 'Device quantities grouped by model with costs', fn: () => import('@/lib/export-helpers').then(m => m.exportBom(designId)) },
+                  { label: 'BOM with Pricing', desc: 'Full pricing with dealer cost, markup, labor', fn: () => import('@/lib/export-helpers').then(m => m.exportBomWithPricing(designId)) },
+                  { label: 'Hardware Schedule', desc: 'Devices grouped by area with install details', fn: () => import('@/lib/export-helpers').then(m => m.exportHardwareSchedule(designId)) },
+                  { label: 'Cable Schedule', desc: 'All cable runs with lengths, types, MDF assignments', fn: () => import('@/lib/export-helpers').then(m => m.exportCableSchedule(designId)) },
+                  { label: 'Material List', desc: 'Every device with full properties', fn: () => import('@/lib/export-helpers').then(m => m.exportMaterialList(designId)) },
+                ].map(item => (
+                  <button key={item.label} onClick={() => { item.fn().catch(console.error) }}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '14px 16px', background: C.bgPanel, border: `1px solid ${C.border}`,
+                      borderRadius: 8, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.boxShadow = `0 0 0 1px ${C.accent}40` }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = 'none' }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{item.label}</div>
+                      <div style={{ fontSize: 10, color: C.textDim, marginTop: 2 }}>{item.desc}</div>
+                    </div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: C.accent, padding: '4px 10px', background: `${C.accent}15`, borderRadius: 4 }}>
+                      XLSX
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── CANVAS ── */}
-        {activeTab !== 'hardware' && <CanvasArea
+        {activeTab !== 'hardware' && activeTab !== 'reports' && <CanvasArea
           designId={designId}
           areaId={activeAreaId}
           floorPlan={activeFloorPlan}
