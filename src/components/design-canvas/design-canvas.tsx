@@ -44,6 +44,7 @@ import { StorageCalculatorPanel } from './storage-calculator-panel'
 import { TopologyView } from './topology-view'
 import { RackElevationView } from './rack-elevation-view'
 import { VlanPlanner } from './vlan-planner'
+import { AvSignalFlow } from './av-signal-flow'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { DeviceLibraryModal } from './device-library-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
@@ -117,12 +118,13 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     addTopologyLink, updateTopologyLink, deleteTopologyLink,
     addRack, updateRack, deleteRack,
     addVlan, updateVlan, deleteVlan,
+    avoipDevices, addAvoipDevice, updateAvoipDevice, deleteAvoipDevice,
   } = state
 
   /* ── UI state ── */
   const [activeTool, setActiveTool] = useState<CanvasTool>('select')
   const [activeTab, setActiveTab] = useState<string>('maps')
-  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan'>('topology')
+  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan' | 'av'>('topology')
   const [selectedImagerIdx, setSelectedImagerIdx] = useState<number | null>(null)
   const [activeCategory, setActiveCategory] = useState<IconTabId>('camera')
   const [showGrid, setShowGrid] = useState(true)
@@ -1220,6 +1222,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 { id: 'topology' as const, label: 'Network Topology' },
                 { id: 'rack' as const, label: 'Rack Elevation' },
                 { id: 'vlan' as const, label: 'VLAN / Subnet' },
+                { id: 'av' as const, label: 'AV Signal Flow' },
               ]).map(t => (
                 <button key={t.id} onClick={() => setAdditionalsView(t.id)}
                   style={{
@@ -1245,6 +1248,10 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
               {additionalsView === 'vlan' && (
                 <VlanPlanner designId={designId} vlans={vlans}
                   onAddVlan={addVlan} onUpdateVlan={updateVlan} onDeleteVlan={deleteVlan} />
+              )}
+              {additionalsView === 'av' && (
+                <AvSignalFlow designId={designId} avoipDevices={avoipDevices}
+                  onAddDevice={addAvoipDevice} onUpdateDevice={updateAvoipDevice} onDeleteDevice={deleteAvoipDevice} />
               )}
             </div>
           </div>
