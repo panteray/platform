@@ -302,6 +302,7 @@ function CanvasArea(props: Props) {
   const cableWarningMarkersRef = useRef<google.maps.Marker[]>([])
   const cableDistanceOverlaysRef = useRef<google.maps.OverlayView[]>([])
   const wireTooltipRef = useRef<{ show: (pos: google.maps.LatLng) => void; hide: () => void } | null>(null)
+  const wireTooltipShownRef = useRef(false)
   const cablesRef = useRef(cables)
   useEffect(() => { cablesRef.current = cables }, [cables])
   const wallPolylinesRef = useRef<google.maps.Polyline[]>([])
@@ -854,21 +855,29 @@ function CanvasArea(props: Props) {
     const initialLng = cfg?.lng ?? -122.4194
     const initialZoom = cfg?.zoom ?? 18
 
+    // Floor plan areas get blank white background, satellite areas get satellite imagery
+    const hasFloorPlan = !!floorPlan?.file_url
+    const blankWhiteStyle: google.maps.MapTypeStyle[] = [
+      { elementType: 'all', stylers: [{ visibility: 'off' }] },
+    ]
+    const satelliteCleanStyle: google.maps.MapTypeStyle[] = [
+      { elementType: 'labels', stylers: [{ visibility: 'off' }] },
+      { featureType: 'administrative', stylers: [{ visibility: 'off' }] },
+      { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+      { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+    ]
+
     const map = new google.maps.Map(mapContainerRef.current, {
       center: { lat: initialLat, lng: initialLng },
       zoom: initialZoom,
-      mapTypeId: 'satellite',
+      mapTypeId: hasFloorPlan ? 'roadmap' : 'satellite',
       disableDefaultUI: true,
       gestureHandling: 'greedy',
       draggableCursor: 'grab',
       draggingCursor: 'grabbing',
       keyboardShortcuts: true,
-      styles: [
-        { elementType: 'labels', stylers: [{ visibility: 'off' }] },
-        { featureType: 'administrative', stylers: [{ visibility: 'off' }] },
-        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-      ],
+      styles: hasFloorPlan ? blankWhiteStyle : satelliteCleanStyle,
+      backgroundColor: hasFloorPlan ? '#ffffff' : undefined,
     })
 
     mapRef.current = map
@@ -1300,12 +1309,11 @@ function CanvasArea(props: Props) {
         onCableUpdatedRef.current?.(cableId, newWp, len)
       })
 
-      // Show tooltip on first hover over cable
-      let tooltipShown = false
+      // Show tooltip on first-ever hover over any cable (once per session)
       polyline.addListener('mouseover', (e: google.maps.PolyMouseEvent) => {
-        if (!tooltipShown && e.latLng && wireTooltipRef.current) {
+        if (!wireTooltipShownRef.current && e.latLng && wireTooltipRef.current) {
           wireTooltipRef.current.show(e.latLng)
-          tooltipShown = true
+          wireTooltipShownRef.current = true
         }
       })
 
@@ -1639,6 +1647,31 @@ function CanvasArea(props: Props) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walls, geoContext, mapReady, selectedWallId])
+
+  // Switch map type when floor plan changes (blank white for floor plan areas, satellite otherwise)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const hasFloorPlan = !!floorPlan?.file_url
+    if (hasFloorPlan) {
+      map.setMapTypeId('roadmap')
+      map.setOptions({
+        styles: [{ elementType: 'all', stylers: [{ visibility: 'off' }] }],
+        backgroundColor: '#ffffff',
+      })
+    } else {
+      map.setMapTypeId('satellite')
+      map.setOptions({
+        styles: [
+          { elementType: 'labels', stylers: [{ visibility: 'off' }] },
+          { featureType: 'administrative', stylers: [{ visibility: 'off' }] },
+          { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+          { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+        ],
+        backgroundColor: undefined,
+      })
+    }
+  }, [floorPlan, mapReady])
 
   // Render floor plan as GroundOverlay
   useEffect(() => {

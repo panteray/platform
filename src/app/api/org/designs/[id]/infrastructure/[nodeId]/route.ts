@@ -29,7 +29,7 @@ export async function PATCH(
   const admin = createAdminClient()
 
   const allowed: Record<string, unknown> = {}
-  for (const f of ['area_id','canvas_id','name','node_type','position_x','position_y','properties','rack_units','power_circuits']) {
+  for (const f of ['area_id','canvas_id','name','node_type','position_x','position_y','properties','rack_units','power_circuits','color_hex','service_loop_ft','notes']) {
     if (body[f] !== undefined) allowed[f] = body[f]
   }
   if (Object.keys(allowed).length === 0) return NextResponse.json({ error: 'No updatable fields' }, { status: 400 })

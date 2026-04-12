@@ -123,7 +123,8 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const [showScaleEdit, setShowScaleEdit] = useState(false)
   const [scaleEditValue, setScaleEditValue] = useState('')
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
-  const [walls, setWalls] = useState<Array<{ id: string; points: Array<{ x: number; y: number }>; wallType?: string; heightFt?: number; opacity?: number; color?: string }>>([])
+  const [walls, setWalls] = useState<Array<{ id: string; name?: string; points: Array<{ x: number; y: number }>; wallType?: string; heightFt?: number; opacity?: number; color?: string }>>([])
+  const wallCountRef = useRef(0)
   const [selectedMdfId, setSelectedMdfId] = useState<string | null>(null)
   const [showIrRange, setShowIrRange] = useState(true)
   const [hiddenPpfZones, setHiddenPpfZones] = useState<Set<string>>(new Set())
@@ -1252,7 +1253,8 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           canvasActionsRef={canvasActionsRef}
           walls={walls}
           onWallCreated={(pts) => {
-            setWalls(prev => [...prev, { id: crypto.randomUUID(), points: pts }])
+            wallCountRef.current += 1
+            setWalls(prev => [...prev, { id: crypto.randomUUID(), name: `Wall ${wallCountRef.current}`, points: pts }])
             toast.success('Wall created')
           }}
           onWallDeleted={(id) => { setWalls(prev => prev.filter(w => w.id !== id)); if (selectedWallId === id) setSelectedWallId(null) }}
