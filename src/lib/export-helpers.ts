@@ -90,6 +90,8 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+export type ExportFormat = 'xlsx' | 'pdf' | 'docx'
+
 async function toXlsx(rows: Record<string, unknown>[], sheetName: string): Promise<Blob> {
   const XLSX = await import('xlsx')
   const ws = XLSX.utils.json_to_sheet(rows)
@@ -97,6 +99,83 @@ async function toXlsx(rows: Record<string, unknown>[], sheetName: string): Promi
   XLSX.utils.book_append_sheet(wb, ws, sheetName)
   const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
   return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+}
+
+/** Generate a print-ready HTML document for PDF export (browser print dialog) */
+function toPdfPrint(title: string, rows: Record<string, unknown>[], columns: string[]) {
+  const headerCells = columns.map(c => `<th style="border:1px solid #ddd;padding:6px 10px;background:#f5f5f5;font-size:11px;font-weight:600;text-align:left">${c}</th>`).join('')
+  const bodyRows = rows.map(row =>
+    `<tr>${columns.map(c => `<td style="border:1px solid #ddd;padding:5px 10px;font-size:11px">${row[c] ?? ''}</td>`).join('')}</tr>`
+  ).join('')
+  const html = `<!DOCTYPE html><html><head><title>${title}</title>
+    <style>body{font-family:system-ui,sans-serif;max-width:1000px;margin:30px auto;padding:0 20px;color:#1a1a1a}
+    h1{font-size:18px;border-bottom:2px solid #522F82;padding-bottom:6px;color:#522F82}
+    table{width:100%;border-collapse:collapse;margin:12px 0}
+    .meta{font-size:11px;color:#666;margin-bottom:16px}
+    @media print{body{margin:0;padding:10px}}</style></head><body>
+    <h1>${title}</h1>
+    <div class="meta">Generated ${new Date().toLocaleDateString()} · ${rows.length} items</div>
+    <table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>
+    </body></html>`
+  const w = window.open('', '_blank', 'width=900,height=700')
+  if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500) }
+}
+
+/** Generate a DOCX blob from rows using the docx npm package */
+async function toDocxBlob(title: string, rows: Record<string, unknown>[], columns: string[]): Promise<Blob> {
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, BorderStyle, ShadingType } = await import('docx')
+  const border = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' }
+  const borders = { top: border, bottom: border, left: border, right: border }
+  const colW = Math.floor(9360 / columns.length)
+
+  const headerRow = new TableRow({
+    children: columns.map(c => new TableCell({
+      borders, width: { size: colW, type: WidthType.DXA },
+      shading: { fill: 'E8E8E8', type: ShadingType.CLEAR },
+      margins: { top: 60, bottom: 60, left: 80, right: 80 },
+      children: [new Paragraph({ children: [new TextRun({ text: c, bold: true, font: 'Arial', size: 18 })] })],
+    })),
+  })
+
+  const dataRows = rows.map(row => new TableRow({
+    children: columns.map(c => new TableCell({
+      borders, width: { size: colW, type: WidthType.DXA },
+      margins: { top: 40, bottom: 40, left: 80, right: 80 },
+      children: [new Paragraph({ children: [new TextRun({ text: String(row[c] ?? ''), font: 'Arial', size: 18 })] })],
+    })),
+  }))
+
+  const doc = new Document({
+    sections: [{
+      properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
+      children: [
+        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, font: 'Arial' })] }),
+        new Paragraph({ children: [new TextRun({ text: `Generated ${new Date().toLocaleDateString()} · ${rows.length} items`, font: 'Arial', size: 18, color: '888888' })] }),
+        new Paragraph({ children: [] }),
+        new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: columns.map(() => colW), rows: [headerRow, ...dataRows] }),
+      ],
+    }],
+  })
+  return await Packer.toBlob(doc)
+}
+
+/** Export rows in the chosen format */
+async function exportInFormat(
+  title: string,
+  rows: Record<string, unknown>[],
+  columns: string[],
+  filename: string,
+  format: ExportFormat,
+) {
+  if (format === 'pdf') {
+    toPdfPrint(title, rows, columns)
+  } else if (format === 'docx') {
+    const blob = await toDocxBlob(title, rows, columns)
+    downloadBlob(blob, filename.replace(/\.xlsx$/, '.docx'))
+  } else {
+    const blob = await toXlsx(rows, title)
+    downloadBlob(blob, filename)
+  }
 }
 
 async function fetchExport<T>(designId: string, type: string): Promise<T> {
@@ -107,8 +186,9 @@ async function fetchExport<T>(designId: string, type: string): Promise<T> {
 
 // ---- Public exports ----
 
-export async function exportBom(designId: string): Promise<void> {
+export async function exportBom(designId: string, format: ExportFormat = 'xlsx'): Promise<void> {
   const data = await fetchExport<BomExport>(designId, 'bom')
+  const columns = ['#', 'Category', 'Manufacturer', 'Model', 'Qty', 'Unit Cost', 'Total']
   const rows = data.items.map((item, i) => ({
     '#': i + 1,
     'Category': item.category,
@@ -118,12 +198,12 @@ export async function exportBom(designId: string): Promise<void> {
     'Unit Cost': item.unitCost,
     'Total': item.qty * item.unitCost,
   }))
-  const blob = await toXlsx(rows, 'BOM')
-  downloadBlob(blob, `${sanitizeFilename(data.designName)}_BOM.xlsx`)
+  await exportInFormat(`${data.designName} — BOM`, rows, columns, `${sanitizeFilename(data.designName)}_BOM.xlsx`, format)
 }
 
-export async function exportMaterialList(designId: string): Promise<void> {
+export async function exportMaterialList(designId: string, format: ExportFormat = 'xlsx'): Promise<void> {
   const data = await fetchExport<MaterialExport>(designId, 'material-list')
+  const columns = ['#', 'Label', 'Category', 'Status', 'Mount Type', 'Area', 'Manufacturer', 'Model', 'Part #']
   const rows = data.devices.map((d, i) => {
     const props = d.properties ?? {}
     return {
@@ -138,12 +218,12 @@ export async function exportMaterialList(designId: string): Promise<void> {
       'Part #': String(props.part_number ?? ''),
     }
   })
-  const blob = await toXlsx(rows, 'Material List')
-  downloadBlob(blob, `${sanitizeFilename(data.designName)}_Material_List.xlsx`)
+  await exportInFormat(`${data.designName} — Material List`, rows, columns, `${sanitizeFilename(data.designName)}_Material_List.xlsx`, format)
 }
 
-export async function exportHardwareSchedule(designId: string): Promise<void> {
+export async function exportHardwareSchedule(designId: string, format: ExportFormat = 'xlsx'): Promise<void> {
   const data = await fetchExport<HardwareExport>(designId, 'hardware-schedule')
+  const columns = ['#', 'Area', 'Label', 'Category', 'Status', 'Mount Type', 'Manufacturer', 'Model', 'Part #']
   const rows: Record<string, unknown>[] = []
   let idx = 1
   for (const area of data.areas) {
@@ -151,7 +231,7 @@ export async function exportHardwareSchedule(designId: string): Promise<void> {
       const props = (d.properties ?? {}) as Record<string, unknown>
       rows.push({
         '#': idx++,
-        'Area': area.areaId,
+        'Area': (area as unknown as { areaName?: string }).areaName || area.areaId,
         'Label': d.label,
         'Category': d.category,
         'Status': d.status || 'planned',
@@ -159,18 +239,16 @@ export async function exportHardwareSchedule(designId: string): Promise<void> {
         'Manufacturer': String(props.manufacturer ?? ''),
         'Model': String(props.model ?? ''),
         'Part #': String(props.part_number ?? ''),
-        'Position X': d.position_x,
-        'Position Y': d.position_y,
       })
     }
   }
-  const blob = await toXlsx(rows, 'Hardware Schedule')
-  downloadBlob(blob, `${sanitizeFilename(data.designName)}_Hardware_Schedule.xlsx`)
+  await exportInFormat(`${data.designName} — Hardware Schedule`, rows, columns, `${sanitizeFilename(data.designName)}_Hardware_Schedule.xlsx`, format)
 }
 
-export async function exportCableSchedule(designId: string): Promise<void> {
+export async function exportCableSchedule(designId: string, format: ExportFormat = 'xlsx'): Promise<void> {
   const data = await fetchExport<CableExport>(designId, 'cable-schedule')
   const mdfMap = new Map(data.mdfIdfs.map((m) => [m.id, m.name]))
+  const columns = ['#', 'Label', 'Cable Type', 'Length (ft)', 'Slack %', 'Total Length (ft)', 'Service Loop (ft)', 'MDF/IDF']
   const rows: Record<string, string | number | null>[] = data.cables.map((c, i) => ({
     '#': i + 1,
     'Label': c.label || '',
@@ -179,25 +257,13 @@ export async function exportCableSchedule(designId: string): Promise<void> {
     'Slack %': c.slack_pct ?? '',
     'Total Length (ft)': c.total_length_ft ?? '',
     'Service Loop (ft)': c.service_loop_ft ?? '',
-    'From Device': c.from_device_id || '',
-    'To Device': c.to_device_id || '',
     'MDF/IDF': c.mdf_idf_id ? (mdfMap.get(c.mdf_idf_id) ?? c.mdf_idf_id) : '',
   }))
-  // Summary row
   rows.push({
-    '#': '',
-    'Label': 'TOTAL',
-    'Cable Type': '',
-    'Length (ft)': '',
-    'Slack %': '',
-    'Total Length (ft)': data.totalFootage,
-    'Service Loop (ft)': '',
-    'From Device': '',
-    'To Device': '',
-    'MDF/IDF': '',
+    '#': '', 'Label': 'TOTAL', 'Cable Type': '', 'Length (ft)': '', 'Slack %': '',
+    'Total Length (ft)': data.totalFootage, 'Service Loop (ft)': '', 'MDF/IDF': '',
   })
-  const blob = await toXlsx(rows, 'Cable Schedule')
-  downloadBlob(blob, `${sanitizeFilename(data.designName)}_Cable_Schedule.xlsx`)
+  await exportInFormat(`${data.designName} — Cable Schedule`, rows, columns, `${sanitizeFilename(data.designName)}_Cable_Schedule.xlsx`, format)
 }
 
 export function exportCanvasSnapshot(

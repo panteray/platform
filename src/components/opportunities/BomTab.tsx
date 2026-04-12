@@ -53,15 +53,21 @@ export function BomTab({ oppId }: Props) {
           {total > 0 && <div className="text-xs text-muted-foreground">Total: ${total.toLocaleString()}</div>}
         </div>
         <div className="flex gap-2">
-          <button onClick={async () => { setExporting(true); await exportBom(designId); setExporting(false) }}
-            disabled={exporting}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50">
-            <Download className="h-3.5 w-3.5" /> Export XLSX
-          </button>
+          {(['xlsx', 'pdf', 'docx'] as const).map(fmt => (
+            <button key={fmt} onClick={async () => { setExporting(true); await exportBom(designId, fmt); setExporting(false) }}
+              disabled={exporting}
+              className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-bold uppercase transition-colors disabled:opacity-50 ${
+                fmt === 'xlsx' ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+                : fmt === 'pdf' ? 'border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10'
+                : 'border-blue-500/20 bg-blue-500/5 text-blue-500 hover:bg-blue-500/10'
+              }`}>
+              <Download className="h-3.5 w-3.5" /> {fmt}
+            </button>
+          ))}
           <button onClick={async () => { setExporting(true); await exportBomWithPricing(designId); setExporting(false) }}
             disabled={exporting}
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
-            <Package className="h-3.5 w-3.5" /> Export with Pricing
+            <Package className="h-3.5 w-3.5" /> Pricing
           </button>
         </div>
       </div>
