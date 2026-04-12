@@ -726,6 +726,43 @@ export function RightPanel({
                       onChange={v => updateProp('lock_type', v)}
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Reader In</div>
+                      <select value={String(props.reader_in || 'proximity')} onChange={e => updateProp('reader_in', e.target.value)}
+                        style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
+                        <option value="proximity">Proximity</option><option value="smart_card">Smart Card</option>
+                        <option value="biometric">Biometric</option><option value="keypad">Keypad</option>
+                        <option value="mobile">Mobile Credential</option>
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Reader Out</div>
+                      <select value={String(props.reader_out || 'none')} onChange={e => updateProp('reader_out', e.target.value)}
+                        style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
+                        <option value="none">None</option><option value="proximity">Proximity</option><option value="smart_card">Smart Card</option>
+                        <option value="biometric">Biometric</option><option value="keypad">Keypad</option>
+                        <option value="mobile">Mobile Credential</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: C.textMuted }}>
+                      <input type="checkbox" checked={!!props.rex} onChange={e => updateProp('rex', e.target.checked)} style={{ accentColor: C.accent }} /> REX
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: C.textMuted }}>
+                      <input type="checkbox" checked={!!props.door_contact} onChange={e => updateProp('door_contact', e.target.checked)} style={{ accentColor: C.accent }} /> Door Contact
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: C.textMuted }}>
+                      <input type="checkbox" checked={!!props.auto_operator} onChange={e => updateProp('auto_operator', e.target.checked)} style={{ accentColor: C.accent }} /> Auto-Operator
+                    </label>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Controller Assignment</div>
+                    <input value={String(props.controller_id || '')} placeholder="Controller device ID"
+                      onChange={e => updateProp('controller_id', e.target.value)}
+                      style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'monospace', outline: 'none' }} />
+                  </div>
                 </div>
               </Section>
             )}

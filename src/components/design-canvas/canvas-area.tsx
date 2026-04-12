@@ -354,6 +354,13 @@ function CanvasArea(props: Props) {
   const cableDistanceOverlaysRef = useRef<google.maps.OverlayView[]>([])
   const wireTooltipRef = useRef<{ show: (pos: google.maps.LatLng) => void; hide: () => void } | null>(null)
   const wireTooltipShownRef = useRef(false)
+
+  // Scale calibration state — two-point click
+  const scalePointARef = useRef<{ x: number; y: number; latLng: google.maps.LatLng } | null>(null)
+  const scaleMarkerARef = useRef<google.maps.Marker | null>(null)
+  const scaleLineRef = useRef<google.maps.Polyline | null>(null)
+  const onScaleCalibratedRef = useRef(onScaleCalibrated)
+  useEffect(() => { onScaleCalibratedRef.current = onScaleCalibrated }, [onScaleCalibrated])
   const cablesRef = useRef(cables)
   useEffect(() => { cablesRef.current = cables }, [cables])
   const wallPolylinesRef = useRef<google.maps.Polyline[]>([])
@@ -830,15 +837,18 @@ function CanvasArea(props: Props) {
     if (activeTool !== 'wall' && wallDrawRef.current) cleanupWallDraw()
   }, [activeTool, cleanupWallDraw])
 
-  // Cursor change for wall mode
+  // Cursor change for wall/scale mode + cleanup scale on tool switch
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    if (activeTool === 'wall') {
+    if (activeTool === 'wall' || activeTool === 'scale') {
       map.setOptions({ draggableCursor: 'crosshair' })
     } else {
-      // Only reset if we were the ones that set it
       map.setOptions({ draggableCursor: '' })
+      // Cleanup scale markers if switching away
+      scalePointARef.current = null
+      scaleMarkerARef.current?.setMap(null); scaleMarkerARef.current = null
+      scaleLineRef.current?.setMap(null); scaleLineRef.current = null
     }
   }, [activeTool])
 
@@ -1024,6 +1034,45 @@ function CanvasArea(props: Props) {
           // Not near a device — add waypoint
           handleCableMapClick(clickX, clickY)
           return
+        }
+        return
+      }
+
+      // ── Scale mode: two-point calibration ──
+      if (activeToolRef.current === 'scale') {
+        if (!scalePointARef.current) {
+          // First click — set point A
+          scalePointARef.current = { x: clickX, y: clickY, latLng: e.latLng }
+          scaleMarkerARef.current = new google.maps.Marker({
+            position: e.latLng, map, clickable: false, zIndex: 50,
+            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: '#22c55e', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
+          })
+        } else {
+          // Second click — set point B, calculate scale
+          const a = scalePointARef.current
+          const dx = clickX - a.x, dy = clickY - a.y
+          const pixelDist = Math.sqrt(dx * dx + dy * dy)
+
+          // Show line between points
+          scaleLineRef.current?.setMap(null)
+          scaleLineRef.current = new google.maps.Polyline({
+            path: [a.latLng, e.latLng], strokeColor: '#22c55e', strokeWeight: 2, map, clickable: false, zIndex: 49,
+          })
+
+          // Prompt for real-world distance
+          const input = window.prompt(`Distance between the two points in feet?\n\n(Pixel distance: ${Math.round(pixelDist)}px)`, '100')
+          const feet = parseFloat(input || '')
+
+          // Cleanup markers
+          scaleMarkerARef.current?.setMap(null); scaleMarkerARef.current = null
+          scaleLineRef.current?.setMap(null); scaleLineRef.current = null
+          scalePointARef.current = null
+
+          if (feet > 0 && pixelDist > 0) {
+            const newScale = pixelDist / feet
+            onScaleCalibratedRef.current?.(newScale)
+            onToolChangeRef.current?.('select')
+          }
         }
         return
       }
