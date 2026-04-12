@@ -1213,6 +1213,25 @@ export interface DesignTopologyLink {
   updated_at: string
 }
 
+export interface InterconnectNode {
+  id: string
+  design_id: string
+  node_type: string
+  label: string
+  properties: Record<string, unknown>
+  created_at: string
+}
+
+export interface InterconnectLink {
+  id: string
+  design_id: string
+  from_node_id: string
+  to_node_id: string
+  link_type: string
+  properties: Record<string, unknown>
+  created_at: string
+}
+
 export interface DoorConfig {
   id: string
   org_id: string

@@ -6,6 +6,7 @@ import type {
   Design, DesignArea, DesignDevice, DesignCable, DesignMdfIdf,
   DesignFloorPlan, DesignZone, DesignRackSlots, DesignVlanSubnet,
   DesignTopologyNode, DesignTopologyLink, DesignAvoipDevice, DesignWall,
+  InterconnectNode, InterconnectLink,
 } from '@/types/database'
 
 export interface DesignCanvasState {
@@ -25,6 +26,12 @@ export interface DesignCanvasState {
   addWall: (data: Record<string, unknown>) => Promise<DesignWall | null>
   updateWall: (id: string, data: Record<string, unknown>) => Promise<unknown>
   deleteWall: (id: string) => Promise<boolean>
+  interconnectNodes: InterconnectNode[]
+  interconnectLinks: InterconnectLink[]
+  addInterconnectNode: (data: Record<string, unknown>) => Promise<InterconnectNode | null>
+  deleteInterconnectNode: (id: string) => Promise<boolean>
+  addInterconnectLink: (data: Record<string, unknown>) => Promise<InterconnectLink | null>
+  deleteInterconnectLink: (id: string) => Promise<boolean>
   loading: boolean
   error: string | null
   activeAreaId: string | null
@@ -151,6 +158,8 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
   const [topologyLinks, setTopologyLinks] = useState<DesignTopologyLink[]>([])
   const [avoipDevices, setAvoipDevices] = useState<DesignAvoipDevice[]>([])
   const [walls, setWalls] = useState<DesignWall[]>([])
+  const [interconnectNodes, setInterconnectNodes] = useState<InterconnectNode[]>([])
+  const [interconnectLinks, setInterconnectLinks] = useState<InterconnectLink[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeAreaId, setActiveAreaId] = useState<string | null>(null)
@@ -201,6 +210,16 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
       if (linkRes.ok) setTopologyLinks((await linkRes.json()).links ?? [])
       if (avRes.ok) setAvoipDevices((await avRes.json()).avoipDevices ?? [])
       if (wallRes.ok) setWalls((await wallRes.json()).walls ?? [])
+
+      // Fetch interconnect data
+      try {
+        const icRes = await fetch(`/api/org/designs/${designId}/interconnect`)
+        if (icRes.ok) {
+          const icData = await icRes.json()
+          setInterconnectNodes(icData.nodes ?? [])
+          setInterconnectLinks(icData.links ?? [])
+        }
+      } catch { /* interconnect is optional */ }
     } catch {
       if (!mountedRef.current) return
       setError('Network error')
@@ -390,6 +409,46 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
   const avoipCrud = useCrud<DesignAvoipDevice>(designId, 'avoip', 'avoipDevice', setAvoipDevices, 'AV device')
   const wallCrud = useCrud<DesignWall>(designId, 'walls', 'wall', setWalls, 'wall')
 
+  // Interconnect CRUD (combined endpoint)
+  const addInterconnectNode = useCallback(async (data: Record<string, unknown>): Promise<InterconnectNode | null> => {
+    try {
+      const res = await fetch(`/api/org/designs/${designId}/interconnect`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (!res.ok) { toast.error('Failed to add node'); return null }
+      const json = await res.json()
+      const node = json.node as InterconnectNode
+      setInterconnectNodes(prev => [...prev, node])
+      return node
+    } catch { toast.error('Failed to add node'); return null }
+  }, [designId])
+
+  const deleteInterconnectNode = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      setInterconnectNodes(prev => prev.filter(n => n.id !== id))
+      setInterconnectLinks(prev => prev.filter(l => l.from_node_id !== id && l.to_node_id !== id))
+      await fetch(`/api/org/designs/${designId}/interconnect/${id}`, { method: 'DELETE' })
+      return true
+    } catch { return false }
+  }, [designId])
+
+  const addInterconnectLink = useCallback(async (data: Record<string, unknown>): Promise<InterconnectLink | null> => {
+    try {
+      const res = await fetch(`/api/org/designs/${designId}/interconnect`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (!res.ok) { toast.error('Failed to add link'); return null }
+      const json = await res.json()
+      const link = json.link as InterconnectLink
+      setInterconnectLinks(prev => [...prev, link])
+      return link
+    } catch { toast.error('Failed to add link'); return null }
+  }, [designId])
+
+  const deleteInterconnectLink = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      setInterconnectLinks(prev => prev.filter(l => l.id !== id))
+      await fetch(`/api/org/designs/${designId}/interconnect/${id}`, { method: 'DELETE' })
+      return true
+    } catch { return false }
+  }, [designId])
+
   return {
     design, areas, devices, cables, mdfIdfs, floorPlans, zones, racks, vlans, topologyNodes, topologyLinks, avoipDevices, walls,
     loading, error,
@@ -408,6 +467,9 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
     addVlan: vlanCrud.add, updateVlan: vlanCrud.update, deleteVlan: vlanCrud.remove,
     addAvoipDevice: avoipCrud.add, updateAvoipDevice: avoipCrud.update, deleteAvoipDevice: avoipCrud.remove,
     addWall: wallCrud.add, updateWall: wallCrud.update, deleteWall: wallCrud.remove,
+    interconnectNodes, interconnectLinks,
+    addInterconnectNode, deleteInterconnectNode,
+    addInterconnectLink, deleteInterconnectLink,
     refetch: fetchDesign,
   }
 }

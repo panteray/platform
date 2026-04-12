@@ -45,6 +45,7 @@ import { TopologyView } from './topology-view'
 import { RackElevationView } from './rack-elevation-view'
 import { VlanPlanner } from './vlan-planner'
 import { AvSignalFlow } from './av-signal-flow'
+import { InterconnectView } from './interconnect-view'
 import { ReportGenerator } from './report-generator'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { DeviceLibraryModal } from './device-library-modal'
@@ -120,12 +121,15 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     addRack, updateRack, deleteRack,
     addVlan, updateVlan, deleteVlan,
     avoipDevices, addAvoipDevice, updateAvoipDevice, deleteAvoipDevice,
+    interconnectNodes, interconnectLinks,
+    addInterconnectNode, deleteInterconnectNode,
+    addInterconnectLink, deleteInterconnectLink,
   } = state
 
   /* ── UI state ── */
   const [activeTool, setActiveTool] = useState<CanvasTool>('select')
   const [activeTab, setActiveTab] = useState<string>('maps')
-  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan' | 'av'>('topology')
+  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan' | 'av' | 'interconnect'>('topology')
   const [selectedImagerIdx, setSelectedImagerIdx] = useState<number | null>(null)
   const [activeCategory, setActiveCategory] = useState<IconTabId>('camera')
   const [showGrid, setShowGrid] = useState(true)
@@ -1280,6 +1284,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 { id: 'rack' as const, label: 'Rack Elevation' },
                 { id: 'vlan' as const, label: 'VLAN / Subnet' },
                 { id: 'av' as const, label: 'AV Signal Flow' },
+                { id: 'interconnect' as const, label: 'Interconnect Wiring' },
               ]).map(t => (
                 <button key={t.id} onClick={() => setAdditionalsView(t.id)}
                   style={{
@@ -1309,6 +1314,11 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
               {additionalsView === 'av' && (
                 <AvSignalFlow designId={designId} avoipDevices={avoipDevices}
                   onAddDevice={addAvoipDevice} onUpdateDevice={updateAvoipDevice} onDeleteDevice={deleteAvoipDevice} />
+              )}
+              {additionalsView === 'interconnect' && (
+                <InterconnectView designId={designId} nodes={interconnectNodes} links={interconnectLinks}
+                  onAddNode={addInterconnectNode} onUpdateNode={async () => {}} onDeleteNode={deleteInterconnectNode}
+                  onAddLink={addInterconnectLink} onUpdateLink={async () => {}} onDeleteLink={deleteInterconnectLink} />
               )}
             </div>
           </div>
