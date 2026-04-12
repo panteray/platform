@@ -160,7 +160,7 @@ async function toDocxBlob(title: string, rows: Record<string, unknown>[], column
 }
 
 /** Export rows in the chosen format */
-async function exportInFormat(
+export async function exportInFormat(
   title: string,
   rows: Record<string, unknown>[],
   columns: string[],

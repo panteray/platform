@@ -1269,6 +1269,9 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                   { label: 'Hardware Schedule', desc: 'Devices grouped by area with install details', key: 'hw' },
                   { label: 'Cable Schedule', desc: 'All cable runs with lengths, types, MDF assignments', key: 'cable' },
                   { label: 'Material List', desc: 'Every device with full properties', key: 'material' },
+                  { label: 'IP Scheme Document', desc: 'VLAN/Subnet assignments from planner', key: 'ip-scheme' },
+                  { label: 'Rack Elevation', desc: 'Per-rack device assignments and power', key: 'rack' },
+                  { label: 'AV Signal Flow', desc: 'AV device signal flow diagram', key: 'av-flow' },
                 ] as const).map(item => (
                   <div key={item.key} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1289,6 +1292,21 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                             else if (item.key === 'hw') await m.exportHardwareSchedule(designId, fmt)
                             else if (item.key === 'cable') await m.exportCableSchedule(designId, fmt)
                             else if (item.key === 'material') await m.exportMaterialList(designId, fmt)
+                            else if (item.key === 'ip-scheme') {
+                              const rows = vlans.map((v, i) => ({ '#': i + 1, 'VLAN ID': v.vlan_id, 'Name': v.vlan_name || '', 'Subnet': v.subnet || '', 'Gateway': v.gateway || '', 'DHCP Start': v.dhcp_range_start || '', 'DHCP End': v.dhcp_range_end || '' }))
+                              const cols = ['#', 'VLAN ID', 'Name', 'Subnet', 'Gateway', 'DHCP Start', 'DHCP End']
+                              await m.exportInFormat(`IP Scheme — ${design?.name || 'Design'}`, rows, cols, 'IP_Scheme.xlsx', fmt)
+                            }
+                            else if (item.key === 'rack') {
+                              const rows = racks.flatMap((r, ri) => r.slots.filter(s => s.device_name).map((s, si) => ({ '#': ri * 100 + si + 1, 'Rack': r.rack_name, 'U Position': s.u_position, 'Device': s.device_name || '', 'RU Height': s.ru_height, 'PoE (W)': s.poe_draw_w, 'Power (W)': s.power_draw_w })))
+                              const cols = ['#', 'Rack', 'U Position', 'Device', 'RU Height', 'PoE (W)', 'Power (W)']
+                              await m.exportInFormat(`Rack Elevation — ${design?.name || 'Design'}`, rows, cols, 'Rack_Elevation.xlsx', fmt)
+                            }
+                            else if (item.key === 'av-flow') {
+                              const rows = avoipDevices.map((d, i) => ({ '#': i + 1, 'Device': d.device_name || '', 'Protocol': d.protocol, 'IP': d.ip_address || '', 'VLAN': d.vlan_id || '', 'NIC': d.nic_type }))
+                              const cols = ['#', 'Device', 'Protocol', 'IP', 'VLAN', 'NIC']
+                              await m.exportInFormat(`AV Signal Flow — ${design?.name || 'Design'}`, rows, cols, 'AV_Signal_Flow.xlsx', fmt)
+                            }
                           }
                           run().catch(console.error)
                         }}
