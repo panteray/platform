@@ -16,6 +16,7 @@ import { X, Copy, Trash2, ChevronDown, ChevronRight, Settings, MapPinOff, Cctv, 
 import { C } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { calculateMountRequirements, type MountCalcInput } from '@/lib/calculators/mount-calculator'
+import { BlindSpotDiagram } from './blind-spot-diagram'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
 
 /* ─── 24 Colors ─── */
@@ -419,6 +420,22 @@ export function RightPanel({
               focalLength={focalLength}
               targetDist={targetDist}
             />
+
+            {/* Elevation / Blind Spot Diagram */}
+            {isCamera && installHeight > 0 && (
+              <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Side Profile</div>
+                <BlindSpotDiagram
+                  installHeight={installHeight}
+                  tiltAngle={Number(props.tilt_angle) || 0}
+                  blindSpotFt={installHeight > 0 && Number(props.tilt_angle) > 0
+                    ? Math.round(installHeight / Math.tan((Number(props.tilt_angle) + (hFov > 0 ? Math.atan(sensorW / (2 * focalLength)) * 180 / Math.PI : 22.5)) * Math.PI / 180))
+                    : 0}
+                  targetDistFt={targetDist}
+                  vFov={sensorW > 0 && focalLength > 0 ? 2 * Math.atan(sensorW / (2 * focalLength)) * 180 / Math.PI * 0.75 : 33}
+                />
+              </div>
+            )}
 
             {/* Device Specs (merged from Lens tab) */}
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
