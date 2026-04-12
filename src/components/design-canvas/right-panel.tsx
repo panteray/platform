@@ -766,6 +766,36 @@ export function RightPanel({
               </div>
             </div>
 
+            {/* PoE Settings */}
+            <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8 }}>PoE</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Standard</div>
+                  <select value={String(props.poe_standard || 'at')}
+                    onChange={e => updateProp('poe_standard', e.target.value)}
+                    style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, fontFamily: 'inherit', outline: 'none' }}>
+                    <option value="af">802.3af (15.4W)</option>
+                    <option value="at">802.3at (30W)</option>
+                    <option value="bt">802.3bt (60W+)</option>
+                    <option value="none">Non-PoE</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, color: C.textDim, marginBottom: 2 }}>Max Watts</div>
+                  <input type="number" value={Number(props.poe_watts) || (props.poe_standard === 'af' ? 13 : props.poe_standard === 'bt' ? 60 : 25)}
+                    onChange={e => updateProp('poe_watts', Number(e.target.value))}
+                    placeholder="25"
+                    style={{ width: '100%', padding: '4px 8px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 11, fontFamily: "'SF Mono', 'Cascadia Code', monospace", outline: 'none' }} />
+                </div>
+              </div>
+              {Number(props.wattage) > 0 && (
+                <div style={{ fontSize: 9, color: C.textDim, marginTop: 4 }}>
+                  Device spec: {String(props.wattage)}W
+                </div>
+              )}
+            </div>
+
             {/* Device Profile link */}
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
               <button onClick={() => onOpenDeviceProfile?.()} style={{
@@ -840,9 +870,10 @@ export function RightPanel({
             <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 6 }}>Camera Profile</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                <RecField label="FPS">
-                  <input type="number" min={1} max={60} value={Number(props.recording_fps) || 30}
-                    onChange={e => updateProp('recording_fps', Number(e.target.value))}
+                <RecField label={`FPS${Number(props.fps) ? ` (max ${props.fps})` : ''}`}>
+                  <input type="number" min={1} max={Number(props.fps) || 60}
+                    value={Math.min(Number(props.recording_fps) || 30, Number(props.fps) || 60)}
+                    onChange={e => updateProp('recording_fps', Math.min(Number(e.target.value), Number(props.fps) || 60))}
                     style={{ width: '100%', padding: '4px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 10, fontFamily: 'monospace', outline: 'none' }} />
                 </RecField>
                 <RecField label="Sub Stream">

@@ -36,6 +36,9 @@ export function StorageCalculatorPanel({
   const [retentionDays, setRetentionDays] = useState(defaultRetention);
   const [raidLevel, setRaidLevel] = useState<5 | 6>(6);
   const [driveSizeTB, setDriveSizeTB] = useState(10);
+  const [cloudCostPerTBMonth, setCloudCostPerTBMonth] = useState<number>(23); // AWS S3 Standard ~$23/TB/mo
+  const [localNvrCostPerTB, setLocalNvrCostPerTB] = useState<number>(200); // ~$200/TB for enterprise NVR storage
+  const [showTcoSettings, setShowTcoSettings] = useState(false);
 
   // Camera specs derived from placed devices
   const cameraSpecs = useMemo(() => {
@@ -60,9 +63,11 @@ export function StorageCalculatorPanel({
         retentionDays,
         raidLevel,
         driveSizeTB,
+        cloudStorageCostPerTBMonth: cloudCostPerTBMonth,
+        localNvrCostPerTB: localNvrCostPerTB,
       });
     } catch { return null; }
-  }, [cameraSpecs, retentionDays, raidLevel, driveSizeTB, externalOutput]);
+  }, [cameraSpecs, retentionDays, raidLevel, driveSizeTB, externalOutput, cloudCostPerTBMonth, localNvrCostPerTB]);
 
   const totalCameras = output?.totalCameras ?? 0;
 
@@ -218,10 +223,31 @@ export function StorageCalculatorPanel({
               </div>
             </div>
 
-            {/* TCO */}
-            {output.tco ? (
-              <div>
+            {/* TCO — editable pricing */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={sectionTitle}>5-Year TCO</div>
+                <button onClick={() => setShowTcoSettings(!showTcoSettings)} style={{
+                  fontSize: 9, color: C.accent, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
+                }}>{showTcoSettings ? 'Hide' : 'Edit'} Pricing</button>
+              </div>
+              {showTcoSettings && (
+                <div style={{ ...metricBox, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: 10, color: C.textMuted }}>Cloud $/TB/month</span>
+                    <input type="number" value={cloudCostPerTBMonth} min={0} step={1}
+                      onChange={e => setCloudCostPerTBMonth(Number(e.target.value))}
+                      style={{ ...selectStyle, width: 70, textAlign: 'right' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 10, color: C.textMuted }}>Local NVR $/TB</span>
+                    <input type="number" value={localNvrCostPerTB} min={0} step={10}
+                      onChange={e => setLocalNvrCostPerTB(Number(e.target.value))}
+                      style={{ ...selectStyle, width: 70, textAlign: 'right' }} />
+                  </div>
+                </div>
+              )}
+              {output.tco ? (
                 <div style={metricBox}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div>
@@ -234,16 +260,23 @@ export function StorageCalculatorPanel({
                     </div>
                   </div>
                   <div style={{ ...metricSmall, marginTop: 8 }}>{output.tco.recommendation}</div>
+                  {output.tco.localNvrCost < output.tco.cloud5YearCost && (
+                    <div style={{ fontSize: 9, color: '#22c55e', fontWeight: 600, marginTop: 4 }}>
+                      Local saves ${(output.tco.cloud5YearCost - output.tco.localNvrCost).toLocaleString()} over 5 years
+                    </div>
+                  )}
+                  {output.tco.cloud5YearCost < output.tco.localNvrCost && (
+                    <div style={{ fontSize: 9, color: '#3b82f6', fontWeight: 600, marginTop: 4 }}>
+                      Cloud saves ${(output.tco.localNvrCost - output.tco.cloud5YearCost).toLocaleString()} over 5 years
+                    </div>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <div>
-                <div style={sectionTitle}>5-Year TCO</div>
-                <div style={{ fontSize: 11, color: C.textDim, padding: '8px 0' }}>
-                  Provide cloud and local storage pricing to see TCO comparison.
+              ) : (
+                <div style={{ fontSize: 10, color: C.textDim }}>
+                  TCO calculates when cameras are placed.
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
       </div>
