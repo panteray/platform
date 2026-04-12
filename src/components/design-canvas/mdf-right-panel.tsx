@@ -314,6 +314,22 @@ export function MdfRightPanel({
                           {Math.round(totalLen)} ft total
                         </span>
                       </div>
+                      {/* Slack % + Service Loop (editable) */}
+                      {onUpdateCable && (
+                        <div style={{ display: 'flex', gap: 4, marginTop: 2, alignItems: 'center', fontSize: 8 }}>
+                          <span style={{ color: C.textDim }}>Slack</span>
+                          <input type="number" min={0} max={50} value={cb.slack_pct ?? 10}
+                            onChange={e => onUpdateCable(cb.id, { slack_pct: Number(e.target.value) })}
+                            style={{ width: 28, padding: '1px 2px', background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 2, color: C.text, fontSize: 8, fontFamily: 'monospace', outline: 'none', textAlign: 'right' }} />
+                          <span style={{ color: C.textDim }}>%</span>
+                          <span style={{ color: C.border, margin: '0 2px' }}>·</span>
+                          <span style={{ color: C.textDim }}>Loop</span>
+                          <input type="number" min={0} max={50} value={cb.service_loop_ft ?? 10}
+                            onChange={e => onUpdateCable(cb.id, { service_loop_ft: Number(e.target.value) })}
+                            style={{ width: 28, padding: '1px 2px', background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 2, color: C.text, fontSize: 8, fontFamily: 'monospace', outline: 'none', textAlign: 'right' }} />
+                          <span style={{ color: C.textDim }}>ft</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Disconnect button */}

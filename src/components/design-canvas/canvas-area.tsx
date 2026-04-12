@@ -115,6 +115,57 @@ const CAT_TO_PNG: Record<string, string> = {
   turret: '/icons/cctv/turret.png',
 }
 
+/** SVG paths for non-camera device markers (centered at 0,0) */
+const DEVICE_SVG_PATHS: Record<string, { path: string; color: string }> = {
+  // Access control — shield shape
+  access_control: { path: 'M 0,-10 L 8,-6 L 8,4 L 0,10 L -8,4 L -8,-6 Z', color: '#f97316' },
+  door: { path: 'M -6,-10 L 6,-10 L 6,10 L -6,10 Z M -3,-3 L -1,-3 L -1,1 L -3,1 Z', color: '#f59e0b' },
+  door_controller: { path: 'M -8,-6 L 8,-6 L 8,6 L -8,6 Z M -5,-3 L 5,-3 M -5,0 L 5,0 M -5,3 L 5,3', color: '#f97316' },
+  card_reader: { path: 'M -5,-8 L 5,-8 L 5,8 L -5,8 Z M -3,-4 L 3,-4 L 3,2 L -3,2 Z', color: '#f97316' },
+  // Network — hexagon shape
+  network: { path: 'M 0,-10 L 9,-5 L 9,5 L 0,10 L -9,5 L -9,-5 Z', color: '#22c55e' },
+  switch: { path: 'M -10,-5 L 10,-5 L 10,5 L -10,5 Z M -7,-2 L -5,0 L -7,2 M -3,-2 L -1,0 L -3,2 M 1,-2 L 3,0 L 1,2 M 5,-2 L 7,0 L 5,2', color: '#22c55e' },
+  access_switch: { path: 'M -10,-5 L 10,-5 L 10,5 L -10,5 Z', color: '#22c55e' },
+  wireless_ap: { path: 'M 0,-4 A 4,4 0 1,0 0,4 A 4,4 0 1,0 0,-4 Z M -8,-8 A 12,12 0 0,1 8,-8 M -10,-12 A 16,16 0 0,1 10,-12', color: '#06b6d4' },
+  router: { path: 'M -10,-6 L 10,-6 L 10,6 L -10,6 Z M 6,-3 L 6,3 M 3,-3 L 3,3', color: '#22c55e' },
+  firewall: { path: 'M -8,-8 L 8,-8 L 8,8 L -8,8 Z M -8,-2 L 8,-2 M -8,2 L 8,2 M -2,-8 L -2,8 M 2,-8 L 2,8', color: '#ef4444' },
+  // AV — speaker/display shapes
+  av: { path: 'M -6,-8 L 6,-8 L 6,8 L -6,8 Z M -3,-5 L 3,-5 L 3,5 L -3,5 Z', color: '#ec4899' },
+  speaker: { path: 'M -4,-8 L 0,-8 L 6,-4 L 6,4 L 0,8 L -4,8 Z', color: '#8b5cf6' },
+  intercom: { path: 'M -5,-7 L 5,-7 L 5,7 L -5,7 Z M 0,-3 A 3,3 0 1,0 0,3 A 3,3 0 1,0 0,-3 Z', color: '#8b5cf6' },
+  // Environmental
+  vape_environmental: { path: 'M 0,-9 L 8,-3 L 5,9 L -5,9 L -8,-3 Z', color: '#14b8a6' },
+  // Infrastructure
+  server: { path: 'M -8,-10 L 8,-10 L 8,10 L -8,10 Z M -6,-6 L 6,-6 M -6,-2 L 6,-2 M -6,2 L 6,2', color: '#64748b' },
+  nvr: { path: 'M -10,-6 L 10,-6 L 10,6 L -10,6 Z M -7,0 A 3,3 0 1,0 -1,0 A 3,3 0 1,0 -7,0 Z M 3,-3 L 7,-3 L 7,3 L 3,3 Z', color: '#1e293b' },
+  monitor: { path: 'M -8,-6 L 8,-6 L 8,4 L -8,4 Z M -3,4 L -3,7 L 3,7 L 3,4', color: '#3b82f6' },
+}
+
+/** Build a google.maps.Symbol for non-camera devices */
+function buildDeviceSymbol(category: string, isSelected: boolean): google.maps.Symbol {
+  const def = DEVICE_SVG_PATHS[category]
+  if (!def) {
+    // Fallback — simple circle
+    return {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 12,
+      fillColor: isSelected ? '#6d28d9' : '#64748b',
+      fillOpacity: isSelected ? 1.0 : 0.75,
+      strokeColor: '#fff',
+      strokeWeight: 2,
+    }
+  }
+  return {
+    path: def.path,
+    fillColor: isSelected ? '#6d28d9' : def.color,
+    fillOpacity: isSelected ? 1.0 : 0.85,
+    strokeColor: '#ffffff',
+    strokeWeight: isSelected ? 2 : 1.5,
+    scale: isSelected ? 1.4 : 1.2,
+    anchor: new google.maps.Point(0, 0),
+  }
+}
+
 /* ─── Camera marker SVG paths (google.maps.Symbol supports rotation) ─── */
 // Circle with a notch/wedge pointing in the aim direction (0° = East in canvas coords).
 // Path is drawn centered at 0,0 in a 24x24 viewBox. The notch points RIGHT (0°).
@@ -1053,15 +1104,10 @@ function CanvasArea(props: Props) {
 
       let marker = markersRef.current.get(dev.id)
 
-      // Build icon: cameras use Symbol (rotation-capable), others use PNG
+      // Build icon: cameras use rotatable Symbol, non-cameras use form-factor SVG symbols
       const iconObj: google.maps.Symbol | google.maps.Icon = isCamera
         ? buildCameraSymbol(dev.category, dev.rotation || 0, isSelected)
-        : {
-            url: CAT_TO_PNG[dev.category] || '/icons/cctv/dome.png',
-            scaledSize: new google.maps.Size(32, 32),
-            origin: new google.maps.Point(0, 0),
-            anchor: new google.maps.Point(16, 16),
-          }
+        : buildDeviceSymbol(dev.category, isSelected)
 
       if (!marker) {
         marker = new google.maps.Marker({
