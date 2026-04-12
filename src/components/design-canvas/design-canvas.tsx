@@ -41,6 +41,9 @@ import { MdfRightPanel } from './mdf-right-panel'
 import { WallRightPanel } from './wall-right-panel'
 import { FloorPlanUploadModal } from './floor-plan-upload-modal'
 import { StorageCalculatorPanel } from './storage-calculator-panel'
+import { TopologyView } from './topology-view'
+import { RackElevationView } from './rack-elevation-view'
+import { VlanPlanner } from './vlan-planner'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { DeviceLibraryModal } from './device-library-modal'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
@@ -108,10 +111,18 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     addCable, updateCable, deleteCable, addInfrastructure, updateInfrastructure, deleteInfrastructure,
     addWall, updateWall: updateWallDb, deleteWall: deleteWallDb,
   } = state
+  const {
+    topologyNodes, topologyLinks, racks, vlans,
+    addTopologyNode, updateTopologyNode, deleteTopologyNode,
+    addTopologyLink, updateTopologyLink, deleteTopologyLink,
+    addRack, updateRack, deleteRack,
+    addVlan, updateVlan, deleteVlan,
+  } = state
 
   /* ── UI state ── */
   const [activeTool, setActiveTool] = useState<CanvasTool>('select')
   const [activeTab, setActiveTab] = useState<string>('maps')
+  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan'>('topology')
   const [selectedImagerIdx, setSelectedImagerIdx] = useState<number | null>(null)
   const [activeCategory, setActiveCategory] = useState<IconTabId>('camera')
   const [showGrid, setShowGrid] = useState(true)
@@ -1093,7 +1104,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         </div>
 
         {/* ── LEFT PANEL (200px) ── */}
-        {showLeftPanel && activeTab !== 'hardware' && activeTab !== 'reports' && (
+        {showLeftPanel && activeTab !== 'hardware' && activeTab !== 'reports' && activeTab !== 'additionals' && (
           <LeftPanel
             devices={areaDevices}
             selectedId={selectedDeviceId}
@@ -1200,6 +1211,45 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           </div>
         )}
 
+        {/* ── ADDITIONALS TAB — Network Topology, Rack Elevation, VLAN Planner ── */}
+        {activeTab === 'additionals' && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: C.bg }}>
+            {/* Sub-tab bar */}
+            <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, background: C.bgSurface, flexShrink: 0 }}>
+              {([
+                { id: 'topology' as const, label: 'Network Topology' },
+                { id: 'rack' as const, label: 'Rack Elevation' },
+                { id: 'vlan' as const, label: 'VLAN / Subnet' },
+              ]).map(t => (
+                <button key={t.id} onClick={() => setAdditionalsView(t.id)}
+                  style={{
+                    padding: '8px 16px', fontSize: 11, fontWeight: additionalsView === t.id ? 600 : 400,
+                    color: additionalsView === t.id ? C.text : C.textMuted,
+                    borderBottom: `2px solid ${additionalsView === t.id ? C.accent : 'transparent'}`,
+                    background: 'transparent', border: 'none', borderBottomStyle: 'solid',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}>{t.label}</button>
+              ))}
+            </div>
+            {/* Content */}
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              {additionalsView === 'topology' && (
+                <TopologyView designId={designId} nodes={topologyNodes} links={topologyLinks}
+                  onAddNode={addTopologyNode} onUpdateNode={updateTopologyNode} onDeleteNode={deleteTopologyNode}
+                  onAddLink={addTopologyLink} onUpdateLink={updateTopologyLink} onDeleteLink={deleteTopologyLink} />
+              )}
+              {additionalsView === 'rack' && (
+                <RackElevationView designId={designId} racks={racks} infrastructure={mdfIdfs}
+                  onAddRack={addRack} onUpdateRack={updateRack} onDeleteRack={deleteRack} />
+              )}
+              {additionalsView === 'vlan' && (
+                <VlanPlanner designId={designId} vlans={vlans}
+                  onAddVlan={addVlan} onUpdateVlan={updateVlan} onDeleteVlan={deleteVlan} />
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── REPORTS TAB — multi-format export ── */}
         {activeTab === 'reports' && (
           <div style={{ flex: 1, display: 'flex', justifyContent: 'center', overflow: 'auto', background: C.bg, padding: 24 }}>
@@ -1255,7 +1305,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         )}
 
         {/* ── CANVAS ── */}
-        {activeTab !== 'hardware' && activeTab !== 'reports' && <CanvasArea
+        {activeTab !== 'hardware' && activeTab !== 'reports' && activeTab !== 'additionals' && <CanvasArea
           designId={designId}
           areaId={activeAreaId}
           floorPlan={activeFloorPlan}
