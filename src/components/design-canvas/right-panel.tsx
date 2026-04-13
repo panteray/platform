@@ -413,9 +413,28 @@ export function RightPanel({
               )}
             </div>
 
-            {/* DORI feedback */}
+            {/* DORI feedback — derive resolutionW from resolution_w or parse resolution string */}
             <DoriFeedback
-              resolutionW={Number(props.resolution_w) || 0}
+              resolutionW={(() => {
+                const rw = Number(props.resolution_w)
+                if (rw > 0) return rw
+                // Parse resolution string (e.g., "5MP", "2592x1944", "4K", "1080p")
+                const resStr = String(props.resolution || props.max_resolution || '').toLowerCase().trim()
+                if (!resStr) return 0
+                const wxh = resStr.match(/(\d+)\s*[x×]\s*(\d+)/)
+                if (wxh) return parseInt(wxh[1])
+                if (resStr.includes('4k') || resStr.includes('uhd')) return 3840
+                if (resStr.includes('8k')) return 7680
+                const pMatch = resStr.match(/^(\d+)p$/)
+                if (pMatch) return Math.round(parseInt(pMatch[1]) * 16 / 9)
+                const mpMatch = resStr.match(/([\d.]+)\s*mp/)
+                if (mpMatch) {
+                  const mp = parseFloat(mpMatch[1])
+                  const lookup: Record<string, number> = { '2': 1920, '3': 2048, '4': 2560, '5': 2592, '6': 3072, '8': 3840, '12': 4000 }
+                  return lookup[String(Math.round(mp))] || Math.round(Math.sqrt(mp * 1e6 * (4 / 3)))
+                }
+                return 0
+              })()}
               sensorW={sensorW}
               focalLength={focalLength}
               targetDist={targetDist}
