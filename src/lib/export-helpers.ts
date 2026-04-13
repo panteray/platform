@@ -223,26 +223,213 @@ export async function exportMaterialList(designId: string, format: ExportFormat 
 
 export async function exportHardwareSchedule(designId: string, format: ExportFormat = 'xlsx'): Promise<void> {
   const data = await fetchExport<HardwareExport>(designId, 'hardware-schedule')
-  const columns = ['#', 'Area', 'Label', 'Category', 'Status', 'Mount Type', 'Manufacturer', 'Model', 'Part #']
-  const rows: Record<string, unknown>[] = []
-  let idx = 1
+
+  // For XLSX fallback — simple table
+  if (format === 'xlsx') {
+    const columns = ['#', 'Area', 'Label', 'Category', 'Status', 'Mount Type', 'Manufacturer', 'Model', 'Part #']
+    const rows: Record<string, unknown>[] = []
+    let idx = 1
+    for (const area of data.areas) {
+      for (const d of area.devices) {
+        const props = (d.properties ?? {}) as Record<string, unknown>
+        rows.push({ '#': idx++, 'Area': (area as unknown as { areaName?: string }).areaName || area.areaId, 'Label': d.label, 'Category': d.category, 'Status': d.status || 'planned', 'Mount Type': d.mount_type || '', 'Manufacturer': String(props.manufacturer ?? ''), 'Model': String(props.model ?? ''), 'Part #': String(props.part_number ?? '') })
+      }
+    }
+    await exportInFormat(`${data.designName} — Hardware Schedule`, rows, columns, `${sanitizeFilename(data.designName)}_Hardware_Schedule.xlsx`, 'xlsx')
+    return
+  }
+
+  // For PDF — per-device panel document (field execution reference)
+  if (format === 'pdf') {
+    const areaBlocks = data.areas.map(area => {
+      const areaName = (area as unknown as { areaName?: string }).areaName || area.areaId
+      const devicePanels = area.devices.map((d, di) => {
+        const p = (d.properties ?? {}) as Record<string, unknown>
+        const vendor = String(p.manufacturer || p.vendor || '—')
+        const model = String(p.model || '—')
+        const pn = String(p.partnumber || p.part_number || '—')
+        const mountType = d.mount_type || String(p.mount_type || '—')
+        const installHeight = Number(p.install_height) || 0
+        const environment = String(p.environment || '—')
+        const mountSurface = String(p.mount_surface || '—')
+        const cableType = String(p.cable_type || 'Cat6')
+        const ipAddr = String(p.ip_address || '—')
+        const notes = String(p.device_notes || p.notes || '')
+        const liftReq = installHeight > 12
+
+        return `
+          <div style="page-break-inside:avoid;border:1px solid #ccc;border-radius:6px;padding:14px;margin-bottom:12px;background:${liftReq ? '#fff5f5' : '#fafafa'}">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+              <div>
+                <span style="font-size:15px;font-weight:700;color:#333">${d.label || `Device ${di + 1}`}</span>
+                <span style="margin-left:8px;font-size:10px;padding:2px 8px;border-radius:3px;background:#522F82;color:#fff;text-transform:uppercase;font-weight:600">${d.category.replace(/_/g, ' ')}</span>
+                ${d.status !== 'planned' ? `<span style="margin-left:4px;font-size:10px;padding:2px 6px;border-radius:3px;background:#f0f0f0;color:#666">${d.status}</span>` : ''}
+              </div>
+              ${liftReq ? '<span style="font-size:10px;font-weight:700;color:#ef4444;background:rgba(239,68,68,0.1);padding:2px 8px;border-radius:3px">⚠ LIFT REQUIRED</span>' : ''}
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px">
+              <tr><td style="padding:3px 8px;color:#888;width:130px">Manufacturer</td><td style="padding:3px 8px;font-weight:600">${vendor}</td><td style="padding:3px 8px;color:#888;width:130px">Model</td><td style="padding:3px 8px;font-weight:600">${model}</td></tr>
+              <tr><td style="padding:3px 8px;color:#888">Part Number</td><td style="padding:3px 8px;font-family:monospace">${pn}</td><td style="padding:3px 8px;color:#888">Mount Type</td><td style="padding:3px 8px">${mountType}</td></tr>
+              <tr><td style="padding:3px 8px;color:#888">Install Height</td><td style="padding:3px 8px">${installHeight > 0 ? installHeight + 'ft' : '—'}</td><td style="padding:3px 8px;color:#888">Environment</td><td style="padding:3px 8px">${environment}</td></tr>
+              <tr><td style="padding:3px 8px;color:#888">Mount Surface</td><td style="padding:3px 8px">${mountSurface}</td><td style="padding:3px 8px;color:#888">Cable Type</td><td style="padding:3px 8px">${cableType}</td></tr>
+              <tr><td style="padding:3px 8px;color:#888">IP Address</td><td style="padding:3px 8px;font-family:monospace">${ipAddr}</td><td style="padding:3px 8px;color:#888">Position</td><td style="padding:3px 8px;font-family:monospace">(${d.position_x}, ${d.position_y})</td></tr>
+            </table>
+            ${notes ? `<div style="font-size:10px;color:#666;padding:4px 8px;background:#f8f8f8;border-radius:3px;margin-top:4px"><strong>Notes:</strong> ${notes}</div>` : ''}
+          </div>`
+      }).join('')
+
+      return `
+        <div style="page-break-before:always">
+          <h2 style="color:#333;border-bottom:2px solid #522F82;padding-bottom:4px;margin-bottom:12px">${areaName}</h2>
+          <div style="font-size:11px;color:#888;margin-bottom:12px">${area.devices.length} device(s) in this area</div>
+          ${devicePanels}
+        </div>`
+    }).join('')
+
+    // Material list
+    const materialRows = data.areas.flatMap(a => a.devices.map(d => {
+      const p = (d.properties ?? {}) as Record<string, unknown>
+      return `<tr><td style="border:1px solid #ddd;padding:4px 8px;font-size:10px">${d.label}</td><td style="border:1px solid #ddd;padding:4px 8px;font-size:10px">${String(p.manufacturer || '—')}</td><td style="border:1px solid #ddd;padding:4px 8px;font-size:10px;font-family:monospace">${String(p.model || '—')}</td><td style="border:1px solid #ddd;padding:4px 8px;font-size:10px;font-family:monospace">${String(p.partnumber || p.part_number || '—')}</td><td style="border:1px solid #ddd;padding:4px 8px;font-size:10px">${d.category.replace(/_/g, ' ')}</td></tr>`
+    })).join('')
+
+    const html = `<!DOCTYPE html><html><head><title>Hardware Schedule — ${data.designName}</title>
+      <style>body{font-family:system-ui,sans-serif;max-width:900px;margin:0 auto;padding:30px;color:#1a1a1a;font-size:13px}
+      h1{font-size:22px;color:#522F82;margin:0 0 4px}h2{font-size:16px;color:#333}
+      .cover{text-align:center;padding:60px 0;page-break-after:always}
+      .cover h1{font-size:28px;margin-bottom:8px}.cover .opp{color:#c0392b;font-size:16px;font-weight:600}
+      .cover .info{font-size:13px;color:#666;margin-top:20px;line-height:1.6}
+      @media print{body{margin:0;padding:15px}.cover{padding:40px 0}}</style></head><body>
+      <div class="cover">
+        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:2px;margin-bottom:20px">Howard Technology Solutions</div>
+        <h1>${data.designName}</h1>
+        <div style="font-size:14px;color:#666;margin-bottom:30px">Hardware Schedule</div>
+        <div class="opp">Generated ${new Date().toLocaleDateString()}</div>
+        <div class="info">${data.totalDevices} devices across ${data.areas.length} area(s)</div>
+      </div>
+      ${areaBlocks}
+      <div style="page-break-before:always">
+        <h2 style="color:#333;border-bottom:2px solid #522F82;padding-bottom:4px">Material List</h2>
+        <table style="width:100%;border-collapse:collapse;margin-top:12px">
+          <thead><tr><th style="border:1px solid #ddd;padding:5px 8px;background:#f5f5f5;font-size:10px;font-weight:600;text-align:left">Label</th><th style="border:1px solid #ddd;padding:5px 8px;background:#f5f5f5;font-size:10px;font-weight:600;text-align:left">Manufacturer</th><th style="border:1px solid #ddd;padding:5px 8px;background:#f5f5f5;font-size:10px;font-weight:600;text-align:left">Model</th><th style="border:1px solid #ddd;padding:5px 8px;background:#f5f5f5;font-size:10px;font-weight:600;text-align:left">Part #</th><th style="border:1px solid #ddd;padding:5px 8px;background:#f5f5f5;font-size:10px;font-weight:600;text-align:left">Category</th></tr></thead>
+          <tbody>${materialRows}</tbody>
+        </table>
+      </div>
+      </body></html>`
+    const w = window.open('', '_blank', 'width=900,height=700')
+    if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500) }
+    return
+  }
+
+  // For DOCX — per-device panel document
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, BorderStyle, ShadingType, PageBreak } = await import('docx')
+  const border = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' }
+  const borders = { top: border, bottom: border, left: border, right: border }
+  const margins = { top: 50, bottom: 50, left: 80, right: 80 }
+  const p = (text: string, opts?: { bold?: boolean; size?: number; color?: string; font?: string }) =>
+    new Paragraph({ children: [new TextRun({ text, font: opts?.font || 'Arial', size: opts?.size || 20, bold: opts?.bold, color: opts?.color })] })
+
+  const children: (InstanceType<typeof Paragraph> | InstanceType<typeof Table>)[] = [
+    // Cover
+    p(''), p(''), p(''),
+    new Paragraph({ alignment: 'center' as never, children: [new TextRun({ text: 'Howard Technology Solutions', font: 'Arial', size: 18, color: '888888' })] }),
+    p(''),
+    new Paragraph({ alignment: 'center' as never, children: [new TextRun({ text: data.designName, font: 'Arial', size: 48, bold: true, color: '522F82' })] }),
+    new Paragraph({ alignment: 'center' as never, children: [new TextRun({ text: 'Hardware Schedule', font: 'Arial', size: 28, color: '666666' })] }),
+    p(''),
+    new Paragraph({ alignment: 'center' as never, children: [new TextRun({ text: `Generated ${new Date().toLocaleDateString()}`, font: 'Arial', size: 22, color: 'CC3333' })] }),
+    new Paragraph({ alignment: 'center' as never, children: [new TextRun({ text: `${data.totalDevices} devices across ${data.areas.length} area(s)`, font: 'Arial', size: 20, color: '888888' })] }),
+    new Paragraph({ children: [new PageBreak()] }),
+  ]
+
+  // Per-area sections with per-device panels
   for (const area of data.areas) {
+    const areaName = (area as unknown as { areaName?: string }).areaName || area.areaId
+    children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: areaName, font: 'Arial' })] }))
+    children.push(p(`${area.devices.length} device(s) in this area`, { size: 18, color: '888888' }))
+    children.push(p(''))
+
     for (const d of area.devices) {
       const props = (d.properties ?? {}) as Record<string, unknown>
-      rows.push({
-        '#': idx++,
-        'Area': (area as unknown as { areaName?: string }).areaName || area.areaId,
-        'Label': d.label,
-        'Category': d.category,
-        'Status': d.status || 'planned',
-        'Mount Type': d.mount_type || '',
-        'Manufacturer': String(props.manufacturer ?? ''),
-        'Model': String(props.model ?? ''),
-        'Part #': String(props.part_number ?? ''),
-      })
+      const vendor = String(props.manufacturer || props.vendor || '—')
+      const model = String(props.model || '—')
+      const pn = String(props.partnumber || props.part_number || '—')
+      const mountType = d.mount_type || String(props.mount_type || '—')
+      const installHt = Number(props.install_height) || 0
+      const env = String(props.environment || '—')
+      const cableType = String(props.cable_type || 'Cat6')
+      const ipAddr = String(props.ip_address || '—')
+      const notes = String(props.device_notes || props.notes || '')
+      const liftReq = installHt > 12
+
+      // Device header
+      children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [
+        new TextRun({ text: `${d.label || 'Device'} — ${vendor} ${model}`, font: 'Arial' }),
+        ...(liftReq ? [new TextRun({ text: '  ⚠ LIFT REQUIRED', font: 'Arial', size: 18, color: 'EF4444', bold: true })] : []),
+      ] }))
+
+      // Device specs table
+      const specRows = [
+        ['Manufacturer', vendor, 'Model', model],
+        ['Part Number', pn, 'Category', d.category.replace(/_/g, ' ')],
+        ['Mount Type', mountType, 'Install Height', installHt > 0 ? `${installHt} ft` : '—'],
+        ['Environment', env, 'Cable Type', cableType],
+        ['IP Address', ipAddr, 'Status', d.status || 'planned'],
+      ]
+
+      const colWidths = [1800, 2880, 1800, 2880]
+      children.push(new Table({
+        width: { size: 9360, type: WidthType.DXA },
+        columnWidths: colWidths,
+        rows: specRows.map(row => new TableRow({
+          children: row.map((cell, ci) => new TableCell({
+            borders, width: { size: colWidths[ci], type: WidthType.DXA }, margins,
+            shading: ci % 2 === 0 ? { fill: 'F0F0F0', type: ShadingType.CLEAR } : undefined,
+            children: [new Paragraph({ children: [new TextRun({ text: cell, font: 'Arial', size: ci % 2 === 0 ? 16 : 18, bold: ci % 2 === 0, color: ci % 2 === 0 ? '888888' : '333333' })] })],
+          })),
+        })),
+      }))
+
+      if (notes) {
+        children.push(p(''))
+        children.push(p(`Notes: ${notes}`, { size: 18, color: '666666' }))
+      }
+      children.push(p(''))
     }
+
+    children.push(new Paragraph({ children: [new PageBreak()] }))
   }
-  await exportInFormat(`${data.designName} — Hardware Schedule`, rows, columns, `${sanitizeFilename(data.designName)}_Hardware_Schedule.xlsx`, format)
+
+  // Material list
+  children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: 'Material List', font: 'Arial' })] }))
+  const matColWidths = [2000, 1800, 2200, 1800, 1560]
+  const matHeaders = ['Label', 'Manufacturer', 'Model', 'Part #', 'Category']
+  children.push(new Table({
+    width: { size: 9360, type: WidthType.DXA },
+    columnWidths: matColWidths,
+    rows: [
+      new TableRow({ children: matHeaders.map((h, hi) => new TableCell({
+        borders, width: { size: matColWidths[hi], type: WidthType.DXA }, margins,
+        shading: { fill: 'E8E8E8', type: ShadingType.CLEAR },
+        children: [new Paragraph({ children: [new TextRun({ text: h, font: 'Arial', size: 16, bold: true })] })],
+      })) }),
+      ...data.areas.flatMap(a => a.devices.map(d => {
+        const pr = (d.properties ?? {}) as Record<string, unknown>
+        return new TableRow({ children: [d.label, String(pr.manufacturer || '—'), String(pr.model || '—'), String(pr.partnumber || pr.part_number || '—'), d.category.replace(/_/g, ' ')].map((cell, ci) => new TableCell({
+          borders, width: { size: matColWidths[ci], type: WidthType.DXA }, margins,
+          children: [new Paragraph({ children: [new TextRun({ text: cell, font: 'Arial', size: 18 })] })],
+        })) })
+      })),
+    ],
+  }))
+
+  const doc = new Document({
+    sections: [{
+      properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
+      children,
+    }],
+  })
+  const blob = await Packer.toBlob(doc)
+  downloadBlob(blob, `${sanitizeFilename(data.designName)}_Hardware_Schedule.docx`)
 }
 
 export async function exportCableSchedule(designId: string, format: ExportFormat = 'xlsx'): Promise<void> {
