@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Plus, Trash2, Download, Save } from 'lucide-react'
 import { C } from './constants'
+import { QuoteVersionManager } from './quote-version-manager'
 
 // ── Types ──
 
@@ -67,6 +68,69 @@ export function SoftwareCanvas({ designId, designName, oppNumber, customerName }
   const [customerNotes, setCustomerNotes] = useState('')
   const [showPresets, setShowPresets] = useState(false)
 
+  // ── Quote Versioning ──
+  interface QuoteVersion { id: string; version: number; status: 'draft' | 'submitted' | 'approved' | 'archived'; mrr: number; tcv: number; createdAt: string; customerNotes: string }
+  const [quoteVersions, setQuoteVersions] = useState<QuoteVersion[]>([])
+  const [currentVersion, setCurrentVersion] = useState(1)
+
+  // Fetch existing quote versions
+  useEffect(() => {
+    fetch(`/api/org/designs/${designId}/software-quotes`).then(async r => {
+      if (!r.ok) return
+      const { quotes } = await r.json()
+      setQuoteVersions((quotes ?? []).map((q: Record<string, unknown>) => ({
+        id: q.id as string, version: q.version as number, status: (q.status || 'draft') as QuoteVersion['status'],
+        mrr: Number(q.mrr) || 0, tcv: Number(q.tcv) || 0,
+        createdAt: q.created_at as string, customerNotes: (q.customer_notes || '') as string,
+      })))
+      if (quotes?.length > 0) setCurrentVersion((quotes[0].version as number) + 1)
+    }).catch(() => {})
+  }, [designId])
+
+  // handleSaveVersion is defined as a regular async function (not useCallback)
+  // so it can access `totals` which is defined later via useMemo
+  const handleSaveVersionRef = { current: async (notes: string) => {
+    const res = await fetch(`/api/org/designs/${designId}/software-quotes`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contract_term_months: config.contractTermMonths, yearly_increase_pct: config.yearlyIncreasePct,
+        onboarding_fee: config.onboardingFee, markup_pct: config.markupPct,
+        mrr: 0, tcv: 0, customer_notes: notes || customerNotes,
+        line_items: items,
+      }),
+    })
+    if (res.ok) {
+      const { quote } = await res.json()
+      setQuoteVersions(prev => [{
+        id: quote.id, version: quote.version, status: 'draft',
+        mrr: quote.mrr, tcv: quote.tcv, createdAt: quote.created_at, customerNotes: quote.customer_notes || '',
+      }, ...prev])
+      setCurrentVersion(quote.version + 1)
+    }
+  }}
+
+  const handleLoadVersion = useCallback((v: QuoteVersion) => {
+    // Fetch the full quote to load line items
+    fetch(`/api/org/designs/${designId}/software-quotes`).then(async r => {
+      if (!r.ok) return
+      const { quotes } = await r.json()
+      const full = quotes?.find((q: Record<string, unknown>) => q.id === v.id)
+      if (full?.line_items && Array.isArray(full.line_items)) {
+        setItems(full.line_items as LineItem[])
+        setConfig({ contractTermMonths: full.contract_term_months || 36, yearlyIncreasePct: full.yearly_increase_pct || 5, onboardingFee: full.onboarding_fee || 0, markupPct: full.markup_pct || 0 })
+        setCustomerNotes(full.customer_notes || '')
+      }
+    }).catch(() => {})
+  }, [designId])
+
+  const handleUpdateQuoteStatus = useCallback(async (versionId: string, status: QuoteVersion['status']) => {
+    await fetch(`/api/org/designs/${designId}/software-quotes`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quote_id: versionId, status, ...(status === 'submitted' ? { submitted_at: new Date().toISOString() } : {}), ...(status === 'approved' ? { approved_at: new Date().toISOString() } : {}) }),
+    })
+    setQuoteVersions(prev => prev.map(v => v.id === versionId ? { ...v, status } : v))
+  }, [designId])
+
   // ── Calculations ──
 
   const totals = useMemo(() => {
@@ -92,6 +156,27 @@ export function SoftwareCanvas({ designId, designName, oppNumber, customerName }
 
     return { mrr, arr, year1, year2, year3, tcv, internalMonthlyCost, oneTimeTotal: oneTime.reduce((s, i) => s + i.quantity * i.rate, 0) }
   }, [items, config])
+
+  // Update save handler with computed totals
+  handleSaveVersionRef.current = async (notes: string) => {
+    const res = await fetch(`/api/org/designs/${designId}/software-quotes`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contract_term_months: config.contractTermMonths, yearly_increase_pct: config.yearlyIncreasePct,
+        onboarding_fee: config.onboardingFee, markup_pct: config.markupPct,
+        mrr: totals.mrr, tcv: totals.tcv, customer_notes: notes || customerNotes,
+        line_items: items,
+      }),
+    })
+    if (res.ok) {
+      const { quote } = await res.json()
+      setQuoteVersions(prev => [{
+        id: quote.id, version: quote.version, status: 'draft',
+        mrr: quote.mrr, tcv: quote.tcv, createdAt: quote.created_at, customerNotes: quote.customer_notes || '',
+      }, ...prev])
+      setCurrentVersion(quote.version + 1)
+    }
+  }
 
   // ── Handlers ──
 
@@ -320,6 +405,17 @@ export function SoftwareCanvas({ designId, designName, oppNumber, customerName }
         <div style={{ fontSize: 10, color: C.textDim, fontWeight: 600, marginBottom: 4 }}>Customer Notes</div>
         <textarea value={customerNotes} onChange={e => setCustomerNotes(e.target.value)} rows={3} placeholder="Contract terms, special conditions, SLA details..."
           style={{ width: '100%', padding: '8px 10px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, fontSize: 11, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
+      </div>
+
+      {/* Quote Version Manager */}
+      <div style={{ marginTop: 16, borderRadius: 8, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+        <QuoteVersionManager
+          versions={quoteVersions}
+          currentVersion={currentVersion}
+          onSaveVersion={(notes) => handleSaveVersionRef.current(notes)}
+          onLoadVersion={handleLoadVersion}
+          onUpdateStatus={handleUpdateQuoteStatus}
+        />
       </div>
     </div>
   )

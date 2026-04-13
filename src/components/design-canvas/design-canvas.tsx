@@ -169,6 +169,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const canvasRef = useRef<{ zoomToDevice?: (devId: string) => void } | null>(null)
   const zoomToPointRef = useRef<((x: number, y: number) => void) | null>(null)
   const canvasActionsRef = useRef<{ zoomIn: () => void; zoomOut: () => void; fitToView: () => void } | null>(null)
+  const snapshotRef = useRef<(() => string | null) | null>(null)
 
   const handleZoomToDevice = useCallback((devId: string) => {
     const dev = devices.find(d => d.id === devId)
@@ -1423,7 +1424,17 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                   <div style={{ fontSize: 9, color: C.textDim, marginTop: 2 }}>Camera coverage, DORI analysis, system summary — opens print dialog</div>
                 </button>
                 <button onClick={() => {
-                  toast.info('Switch to Maps tab and use browser Print (Ctrl+P) to capture the canvas view')
+                  const url = snapshotRef.current?.()
+                  if (url) {
+                    // Download the static map image
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.target = '_blank'
+                    a.download = `${design?.name || 'Canvas'}_Snapshot.png`
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+                  } else {
+                    toast.info('Switch to Maps tab first, then try again')
+                  }
                 }}
                   style={{
                     flex: 1, padding: '12px 16px', background: C.bgPanel, border: `1px solid ${C.border}`, borderRadius: 8,
@@ -1586,6 +1597,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           hiddenCategories={hiddenCategories}
           zoomToPointRef={zoomToPointRef}
           canvasActionsRef={canvasActionsRef}
+          snapshotRef={snapshotRef}
           walls={walls}
           onWallCreated={async (pts) => {
             wallCountRef.current += 1

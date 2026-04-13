@@ -944,6 +944,22 @@ function CanvasArea(props: Props) {
 
     mapRef.current = map
 
+    // Expose snapshot function — generates a Static Maps URL for PNG download
+    if (snapshotRef) {
+      snapshotRef.current = () => {
+        const m = mapRef.current
+        if (!m) return null
+        const center = m.getCenter()
+        const zoom = m.getZoom()
+        if (!center || !zoom) return null
+        const key = mapsApiKey
+        if (!key) return null
+        // Use Google Maps Static API to generate a snapshot URL
+        const url = `https://maps.googleapis.com/maps/api/staticmap?center=${center.lat()},${center.lng()}&zoom=${zoom}&size=1200x800&maptype=satellite&key=${key}`
+        return url
+      }
+    }
+
     // Wire tooltip overlay (IPVM TooltipOverlay pattern) — shows once on first cable interaction
     {
       class WireTooltip extends google.maps.OverlayView {
