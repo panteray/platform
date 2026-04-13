@@ -1256,6 +1256,168 @@ export interface DoorConfig {
   updated_at: string
 }
 
+// ============================================================
+// CUSTOMER PORTAL (Phase 1E)
+// ============================================================
+
+export interface CustomerPortalToken {
+  id: string
+  org_id: string
+  opp_id: string
+  customer_id: string
+  token: string
+  permissions: string[]
+  is_active: boolean
+  expires_at: string
+  accepted_at: string | null
+  accepted_by_name: string | null
+  accepted_by_email: string | null
+  signature_data: string | null
+  ip_address: string | null
+  user_agent: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+// ============================================================
+// SUBCONTRACTOR RFP & LABOR QUOTING (Phase 1D)
+// ============================================================
+
+export interface OppSubQuote {
+  id: string
+  org_id: string
+  opp_id: string
+  sub_id: string
+  status: 'draft' | 'rfp_sent' | 'quoted' | 'accepted' | 'rejected' | 'expired'
+  rfp_notes: string | null
+  labor_hours: number | null
+  labor_amount: number | null
+  material_amount: number | null
+  total_amount: number | null
+  quote_doc_url: string | null
+  rfp_sent_at: string | null
+  quote_received_at: string | null
+  accepted_at: string | null
+  accepted_by: string | null
+  decline_reason: string | null
+  valid_until: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+// ============================================================
+// SURVEY MODULE (Phase 1C)
+// ============================================================
+
+export interface Survey {
+  id: string
+  org_id: string
+  opp_id: string | null
+  site_name: string
+  site_address: string | null
+  customer_name: string | null
+  surveyor_id: string | null
+  surveyor_name: string | null
+  survey_date: string | null
+  status: 'draft' | 'in_progress' | 'submitted'
+  site_notes: string | null
+  infrastructure_notes: string | null
+  synced: boolean
+  synced_at: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SurveyFloorPlan {
+  id: string
+  survey_id: string
+  org_id: string
+  name: string
+  mode: 'floorplan' | 'satellite' | 'grid' | 'photos_only'
+  image_url: string | null
+  image_width: number | null
+  image_height: number | null
+  satellite_lat: number | null
+  satellite_lng: number | null
+  satellite_zoom: number
+  scale_px_per_ft: number | null
+  display_order: number
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SurveyDevice {
+  id: string
+  survey_id: string
+  floor_plan_id: string | null
+  org_id: string
+  system_type: string
+  device_type: string
+  label: string
+  status: 'new' | 'existing_keep' | 'existing_remove' | 'relocate'
+  condition: 'good' | 'fair' | 'poor' | 'unknown' | null
+  existing_make_model: string | null
+  location_description: string | null
+  vendor: string | null
+  model: string | null
+  resolution: string | null
+  mount_type: string | null
+  mount_height_in: number | null
+  cable_type: string | null
+  cable_run_ft: number | null
+  color_hex: string | null
+  fov_angle: number | null
+  fov_rotation: number | null
+  notes: string | null
+  position_x: number
+  position_y: number
+  detection_capabilities: Record<string, boolean>
+  alert_destination: string | null
+  integration_method: string | null
+  relay_output: string | null
+  power_source: string | null
+  door_config: Record<string, unknown>
+  wptp_pair_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SurveyInfrastructure {
+  id: string
+  survey_id: string
+  floor_plan_id: string | null
+  org_id: string
+  type: 'mdf' | 'idf' | 'conduit' | 'fiber' | 'power' | 'other'
+  name: string
+  mdf_idf_locations: string | null
+  conduit_pathway: string | null
+  power_availability: string | null
+  network_infrastructure: string | null
+  location: string | null
+  notes: string | null
+  photos: unknown[]
+  created_at: string
+  updated_at: string
+}
+
+export interface SurveyPhoto {
+  id: string
+  survey_id: string
+  device_id: string | null
+  infra_id: string | null
+  org_id: string
+  storage_url: string
+  caption: string | null
+  lat: number | null
+  lng: number | null
+  taken_at: string | null
+  created_at: string
+}
+
 export interface CalculatorResult {
   id: string
   org_id: string

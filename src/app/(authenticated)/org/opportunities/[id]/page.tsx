@@ -20,8 +20,11 @@ import { CompileEngine } from '@/components/opportunities/CompileEngine'
 import { VaultSection } from '@/components/opportunities/VaultSection'
 import { OppStatusTimeline } from '@/components/opportunities/OppStatusTimeline'
 import { OppApprovalGate } from '@/components/opportunities/OppApprovalGate'
+import { SurveyModule } from '@/components/surveys/SurveyModule'
+import { RfpQuoteTab } from '@/components/opportunities/RfpQuoteTab'
+import { CustomerPortalTab } from '@/components/opportunities/CustomerPortalTab'
 
-const TABS = ['Overview','Surveys','Designs','Door Compliance','Hardware Schedule','SOW','BOM','Project','Field','Risk Factors','Delivery','Huddle','Status History','Approvals'] as const
+const TABS = ['Overview','Surveys','Designs','Door Compliance','Hardware Schedule','SOW','BOM','Sub Quotes','Customer Portal','Project','Field','Risk Factors','Delivery','Huddle','Status History','Approvals'] as const
 type Tab = (typeof TABS)[number]
 
 export default function OppDetailPage() {
@@ -84,12 +87,14 @@ export default function OppDetailPage() {
       <div className="rounded-lg border border-border bg-card p-4">
         {tab === 'Overview' && <OverviewTab opp={opp} callerRole={callerRole} onUpdate={(updated) => setOpp(updated)} />}
         {tab === 'Delivery' && <DeliveryTab oppId={opp.id} />}
-        {tab === 'Surveys' && <StubTab name="Surveys" />}
+        {tab === 'Surveys' && <SurveyModule oppId={opp.id} oppNumber={opp.opp_number ?? undefined} />}
         {tab === 'Designs' && <DesignsTab oppId={opp.id} oppNumber={opp.opp_number ?? ''} projectName={opp.project_name ?? undefined} />}
         {tab === 'Door Compliance' && <StubTab name="Door Compliance" />}
         {tab === 'Hardware Schedule' && <HardwareScheduleTab oppId={opp.id} />}
         {tab === 'SOW' && <SowTab oppId={opp.id} opportunity={opp} />}
         {tab === 'BOM' && <BomTab oppId={opp.id} />}
+        {tab === 'Sub Quotes' && <RfpQuoteTab oppId={opp.id} callerRole={callerRole} />}
+        {tab === 'Customer Portal' && <CustomerPortalTab oppId={opp.id} />}
         {tab === 'Project' && <StubTab name="Project" />}
         {tab === 'Field' && <StubTab name="Field" />}
         {tab === 'Risk Factors' && <StubTab name="Risk Factors" />}
