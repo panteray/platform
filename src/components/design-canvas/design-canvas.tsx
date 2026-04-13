@@ -48,6 +48,7 @@ import { AvSignalFlow } from './av-signal-flow'
 import { InterconnectView } from './interconnect-view'
 import { NetworkCheckerPanel } from './network-checker-panel'
 import { SoftwareCanvas } from './software-canvas'
+import { PathTracePanel } from './path-trace-panel'
 import { ReportGenerator } from './report-generator'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { DeviceLibraryModal } from './device-library-modal'
@@ -131,7 +132,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   /* ── UI state ── */
   const [activeTool, setActiveTool] = useState<CanvasTool>('select')
   const [activeTab, setActiveTab] = useState<string>('maps')
-  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan' | 'av' | 'interconnect' | 'checker' | 'software'>('topology')
+  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan' | 'av' | 'interconnect' | 'checker' | 'software' | 'pathtrace'>('topology')
   const [selectedImagerIdx, setSelectedImagerIdx] = useState<number | null>(null)
   const [activeCategory, setActiveCategory] = useState<IconTabId>('camera')
   const [showGrid, setShowGrid] = useState(true)
@@ -1289,6 +1290,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 { id: 'interconnect' as const, label: 'Interconnect Wiring' },
                 { id: 'checker' as const, label: 'Network Checker' },
                 { id: 'software' as const, label: 'Software Quote' },
+                { id: 'pathtrace' as const, label: 'Path Trace' },
               ]).map(t => (
                 <button key={t.id} onClick={() => setAdditionalsView(t.id)}
                   style={{
@@ -1334,6 +1336,9 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 <SoftwareCanvas designId={designId} designName={design?.name || 'Design'}
                   oppNumber={design?.opp_id ? `OPP-${design.opp_id.slice(0, 6)}` : undefined}
                   customerName={''} />
+              )}
+              {additionalsView === 'pathtrace' && (
+                <PathTracePanel nodes={topologyNodes} links={topologyLinks} />
               )}
             </div>
           </div>
