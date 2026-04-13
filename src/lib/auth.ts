@@ -75,6 +75,48 @@ export async function verifyDeviceLibraryAccess() {
   return dbUser
 }
 
+const LEAD_CRUD_ALLOWED_ROLES = [
+  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
+  'MANAGER', 'OPERATIONS', 'SALES_ISR', 'SALES_OSR',
+]
+
+const LEAD_READ_ALLOWED_ROLES = [
+  ...LEAD_CRUD_ALLOWED_ROLES,
+  'PRESALES', 'PROJECT_MANAGER',
+]
+
+/** Verify caller has lead CRUD access and has an org. Returns dbUser or null. */
+export async function verifyLeadCrud() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const admin = createAdminClient()
+  const { data: dbUser } = await admin
+    .from('users')
+    .select('id, role, org_id, is_global_admin')
+    .eq('auth_id', user.id)
+    .single()
+  if (!dbUser || !dbUser.org_id) return null
+  if (!LEAD_CRUD_ALLOWED_ROLES.includes(dbUser.role)) return null
+  return dbUser
+}
+
+/** Verify caller has lead read access and has an org. Returns dbUser or null. */
+export async function verifyLeadRead() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const admin = createAdminClient()
+  const { data: dbUser } = await admin
+    .from('users')
+    .select('id, role, org_id, is_global_admin')
+    .eq('auth_id', user.id)
+    .single()
+  if (!dbUser || !dbUser.org_id) return null
+  if (!LEAD_READ_ALLOWED_ROLES.includes(dbUser.role)) return null
+  return dbUser
+}
+
 const DESIGN_ALLOWED_ROLES = [
   'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
   'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP', 'LEAD', 'MANAGER', 'OPERATIONS',

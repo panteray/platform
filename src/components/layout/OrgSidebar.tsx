@@ -25,6 +25,7 @@ const orgNav = [
 ]
 
 const crmNav = [
+  { href: '/org/leads', label: 'Leads', icon: 'leads', exact: false },
   { href: '/org/opportunities', label: 'Opportunities', icon: 'opportunities', exact: false },
   { href: '/org/customers', label: 'Customers', icon: 'customers', exact: false },
   { href: '/org/manufacturers', label: 'Manufacturers', icon: 'manufacturers', exact: false },
