@@ -811,7 +811,6 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     } catch (err) {
       console.error('Failed to add device:', err)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- setSelectedDeviceId is stable from hook
   }, [addDevice, designId, activeAreaId, getNextLabel, changingModelDeviceId, devices, updateDevice])
 
   const handleUpdateDevice = useCallback((id: string, updates: Record<string, unknown>) => {

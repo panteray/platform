@@ -1263,7 +1263,6 @@ function CanvasArea(props: Props) {
         markersRef.current.delete(devId)
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- mapReady triggers re-run after map init
   }, [devices, selectedDeviceId, geoContext, mapReady])
 
   // Update MDF/IDF markers on Google Maps
@@ -1969,7 +1968,6 @@ function CanvasArea(props: Props) {
     }
     polygonsRef.current = newPolygons
     selectedDevicePolygonsRef.current = newSelectedPolygons
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- mapReady triggers re-run after map init
   }, [
     devices,
     selectedDeviceId,
