@@ -46,6 +46,7 @@ import { RackElevationView } from './rack-elevation-view'
 import { VlanPlanner } from './vlan-planner'
 import { AvSignalFlow } from './av-signal-flow'
 import { InterconnectView } from './interconnect-view'
+import { NetworkCheckerPanel } from './network-checker-panel'
 import { ReportGenerator } from './report-generator'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { DeviceLibraryModal } from './device-library-modal'
@@ -129,7 +130,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   /* ── UI state ── */
   const [activeTool, setActiveTool] = useState<CanvasTool>('select')
   const [activeTab, setActiveTab] = useState<string>('maps')
-  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan' | 'av' | 'interconnect'>('topology')
+  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan' | 'av' | 'interconnect' | 'checker'>('topology')
   const [selectedImagerIdx, setSelectedImagerIdx] = useState<number | null>(null)
   const [activeCategory, setActiveCategory] = useState<IconTabId>('camera')
   const [showGrid, setShowGrid] = useState(true)
@@ -1285,6 +1286,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 { id: 'vlan' as const, label: 'VLAN / Subnet' },
                 { id: 'av' as const, label: 'AV Signal Flow' },
                 { id: 'interconnect' as const, label: 'Interconnect Wiring' },
+                { id: 'checker' as const, label: 'Network Checker' },
               ]).map(t => (
                 <button key={t.id} onClick={() => setAdditionalsView(t.id)}
                   style={{
@@ -1319,6 +1321,12 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 <InterconnectView designId={designId} nodes={interconnectNodes} links={interconnectLinks}
                   onAddNode={addInterconnectNode} onUpdateNode={async () => {}} onDeleteNode={deleteInterconnectNode}
                   onAddLink={addInterconnectLink} onUpdateLink={async () => {}} onDeleteLink={deleteInterconnectLink} />
+              )}
+              {additionalsView === 'checker' && (
+                <NetworkCheckerPanel
+                  devices={areaDevices} cables={areaCables}
+                  mdfIdfs={mdfIdfs.filter(m => m.area_id === activeAreaId)}
+                  topologyNodes={topologyNodes} topologyLinks={topologyLinks} vlans={vlans} />
               )}
             </div>
           </div>
