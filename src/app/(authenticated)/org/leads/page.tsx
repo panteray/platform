@@ -7,13 +7,17 @@ import { LeadsTable } from '@/components/leads/LeadsTable'
 import { LeadForm } from '@/components/leads/LeadForm'
 import { LeadKanban } from '@/components/leads/LeadKanban'
 import { LeadDashboardWidgets } from '@/components/leads/LeadDashboardWidgets'
-import { List, Columns3, BarChart3, Plus } from 'lucide-react'
+import { LeadMapView } from '@/components/leads/LeadMapView'
+import { LeadCardScanner } from '@/components/leads/LeadCardScanner'
+import { LeadManagerDashboard } from '@/components/leads/LeadManagerDashboard'
+import { List, Columns3, BarChart3, MapPin, Plus, Camera } from 'lucide-react'
 
-type ViewMode = 'table' | 'kanban' | 'dashboard'
+type ViewMode = 'table' | 'kanban' | 'map' | 'dashboard'
 
 const VIEW_TABS: { key: ViewMode; label: string; icon: typeof List }[] = [
   { key: 'table', label: 'Table', icon: List },
   { key: 'kanban', label: 'Kanban', icon: Columns3 },
+  { key: 'map', label: 'Map', icon: MapPin },
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
 ]
 
@@ -23,6 +27,7 @@ export default function LeadsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [view, setView] = useState<ViewMode>('table')
+  const [showScanner, setShowScanner] = useState(false)
 
   async function handleCreate(data: Record<string, unknown>) {
     setSaving(true)
@@ -37,6 +42,29 @@ export default function LeadsPage() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this lead?')) return
     await deleteLead(id)
+  }
+
+  async function handleScanComplete(data: Record<string, string | null>) {
+    setShowScanner(false)
+    setSaving(true)
+    const payload: Record<string, unknown> = {
+      contact_first_name: data.first_name ?? '',
+      contact_last_name: data.last_name ?? '',
+      contact_title: data.title,
+      contact_email: data.email,
+      contact_phone: data.phone,
+      contact_mobile: data.mobile,
+      company_name: data.company,
+      primary_website: data.website,
+      address: data.address,
+      city: data.city,
+      state: data.state,
+      zip: data.zip,
+      source: 'BUSINESS_CARD_SCAN',
+    }
+    const created = await createLead(payload)
+    setSaving(false)
+    if (created) router.push(`/org/leads/${created.id}`)
   }
 
   return (
@@ -69,15 +97,24 @@ export default function LeadsPage() {
             ))}
           </div>
 
-          {/* New Lead button */}
-          {view !== 'dashboard' && (
-            <button
-              onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              New Lead
-            </button>
+          {/* Action buttons */}
+          {view !== 'dashboard' && view !== 'map' && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowScanner(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-muted transition-colors"
+              >
+                <Camera className="h-3.5 w-3.5" />
+                Scan Card
+              </button>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Lead
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -110,8 +147,34 @@ export default function LeadsPage() {
         />
       )}
 
+      {view === 'map' && (
+        <LeadMapView
+          leads={leads}
+          loading={loading}
+        />
+      )}
+
       {view === 'dashboard' && (
-        <LeadDashboardWidgets />
+        <div className="space-y-6">
+          {/* Individual rep dashboard (all roles) */}
+          <LeadDashboardWidgets />
+
+          {/* Manager dashboard (403 if not MANAGER+, component handles gracefully) */}
+          <div>
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Manager View
+            </h2>
+            <LeadManagerDashboard />
+          </div>
+        </div>
+      )}
+
+      {/* Card Scanner Modal */}
+      {showScanner && (
+        <LeadCardScanner
+          onScanComplete={handleScanComplete}
+          onClose={() => setShowScanner(false)}
+        />
       )}
     </div>
   )

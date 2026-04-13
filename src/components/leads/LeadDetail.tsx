@@ -6,6 +6,8 @@ import { ArrowLeft, Save, Trash2, ChevronRight, UserCheck } from 'lucide-react'
 import { LeadStatusBadge } from './LeadStatusBadge'
 import { LeadPriorityBadge } from './LeadPriorityBadge'
 import { LeadActivityTimeline } from './LeadActivityTimeline'
+import { LeadMeetingsPanel } from './LeadMeetingsPanel'
+import { CalendarIntegrationPanel } from './CalendarIntegrationPanel'
 import { LeadConvertDialog } from './LeadConvertDialog'
 import { LeadStatus, LeadSource, LeadPriority, LeadArchiveReason, LEAD_STATUS_TRANSITIONS, US_STATES } from '@/types/enums'
 import type { Lead } from '@/types/database'
@@ -345,6 +347,12 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
               {lead.assigned_to && <div className="col-span-2">Assigned to: <span className="font-mono">{lead.assigned_to}</span></div>}
             </div>
           </div>
+
+          {/* Meetings */}
+          <LeadMeetingsPanel leadId={leadId} disabled={isConverted} />
+
+          {/* Calendar Integration */}
+          <CalendarIntegrationPanel />
 
           {/* Activity Timeline */}
           <LeadActivityTimeline leadId={leadId} disabled={isConverted} />

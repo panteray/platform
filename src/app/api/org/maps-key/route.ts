@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { verifyDesignAccess } from '@/lib/auth'
+import { verifyDesignAccess, verifyOrgCRM } from '@/lib/auth'
 
 /**
  * SECURITY: This endpoint exposes the Google Maps API key to authenticated clients.
@@ -9,7 +9,8 @@ import { verifyDesignAccess } from '@/lib/auth'
  * Without these restrictions, the key can be extracted from network traffic and abused.
  */
 export async function GET() {
-  const dbUser = await verifyDesignAccess()
+  // Allow design users OR CRM users (leads map view needs ISR/OSR access)
+  const dbUser = await verifyDesignAccess() ?? await verifyOrgCRM()
   if (!dbUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const key = process.env.GOOGLE_MAPS_STATIC_KEY
