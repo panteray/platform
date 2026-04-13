@@ -269,8 +269,21 @@ export function SoftwareCanvas({ designId, designName, oppNumber, customerName }
           <div style={{ fontSize: 11, color: C.textDim }}>Managed services quoting — {customerName || designName}</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => {
+            // PDF export via print-ready HTML
+            const customerItems = items.filter(i => !i.isInternalOnly)
+            const rows = customerItems.map(i => {
+              const monthly = i.quantity * i.rate * (1 - i.discountPct / 100)
+              return `<tr><td>${i.category}</td><td>${i.name}</td><td>${i.vendor}</td><td>${i.quantity}</td><td>$${i.rate.toFixed(2)}</td><td>${i.discountPct}%</td><td>$${monthly.toFixed(2)}</td><td>$${(monthly * 12).toFixed(2)}</td></tr>`
+            }).join('')
+            const html = `<!DOCTYPE html><html><head><title>Quote — ${customerName || designName}</title><style>body{font-family:system-ui;max-width:900px;margin:30px auto;padding:0 20px;font-size:13px}h1{font-size:20px;color:#522F82;border-bottom:2px solid #522F82;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin:12px 0}th,td{border:1px solid #ddd;padding:6px 10px;font-size:11px;text-align:left}th{background:#f5f5f5;font-weight:600}.metrics{display:flex;gap:20px;margin:16px 0}.metric{text-align:center}.metric .val{font-size:22px;font-weight:700;color:#522F82}.metric .lbl{font-size:10px;color:#888}@media print{body{margin:0;padding:10px}}</style></head><body><h1>Managed Services Quote</h1><p><strong>${customerName || 'Customer'}</strong> — ${oppNumber || designName}<br/>Date: ${new Date().toLocaleDateString()} | Term: ${config.contractTermMonths} months | Increase: ${config.yearlyIncreasePct}%/yr</p><div class="metrics"><div class="metric"><div class="val">$${totals.mrr.toFixed(0)}</div><div class="lbl">MRR</div></div><div class="metric"><div class="val">$${totals.arr.toFixed(0)}</div><div class="lbl">ARR</div></div><div class="metric"><div class="val">$${totals.tcv.toFixed(0)}</div><div class="lbl">TCV (${config.contractTermMonths}mo)</div></div></div><table><thead><tr><th>Category</th><th>Service</th><th>Vendor</th><th>Qty</th><th>Rate</th><th>Disc</th><th>Monthly</th><th>Annual</th></tr></thead><tbody>${rows}</tbody></table>${customerNotes ? `<h2>Notes</h2><p>${customerNotes}</p>` : ''}</body></html>`
+            const w = window.open('', '_blank', 'width=900,height=700')
+            if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500) }
+          }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 14px', background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Download size={13} /> PDF
+          </button>
           <button onClick={exportQuote} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 14px', background: C.accent, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-            <Download size={13} /> Export DOCX
+            <Download size={13} /> DOCX
           </button>
         </div>
       </div>

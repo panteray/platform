@@ -103,7 +103,7 @@ interface Props {
   canvasActionsRef?: React.MutableRefObject<{ zoomIn: () => void; zoomOut: () => void; fitToView: () => void } | null>
 }
 
-/* ─── Device icon mapping (PNG fallback for non-camera devices) ─── */
+/* ─── Device icon mapping (legacy PNG — only used if SVG symbol not found) ─── */
 const CAT_TO_PNG: Record<string, string> = {
   cctv: '/icons/cctv/dome.png',
   dome: '/icons/cctv/dome.png',
