@@ -447,3 +447,6 @@ export function DesignDashboard({ designId, onNavigateCanvas }: DesignDashboardP
     </div>
   )
 }
+
+// Re-export MapPin for location section
+

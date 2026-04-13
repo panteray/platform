@@ -16,6 +16,7 @@ import { CustomerCard } from '@/components/opportunities/CustomerCard'
 import { BomTab } from '@/components/opportunities/BomTab'
 import { HardwareScheduleTab } from '@/components/opportunities/HardwareScheduleTab'
 import { SowTab } from '@/components/opportunities/SowTab'
+import { CompileEngine } from '@/components/opportunities/CompileEngine'
 
 const TABS = ['Overview','Surveys','Designs','Door Compliance','Hardware Schedule','SOW','BOM','Project','Field','Risk Factors','Delivery','Huddle'] as const
 type Tab = (typeof TABS)[number]
@@ -26,6 +27,7 @@ export default function OppDetailPage() {
   const [opp, setOpp] = useState<Opportunity | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('Overview')
+  const [showCompile, setShowCompile] = useState(false)
   const [callerRole, setCallerRole] = useState<string | null>(null)
   const [callerUserId, setCallerUserId] = useState<string | null>(null)
 
@@ -91,8 +93,19 @@ export default function OppDetailPage() {
         {tab === 'Huddle' && <HuddleTab oppId={opp.id} callerRole={callerRole} callerUserId={callerUserId} />}
       </div>
 
+      {/* Compile Package button */}
+      <div className="mt-4 flex justify-end">
+        <button onClick={() => setShowCompile(true)}
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors">
+          Compile Document Package
+        </button>
+      </div>
+
       {/* Customer Card */}
       {opp.customer_id && <CustomerCard customerId={opp.customer_id} />}
+
+      {/* Compile Engine Modal */}
+      {showCompile && <CompileEngine oppId={opp.id} onClose={() => setShowCompile(false)} />}
     </div>
   )
 }
