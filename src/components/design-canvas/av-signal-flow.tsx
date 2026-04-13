@@ -22,6 +22,23 @@ const AV_PROTOCOLS = [
   { value: 'sdi', label: 'SDI', color: '#ef4444' },
   { value: 'analog', label: 'Analog', color: '#64748b' },
 ]
+// Signal compatibility matrix — which protocols can connect to which
+const SIGNAL_COMPAT: Record<string, string[]> = {
+  dante: ['dante', 'aes67'], // Dante and AES67 are interoperable
+  aes67: ['aes67', 'dante'],
+  ndi: ['ndi'], // NDI is its own ecosystem
+  hdmi: ['hdmi', 'sdi'], // HDMI↔SDI via converters is common
+  sdi: ['sdi', 'hdmi'],
+  analog: ['analog'],
+}
+
+function checkSignalCompat(fromProto: string, toProto: string): { compatible: boolean; warning: string | null } {
+  const compat = SIGNAL_COMPAT[fromProto]
+  if (!compat) return { compatible: true, warning: null }
+  if (compat.includes(toProto)) return { compatible: true, warning: null }
+  return { compatible: false, warning: `${fromProto.toUpperCase()} → ${toProto.toUpperCase()} requires a converter` }
+}
+
 const NIC_TYPES = ['primary', 'secondary', 'redundant']
 const protoColor = (p: string) => AV_PROTOCOLS.find((a) => a.value === p)?.color ?? '#64748b'
 const protoLabel = (p: string) => AV_PROTOCOLS.find((a) => a.value === p)?.label ?? p

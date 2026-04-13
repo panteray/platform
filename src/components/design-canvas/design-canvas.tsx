@@ -673,10 +673,16 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   // Auto-label prefix by category
   const getNextLabel = useCallback((category: string) => {
     const prefix = LABEL_PREFIX[category] || 'DEV'
-    const sameCategory = devices.filter(d => (LABEL_PREFIX[d.category] || 'DEV') === prefix)
-    const seq = String(sameCategory.length + 1).padStart(3, '0')
-    return `${prefix}-${seq}`
-  }, [devices])
+    // Include area abbreviation if available
+    const areaAbbr = activeArea?.name
+      ? activeArea.name.replace(/[^A-Za-z0-9]/g, '').substring(0, 4).toUpperCase()
+      : ''
+    const areaDevices = devices.filter(d =>
+      d.area_id === activeAreaId && (LABEL_PREFIX[d.category] || 'DEV') === prefix
+    )
+    const seq = String(areaDevices.length + 1).padStart(3, '0')
+    return areaAbbr ? `${prefix}-${areaAbbr}-${seq}` : `${prefix}-${seq}`
+  }, [devices, activeArea, activeAreaId])
 
   const handleDeviceSelected = useCallback(async (item: DeviceSearchResult) => {
     setShowCatalog(false)

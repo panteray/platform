@@ -1074,7 +1074,22 @@ export function RightPanel({
               const fpsMult = fps / 30
               const smartMult = props.smart_codec && props.smart_codec !== 'off' ? 0.6 : 1.0
               const bitrateMbps = Math.round(baseMbps * codecMult * fpsMult * smartMult * 10) / 10
-              const storageGbPerDay = (bitrateMbps * 3600 * 24) / 8 / 1024
+              // Calculate recording hours from schedule grid (if set), otherwise assume 24h
+              let recordingHoursPerDay = 24
+              const scheduleGrid = props.recording_schedule_grid as Array<Array<{ mode: string; pct?: number }>> | undefined
+              if (scheduleGrid && Array.isArray(scheduleGrid) && scheduleGrid.length === 7) {
+                let totalHours = 0
+                for (const day of scheduleGrid) {
+                  if (!Array.isArray(day)) continue
+                  for (const slot of day) {
+                    if (slot.mode === 'continuous') totalHours += 1
+                    else if (slot.mode === 'event') totalHours += (slot.pct || 50) / 100
+                    // 'none' adds 0
+                  }
+                }
+                recordingHoursPerDay = totalHours / 7 // average across 7 days
+              }
+              const storageGbPerDay = (bitrateMbps * 3600 * recordingHoursPerDay) / 8 / 1024
               const totalStorageGb = Math.round(storageGbPerDay * retDays)
               const totalStorageTb = (totalStorageGb / 1024).toFixed(2)
               return (

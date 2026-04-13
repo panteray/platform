@@ -17,6 +17,7 @@ import { BomTab } from '@/components/opportunities/BomTab'
 import { HardwareScheduleTab } from '@/components/opportunities/HardwareScheduleTab'
 import { SowTab } from '@/components/opportunities/SowTab'
 import { CompileEngine } from '@/components/opportunities/CompileEngine'
+import { VaultSection } from '@/components/opportunities/VaultSection'
 
 const TABS = ['Overview','Surveys','Designs','Door Compliance','Hardware Schedule','SOW','BOM','Project','Field','Risk Factors','Delivery','Huddle'] as const
 type Tab = (typeof TABS)[number]
@@ -101,7 +102,8 @@ export default function OppDetailPage() {
         </button>
       </div>
 
-      {/* Customer Card */}
+      {/* Vault + Customer Card */}
+      <VaultSection oppId={opp.id} />
       {opp.customer_id && <CustomerCard customerId={opp.customer_id} />}
 
       {/* Compile Engine Modal */}
