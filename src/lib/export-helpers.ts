@@ -35,6 +35,10 @@ interface MaterialExport {
 
 interface HardwareArea {
   areaId: string
+  areaName?: string
+  satellite_lat?: number | null
+  satellite_lng?: number | null
+  satellite_zoom?: number
   deviceCount: number
   devices: Array<{
     label: string
@@ -241,8 +245,15 @@ export async function exportHardwareSchedule(designId: string, format: ExportFor
 
   // For PDF — per-device panel document (field execution reference)
   if (format === 'pdf') {
+    // Fetch Maps API key for static map snapshots
+    let mapsKey = ''
+    try {
+      const keyRes = await fetch('/api/org/maps-key')
+      if (keyRes.ok) { const kd = await keyRes.json(); mapsKey = kd.key || '' }
+    } catch { /* no map images */ }
+
     const areaBlocks = data.areas.map(area => {
-      const areaName = (area as unknown as { areaName?: string }).areaName || area.areaId
+      const areaName = area.areaName || area.areaId
       const devicePanels = area.devices.map((d, di) => {
         const p = (d.properties ?? {}) as Record<string, unknown>
         const vendor = String(p.manufacturer || p.vendor || '—')
@@ -278,10 +289,23 @@ export async function exportHardwareSchedule(designId: string, format: ExportFor
           </div>`
       }).join('')
 
+      // Build static map URL with device markers for this area
+      let mapImg = ''
+      if (mapsKey && area.satellite_lat && area.satellite_lng) {
+        const markers = area.devices.slice(0, 15).map((d, i) => {
+          // We can't convert canvas px to lat/lng without the geo context, so use the area center
+          // and label with device index — this gives a reference map, not exact positions
+          return `markers=color:red%7Clabel:${String.fromCharCode(65 + i)}%7C${area.satellite_lat},${area.satellite_lng}`
+        }).join('&')
+        const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${area.satellite_lat},${area.satellite_lng}&zoom=${area.satellite_zoom || 18}&size=800x400&maptype=satellite&${markers}&key=${mapsKey}`
+        mapImg = `<div style="margin-bottom:12px;border:1px solid #ddd;border-radius:4px;overflow:hidden"><img src="${mapUrl}" style="width:100%;display:block" alt="Area map" /></div>`
+      }
+
       return `
         <div style="page-break-before:always">
           <h2 style="color:#333;border-bottom:2px solid #522F82;padding-bottom:4px;margin-bottom:12px">${areaName}</h2>
           <div style="font-size:11px;color:#888;margin-bottom:12px">${area.devices.length} device(s) in this area</div>
+          ${mapImg}
           ${devicePanels}
         </div>`
     }).join('')
@@ -341,11 +365,35 @@ export async function exportHardwareSchedule(designId: string, format: ExportFor
     new Paragraph({ children: [new PageBreak()] }),
   ]
 
+  // Fetch Maps API key for static map images in DOCX
+  let docxMapsKey = ''
+  try {
+    const keyRes = await fetch('/api/org/maps-key')
+    if (keyRes.ok) { const kd = await keyRes.json(); docxMapsKey = kd.key || '' }
+  } catch { /* no map images */ }
+
   // Per-area sections with per-device panels
   for (const area of data.areas) {
-    const areaName = (area as unknown as { areaName?: string }).areaName || area.areaId
+    const areaName = area.areaName || area.areaId
     children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: areaName, font: 'Arial' })] }))
     children.push(p(`${area.devices.length} device(s) in this area`, { size: 18, color: '888888' }))
+
+    // Embed static map image if satellite coords available
+    if (docxMapsKey && area.satellite_lat && area.satellite_lng) {
+      try {
+        const { ImageRun } = await import('docx')
+        const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${area.satellite_lat},${area.satellite_lng}&zoom=${area.satellite_zoom || 18}&size=800x400&maptype=satellite&key=${docxMapsKey}`
+        const imgRes = await fetch(mapUrl)
+        if (imgRes.ok) {
+          const imgBuf = await imgRes.arrayBuffer()
+          children.push(new Paragraph({ children: [new ImageRun({
+            type: 'png', data: Buffer.from(imgBuf),
+            transformation: { width: 600, height: 300 },
+            altText: { title: `${areaName} Map`, description: 'Satellite map of area', name: 'area-map' },
+          })] }))
+        }
+      } catch { /* skip map image on error */ }
+    }
     children.push(p(''))
 
     for (const d of area.devices) {

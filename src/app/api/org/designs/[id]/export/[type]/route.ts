@@ -22,7 +22,7 @@ export async function POST(
   const { data: devices } = await admin.from('design_devices').select('*').eq('design_id', designId).order('created_at')
   const { data: cables } = await admin.from('design_cables').select('*').eq('design_id', designId).order('created_at')
   const { data: mdfIdfs } = await admin.from('design_mdf_idf').select('*').eq('design_id', designId)
-  const { data: areas } = await admin.from('design_areas').select('id, name').eq('design_id', designId)
+  const { data: areas } = await admin.from('design_areas').select('id, name, satellite_lat, satellite_lng, satellite_zoom').eq('design_id', designId)
 
   const deviceList = devices ?? []
   const cableList = cables ?? []
@@ -77,25 +77,34 @@ export async function POST(
         list.push(d)
         devicesByArea.set(aId, list)
       }
+      // Build area details map with satellite coords for map snapshots
+      const areaDetails = new Map((areas ?? []).map(a => [a.id, { name: a.name, satellite_lat: a.satellite_lat, satellite_lng: a.satellite_lng, satellite_zoom: a.satellite_zoom }]))
+
       return NextResponse.json({
         exportType: 'hardware-schedule',
         designName: design.name,
         generatedAt: new Date().toISOString(),
         totalDevices: deviceList.length,
-        areas: Array.from(devicesByArea.entries()).map(([areaId, devs]) => ({
-          areaId,
-          areaName: areaMap.get(areaId) || areaId,
-          deviceCount: devs.length,
-          devices: devs.map((d) => ({
-            label: d.label,
-            category: d.category,
-            status: d.status,
-            mount_type: d.mount_type,
-            position_x: d.position_x,
-            position_y: d.position_y,
-            properties: d.properties,
-          })),
-        })),
+        areas: Array.from(devicesByArea.entries()).map(([areaId, devs]) => {
+          const areaInfo = areaDetails.get(areaId)
+          return {
+            areaId,
+            areaName: areaInfo?.name || areaMap.get(areaId) || areaId,
+            satellite_lat: areaInfo?.satellite_lat ?? null,
+            satellite_lng: areaInfo?.satellite_lng ?? null,
+            satellite_zoom: areaInfo?.satellite_zoom ?? 18,
+            deviceCount: devs.length,
+            devices: devs.map((d) => ({
+              label: d.label,
+              category: d.category,
+              status: d.status,
+              mount_type: d.mount_type,
+              position_x: d.position_x,
+              position_y: d.position_y,
+              properties: d.properties,
+            })),
+          }
+        }),
       })
     }
 
