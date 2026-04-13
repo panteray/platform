@@ -379,13 +379,29 @@ export function useDesignCanvas(designId: string): DesignCanvasState {
       mergedProps = { ...existing, ...propUpdates }
       return { ...d, properties: mergedProps, updated_at: new Date().toISOString() } as DesignDevice
     }))
+    // Skip API call if no props to save (device not found in state)
+    if (Object.keys(mergedProps).length === 0) return
+    // Clean mergedProps — remove undefined values and non-serializable types
+    const cleanProps: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(mergedProps)) {
+      if (v !== undefined && typeof v !== 'function') cleanProps[k] = v
+    }
     try {
       const res = await fetch(`/api/org/designs/${designId}/devices/${deviceId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ properties: mergedProps }),
+        body: JSON.stringify({ properties: cleanProps }),
       })
-      if (!res.ok) { toast.error('Failed to save device changes'); await fetchDesign() }
-    } catch { toast.error('Failed to save device changes'); await fetchDesign() }
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        console.error('Device prop update failed:', res.status, errBody)
+        toast.error(`Failed to save device changes: ${(errBody as Record<string, string>).error || res.status}`)
+        await fetchDesign()
+      }
+    } catch (err) {
+      console.error('Device prop update error:', err)
+      toast.error('Failed to save device changes')
+      await fetchDesign()
+    }
   }, [designId, fetchDesign])
 
   const deleteDevice = useCallback(async (deviceId: string): Promise<boolean> => {
