@@ -18,8 +18,10 @@ import { HardwareScheduleTab } from '@/components/opportunities/HardwareSchedule
 import { SowTab } from '@/components/opportunities/SowTab'
 import { CompileEngine } from '@/components/opportunities/CompileEngine'
 import { VaultSection } from '@/components/opportunities/VaultSection'
+import { OppStatusTimeline } from '@/components/opportunities/OppStatusTimeline'
+import { OppApprovalGate } from '@/components/opportunities/OppApprovalGate'
 
-const TABS = ['Overview','Surveys','Designs','Door Compliance','Hardware Schedule','SOW','BOM','Project','Field','Risk Factors','Delivery','Huddle'] as const
+const TABS = ['Overview','Surveys','Designs','Door Compliance','Hardware Schedule','SOW','BOM','Project','Field','Risk Factors','Delivery','Huddle','Status History','Approvals'] as const
 type Tab = (typeof TABS)[number]
 
 export default function OppDetailPage() {
@@ -92,6 +94,8 @@ export default function OppDetailPage() {
         {tab === 'Field' && <StubTab name="Field" />}
         {tab === 'Risk Factors' && <StubTab name="Risk Factors" />}
         {tab === 'Huddle' && <HuddleTab oppId={opp.id} callerRole={callerRole} callerUserId={callerUserId} />}
+        {tab === 'Status History' && <OppStatusTimeline oppId={opp.id} />}
+        {tab === 'Approvals' && <OppApprovalGate oppId={opp.id} callerRole={callerRole} />}
       </div>
 
       {/* Compile Package button */}

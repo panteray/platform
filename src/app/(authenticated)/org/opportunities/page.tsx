@@ -3,21 +3,29 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Briefcase } from 'lucide-react'
+import { Plus, Search, Briefcase, List, Columns3, BarChart3 } from 'lucide-react'
 import { useOpportunities } from '@/hooks/useOpportunities'
 import { useUser } from '@/hooks/useUser'
 import { PipelineSummary } from '@/components/opportunities/PipelineSummary'
+import { OppKanban } from '@/components/opportunities/OppKanban'
+import { OppDashboard } from '@/components/opportunities/OppDashboard'
 import { OPP_STATUS_LABELS, OppType } from '@/types/enums'
 import type { Opportunity } from '@/types/database'
 
-type ViewMode = 'my' | 'all'
+type PageView = 'table' | 'kanban' | 'dashboard'
+
+const VIEW_TABS: { key: PageView; label: string; icon: typeof List }[] = [
+  { key: 'table', label: 'Table', icon: List },
+  { key: 'kanban', label: 'Kanban', icon: Columns3 },
+  { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+]
 
 export default function OpportunitiesPage() {
   const router = useRouter()
   const { opportunities, loading } = useOpportunities()
   const { user } = useUser()
   const [search, setSearch] = useState('')
-  const [viewMode, setViewMode] = useState<ViewMode>('all')
+  const [pageView, setPageView] = useState<PageView>('table')
   const [filterType, setFilterType] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
@@ -38,11 +46,37 @@ export default function OpportunitiesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div><h1 className="font-display text-2xl font-bold tracking-tight">Opportunities</h1><p className="text-sm text-muted-foreground">{opportunities.length} opportunities in pipeline</p></div>
-        <Link href="/org/opportunities/create" className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-4 w-4" />New Opportunity</Link>
+        <div className="flex items-center gap-3">
+          {/* View toggle */}
+          <div className="flex rounded-lg border border-border bg-muted/40 p-0.5">
+            {VIEW_TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setPageView(key)}
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  pageView === key
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+          {pageView !== 'dashboard' && (
+            <Link href="/org/opportunities/create" className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-4 w-4" />New Opportunity</Link>
+          )}
+        </div>
       </div>
 
+      {pageView === 'dashboard' && <OppDashboard />}
+
+      {pageView === 'kanban' && <OppKanban opportunities={filtered} loading={loading} />}
+
+      {pageView === 'table' && <>
       <PipelineSummary opportunities={opportunities} />
 
       {/* Discipline filter */}
@@ -99,6 +133,7 @@ export default function OpportunitiesPage() {
           </table>
         </div>
       )}
+      </>}
     </div>
   )
 }
