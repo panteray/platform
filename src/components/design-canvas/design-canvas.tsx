@@ -47,6 +47,7 @@ import { VlanPlanner } from './vlan-planner'
 import { AvSignalFlow } from './av-signal-flow'
 import { InterconnectView } from './interconnect-view'
 import { NetworkCheckerPanel } from './network-checker-panel'
+import { SoftwareCanvas } from './software-canvas'
 import { ReportGenerator } from './report-generator'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { DeviceLibraryModal } from './device-library-modal'
@@ -130,7 +131,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   /* ── UI state ── */
   const [activeTool, setActiveTool] = useState<CanvasTool>('select')
   const [activeTab, setActiveTab] = useState<string>('maps')
-  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan' | 'av' | 'interconnect' | 'checker'>('topology')
+  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan' | 'av' | 'interconnect' | 'checker' | 'software'>('topology')
   const [selectedImagerIdx, setSelectedImagerIdx] = useState<number | null>(null)
   const [activeCategory, setActiveCategory] = useState<IconTabId>('camera')
   const [showGrid, setShowGrid] = useState(true)
@@ -1287,6 +1288,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 { id: 'av' as const, label: 'AV Signal Flow' },
                 { id: 'interconnect' as const, label: 'Interconnect Wiring' },
                 { id: 'checker' as const, label: 'Network Checker' },
+                { id: 'software' as const, label: 'Software Quote' },
               ]).map(t => (
                 <button key={t.id} onClick={() => setAdditionalsView(t.id)}
                   style={{
@@ -1327,6 +1329,11 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                   devices={areaDevices} cables={areaCables}
                   mdfIdfs={mdfIdfs.filter(m => m.area_id === activeAreaId)}
                   topologyNodes={topologyNodes} topologyLinks={topologyLinks} vlans={vlans} />
+              )}
+              {additionalsView === 'software' && (
+                <SoftwareCanvas designId={designId} designName={design?.name || 'Design'}
+                  oppNumber={design?.opp_id ? `OPP-${design.opp_id.slice(0, 6)}` : undefined}
+                  customerName={''} />
               )}
             </div>
           </div>
