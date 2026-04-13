@@ -185,74 +185,81 @@ export function SowTab({ oppId, opportunity }: Props) {
   const displaySow = sowPreviewOverride ?? generatedSow
 
   // ── SOW DOCX generation ──
+  // ── SOW DOCX generation — template merge ──
+  // Uses the actual DOCX templates (SOW_Customer.docx, SOW_SUB_Project.docx, SOW_Labor.docx)
+  // and replaces {{merge_fields}} in the XML while preserving all formatting, logos, and legal text.
   const generateDocx = useCallback(async (type: 'rfp_sub' | 'sow_sub' | 'customer') => {
-    const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
+    const { mergeDocxTemplate, downloadBlob: dlBlob } = await import('@/lib/sow-template-merge')
 
-    const title = type === 'rfp_sub' ? 'RFP — Subcontractor Labor Quote'
-      : type === 'sow_sub' ? 'Subcontractor Statement of Work'
-      : 'Customer Statement of Work'
+    // Map type to template URL
+    const templateMap: Record<string, string> = {
+      rfp_sub: '/templates/sow/SOW_Labor.docx',
+      sow_sub: '/templates/sow/SOW_SUB_Project.docx',
+      customer: '/templates/sow/SOW_Customer.docx',
+    }
+    const templateUrl = templateMap[type]
 
-    const children = [
-      new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, font: 'Arial' })] }),
-      new Paragraph({ children: [new TextRun({ text: `${projectInfo.project_name} — ${projectInfo.opp_number}`, font: 'Arial', size: 24, bold: true })] }),
-      new Paragraph({ children: [new TextRun({ text: `Customer: ${projectInfo.customer_name}`, font: 'Arial', size: 20 })] }),
-      new Paragraph({ children: [new TextRun({ text: `Address: ${projectInfo.address}, ${projectInfo.city_state}`, font: 'Arial', size: 20 })] }),
-      new Paragraph({ children: [new TextRun({ text: `Date: ${projectInfo.date}`, font: 'Arial', size: 20 })] }),
-      new Paragraph({ children: [] }),
-      new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'Scope of Work', font: 'Arial' })] }),
-    ]
-
-    // Add each active section
+    // Build the generated scope of work text
     const activeSections = sections.filter(s => s.active)
-    for (let i = 0; i < activeSections.length; i++) {
-      const s = activeSections[i]
-      children.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text: `${i + 1}. ${s.label}`, font: 'Arial' })] }))
-      const merged = mergeTemplate(s.content, variables)
-      for (const line of merged.split('\n')) {
+    const scopeText = activeSections.map((s, i) =>
+      `${i + 1}. ${s.label}\n${mergeTemplate(s.content, variables)}`
+    ).join('\n\n')
+
+    // Build material list text
+    const materialText = bomItems.length > 0
+      ? bomItems.map(item => `${item.qty}x ${item.vendor} ${item.pn} — ${item.description}`).join('\n')
+      : 'See attached hardware schedule.'
+
+    // Build merge fields
+    const fields = {
+      DATE: projectInfo.date,
+      Project_Name: projectInfo.project_name,
+      Install_Location: projectInfo.address,
+      OPP_Number: projectInfo.opp_number,
+      'OPP Number': projectInfo.opp_number,
+      Project_Number: projectInfo.opp_number,
+      Customer_Name: projectInfo.customer_name,
+      customer_name: projectInfo.customer_name,
+      Address: `${projectInfo.address}${projectInfo.city_state ? ', ' + projectInfo.city_state : ''}`,
+      Point_of_Contact: projectInfo.customer_poc,
+      'Point of Contact': projectInfo.customer_poc,
+      Customer_Phone: projectInfo.customer_phone,
+      'Customer Phone': projectInfo.customer_phone,
+      Customer_Email: projectInfo.customer_email,
+      'Customer Email': projectInfo.customer_email,
+      scope_of_work: scopeText,
+      material_list: materialText,
+      project_days: projectInfo.work_days || '1',
+      // Sub-specific fields
+      Subcontractor: projectInfo.sub_name,
+      'Subcontractor PoC': projectInfo.sub_poc,
+      'Subcontractor Email': projectInfo.sub_email,
+      'Subcontractor Phone': projectInfo.sub_phone,
+    }
+
+    try {
+      const blob = await mergeDocxTemplate(templateUrl, fields)
+      dlBlob(blob, `${projectInfo.project_name || 'SOW'}_${type}.docx`)
+    } catch (err) {
+      console.error('Template merge failed:', err)
+      // Fallback: generate from scratch using docx library
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
+      const title = type === 'rfp_sub' ? 'RFP — Subcontractor Labor Quote' : type === 'sow_sub' ? 'Subcontractor Statement of Work' : 'Customer Statement of Work'
+      const children = [
+        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, font: 'Arial' })] }),
+        new Paragraph({ children: [new TextRun({ text: `${projectInfo.project_name} — ${projectInfo.opp_number}`, font: 'Arial', size: 24, bold: true })] }),
+        new Paragraph({ children: [new TextRun({ text: `Customer: ${projectInfo.customer_name}`, font: 'Arial', size: 20 })] }),
+        new Paragraph({ children: [] }),
+        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'Scope of Work', font: 'Arial' })] }),
+      ]
+      for (const line of scopeText.split('\n')) {
         children.push(new Paragraph({ children: [new TextRun({ text: line, font: 'Arial', size: 20 })] }))
       }
+      const doc = new Document({ sections: [{ properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } }, children }] })
+      const fallbackBlob = await Packer.toBlob(doc)
+      dlBlob(fallbackBlob, `${projectInfo.project_name || 'SOW'}_${type}_fallback.docx`)
     }
-
-    // Material list
-    if (bomItems.length > 0) {
-      children.push(new Paragraph({ children: [] }))
-      children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'Material List', font: 'Arial' })] }))
-      for (const item of bomItems) {
-        children.push(new Paragraph({ children: [new TextRun({ text: `${item.qty}x ${item.vendor} ${item.pn} — ${item.description}`, font: 'Arial', size: 20 })] }))
-      }
-    }
-
-    // Programming notes
-    if (programmingNotes && type === 'sow_sub') {
-      children.push(new Paragraph({ children: [] }))
-      children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'Programming Notes', font: 'Arial' })] }))
-      for (const line of programmingNotes.split('\n')) {
-        children.push(new Paragraph({ children: [new TextRun({ text: line, font: 'Arial', size: 20 })] }))
-      }
-    }
-
-    // Signature block for customer SOW
-    if (type === 'customer') {
-      children.push(new Paragraph({ children: [] }))
-      children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'Acceptance', font: 'Arial' })] }))
-      children.push(new Paragraph({ children: [new TextRun({ text: '______________________________          ______________________________', font: 'Arial', size: 20 })] }))
-      children.push(new Paragraph({ children: [new TextRun({ text: 'Customer Signature / Date                    Contractor Signature / Date', font: 'Arial', size: 16, color: '888888' })] }))
-    }
-
-    const doc = new Document({
-      sections: [{
-        properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
-        children,
-      }],
-    })
-    const blob = await Packer.toBlob(doc)
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${projectInfo.project_name || 'SOW'}_${type}.docx`
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }, [sections, variables, bomItems, projectInfo, programmingNotes])
+  }, [sections, variables, bomItems, projectInfo])
 
   // ── Render ──
 
