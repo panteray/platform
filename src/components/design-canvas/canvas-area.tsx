@@ -1153,6 +1153,7 @@ function CanvasArea(props: Props) {
     if (!map || !satelliteConfig) return
     map.setCenter({ lat: satelliteConfig.lat, lng: satelliteConfig.lng })
     map.setZoom(satelliteConfig.zoom)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally using individual fields, not the full object
   }, [satelliteConfig?.lat, satelliteConfig?.lng, satelliteConfig?.zoom])
 
   // Update device markers
@@ -1358,7 +1359,6 @@ function CanvasArea(props: Props) {
         mdfMarkersRef.current.delete(id)
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mdfIdfs, geoContext, mapReady])
 
   // Render cable polylines + waypoint markers + middle markers + distance warnings on Google Maps
@@ -1632,7 +1632,6 @@ function CanvasArea(props: Props) {
         }
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cables, geoContext, mapReady, calcWaypointLengthFt])
 
   // Render wall polylines on Google Maps — clickable, selectable, with vertex editing
@@ -1757,7 +1756,6 @@ function CanvasArea(props: Props) {
         }
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walls, geoContext, mapReady, selectedWallId])
 
   // Switch map type when floor plan changes (blank white for floor plan areas, satellite otherwise)
@@ -1816,7 +1814,6 @@ function CanvasArea(props: Props) {
     })
     overlay.setMap(map)
     groundOverlayRef.current = overlay
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floorPlan, floorPlanOpacity, geoContext, mapReady])
 
   // Update FOV polygons
@@ -2283,7 +2280,6 @@ function CanvasArea(props: Props) {
       for (const [l, r] of fovAngleHandlePairsRef.current) { l.setMap(null); r.setMap(null) }
       fovAngleHandlePairsRef.current = []
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDeviceId, devices, fovData, showFovCones, geoContext, hiddenPpfZones, mapReady])
 
   // Context menu handler

@@ -95,7 +95,7 @@ export function NetworkCheckerPanel({ devices, cables, mdfIdfs, topologyNodes, t
           <CheckCircle size={32} style={{ color: C.textDim, margin: '0 auto 12px' }} />
           <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>Ready to validate</div>
           <div style={{ fontSize: 11, color: C.textDim, marginTop: 4 }}>
-            Click "Run Checks" to validate {devices.length} devices, {cables.length} cables, {vlans.length} VLANs
+            Click &ldquo;Run Checks&rdquo; to validate {devices.length} devices, {cables.length} cables, {vlans.length} VLANs
           </div>
         </div>
       ) : (

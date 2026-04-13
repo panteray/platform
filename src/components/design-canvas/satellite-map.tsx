@@ -113,6 +113,7 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
       if (hidden || !rootRef.current) return
       let cancelled = false
       let resizeObserver: ResizeObserver | null = null
+      const capturedHost = mapHostRef.current
 
       async function init() {
         if (mapInitLockRef.current || mapInstanceRef.current) return
@@ -218,8 +219,7 @@ const SatelliteMapInner = forwardRef<SatelliteMapHandle, SatelliteMapProps>(
         resizeObserver?.disconnect()
         mapInstanceRef.current = null
         mapInitLockRef.current = false
-        const host = mapHostRef.current
-        if (host) host.innerHTML = ''
+        if (capturedHost) capturedHost.innerHTML = ''
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- single init; props synced in next effect
     }, [hidden])

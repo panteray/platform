@@ -96,6 +96,8 @@ const LABEL_PREFIX: Record<string, string> = {
 }
 
 /* ─── Page tabs (Hanwha-style top nav) ─── */
+const DEFAULT_CENTER = { lat: 37.7749, lng: -122.4194 }
+
 const PAGE_TABS = [
   { id: 'maps', label: 'Maps' },
   { id: 'devices', label: 'Devices' },
@@ -282,7 +284,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
 
   /** Phase A: single geo anchor (satellite center) + scale for lat/lng ↔ `position_x`/`position_y` */
   // Fallback to default center if no satellite config — ensures markers and FOV render regardless
-  const DEFAULT_CENTER = { lat: 37.7749, lng: -122.4194 }
+  // DEFAULT_CENTER defined at module level to avoid useMemo dependency warning
   const designGeoContext = useMemo(
     () => buildDesignGeoContext(
       satelliteConfig ? { lat: satelliteConfig.lat, lng: satelliteConfig.lng } : DEFAULT_CENTER,
@@ -809,7 +811,8 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     } catch (err) {
       console.error('Failed to add device:', err)
     }
-  }, [addDevice, designId, activeAreaId, setSelectedDeviceId, getNextLabel, changingModelDeviceId, devices, updateDevice])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- setSelectedDeviceId is stable from hook
+  }, [addDevice, designId, activeAreaId, getNextLabel, changingModelDeviceId, devices, updateDevice])
 
   const handleUpdateDevice = useCallback((id: string, updates: Record<string, unknown>) => {
     updateDevice(id, updates)

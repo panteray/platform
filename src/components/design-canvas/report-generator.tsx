@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useCallback } from 'react'
+import React, { useRef, useCallback, useMemo } from 'react'
 import { C } from './constants'
 import { classifyDori, calculatePpfAtDistance } from '@/lib/calculators'
 import type { DoriClassification } from '@/lib/calculators'
@@ -46,12 +46,15 @@ export function ReportGenerator({
   const nonCameras = devices.filter((d) => !CAMERA_TYPES.includes(d.category))
 
   // Group devices by category
-  const devicesByCategory = new Map<string, DesignDevice[]>()
-  for (const d of devices) {
-    const existing = devicesByCategory.get(d.category) ?? []
-    existing.push(d)
-    devicesByCategory.set(d.category, existing)
-  }
+  const devicesByCategory = useMemo(() => {
+    const map = new Map<string, DesignDevice[]>()
+    for (const d of devices) {
+      const existing = map.get(d.category) ?? []
+      existing.push(d)
+      map.set(d.category, existing)
+    }
+    return map
+  }, [devices])
 
   // Camera coverage data
   const cameraData = cameras.map((d) => {
