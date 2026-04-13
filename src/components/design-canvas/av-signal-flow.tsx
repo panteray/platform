@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { Layout } from 'lucide-react'
 import { C } from './constants'
+import { AvRoomTemplateSelector, type AvRoomTemplate } from './av-room-templates'
 import type { DesignAvoipDevice } from '@/types/database'
 
 interface AvSignalFlowProps {
@@ -35,6 +37,25 @@ const selectBase: React.CSSProperties = { ...inputBase, appearance: 'auto' as ne
 export function AvSignalFlow({ designId, avoipDevices, onAddDevice, onUpdateDevice, onDeleteDevice }: AvSignalFlowProps) {
   const [filterProto, setFilterProto] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showTemplates, setShowTemplates] = useState(false)
+
+  const handleApplyTemplate = useCallback(async (template: AvRoomTemplate) => {
+    setShowTemplates(false)
+    for (const dev of template.devices) {
+      await onAddDevice({
+        design_id: designId,
+        protocol: dev.properties.signal_type || 'HDMI',
+        device_name: dev.label,
+        ip_address: '',
+        subnet: '',
+        vlan_id: null,
+        nic_type: 'primary',
+        latency: 'low',
+        multicast: false,
+        properties: dev.properties,
+      })
+    }
+  }, [designId, onAddDevice])
 
   const filtered = filterProto ? avoipDevices.filter((d) => d.protocol === filterProto) : avoipDevices
   const selected = selectedId ? avoipDevices.find((d) => d.id === selectedId) ?? null : null
@@ -91,7 +112,14 @@ export function AvSignalFlow({ designId, avoipDevices, onAddDevice, onUpdateDevi
             + {p.label}
           </button>
         ))}
+        <div style={{ width: 1, height: 16, background: C.border, margin: '0 4px' }} />
+        <button onClick={() => setShowTemplates(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', fontSize: 10, fontWeight: 600, borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', background: C.accentSubtle, color: C.accent, border: `1px solid ${C.accent}40` }}>
+          <Layout size={11} /> Room Templates
+        </button>
       </div>
+
+      {showTemplates && <AvRoomTemplateSelector onSelectTemplate={handleApplyTemplate} onClose={() => setShowTemplates(false)} />}
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Table */}

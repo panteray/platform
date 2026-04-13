@@ -67,6 +67,15 @@ export async function POST(request: NextRequest) {
   const { error: huddleErr } = await admin.from('opp_huddle_threads').insert({ org_id: caller.org_id, opp_id: opp.id }).select().maybeSingle()
   if (huddleErr) console.error('Failed to create huddle thread:', huddleErr.message)
 
+  // Auto-create design vault for this OPP
+  const { error: vaultErr } = await admin.from('opp_vault_documents').insert({
+    opp_id: opp.id, org_id: caller.org_id, name: 'Design Vault Created',
+    document_type: 'system', version: 0, status: 'active',
+    metadata: { auto_created: true, created_at: new Date().toISOString() },
+    created_by: caller.id,
+  })
+  if (vaultErr) console.error('Failed to create vault:', vaultErr.message)
+
   const { error: auditErr } = await admin.from('audit_log').insert({ org_id: caller.org_id, user_id: caller.id, action: 'opportunity.created', entity_type: 'opportunity', entity_id: opp.id, details: { opp_number: oppNumber } })
   if (auditErr) console.error('Failed to create audit log:', auditErr.message)
 
