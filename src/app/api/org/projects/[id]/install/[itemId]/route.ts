@@ -48,7 +48,30 @@ export async function PATCH(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+
+  // HW schedule validation: when transitioning to installed/in_review, compare
+  // label + category + vendor + model against the linked design device. If all
+  // four match → green light; otherwise → red light (deviation candidate).
+  let matchStatus: 'green' | 'red' | null = null
+  if (data && (data.status === 'installed' || data.status === 'in_review') && data.device_id) {
+    const { data: device } = await admin
+      .from('design_devices')
+      .select('label, category, vendor, model')
+      .eq('id', data.device_id)
+      .maybeSingle()
+
+    if (device) {
+      const norm = (v: string | null | undefined) => (v ?? '').trim().toLowerCase()
+      const allMatch =
+        norm(device.label) === norm(data.label) &&
+        norm(device.category) === norm(data.category) &&
+        norm(device.vendor) === norm(data.vendor) &&
+        norm(device.model) === norm(data.model)
+      matchStatus = allMatch ? 'green' : 'red'
+    }
+  }
+
+  return NextResponse.json({ ...data, match_status: matchStatus })
 }
 
 export async function DELETE(

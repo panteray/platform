@@ -8,6 +8,7 @@ import type { Subcontractor } from '@/types/database'
 import { StatusBadge, TierBadge, ScoreBadge } from '@/components/shared/EntityHelpers'
 import { ContactsPanel } from '@/components/customers/ContactsPanel'
 import { AddressesPanel } from '@/components/customers/AddressesPanel'
+import { SubSkillMatrixTab } from '@/components/subcontractors/SubSkillMatrixTab'
 import {
   US_STATES, ENTITY_TYPES, SUB_STATUSES, SUB_TYPES,
   PAYMENT_TERMS_OPTIONS, ACCEPTED_PAYMENT_METHODS_OPTIONS, DISCIPLINE_TYPES,
@@ -15,8 +16,8 @@ import {
 
 interface SubcontractorDetailProps { subcontractorId: string }
 
-type Tab = 'Overview' | 'Details' | 'Contacts' | 'Documents' | 'Financial' | 'Compliance' | 'Skills' | 'Licenses' | 'Linked Data'
-const TABS: Tab[] = ['Overview', 'Details', 'Contacts', 'Documents', 'Financial', 'Compliance', 'Skills', 'Licenses', 'Linked Data']
+type Tab = 'Overview' | 'Details' | 'Contacts' | 'Documents' | 'Financial' | 'Compliance' | 'Skills' | 'Skill Matrix' | 'Licenses' | 'Linked Data'
+const TABS: Tab[] = ['Overview', 'Details', 'Contacts', 'Documents', 'Financial', 'Compliance', 'Skills', 'Skill Matrix', 'Licenses', 'Linked Data']
 
 const inputCls = 'h-8 w-full rounded-md border border-border bg-background px-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring'
 const labelCls = 'block text-[11px] font-medium text-muted-foreground mb-1'
@@ -116,6 +117,7 @@ export function SubcontractorDetail({ subcontractorId }: SubcontractorDetailProp
       {tab === 'Financial' && <FinancialTab sub={sub} patch={patch} />}
       {tab === 'Compliance' && <ComplianceTab sub={sub} patch={patch} />}
       {tab === 'Skills' && <SkillsTab sub={sub} patch={patch} />}
+      {tab === 'Skill Matrix' && <SubSkillMatrixTab subId={subcontractorId} />}
       {tab === 'Licenses' && <Placeholder label="Licenses" />}
       {tab === 'Linked Data' && <Placeholder label="Linked Data" />}
     </div>

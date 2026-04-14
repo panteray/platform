@@ -18,6 +18,8 @@ import { ProjectQcTab } from '@/components/projects/ProjectQcTab'
 import { ProjectCloseoutTab } from '@/components/projects/ProjectCloseoutTab'
 import { ProjectStatusReportsTab } from '@/components/projects/ProjectStatusReportsTab'
 import { ProjectLessonsLearnedTab } from '@/components/projects/ProjectLessonsLearnedTab'
+import { ProjectSubsTab } from '@/components/projects/ProjectSubsTab'
+import { ProjectRiskAssessmentTab } from '@/components/projects/ProjectRiskAssessmentTab'
 import { StubTab } from '@/components/opportunities/StubTab'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -40,7 +42,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-700',
 }
 
-const TABS = ['Overview', 'Team', 'Tasks', 'Install', 'Daily Reports', 'Van Stock', 'Change Orders', 'RAID', 'QC', 'Status Reports', 'Lessons Learned', 'Closeout', 'Documents'] as const
+const TABS = ['Overview', 'Team', 'Tasks', 'Install', 'Daily Reports', 'Van Stock', 'Subs', 'Change Orders', 'RAID', 'Risk', 'QC', 'Status Reports', 'Lessons Learned', 'Closeout', 'Documents'] as const
 type Tab = (typeof TABS)[number]
 
 export default function ProjectDetailPage() {
@@ -135,8 +137,10 @@ export default function ProjectDetailPage() {
         {tab === 'Install' && <ProjectInstallTab projectId={project.id} />}
         {tab === 'Daily Reports' && <ProjectDailyReportsTab projectId={project.id} />}
         {tab === 'Van Stock' && <ProjectInventoryTab projectId={project.id} />}
+        {tab === 'Subs' && <ProjectSubsTab projectId={project.id} />}
         {tab === 'Change Orders' && <ProjectChangeOrdersTab projectId={project.id} />}
         {tab === 'RAID' && <ProjectRaidTab projectId={project.id} />}
+        {tab === 'Risk' && <ProjectRiskAssessmentTab projectId={project.id} />}
         {tab === 'QC' && <ProjectQcTab projectId={project.id} />}
         {tab === 'Status Reports' && <ProjectStatusReportsTab projectId={project.id} />}
         {tab === 'Lessons Learned' && <ProjectLessonsLearnedTab projectId={project.id} />}

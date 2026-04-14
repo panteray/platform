@@ -1595,7 +1595,8 @@ export interface InstallItem {
   vendor: string | null
   model: string | null
   quantity: number
-  status: 'planned' | 'installation_requested' | 'installed' | 'deviation'
+  status: 'planned' | 'installation_requested' | 'installed' | 'in_review' | 'deviation'
+  match_status?: 'green' | 'red' | null
   installed_by: string | null
   installed_at: string | null
   serial_number: string | null
@@ -1808,6 +1809,134 @@ export interface MeetingMinutes {
   action_items: Array<{ description: string; assigned_to?: string; due_date?: string; status?: string }>
   decisions: Array<{ description: string; decided_by?: string; rationale?: string }>
   next_meeting_date: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+// ---- Subcontractor Portal + Risk (Phase 4D/4E) ----
+
+export type SubAssignmentStatus =
+  | 'rfp_sent' | 'quoted' | 'quote_review' | 'quote_accepted'
+  | 'po_issued' | 'po_acknowledged' | 'mobilizing' | 'on_site'
+  | 'in_progress' | 'blocked' | 'daily_report_pending' | 'qc_pending'
+  | 'punch_list' | 'punch_complete' | 'invoice_pending' | 'invoice_received'
+  | 'subcontractor_complete'
+
+export interface SubAssignment {
+  id: string
+  org_id: string
+  project_id: string
+  sub_id: string
+  status: SubAssignmentStatus
+  scope: string | null
+  deliverables: string | null
+  po_number: string | null
+  po_amount: number | null
+  invoiced_amount: number
+  paid_amount: number
+  start_date: string | null
+  target_end_date: string | null
+  actual_end_date: string | null
+  rfp_sent_at: string | null
+  quoted_at: string | null
+  po_issued_at: string | null
+  mobilized_at: string | null
+  completed_at: string | null
+  opp_sub_quote_id: string | null
+  pm_assignee_id: string | null
+  notes: string | null
+  blockers: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SubPortalToken {
+  id: string
+  org_id: string
+  sub_id: string
+  project_id: string
+  token: string
+  permissions: string[]
+  is_active: boolean
+  expires_at: string
+  accessed_at: string | null
+  access_count: number
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SubDocument {
+  id: string
+  org_id: string
+  sub_id: string
+  doc_type: 'coi' | 'w9' | 'license' | 'bond' | 'msa' | 'nda' | 'safety_cert' | 'other'
+  doc_name: string
+  storage_url: string | null
+  file_size_bytes: number | null
+  issued_date: string | null
+  expires_at: string | null
+  policy_number: string | null
+  carrier: string | null
+  coverage_amount: number | null
+  is_active: boolean
+  notes: string | null
+  uploaded_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SubSkillMatrix {
+  id: string
+  org_id: string
+  sub_id: string
+  technical_skills: Record<string, number>
+  soft_skills: Record<string, number>
+  certifications: Record<string, boolean>
+  territory: string[]
+  approved_practices: string[]
+  notes: string | null
+  last_updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface RiskCategoryScore {
+  probability: number
+  impact: number
+  score: number
+  notes: string
+}
+
+export interface RiskCategoryMitigation {
+  strategy?: 'avoid' | 'mitigate' | 'transfer' | 'accept'
+  action?: string
+  owner_id?: string
+  residual?: number
+}
+
+export interface RiskAssessment {
+  id: string
+  org_id: string
+  project_id: string
+  technical: RiskCategoryScore
+  schedule: RiskCategoryScore
+  cost: RiskCategoryScore
+  scope: RiskCategoryScore
+  team: RiskCategoryScore
+  technical_mitigation: RiskCategoryMitigation
+  schedule_mitigation: RiskCategoryMitigation
+  cost_mitigation: RiskCategoryMitigation
+  scope_mitigation: RiskCategoryMitigation
+  team_mitigation: RiskCategoryMitigation
+  total_risk_score: number
+  residual_risk_score: number
+  overall_risk_level: 'low' | 'medium' | 'high' | 'critical'
+  status: 'draft' | 'stage_1_complete' | 'stage_2_complete' | 'approved'
+  approved_by: string | null
+  approved_at: string | null
   created_by: string | null
   created_at: string
   updated_at: string
