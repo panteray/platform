@@ -14,6 +14,7 @@ import type {
 import { PSA_STATUS_TRANSITIONS } from '@/types/database'
 import { JobCostFlyout } from '@/components/psa/JobCostFlyout'
 import { KedbMatchBanner } from '@/components/psa/KedbMatchBanner'
+import { CiImpactPanel } from '@/components/psa/CiImpactPanel'
 
 type TicketDetail = PsaTicket & {
   customer?: { id: string; name: string } | null
@@ -282,6 +283,9 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
           </div>
         )}
       </div>
+
+      {/* CI Impact — hides itself when no asset or no relationships */}
+      <CiImpactPanel ticketId={ticket.id} />
 
       {/* Tabs */}
       <div className="bg-white border border-neutral-200 rounded-lg">

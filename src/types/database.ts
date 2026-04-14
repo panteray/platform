@@ -2313,6 +2313,61 @@ export interface PsaTicketCosting {
 }
 
 // ============================================================================
+// PSA — Project Costing Rollup (G6 — psa_project_costing_v)
+// ============================================================================
+
+export interface PsaProjectCosting {
+  project_id: string
+  org_id: string
+  project_number: string | null
+  project_name: string
+  project_status: string
+  ticket_count: number
+  open_ticket_count: number
+  actual_hours: number
+  estimated_hours: number
+  total_cost: number
+  total_revenue: number
+  gross_margin: number
+  gm_pct: number | null
+  budget_burn_pct: number | null
+}
+
+// ============================================================================
+// Asset Relationships — CI dependency graph (G6)
+// ============================================================================
+
+export type AssetRelationshipType =
+  | 'depends_on'
+  | 'contains'
+  | 'powered_by'
+  | 'network_uplink'
+
+export interface AssetRelationship {
+  id: string
+  org_id: string
+  parent_asset_id: string
+  child_asset_id: string
+  relationship_type: AssetRelationshipType
+  created_by: string | null
+  created_at: string
+}
+
+export interface CiImpactNode {
+  asset_id: string
+  serial_number: string | null
+  status: string
+  relationship_type: AssetRelationshipType
+  depth: number
+}
+
+export interface CiImpactResponse {
+  root_asset_id: string | null
+  downstream: CiImpactNode[]
+  open_ticket_count: number
+}
+
+// ============================================================================
 // PSA — Problem Management + KEDB (Phase 6D)
 // ============================================================================
 
