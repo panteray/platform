@@ -39,6 +39,9 @@ const deliveryNav = [
   { href: '/org/assets', label: 'Assets', icon: 'device-library', exact: false },
   { href: '/org/psa/tickets', label: 'Service Desk', icon: 'management', exact: false },
   { href: '/org/psa/dispatch', label: 'Dispatch', icon: 'dashboard', exact: false },
+  { href: '/org/psa/reports/wip', label: 'WIP Report', icon: 'dashboard', exact: false },
+  { href: '/org/psa/problems', label: 'Problems', icon: 'management', exact: false },
+  { href: '/org/psa/kedb', label: 'KEDB', icon: 'device-library', exact: false },
 ]
 
 const toolsNav = [

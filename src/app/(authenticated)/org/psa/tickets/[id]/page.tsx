@@ -11,6 +11,8 @@ import type {
   PsaTicketNote, PsaTimeEntry, PsaTicketPart, PsaTicketPhoto, PsaTicketStatusLog,
 } from '@/types/database'
 import { PSA_STATUS_TRANSITIONS } from '@/types/database'
+import { JobCostFlyout } from '@/components/psa/JobCostFlyout'
+import { KedbMatchBanner } from '@/components/psa/KedbMatchBanner'
 
 type TicketDetail = PsaTicket & {
   customer?: { id: string; name: string } | null
@@ -84,6 +86,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const [tab, setTab] = useState<Tab>('details')
   const [transitionError, setTransitionError] = useState<string | null>(null)
   const [gateFailures, setGateFailures] = useState<string[] | null>(null)
+  const [showCosting, setShowCosting] = useState(false)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/org/psa/tickets/${id}`)
@@ -139,6 +142,8 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
         <ArrowLeft className="w-4 h-4 mr-1" /> Back to tickets
       </Link>
 
+      <KedbMatchBanner title={ticket.title} description={ticket.description} category={ticket.category} />
+
       {/* Header */}
       <div className="bg-white border border-neutral-200 rounded-lg p-6">
         <div className="flex items-start justify-between gap-4">
@@ -163,6 +168,12 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               <p className="mt-2 text-sm text-neutral-600 whitespace-pre-wrap">{ticket.description}</p>
             )}
           </div>
+          <button
+            onClick={() => setShowCosting(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 transition flex-shrink-0"
+          >
+            <DollarSign className="w-3.5 h-3.5" /> Costing
+          </button>
         </div>
 
         {/* Metadata row */}
@@ -261,6 +272,8 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
           {tab === 'activity' && <ActivityTab log={ticket.status_log} />}
         </div>
       </div>
+
+      <JobCostFlyout ticketId={ticket.id} open={showCosting} onClose={() => setShowCosting(false)} />
     </div>
   )
 }

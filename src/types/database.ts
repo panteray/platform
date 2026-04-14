@@ -2254,3 +2254,177 @@ export const DISPATCH_TO_TICKET_STATUS: Record<PsaDispatchStatus, PsaTicketStatu
   completed: 'COMPLETED',
   cancelled: null,
 }
+
+// ============================================================================
+// PSA Job Costing (Phase 6C)
+// ============================================================================
+
+export interface PsaUserRate {
+  id: string
+  org_id: string
+  user_id: string
+  internal_cost_rate: number
+  billable_rate: number
+  effective_from: string
+  effective_to: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface PsaOrgCostConfig {
+  id: string
+  org_id: string
+  overhead_burden_pct: number
+  default_parts_markup_pct: number
+  created_at: string
+  updated_at: string
+}
+
+export interface PsaTicketCosting {
+  ticket_id: string
+  org_id: string
+  ticket_number: string
+  title: string
+  status: PsaTicketStatus
+  priority: PsaPriority
+  costing_enabled: boolean
+  estimated_hours: number | null
+  estimated_labor_cost: number | null
+  estimated_parts_cost: number | null
+  quoted_revenue: number | null
+  actual_hours: number
+  actual_labor_cost_raw: number
+  actual_labor_cost: number
+  actual_labor_revenue: number
+  actual_parts_cost: number
+  actual_parts_revenue: number
+  total_cost: number
+  total_revenue: number
+  gross_margin: number
+  gm_pct: number | null
+  budget_burn_pct: number | null
+}
+
+// ============================================================================
+// PSA — Problem Management + KEDB (Phase 6D)
+// ============================================================================
+
+export type PsaProblemStatus =
+  | 'NEW'
+  | 'UNDER_INVESTIGATION'
+  | 'ROOT_CAUSE_IDENTIFIED'
+  | 'WORKAROUND_AVAILABLE'
+  | 'RESOLVED'
+  | 'CLOSED'
+
+export type PsaProblemType = 'REACTIVE' | 'PROACTIVE'
+
+export type PsaRcaMethod = 'FIVE_WHYS' | 'FISHBONE' | 'FREE_TEXT'
+
+export const PSA_PROBLEM_STATUS_TRANSITIONS: Record<PsaProblemStatus, PsaProblemStatus[]> = {
+  NEW:                    ['UNDER_INVESTIGATION', 'CLOSED'],
+  UNDER_INVESTIGATION:    ['ROOT_CAUSE_IDENTIFIED', 'WORKAROUND_AVAILABLE', 'CLOSED'],
+  ROOT_CAUSE_IDENTIFIED:  ['WORKAROUND_AVAILABLE', 'RESOLVED', 'CLOSED'],
+  WORKAROUND_AVAILABLE:   ['ROOT_CAUSE_IDENTIFIED', 'RESOLVED', 'CLOSED'],
+  RESOLVED:               ['CLOSED'],
+  CLOSED:                 [],
+}
+
+export interface PsaFiveWhysEntry {
+  q: string
+  a: string
+}
+
+export interface PsaFishboneData {
+  people: string[]
+  process: string[]
+  equipment: string[]
+  environment: string[]
+  materials: string[]
+  measurement: string[]
+}
+
+export interface PsaProblem {
+  id: string
+  org_id: string
+  problem_number: string
+  title: string
+  description: string | null
+  problem_type: PsaProblemType
+  status: PsaProblemStatus
+  priority: PsaPriority | null
+  customer_id: string | null
+  category: string | null
+  rca_method: PsaRcaMethod | null
+  rca_five_whys: PsaFiveWhysEntry[] | null
+  rca_fishbone: PsaFishboneData | null
+  rca_free_text: string | null
+  root_cause: string | null
+  workaround: string | null
+  permanent_fix: string | null
+  opened_at: string
+  resolved_at: string | null
+  closed_at: string | null
+  assigned_to: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PsaProblemTicket {
+  id: string
+  problem_id: string
+  ticket_id: string
+  org_id: string
+  linked_by: string | null
+  linked_at: string
+}
+
+export interface PsaProblemStatusLog {
+  id: string
+  problem_id: string
+  org_id: string
+  from_status: PsaProblemStatus | null
+  to_status: PsaProblemStatus
+  changed_by: string | null
+  reason: string | null
+  created_at: string
+}
+
+export type PsaKedbAudience = 'internal' | 'customer_portal' | 'both'
+
+export interface PsaKedbEntry {
+  id: string
+  org_id: string
+  kedb_number: string
+  title: string
+  symptoms: string
+  root_cause: string | null
+  workaround: string | null
+  permanent_fix: string | null
+  category: string | null
+  tags: string[] | null
+  problem_id: string | null
+  audience: PsaKedbAudience
+  match_count: number
+  last_matched_at: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  expires_at: string
+  archived_at: string | null
+}
+
+export interface PsaProblemSuggestion {
+  id: string
+  org_id: string
+  customer_id: string | null
+  category: string
+  incident_count: number
+  window_days: number
+  sample_ticket_ids: string[]
+  status: 'pending' | 'accepted' | 'dismissed'
+  problem_id: string | null
+  created_at: string
+  resolved_at: string | null
+}
