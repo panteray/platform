@@ -21,7 +21,7 @@ function PtIcon({ name, className }: { name: string; className?: string }) {
 
 const orgNav = [
   { href: '/org', label: 'Dashboard', icon: 'dashboard', exact: true, requiresAdmin: false, requiresCRM: false },
-  { href: '/org/management', label: 'Management', icon: 'management', exact: false, requiresAdmin: false, requiresCRM: false },
+  { href: '/org/management', label: 'Settings', icon: 'settings', exact: false, requiresAdmin: false, requiresCRM: false },
 ]
 
 const crmNav = [
@@ -33,30 +33,24 @@ const crmNav = [
   { href: '/org/distributors', label: 'Distributors', icon: 'distributors', exact: false },
 ]
 
+const engineeringNav = [
+  { href: '/org/surveys', label: 'Surveys', icon: 'surveys', exact: false },
+  { href: '/org/designs', label: 'Designs', icon: 'designs', exact: false },
+]
+
 const deliveryNav = [
   { href: '/org/projects', label: 'Projects', icon: 'projects', exact: false },
-  { href: '/org/surveys', label: 'Surveys', icon: 'surveys', exact: false },
-  { href: '/org/assets', label: 'Assets', icon: 'device-library', exact: false },
-  { href: '/org/psa/tickets', label: 'Service Desk', icon: 'management', exact: false },
-  { href: '/org/psa/dispatch', label: 'Dispatch', icon: 'dashboard', exact: false },
-  { href: '/org/psa/reports/wip', label: 'WIP Report', icon: 'dashboard', exact: false },
-  { href: '/org/psa/problems', label: 'Problems', icon: 'management', exact: false },
-  { href: '/org/psa/kedb', label: 'KEDB', icon: 'device-library', exact: false },
-  { href: '/org/psa/invoices', label: 'Invoices', icon: 'dashboard', exact: false },
-  { href: '/org/psa/contracts', label: 'Service Contracts', icon: 'management', exact: false },
-  { href: '/org/contracts', label: 'Contracts & Docs', icon: 'management', exact: false },
-  { href: '/org/psa/reports/ar-aging', label: 'AR Aging', icon: 'dashboard', exact: false },
-  { href: '/org/psa/reports/rmr', label: 'RMR', icon: 'dashboard', exact: false },
+  { href: '/org/field-ops', label: 'Field Ops', icon: 'management', exact: false },
+]
+
+const serviceNav = [
+  { href: '/org/service', label: 'Service Desk', icon: 'management', exact: false },
 ]
 
 const toolsNav = [
-  { href: '/org/designs', label: 'Designs', icon: 'designs', exact: false },
+  { href: '/org/psa/kedb', label: 'KB', icon: 'device-library', exact: false },
   { href: '/org/tools/device-library', label: 'Device Library', icon: 'device-library', exact: false },
   { href: '/org/tools/calculators', label: 'Calculators', icon: 'calculators', exact: false },
-]
-
-const bottomNav = [
-  { href: '/org/profile', label: 'Settings', icon: 'settings', exact: false },
 ]
 
 function NavLink({
@@ -187,6 +181,19 @@ export function OrgSidebar() {
           </>
         )}
 
+        {/* Engineering Section */}
+        {canCRM && (
+          <>
+            <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
+              <div className="border-t border-border" />
+              {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Engineering</p>}
+            </div>
+            {engineeringNav.map((item) => (
+              <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
+            ))}
+          </>
+        )}
+
         {/* Delivery Section */}
         {canCRM && (
           <>
@@ -195,6 +202,19 @@ export function OrgSidebar() {
               {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Delivery</p>}
             </div>
             {deliveryNav.map((item) => (
+              <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
+            ))}
+          </>
+        )}
+
+        {/* Service Section */}
+        {canCRM && (
+          <>
+            <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
+              <div className="border-t border-border" />
+              {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Service</p>}
+            </div>
+            {serviceNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
             ))}
           </>
@@ -212,14 +232,6 @@ export function OrgSidebar() {
             ))}
           </>
         )}
-
-        {/* Settings */}
-        <div className={cn('pt-3', collapsed ? 'px-1' : 'px-2')}>
-          <div className="border-t border-border" />
-        </div>
-        {bottomNav.map((item) => (
-          <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
-        ))}
       </nav>
 
       {/* Bottom */}
