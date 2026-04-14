@@ -33,26 +33,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }, { status: 400 })
   }
 
-  // Closeout gates: COMPLETED → RESOLVED requires core gates
+  // Closeout gates: COMPLETED → RESOLVED requires all 9 gates (4 universal + 5 conditional)
   if (currentStatus === 'COMPLETED' && toStatus === 'RESOLVED') {
     const gateFailures: string[] = []
 
-    // Gate 1: resolution_notes required
+    // --- Universal Gates ---
+
+    // G1: resolution_notes required (min 10 chars)
     if (!ticket.resolution_notes || (ticket.resolution_notes as string).trim().length < 10) {
-      gateFailures.push('Resolution notes required (min 10 chars)')
+      gateFailures.push('G1: Resolution notes required (min 10 chars)')
     }
 
-    // Gate 2: at least one time entry
+    // G2: at least one time entry
     const { count: timeCount } = await admin
       .from('psa_time_entries')
       .select('*', { count: 'exact', head: true })
       .eq('ticket_id', id)
-    if ((timeCount ?? 0) === 0) gateFailures.push('At least one time entry required')
+    if ((timeCount ?? 0) === 0) gateFailures.push('G2: At least one time entry required')
 
-    // Gate 3: assigned_to must be set
-    if (!ticket.assigned_to) gateFailures.push('Ticket must be assigned')
+    // G3: assigned_to must be set
+    if (!ticket.assigned_to) gateFailures.push('G3: Ticket must be assigned')
 
-    // Gate 4: if job_type.require_photos, check photos exist
+    // G4: category required (ticket must be categorized)
+    if (!ticket.category || String(ticket.category).trim().length === 0) {
+      gateFailures.push('G4: Ticket category required')
+    }
+
+    // --- Conditional Gates ---
+
+    // G5 (cond): if job_type.require_photos, check photos exist
     if (ticket.job_type_id) {
       const { data: jobType } = await admin
         .from('psa_job_type_config')
@@ -64,8 +73,61 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           .from('psa_ticket_photos')
           .select('*', { count: 'exact', head: true })
           .eq('ticket_id', id)
-        if ((photoCount ?? 0) === 0) gateFailures.push('Photos required per job type')
+        if ((photoCount ?? 0) === 0) gateFailures.push('G5: Photos required per job type')
       }
+    }
+
+    // G6 (cond): CHANGE tickets must have their change window closed
+    if (ticket.ticket_type === 'CHANGE') {
+      const windowEnd = ticket.change_window_end ? new Date(ticket.change_window_end as string) : null
+      if (!windowEnd) {
+        gateFailures.push('G6: Change window end required on CHANGE tickets')
+      } else if (windowEnd.getTime() > Date.now()) {
+        gateFailures.push('G6: Change window must be closed before resolution')
+      }
+    }
+
+    // G7 (cond): Child tickets — parent must be COMPLETED or RESOLVED
+    if (ticket.parent_ticket_id) {
+      const { data: parent } = await admin
+        .from('psa_tickets')
+        .select('status')
+        .eq('id', ticket.parent_ticket_id)
+        .single()
+      const parentStatus = parent?.status as PsaTicketStatus | undefined
+      if (parentStatus !== 'COMPLETED' && parentStatus !== 'RESOLVED') {
+        gateFailures.push('G7: Parent ticket must be completed or resolved first')
+      }
+    }
+
+    // G8 (cond): If ticket ever hit NEEDS_RMA, every parts row must have a serial number
+    const { data: rmaHistory } = await admin
+      .from('psa_ticket_status_log')
+      .select('id')
+      .eq('ticket_id', id)
+      .eq('to_status', 'NEEDS_RMA')
+      .limit(1)
+    if (rmaHistory && rmaHistory.length > 0) {
+      const { data: parts } = await admin
+        .from('psa_ticket_parts')
+        .select('id, serial_number')
+        .eq('ticket_id', id)
+      const missingSerials = (parts ?? []).filter((p) => !p.serial_number || String(p.serial_number).trim() === '')
+      if (!parts || parts.length === 0) {
+        gateFailures.push('G8: RMA tracked — parts record with serial number required')
+      } else if (missingSerials.length > 0) {
+        gateFailures.push(`G8: RMA tracked — ${missingSerials.length} part(s) missing serial number`)
+      }
+    }
+
+    // G9 (cond): Customer-visible closeout evidence — at least one customer-visible note
+    const { count: customerNoteCount } = await admin
+      .from('psa_ticket_notes')
+      .select('*', { count: 'exact', head: true })
+      .eq('ticket_id', id)
+      .eq('internal_only', false)
+    if ((customerNoteCount ?? 0) === 0) {
+      gateFailures.push('G9: At least one customer-visible note required')
     }
 
     if (gateFailures.length > 0) {
