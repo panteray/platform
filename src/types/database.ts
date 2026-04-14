@@ -2199,3 +2199,58 @@ export const PSA_STATUS_TRANSITIONS: Record<PsaTicketStatus, PsaTicketStatus[]> 
 export const PSA_WAITING_STATUSES: PsaTicketStatus[] = [
   'WAITING_ON_CUSTOMER', 'WAITING_ON_PARTS', 'WAITING_ON_VENDOR', 'WAITING_ON_SITE_ACCESS', 'NEEDS_RMA',
 ]
+
+// ============================================================================
+// PSA Dispatch (Phase 6B)
+// ============================================================================
+
+export type PsaDispatchStatus =
+  | 'scheduled' | 'en_route' | 'on_site' | 'wip' | 'completed' | 'cancelled'
+
+export interface PsaDispatchAssignment {
+  id: string
+  org_id: string
+  ticket_id: string
+  tech_id: string
+  scheduled_date: string
+  scheduled_start: string | null
+  scheduled_end: string | null
+  status: PsaDispatchStatus
+  notes: string | null
+  travel_notes: string | null
+  geolocation: Record<string, unknown> | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PsaTechAvailability {
+  id: string
+  org_id: string
+  user_id: string
+  day_of_week: number
+  start_time: string
+  end_time: string
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface PsaTechSkill {
+  id: string
+  org_id: string
+  user_id: string
+  skill: string
+  proficiency: 'junior' | 'mid' | 'senior'
+  created_at: string
+}
+
+// Dispatch status → ticket status cascade
+export const DISPATCH_TO_TICKET_STATUS: Record<PsaDispatchStatus, PsaTicketStatus | null> = {
+  scheduled: 'SCHEDULED',
+  en_route: 'EN_ROUTE',
+  on_site: 'ON_SITE',
+  wip: 'WORK_IN_PROGRESS',
+  completed: 'COMPLETED',
+  cancelled: null,
+}
