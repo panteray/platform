@@ -43,7 +43,8 @@ const deliveryNav = [
   { href: '/org/psa/problems', label: 'Problems', icon: 'management', exact: false },
   { href: '/org/psa/kedb', label: 'KEDB', icon: 'device-library', exact: false },
   { href: '/org/psa/invoices', label: 'Invoices', icon: 'dashboard', exact: false },
-  { href: '/org/psa/contracts', label: 'Contracts', icon: 'management', exact: false },
+  { href: '/org/psa/contracts', label: 'Service Contracts', icon: 'management', exact: false },
+  { href: '/org/contracts', label: 'Contracts & Docs', icon: 'management', exact: false },
   { href: '/org/psa/reports/ar-aging', label: 'AR Aging', icon: 'dashboard', exact: false },
   { href: '/org/psa/reports/rmr', label: 'RMR', icon: 'dashboard', exact: false },
 ]

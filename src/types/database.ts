@@ -2635,3 +2635,139 @@ export interface ContractEvent {
   created_by: string | null
   created_at: string
 }
+
+// ============================================================
+// Slice 2 — Customer Account Portal + Sub Compliance + Contract Builder
+// ============================================================
+
+export type CustomerPortalScope = 'OPP_ACCEPT' | 'CUSTOMER_ACCOUNT'
+export type CustomerPortalRequestType = 'TICKET' | 'QUOTE' | 'GENERAL'
+export type CustomerPortalRequestStatus = 'NEW' | 'TRIAGED' | 'CONVERTED' | 'CLOSED'
+
+export interface CustomerPortalRequest {
+  id: string
+  org_id: string
+  customer_id: string
+  token_id: string | null
+  type: CustomerPortalRequestType
+  subject: string
+  body: string | null
+  priority: string | null
+  status: CustomerPortalRequestStatus
+  converted_to_ticket_id: string | null
+  created_by_name: string | null
+  created_by_email: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomerSignature {
+  id: string
+  org_id: string
+  customer_id: string
+  entity_type: string
+  entity_id: string
+  signature_url: string
+  signed_by_name: string
+  signed_by_email: string | null
+  signed_at: string
+  ip_address: string | null
+  user_agent: string | null
+  created_at: string
+}
+
+export type ContractTemplateType =
+  | 'MSA' | 'SLA_ADDENDUM' | 'SOW' | 'MONITORING' | 'PM'
+  | 'MSSP' | 'AVAAS' | 'SUB_MASTER' | 'WORK_ORDER' | 'NDA'
+
+export const CONTRACT_TEMPLATE_TYPES: ContractTemplateType[] = [
+  'MSA', 'SLA_ADDENDUM', 'SOW', 'MONITORING', 'PM',
+  'MSSP', 'AVAAS', 'SUB_MASTER', 'WORK_ORDER', 'NDA',
+]
+
+export const CONTRACT_TEMPLATE_TYPE_LABELS: Record<ContractTemplateType, string> = {
+  MSA: 'Master Service Agreement',
+  SLA_ADDENDUM: 'SLA Addendum',
+  SOW: 'Statement of Work',
+  MONITORING: 'Monitoring Agreement',
+  PM: 'Preventive Maintenance',
+  MSSP: 'MSSP Agreement',
+  AVAAS: 'AV-as-a-Service',
+  SUB_MASTER: 'Subcontractor Master',
+  WORK_ORDER: 'Work Order',
+  NDA: 'Non-Disclosure',
+}
+
+export type ContractTemplateStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
+
+export type GeneratedContractStatus =
+  | 'DRAFT' | 'PENDING_REVIEW' | 'SENT' | 'PARTIAL_SIGN'
+  | 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'AMENDED'
+
+export const GENERATED_CONTRACT_STATUSES: GeneratedContractStatus[] = [
+  'DRAFT', 'PENDING_REVIEW', 'SENT', 'PARTIAL_SIGN',
+  'ACTIVE', 'EXPIRED', 'CANCELLED', 'AMENDED',
+]
+
+export interface ContractClause {
+  id: string
+  org_id: string
+  name: string
+  category: string | null
+  body_md: string
+  version: number
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ContractTemplate {
+  id: string
+  org_id: string
+  type: ContractTemplateType
+  name: string
+  version: number
+  status: ContractTemplateStatus
+  body_md: string
+  variables: Array<{ key: string; label: string; default?: string }>
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ContractTemplateClause {
+  id: string
+  template_id: string
+  clause_id: string
+  display_order: number
+  created_at: string
+}
+
+export interface GeneratedContract {
+  id: string
+  org_id: string
+  contract_number: string
+  template_id: string | null
+  template_type: ContractTemplateType
+  customer_id: string
+  opp_id: string | null
+  project_id: string | null
+  service_contract_id: string | null
+  title: string
+  content: string
+  status: GeneratedContractStatus
+  variables: Record<string, string>
+  sign_token: string | null
+  sent_at: string | null
+  signed_at: string | null
+  signed_by_name: string | null
+  signed_by_email: string | null
+  signature_url: string | null
+  expires_at: string | null
+  cancelled_at: string | null
+  cancellation_reason: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}

@@ -9,6 +9,7 @@ import { StatusBadge, TierBadge, ScoreBadge } from '@/components/shared/EntityHe
 import { ContactsPanel } from '@/components/customers/ContactsPanel'
 import { AddressesPanel } from '@/components/customers/AddressesPanel'
 import { SubSkillMatrixTab } from '@/components/subcontractors/SubSkillMatrixTab'
+import { SubDocumentsTab } from '@/components/subcontractors/SubDocumentsTab'
 import {
   US_STATES, ENTITY_TYPES, SUB_STATUSES, SUB_TYPES,
   PAYMENT_TERMS_OPTIONS, ACCEPTED_PAYMENT_METHODS_OPTIONS, DISCIPLINE_TYPES,
@@ -113,7 +114,7 @@ export function SubcontractorDetail({ subcontractorId }: SubcontractorDetailProp
       {tab === 'Overview' && <OverviewTab sub={sub} patch={patch} />}
       {tab === 'Details' && <DetailsTab sub={sub} patch={patch} />}
       {tab === 'Contacts' && <ContactsPanel entityType="subcontractor" entityId={subcontractorId} />}
-      {tab === 'Documents' && <Placeholder label="Documents" />}
+      {tab === 'Documents' && <SubDocumentsTab subId={sub.id} />}
       {tab === 'Financial' && <FinancialTab sub={sub} patch={patch} />}
       {tab === 'Compliance' && <ComplianceTab sub={sub} patch={patch} />}
       {tab === 'Skills' && <SkillsTab sub={sub} patch={patch} />}
