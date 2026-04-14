@@ -1418,6 +1418,51 @@ export interface SurveyPhoto {
   created_at: string
 }
 
+// ============================================================
+// WIFI HEATMAP (Phase 2E)
+// ============================================================
+
+export interface DesignWifiAp {
+  id: string
+  org_id: string
+  design_id: string
+  area_id: string | null
+  canvas_id: string | null
+  ap_model: string | null
+  vendor: string | null
+  band: string
+  channel: number | null
+  channel_width: number
+  tx_power_dbm: number
+  antenna_gain_dbi: number
+  mount_height_ft: number
+  environment: string
+  position_x: number
+  position_y: number
+  label: string
+  color_hex: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface JurisdictionRuleset {
+  id: string
+  org_id: string | null
+  jurisdiction: string
+  rule_code: string
+  rule_category: string
+  severity: 'HIGH' | 'MED' | 'LOW' | 'INFO'
+  title: string
+  description: string
+  fix_hint: string | null
+  applies_to: string[]
+  conditions: Record<string, unknown>
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface CalculatorResult {
   id: string
   org_id: string
@@ -1440,4 +1485,330 @@ export interface VaultArtifact {
   file_size_bytes: number | null
   created_by: string | null
   created_at: string
+}
+
+// ---- Delivery Engine (Phase 3) ----
+
+export interface Project {
+  id: string
+  org_id: string
+  opp_id: string | null
+  pn: string | null
+  name: string
+  pm_id: string | null
+  status: 'planning' | 'active' | 'on_hold' | 'punch_list' | 'closeout' | 'completed' | 'cancelled'
+  risk_score: number
+  risk_level: string | null
+  contingency_pct: number
+  site_address: string | null
+  site_city: string | null
+  site_state: string | null
+  site_zip: string | null
+  site_notes: string | null
+  start_date: string | null
+  target_end_date: string | null
+  actual_end_date: string | null
+  budget_amount: number | null
+  customer_id: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectTask {
+  id: string
+  org_id: string
+  project_id: string
+  title: string
+  description: string | null
+  assignee_id: string | null
+  status: 'todo' | 'in_progress' | 'blocked' | 'done' | 'cancelled'
+  priority: string
+  area_id: string | null
+  due_date: string | null
+  completed_at: string | null
+  sort_order: number
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectMilestone {
+  id: string
+  org_id: string
+  project_id: string
+  title: string
+  description: string | null
+  target_date: string | null
+  completed_at: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectTeam {
+  id: string
+  org_id: string
+  project_id: string
+  user_id: string
+  role: 'PM' | 'LEAD_TECH' | 'FIELD_TECH' | 'SUB' | 'PRESALES' | 'ENGINEER'
+  added_at: string
+}
+
+export interface DailyReport {
+  id: string
+  org_id: string
+  project_id: string
+  report_date: string
+  author_id: string
+  summary: string | null
+  weather: string | null
+  crew_count: number
+  hours_worked: number
+  safety_notes: string | null
+  photos: Array<{ url: string; caption?: string; taken_at?: string }>
+  created_at: string
+  updated_at: string
+}
+
+export interface DailyReportItem {
+  id: string
+  org_id: string
+  report_id: string
+  task_id: string | null
+  description: string
+  hours: number
+  photos: Array<{ url: string; caption?: string }>
+  created_at: string
+}
+
+export interface InstallItem {
+  id: string
+  org_id: string
+  project_id: string
+  device_id: string | null
+  area_id: string | null
+  hw_schedule_line: number | null
+  label: string
+  category: string | null
+  description: string | null
+  vendor: string | null
+  model: string | null
+  quantity: number
+  status: 'planned' | 'installation_requested' | 'installed' | 'deviation'
+  installed_by: string | null
+  installed_at: string | null
+  serial_number: string | null
+  mac_address: string | null
+  deviation_type: 'minor' | 'major' | null
+  deviation_note: string | null
+  deviation_ai_analysis: string | null
+  position_x: number | null
+  position_y: number | null
+  photos: Array<{ url: string; caption?: string; phase?: string; taken_at?: string }>
+  created_at: string
+  updated_at: string
+}
+
+export interface InventoryTxn {
+  id: string
+  org_id: string
+  project_id: string
+  user_id: string
+  item_description: string
+  part_number: string | null
+  type: 'DEBIT' | 'CREDIT'
+  quantity: number
+  notes: string | null
+  created_at: string
+}
+
+// ---- Delivery Engine V2 (Phase 4) ----
+
+export interface ChangeOrder {
+  id: string
+  org_id: string
+  project_id: string
+  co_number: string | null
+  type: 'minor' | 'major'
+  status: 'initiated' | 'classified' | 'engineering_delegated' | 'quote_delegated' | 'pm_review' | 'customer_sig' | 'injected' | 'field_acknowledged' | 'closed'
+  title: string
+  description: string | null
+  reason: string | null
+  cost_impact: number
+  price_change: boolean
+  schedule_impact_days: number
+  install_item_id: string | null
+  initiated_by: string | null
+  engineering_assignee_id: string | null
+  engineering_notes: string | null
+  engineering_completed_at: string | null
+  quote_assignee_id: string | null
+  quote_amount: number | null
+  quote_notes: string | null
+  quote_completed_at: string | null
+  pm_approved_by: string | null
+  pm_approved_at: string | null
+  pm_decline_reason: string | null
+  customer_signed_at: string | null
+  customer_sig_data: string | null
+  injected_at: string | null
+  field_acknowledged_by: string | null
+  field_acknowledged_at: string | null
+  closed_at: string | null
+  closed_by: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface RaidItem {
+  id: string
+  org_id: string
+  project_id: string
+  type: 'RISK' | 'ACTION' | 'ISSUE' | 'DECISION'
+  raid_number: string | null
+  title: string
+  description: string | null
+  status: 'open' | 'in_progress' | 'ongoing' | 'on_track' | 'needs_review' | 'approved' | 'overdue' | 'on_hold' | 'resolved' | 'closed'
+  probability: number | null
+  impact: number | null
+  risk_rating: number | null
+  response_type: string | null
+  response_actions: string | null
+  assigned_to: string | null
+  due_date: string | null
+  completed_at: string | null
+  severity: string | null
+  resolution: string | null
+  decision_maker: string | null
+  decision_date: string | null
+  rationale: string | null
+  category: string | null
+  owner_id: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface QcChecklist {
+  id: string
+  org_id: string
+  project_id: string
+  area_id: string | null
+  area_name: string | null
+  status: 'draft' | 'in_progress' | 'submitted' | 'approved' | 'failed'
+  items: Array<{ id: string; label: string; passed: boolean; notes?: string; photo_before_url?: string; photo_after_url?: string }>
+  corrective_actions: Array<{ id: string; description: string; assigned_to?: string; status?: string; due_date?: string; completed_at?: string }>
+  submitted_by: string | null
+  submitted_at: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  review_notes: string | null
+  photos: Array<{ url: string; caption?: string; phase?: string }>
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SignOffSheet {
+  id: string
+  org_id: string
+  project_id: string
+  status: 'draft' | 'pending_customer' | 'pending_sub' | 'pending_pm' | 'completed'
+  scope_summary: string | null
+  customer_name: string | null
+  customer_title: string | null
+  customer_sig_data: string | null
+  customer_signed_at: string | null
+  sub_name: string | null
+  sub_sig_data: string | null
+  sub_signed_at: string | null
+  pm_name: string | null
+  pm_sig_data: string | null
+  pm_signed_at: string | null
+  photos: Array<{ url: string; caption?: string }>
+  gate_install_complete: boolean
+  gate_co_closed: boolean
+  gate_qc_passed: boolean
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface StatusReport {
+  id: string
+  org_id: string
+  project_id: string
+  report_date: string
+  overall_status: 'on_track' | 'at_risk' | 'behind' | 'critical'
+  summary: string | null
+  accomplishments: string | null
+  next_steps: string | null
+  blockers: string | null
+  snapshot: Record<string, unknown>
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface LessonLearned {
+  id: string
+  org_id: string
+  project_id: string
+  practice_area: string
+  issue_category: string
+  subcategory: string | null
+  what_happened: string
+  impact: string | null
+  recommendation: string | null
+  severity: string
+  status: string
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface StakeholderEntry {
+  id: string
+  org_id: string
+  project_id: string
+  name: string
+  role: string | null
+  organization: string | null
+  category: 'internal' | 'external'
+  power: number
+  influence: number
+  interest: number
+  email: string | null
+  phone: string | null
+  communication_preference: string | null
+  communication_frequency: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MeetingMinutes {
+  id: string
+  org_id: string
+  project_id: string
+  meeting_type: string
+  title: string
+  meeting_date: string
+  location: string | null
+  attendees: Array<{ name: string; role?: string; present?: boolean }>
+  agenda: string | null
+  discussion_notes: string | null
+  action_items: Array<{ description: string; assigned_to?: string; due_date?: string; status?: string }>
+  decisions: Array<{ description: string; decided_by?: string; rationale?: string }>
+  next_meeting_date: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
 }

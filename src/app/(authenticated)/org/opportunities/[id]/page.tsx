@@ -23,6 +23,7 @@ import { OppApprovalGate } from '@/components/opportunities/OppApprovalGate'
 import { SurveyModule } from '@/components/surveys/SurveyModule'
 import { RfpQuoteTab } from '@/components/opportunities/RfpQuoteTab'
 import { CustomerPortalTab } from '@/components/opportunities/CustomerPortalTab'
+import { ProjectFromOppTab } from '@/components/projects/ProjectFromOppTab'
 
 const TABS = ['Overview','Surveys','Designs','Door Compliance','Hardware Schedule','SOW','BOM','Sub Quotes','Customer Portal','Project','Field','Risk Factors','Delivery','Huddle','Status History','Approvals'] as const
 type Tab = (typeof TABS)[number]
@@ -95,7 +96,7 @@ export default function OppDetailPage() {
         {tab === 'BOM' && <BomTab oppId={opp.id} />}
         {tab === 'Sub Quotes' && <RfpQuoteTab oppId={opp.id} callerRole={callerRole} />}
         {tab === 'Customer Portal' && <CustomerPortalTab oppId={opp.id} />}
-        {tab === 'Project' && <StubTab name="Project" />}
+        {tab === 'Project' && <ProjectFromOppTab oppId={opp.id} opp={opp} />}
         {tab === 'Field' && <StubTab name="Field" />}
         {tab === 'Risk Factors' && <StubTab name="Risk Factors" />}
         {tab === 'Huddle' && <HuddleTab oppId={opp.id} callerRole={callerRole} callerUserId={callerUserId} />}

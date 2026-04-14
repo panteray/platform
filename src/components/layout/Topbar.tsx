@@ -24,6 +24,8 @@ const ROUTE_LABELS: Record<string, string> = {
   '/org/manufacturers': 'Manufacturers',
   '/org/subcontractors': 'Subcontractors',
   '/org/distributors': 'Distributors',
+  '/org/projects': 'Projects',
+  '/org/surveys': 'Surveys',
   '/org/designs': 'Designs',
   '/org/tools/device-library': 'Device Library',
   '/org/tools/calculators': 'Calculators',

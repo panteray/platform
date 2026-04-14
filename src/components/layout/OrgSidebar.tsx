@@ -33,6 +33,11 @@ const crmNav = [
   { href: '/org/distributors', label: 'Distributors', icon: 'distributors', exact: false },
 ]
 
+const deliveryNav = [
+  { href: '/org/projects', label: 'Projects', icon: 'projects', exact: false },
+  { href: '/org/surveys', label: 'Surveys', icon: 'surveys', exact: false },
+]
+
 const toolsNav = [
   { href: '/org/designs', label: 'Designs', icon: 'designs', exact: false },
   { href: '/org/tools/device-library', label: 'Device Library', icon: 'device-library', exact: false },
@@ -166,6 +171,19 @@ export function OrgSidebar() {
               {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">CRM</p>}
             </div>
             {crmNav.map((item) => (
+              <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
+            ))}
+          </>
+        )}
+
+        {/* Delivery Section */}
+        {canCRM && (
+          <>
+            <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
+              <div className="border-t border-border" />
+              {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Delivery</p>}
+            </div>
+            {deliveryNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
             ))}
           </>
