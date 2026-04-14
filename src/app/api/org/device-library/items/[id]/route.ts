@@ -68,6 +68,7 @@ export async function PATCH(
   const allowed = [
     'vendor', 'model', 'partnumber', 'category', 'subcategory',
     'resolution', 'fps', 'poe_standard', 'wattage', 'ndaa_compliant',
+    'ul_listed', 'ul_listing_code',
     'form', 'ir', 'super_low_light', 'focal_length', 'focal_type',
     'aov', 'imager_count', 'multi_imager_type', 'codecs',
     'fisheye_view', 'environment',

@@ -904,6 +904,8 @@ export interface DeviceLibraryItem {
   poe_standard: string | null
   wattage: number | null
   ndaa_compliant: boolean
+  ul_listed: boolean
+  ul_listing_code: string | null
   form: string | null
   ir: string | null
   super_low_light: boolean | null
@@ -959,6 +961,8 @@ export interface DeviceSearchResult {
   resolution: string | null
   fps: string | null
   ndaa_compliant: boolean | null
+  ul_listed: boolean | null
+  ul_listing_code: string | null
   form: string | null
   ir: string | null
   super_low_light: boolean | null

@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 
   let query = admin
     .from('device_library_items')
-    .select('id, category, subcategory, vendor, model, partnumber, resolution, fps, poe_standard, wattage, ndaa_compliant, form, ir, super_low_light, focal_length, focal_type, aov, imager_count, multi_imager_type, codecs, fisheye_view, environment, specs, manufacturer_id', { count: 'exact' })
+    .select('id, category, subcategory, vendor, model, partnumber, resolution, fps, poe_standard, wattage, ndaa_compliant, ul_listed, ul_listing_code, form, ir, super_low_light, focal_length, focal_type, aov, imager_count, multi_imager_type, codecs, fisheye_view, environment, specs, manufacturer_id', { count: 'exact' })
     .or(`org_id.is.null,org_id.eq.${orgId}`)
     .order(sortCol, { ascending })
     .order('model', { ascending: true })

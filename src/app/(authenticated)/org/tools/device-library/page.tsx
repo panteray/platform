@@ -32,6 +32,8 @@ const EDITABLE_FIELDS = [
   { key: 'poe_standard', label: 'PoE Standard', type: 'text' },
   { key: 'wattage', label: 'Wattage (W)', type: 'number' },
   { key: 'ndaa_compliant', label: 'NDAA Compliant', type: 'checkbox' },
+  { key: 'ul_listed', label: 'UL Listed', type: 'checkbox' },
+  { key: 'ul_listing_code', label: 'UL Listing Code (e.g. UL 294)', type: 'text' },
   { key: 'subcategory', label: 'Subcategory', type: 'text' },
 ] as const
 
@@ -121,6 +123,7 @@ function SideDrawer({ item, onClose, onSaved, onDeleted }: {
       fisheye_view: item.fisheye_view ?? '', environment: item.environment ?? '',
       fps: item.fps ?? '', poe_standard: item.poe_standard ?? '',
       wattage: item.wattage ?? '', ndaa_compliant: item.ndaa_compliant,
+      ul_listed: item.ul_listed ?? false, ul_listing_code: item.ul_listing_code ?? '',
     })
     setEditing(true)
   }
@@ -208,6 +211,16 @@ function SideDrawer({ item, onClose, onSaved, onDeleted }: {
             <div>
               <p className="text-[11px] text-muted-foreground">NDAA</p>
               <NdaaBadge value={item.ndaa_compliant} />
+            </div>
+            <div>
+              <p className="text-[11px] text-muted-foreground">UL Listing</p>
+              {item.ul_listed ? (
+                <span className="inline-flex items-center rounded border border-amber-500/50 px-1.5 py-0.5 text-[10px] font-bold text-amber-600">
+                  {item.ul_listing_code ?? 'UL'}
+                </span>
+              ) : (
+                <span className="text-sm text-muted-foreground">-</span>
+              )}
             </div>
           </div>
           {Object.keys(specs).length > 0 && (

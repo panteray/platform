@@ -88,6 +88,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
   const [selectedRes, setSelectedRes] = useState('')
   const [selectedVendor, setSelectedVendor] = useState('')
   const [selectedNdaa, setSelectedNdaa] = useState<'' | 'true' | 'false'>('')
+  const [selectedUl, setSelectedUl] = useState<'' | 'true' | 'false'>('')
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [distinctResolutions, setDistinctResolutions] = useState<string[]>([])
@@ -186,9 +187,11 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
       // NDAA
       if (selectedNdaa === 'true' && !r.ndaa_compliant) return false
       if (selectedNdaa === 'false' && r.ndaa_compliant) return false
+      if (selectedUl === 'true' && !r.ul_listed) return false
+      if (selectedUl === 'false' && r.ul_listed) return false
       return true
     })
-  }, [results, selectedVendor, selectedForms, selectedRes, selectedNdaa])
+  }, [results, selectedVendor, selectedForms, selectedRes, selectedNdaa, selectedUl])
 
   // Group by form factor for card grid
   const groups = useMemo(() => {
@@ -203,7 +206,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
   }, [filtered])
 
   // Active filter count
-  const activeFilterCount = (selectedVendor ? 1 : 0) + selectedForms.size + (selectedRes ? 1 : 0) + (selectedNdaa ? 1 : 0)
+  const activeFilterCount = (selectedVendor ? 1 : 0) + selectedForms.size + (selectedRes ? 1 : 0) + (selectedNdaa ? 1 : 0) + (selectedUl ? 1 : 0)
 
   // Toggle form factor
   function toggleForm(f: string) {
@@ -220,6 +223,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
     setSelectedForms(new Set())
     setSelectedRes('')
     setSelectedNdaa('')
+    setSelectedUl('')
   }
 
   function handleCardClick(device: DeviceSearchResult) {
@@ -383,6 +387,32 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
                 </div>
               </div>
 
+              {/* UL Listing */}
+              <div>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">UL Listing</p>
+                <div className="flex gap-1.5">
+                  {[
+                    { value: '', label: 'Any' },
+                    { value: 'true', label: 'Listed' },
+                    { value: 'false', label: 'Not Listed' },
+                  ].map(opt => {
+                    const active = selectedUl === opt.value
+                    return (
+                      <button key={opt.value}
+                        onClick={() => setSelectedUl(opt.value as '' | 'true' | 'false')}
+                        className={`px-3 py-1 rounded-md border text-xs font-medium transition-colors ${
+                          active
+                            ? 'border-[#2b8fce] bg-[#2b8fce]/10 text-[#2b8fce]'
+                            : 'border-border text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               <button
                 onClick={() => setShowFilters(false)}
                 className="w-full h-8 rounded-md bg-[#2b8fce] text-white text-xs font-semibold hover:bg-[#2b8fce]/90 transition-colors"
@@ -446,6 +476,12 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
               <button onClick={() => setSelectedNdaa('')} className="hover:text-foreground"><X className="h-3 w-3" /></button>
             </span>
           )}
+          {selectedUl && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#2b8fce]/10 border border-[#2b8fce]/30 px-2 py-0.5 text-[10px] font-medium text-[#2b8fce]">
+              UL: {selectedUl === 'true' ? 'Listed' : 'Not Listed'}
+              <button onClick={() => setSelectedUl('')} className="hover:text-foreground"><X className="h-3 w-3" /></button>
+            </span>
+          )}
           <button onClick={clearFilters} className="text-[10px] text-muted-foreground hover:text-foreground ml-1">
             Clear all
           </button>
@@ -491,6 +527,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
                 <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Form</th>
                 <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Resolution</th>
                 <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">NDAA</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">UL</th>
               </tr>
             </thead>
             <tbody>
@@ -509,6 +546,15 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
                       <ShieldCheck className="h-3.5 w-3.5 text-green-500" />
                     ) : device.ndaa_compliant === false ? (
                       <ShieldAlert className="h-3.5 w-3.5 text-red-500" />
+                    ) : (
+                      <span className="text-muted-foreground text-xs">-</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    {device.ul_listed ? (
+                      <span className="inline-flex items-center rounded border border-amber-500/50 px-1.5 py-0.5 text-[9px] font-bold leading-none text-amber-600">
+                        {device.ul_listing_code ?? 'UL'}
+                      </span>
                     ) : (
                       <span className="text-muted-foreground text-xs">-</span>
                     )}
@@ -547,12 +593,19 @@ function DeviceCard({ device, onClick }: { device: DeviceSearchResult; onClick: 
         {res && <span>{res} · </span>}
         {device.vendor}
       </p>
-      {/* NDAA badge */}
-      {device.ndaa_compliant && (
-        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded border border-green-500/50 text-green-500 leading-none">
-          NDAA
-        </span>
-      )}
+      {/* Compliance badges */}
+      <div className="flex items-center gap-1">
+        {device.ndaa_compliant && (
+          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded border border-green-500/50 text-green-500 leading-none">
+            NDAA
+          </span>
+        )}
+        {device.ul_listed && (
+          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-600 leading-none">
+            {device.ul_listing_code ?? 'UL'}
+          </span>
+        )}
+      </div>
     </div>
   )
 }

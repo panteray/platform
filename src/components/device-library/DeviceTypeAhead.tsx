@@ -133,6 +133,11 @@ export function DeviceTypeAhead({
               }`}
             >
               <NdaaBadge value={item.ndaa_compliant} />
+              {item.ul_listed && (
+                <span className="text-[9px] font-bold px-1 py-0.5 rounded border border-amber-500/50 text-amber-600 leading-none">
+                  {item.ul_listing_code ?? 'UL'}
+                </span>
+              )}
               <span className="font-medium text-foreground">{item.vendor}</span>
               <span className="text-muted-foreground">{item.model}</span>
               {item.partnumber && (
