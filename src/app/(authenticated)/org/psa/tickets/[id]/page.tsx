@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback, use } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Clock, AlertCircle, CheckCircle2, User, Building2,
-  Package, FileText, DollarSign, Camera, History, Plus, X, Send,
+  Package, FileText, DollarSign, Camera, History, Plus, X, Send, Receipt,
 } from 'lucide-react'
 import type {
   PsaTicket, PsaTicketStatus, PsaPriority, PsaVertical,
@@ -81,12 +82,31 @@ type Tab = 'details' | 'notes' | 'time' | 'parts' | 'photos' | 'activity'
 
 export default function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const router = useRouter()
   const [ticket, setTicket] = useState<TicketDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('details')
   const [transitionError, setTransitionError] = useState<string | null>(null)
   const [gateFailures, setGateFailures] = useState<string[] | null>(null)
   const [showCosting, setShowCosting] = useState(false)
+  const [generatingInvoice, setGeneratingInvoice] = useState(false)
+
+  async function generateInvoice() {
+    setGeneratingInvoice(true)
+    const res = await fetch('/api/org/psa/invoices/generate-from-ticket', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ticket_id: id }),
+    })
+    setGeneratingInvoice(false)
+    if (res.ok) {
+      const inv = await res.json()
+      router.push(`/org/psa/invoices/${inv.id}`)
+    } else {
+      const e = await res.json().catch(() => ({}))
+      alert(e.error ?? 'Failed to generate invoice')
+    }
+  }
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/org/psa/tickets/${id}`)
@@ -168,12 +188,23 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               <p className="mt-2 text-sm text-neutral-600 whitespace-pre-wrap">{ticket.description}</p>
             )}
           </div>
-          <button
-            onClick={() => setShowCosting(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 transition flex-shrink-0"
-          >
-            <DollarSign className="w-3.5 h-3.5" /> Costing
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {(ticket.status === 'COMPLETED' || ticket.status === 'RESOLVED') && (
+              <button
+                onClick={generateInvoice}
+                disabled={generatingInvoice}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition disabled:opacity-50"
+              >
+                <Receipt className="w-3.5 h-3.5" /> {generatingInvoice ? 'Generating…' : 'Generate Invoice'}
+              </button>
+            )}
+            <button
+              onClick={() => setShowCosting(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 transition"
+            >
+              <DollarSign className="w-3.5 h-3.5" /> Costing
+            </button>
+          </div>
         </div>
 
         {/* Metadata row */}

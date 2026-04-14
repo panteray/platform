@@ -2428,3 +2428,210 @@ export interface PsaProblemSuggestion {
   created_at: string
   resolved_at: string | null
 }
+
+// ============================================================================
+// PSA Invoicing + RMR Billing (Phase 7B + 7C)
+// ============================================================================
+
+export type InvoiceStatus =
+  | 'DRAFT'
+  | 'SENT'
+  | 'VIEWED'
+  | 'PARTIAL_PAID'
+  | 'PAID'
+  | 'OVERDUE'
+  | 'VOID'
+  | 'WRITTEN_OFF'
+
+export const INVOICE_STATUSES: InvoiceStatus[] = [
+  'DRAFT', 'SENT', 'VIEWED', 'PARTIAL_PAID', 'PAID', 'OVERDUE', 'VOID', 'WRITTEN_OFF',
+]
+
+export const INVOICE_STATUS_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
+  DRAFT:        ['SENT', 'VOID'],
+  SENT:         ['VIEWED', 'PARTIAL_PAID', 'PAID', 'OVERDUE', 'VOID', 'WRITTEN_OFF'],
+  VIEWED:       ['PARTIAL_PAID', 'PAID', 'OVERDUE', 'VOID', 'WRITTEN_OFF'],
+  PARTIAL_PAID: ['PAID', 'OVERDUE', 'WRITTEN_OFF'],
+  OVERDUE:      ['PARTIAL_PAID', 'PAID', 'VOID', 'WRITTEN_OFF'],
+  PAID:         [],
+  VOID:         [],
+  WRITTEN_OFF:  [],
+}
+
+export type InvoiceSource = 'TICKET' | 'PROJECT' | 'CONTRACT_RMR' | 'MANUAL'
+
+export type PaymentMethod =
+  | 'CHECK'
+  | 'ACH'
+  | 'WIRE'
+  | 'CASH'
+  | 'CREDIT_CARD_OFFLINE'
+  | 'OTHER'
+
+export const PAYMENT_METHODS: PaymentMethod[] = [
+  'CHECK', 'ACH', 'WIRE', 'CASH', 'CREDIT_CARD_OFFLINE', 'OTHER',
+]
+
+export type InvoiceLineSource = 'LABOR' | 'PARTS' | 'RMR' | 'FEE' | 'OTHER'
+
+export type ContractStatus =
+  | 'DRAFT'
+  | 'ACTIVE'
+  | 'PAUSED'
+  | 'CANCELLED'
+  | 'EXPIRED'
+  | 'RENEWED'
+
+export const CONTRACT_STATUSES: ContractStatus[] = [
+  'DRAFT', 'ACTIVE', 'PAUSED', 'CANCELLED', 'EXPIRED', 'RENEWED',
+]
+
+export type ContractBillingModel =
+  | 'PER_DEVICE'
+  | 'PER_DOOR'
+  | 'PER_CAMERA'
+  | 'PCT_SYSTEM_VALUE'
+  | 'PER_ROOM'
+  | 'PER_USER'
+  | 'PER_ENDPOINT'
+  | 'FLAT_SITE'
+  | 'BLOCK_TIME'
+  | 'TIERED'
+  | 'MILESTONE'
+
+export const CONTRACT_BILLING_MODELS: ContractBillingModel[] = [
+  'PER_DEVICE', 'PER_DOOR', 'PER_CAMERA', 'PCT_SYSTEM_VALUE',
+  'PER_ROOM', 'PER_USER', 'PER_ENDPOINT', 'FLAT_SITE',
+  'BLOCK_TIME', 'TIERED', 'MILESTONE',
+]
+
+export type ContractBillingCycle = 'MONTHLY' | 'QUARTERLY' | 'ANNUAL'
+
+export const CONTRACT_BILLING_CYCLES: ContractBillingCycle[] = [
+  'MONTHLY', 'QUARTERLY', 'ANNUAL',
+]
+
+export type BlockTimeRollover = 'NONE' | 'FULL' | 'CAPPED'
+
+export type ContractEventType =
+  | 'CREATED'
+  | 'ACTIVATED'
+  | 'BILLED'
+  | 'RENEWED'
+  | 'CANCELLED'
+  | 'PAUSED'
+  | 'ESCALATED'
+  | 'BLOCK_DEBIT'
+
+export interface Invoice {
+  id: string
+  org_id: string
+  invoice_number: string
+  customer_id: string
+  source: InvoiceSource
+  source_ticket_id: string | null
+  source_project_id: string | null
+  source_contract_id: string | null
+  status: InvoiceStatus
+  issued_at: string
+  due_date: string
+  sent_at: string | null
+  viewed_at: string | null
+  paid_at: string | null
+  payment_terms_days: number
+  subtotal: number
+  tax_rate: number
+  tax_amount: number
+  late_fee_amount: number
+  total: number
+  amount_paid: number
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface InvoiceLineItem {
+  id: string
+  invoice_id: string
+  org_id: string
+  description: string
+  quantity: number
+  unit_price: number
+  line_total: number
+  source_type: InvoiceLineSource
+  source_ref_id: string | null
+  created_at: string
+}
+
+export interface InvoicePayment {
+  id: string
+  invoice_id: string
+  org_id: string
+  amount: number
+  method: PaymentMethod
+  reference_number: string | null
+  paid_at: string
+  recorded_by: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface InvoiceReminder {
+  id: string
+  invoice_id: string
+  org_id: string
+  touchpoint: number
+  sent_at: string
+  delivery_status: string | null
+  created_at: string
+}
+
+export interface ServiceContract {
+  id: string
+  org_id: string
+  contract_number: string
+  customer_id: string
+  name: string
+  status: ContractStatus
+  billing_model: ContractBillingModel
+  billing_cycle: ContractBillingCycle
+  start_date: string
+  end_date: string | null
+  auto_renew: boolean
+  renewal_notice_days: number
+  annual_escalation_pct: number
+  next_bill_date: string | null
+  last_billed_at: string | null
+  block_hours_total: number | null
+  block_hours_used: number
+  block_rollover_type: BlockTimeRollover
+  block_rollover_cap: number | null
+  overage_rate: number | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ContractLineItem {
+  id: string
+  contract_id: string
+  org_id: string
+  description: string
+  asset_id: string | null
+  quantity: number
+  unit_rate: number
+  monthly_amount: number
+  created_at: string
+}
+
+export interface ContractEvent {
+  id: string
+  contract_id: string
+  org_id: string
+  event_type: ContractEventType
+  details: Record<string, unknown> | null
+  created_by: string | null
+  created_at: string
+}
