@@ -179,6 +179,19 @@ npx next lint     # Lint only
 
 ---
 
+## Contracts — Two Separate Features
+
+Panteray has **two distinct contract features** on separate routes. Do not conflate them.
+
+| Route | Purpose | Tables |
+|---|---|---|
+| `/org/psa/contracts` | **Service Contracts** — RMR/recurring billing, per-device/door/camera models, ongoing service agreements (Phase 7C) | `service_contracts`, `contract_line_items` |
+| `/org/contracts` | **Contracts & Docs** — legal document builder, template-based generation, e-signature (Phase 7F) | `contract_templates`, `contract_clauses`, `contract_template_clauses`, `generated_contracts`, `customer_signatures` |
+
+Sidebar: `Service Contracts` → `/org/psa/contracts`, `Contracts & Docs` → `/org/contracts`. Generated legal contracts use `CG-xxxxxx` auto-numbering. Public sign route: `/portal/contract/[token]`.
+
+---
+
 ## Infrastructure
 
 | Layer | Service | Status |
