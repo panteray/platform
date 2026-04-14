@@ -10,6 +10,16 @@ import {
   type LockType,
   type DoorType,
 } from '@/lib/calculators/acs-calculator'
+import {
+  evaluateCompatibility,
+  evaluateMantrapInterlock,
+  type DoorType as ComplianceDoorType,
+  type ElectrificationType,
+  type OccupancyType,
+  type CompatibilityFlag,
+} from '@/lib/door-compliance/compatibility-data'
+import { validateMountingHeight } from '@/lib/door-compliance/ada-standards'
+import { calculateVoltageDrop } from '@/lib/door-compliance/voltage-drop'
 import type { DesignDevice } from '@/types/database'
 
 // ---- Types ----
@@ -25,6 +35,20 @@ export interface DoorConfig {
   contacts: AuxItem[]
   auxInputs: AuxItem[]
   externalTampers: AuxItem[]
+  // Compliance fields (optional for backwards compat)
+  door_type?: ComplianceDoorType
+  fire_rated?: boolean
+  occupancy?: OccupancyType
+  electrification?: ElectrificationType
+  reader_height_in?: number
+  rex_height_in?: number
+  cable_length_ft?: number
+  supply_voltage?: number
+  lock_draw_amps?: number
+  is_mantrap?: boolean
+  has_rex?: boolean
+  reader_in_type?: string
+  reader_out_type?: string
 }
 
 interface ReaderConfig {
@@ -277,6 +301,90 @@ export function DoorControllerPanel({ device, allDevices, onUpdateDevice, onClos
   }
   const acsOutput = runAcsEngine(acsInput)
 
+  // LASFM jurisdiction toggle (persisted at device level)
+  const lasfm = Boolean(p.jurisdiction_lasfm)
+  const setLasfm = useCallback((v: boolean) => {
+    const existing = (d.properties ?? {}) as Record<string, unknown>
+    onUpdateDevice?.(d.id, { properties: { ...existing, jurisdiction_lasfm: v } })
+  }, [d, onUpdateDevice])
+
+  // Compute compliance findings for each door
+  interface DoorFinding { level: CompatibilityFlag['level']; message: string; codeRef?: string }
+  const doorFindings: Record<string, DoorFinding[]> = {}
+
+  for (const door of doorConfigs) {
+    const findings: DoorFinding[] = []
+
+    // 1. Electrification compatibility (IBC / NFPA)
+    if (door.door_type && door.electrification && door.occupancy !== undefined) {
+      const result = evaluateCompatibility(
+        door.door_type,
+        Boolean(door.fire_rated),
+        door.electrification,
+        door.occupancy,
+        lasfm,
+      )
+      for (const f of result.flags) {
+        findings.push({ level: f.level, message: f.message, codeRef: f.codeRef })
+      }
+    }
+
+    // 2. ADA mounting height — readers
+    if (typeof door.reader_height_in === 'number' && door.readers.length > 0) {
+      const ada = validateMountingHeight('card_reader', door.reader_height_in)
+      if (!ada.compliant) {
+        findings.push({ level: 'critical', message: ada.message, codeRef: ada.reference })
+      }
+    }
+    if (typeof door.rex_height_in === 'number' && door.rexDevices.length > 0) {
+      const ada = validateMountingHeight('rex_device', door.rex_height_in)
+      if (!ada.compliant) {
+        findings.push({ level: 'critical', message: ada.message, codeRef: ada.reference })
+      }
+    }
+
+    // 3. Mantrap interlock
+    if (door.is_mantrap) {
+      const mantrapFlags = evaluateMantrapInterlock({
+        readerInType: door.reader_in_type,
+        readerOutType: door.reader_out_type,
+        hasRex: door.has_rex,
+      })
+      for (const f of mantrapFlags) {
+        findings.push({ level: f.level, message: f.message, codeRef: f.codeRef })
+      }
+    }
+
+    // 4. Voltage drop on lock circuit
+    if (
+      typeof door.cable_length_ft === 'number' &&
+      typeof door.supply_voltage === 'number' &&
+      typeof door.lock_draw_amps === 'number' &&
+      door.locks.length > 0
+    ) {
+      const lockWire = door.locks[0].wire || '18/2'
+      const vd = calculateVoltageDrop(
+        door.supply_voltage,
+        lockWire,
+        door.cable_length_ft,
+        door.lock_draw_amps,
+      )
+      if (!vd.isCompliant) {
+        findings.push({
+          level: 'critical',
+          message: `Voltage drop ${vd.percentageDrop}% on ${lockWire} over ${door.cable_length_ft}ft exceeds 10% limit (${vd.voltageDrop}V drop, device sees ${vd.voltageAtDevice}V).`,
+          codeRef: 'NEC 210.19(A) Note 4',
+        })
+      }
+    }
+
+    doorFindings[door.id] = findings
+  }
+
+  const allFindings: DoorFinding[] = Object.values(doorFindings).flat()
+  const criticalCount = allFindings.filter((f) => f.level === 'critical').length
+  const warningCount = allFindings.filter((f) => f.level === 'warning').length
+
   return (
     <div style={{
       width: 320, height: '100%', background: C.bgPanel, borderLeft: `1px solid ${C.border}`,
@@ -490,14 +598,50 @@ export function DoorControllerPanel({ device, allDevices, onUpdateDevice, onClos
         {/* Compliance summary */}
         {doorConfigs.length > 0 && (
           <Section title="Compliance" defaultOpen={false}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 9, color: C.textMuted, cursor: 'pointer', marginBottom: 8 }}>
+              <input type="checkbox" checked={lasfm} onChange={(e) => setLasfm(e.target.checked)}
+                style={{ accentColor: C.accent, width: 12, height: 12, cursor: 'pointer' }} />
+              LASFM Jurisdiction (Louisiana)
+            </label>
+
             <div style={{
               padding: '4px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, marginBottom: 6,
-              background: acsOutput.compliance.violations.length > 0 ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
-              color: acsOutput.compliance.violations.length > 0 ? C.red : C.green,
-              border: `1px solid ${acsOutput.compliance.violations.length > 0 ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
+              background: criticalCount > 0 ? 'rgba(239,68,68,0.1)' : warningCount > 0 ? 'rgba(234,179,8,0.1)' : 'rgba(34,197,94,0.1)',
+              color: criticalCount > 0 ? C.red : warningCount > 0 ? C.yellow : C.green,
+              border: `1px solid ${criticalCount > 0 ? 'rgba(239,68,68,0.3)' : warningCount > 0 ? 'rgba(234,179,8,0.3)' : 'rgba(34,197,94,0.3)'}`,
             }}>
-              {acsOutput.compliance.violations.length > 0 ? 'Non-compliant' : 'Compliant'}
+              {criticalCount > 0
+                ? `${criticalCount} critical, ${warningCount} warning`
+                : warningCount > 0
+                ? `${warningCount} warning`
+                : 'Compliant'}
             </div>
+
+            {/* Findings list */}
+            {allFindings.length > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                <SubLabel text="Findings" />
+                {allFindings.map((f, i) => {
+                  const color = f.level === 'critical' ? C.red : f.level === 'warning' ? C.yellow : C.textDim
+                  return (
+                    <div key={`f-${i}`} style={{
+                      fontSize: 9, padding: '4px 6px', marginBottom: 3,
+                      background: f.level === 'critical' ? 'rgba(239,68,68,0.06)' : f.level === 'warning' ? 'rgba(234,179,8,0.06)' : 'transparent',
+                      border: `1px solid ${f.level === 'critical' ? 'rgba(239,68,68,0.2)' : f.level === 'warning' ? 'rgba(234,179,8,0.2)' : C.borderSubtle}`,
+                      borderRadius: 3,
+                    }}>
+                      <div style={{ color, fontWeight: 600 }}>{f.level.toUpperCase()}</div>
+                      <div style={{ color: C.text, marginTop: 2 }}>{f.message}</div>
+                      {f.codeRef && (
+                        <div style={{ color: C.textDim, fontSize: 8, marginTop: 2, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>
+                          {f.codeRef}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
             {acsOutput.compliance.violations.map((msg, i) => (
               <div key={`v-${i}`} style={{ fontSize: 9, color: C.red, padding: '3px 0', borderBottom: `1px solid ${C.borderSubtle}` }}>
                 {msg}

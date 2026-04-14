@@ -214,6 +214,34 @@ export function evaluateCompatibility(
   };
 }
 
+export interface MantrapInterlockInput {
+  readerInType?: string
+  readerOutType?: string
+  hasRex?: boolean
+}
+
+export function evaluateMantrapInterlock(input: MantrapInterlockInput): CompatibilityFlag[] {
+  const flags: CompatibilityFlag[] = []
+  const inMissing = !input.readerInType || input.readerInType === "none"
+  const outMissing = !input.readerOutType || input.readerOutType === "none"
+
+  if (inMissing || outMissing) {
+    flags.push({
+      level: "warning",
+      message: "Mantraps typically require credential readers on BOTH sides for interlock enforcement.",
+      codeRef: "NFPA 101 7.2.1.6",
+    })
+  }
+  if (input.hasRex) {
+    flags.push({
+      level: "warning",
+      message: "REX on a mantrap can bypass interlock logic. Verify egress strategy with AHJ.",
+      codeRef: "NFPA 101 7.2.1.6",
+    })
+  }
+  return flags
+}
+
 export function getSuggestedConfigs(doorType: DoorType, fireRated: boolean): PanicHardwareConfig[] {
   return PANIC_HARDWARE_CONFIGS
     .filter((c) => c.compatibleDoorTypes.includes(doorType) && (!fireRated || c.fireRatedCompatible))
