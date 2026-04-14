@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, Trash2, AlertTriangle, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
 import type { Subcontractor } from '@/types/database'
 import { StatusBadge, TierBadge, ScoreBadge } from '@/components/shared/EntityHelpers'
 import { ContactsPanel } from '@/components/customers/ContactsPanel'
@@ -102,6 +102,31 @@ export function SubcontractorDetail({ subcontractorId }: SubcontractorDetailProp
         <button onClick={handleDelete} className="rounded p-1.5 hover:bg-muted"><Trash2 className="h-4 w-4 text-muted-foreground hover:text-red-500" /></button>
       </div>
 
+      {sub.compliance_hold && (
+        <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-red-300 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/40">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600" />
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-semibold text-red-700 dark:text-red-400">
+              COMPLIANCE HOLD — Excluded from new work orders and dispatch
+            </div>
+            {sub.compliance_hold_reason && (
+              <div className="mt-0.5 text-xs text-red-600/90 dark:text-red-300">{sub.compliance_hold_reason}</div>
+            )}
+            {sub.compliance_recalc_at && (
+              <div className="mt-1 text-[10px] uppercase tracking-wider text-red-500/70 dark:text-red-400/70">
+                Last checked {new Date(sub.compliance_recalc_at).toLocaleString()}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setTab('Compliance')}
+            className="rounded border border-red-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 dark:bg-red-950 dark:hover:bg-red-900"
+          >
+            Review
+          </button>
+        </div>
+      )}
+
       <div className="mb-3 flex gap-0 border-b border-border overflow-x-auto">
         {TABS.map((t) => (
           <button key={t} onClick={() => setTab(t)}
@@ -116,7 +141,7 @@ export function SubcontractorDetail({ subcontractorId }: SubcontractorDetailProp
       {tab === 'Contacts' && <ContactsPanel entityType="subcontractor" entityId={subcontractorId} />}
       {tab === 'Documents' && <SubDocumentsTab subId={sub.id} />}
       {tab === 'Financial' && <FinancialTab sub={sub} patch={patch} />}
-      {tab === 'Compliance' && <ComplianceTab sub={sub} patch={patch} />}
+      {tab === 'Compliance' && <ComplianceTab sub={sub} patch={patch} onRecalced={(s) => setSub(s)} />}
       {tab === 'Skills' && <SkillsTab sub={sub} patch={patch} />}
       {tab === 'Skill Matrix' && <SubSkillMatrixTab subId={subcontractorId} />}
       {tab === 'Licenses' && <Placeholder label="Licenses" />}
@@ -307,27 +332,168 @@ function FinancialTab({ sub, patch }: { sub: Subcontractor; patch: (u: Partial<S
   )
 }
 
-function ComplianceTab({ sub, patch }: { sub: Subcontractor; patch: (u: Partial<Subcontractor>) => Promise<void> }) {
+interface SubDocSummary {
+  id: string
+  doc_type: string
+  doc_name: string
+  expires_at: string | null
+  is_active: boolean
+}
+
+function ComplianceTab({ sub, patch, onRecalced }: { sub: Subcontractor; patch: (u: Partial<Subcontractor>) => Promise<void>; onRecalced: (s: Subcontractor) => void }) {
+  const [docs, setDocs] = useState<SubDocSummary[]>([])
+  const [recalcing, setRecalcing] = useState(false)
+
+  const loadDocs = useCallback(async () => {
+    const res = await fetch(`/api/org/subcontractors/${sub.id}/documents`)
+    if (res.ok) setDocs(await res.json())
+  }, [sub.id])
+
+  useEffect(() => { loadDocs() }, [loadDocs])
+
+  async function recalc() {
+    setRecalcing(true)
+    try {
+      const res = await fetch(`/api/org/subcontractors/${sub.id}/recalculate-compliance`, { method: 'POST' })
+      if (res.ok) onRecalced(await res.json())
+    } finally {
+      setRecalcing(false)
+    }
+  }
+
+  const required = [
+    { key: 'license', label: 'Business License' },
+    { key: 'coi', label: 'Certificate of Insurance (GL)' },
+    { key: 'bond', label: 'Surety Bond' },
+  ] as const
+
+  function docStatus(docType: string): { state: 'missing' | 'expired' | 'expiring' | 'valid'; doc?: SubDocSummary; days?: number } {
+    const active = docs.filter((d) => d.doc_type === docType && d.is_active)
+    if (active.length === 0) return { state: 'missing' }
+    // pick the latest expires_at (or one without expires_at)
+    const sorted = [...active].sort((a, b) => {
+      if (!a.expires_at) return 1
+      if (!b.expires_at) return -1
+      return new Date(b.expires_at).getTime() - new Date(a.expires_at).getTime()
+    })
+    const latest = sorted[0]
+    if (!latest.expires_at) return { state: 'valid', doc: latest }
+    const days = Math.floor((new Date(latest.expires_at).getTime() - Date.now()) / 86400000)
+    if (days < 0) return { state: 'expired', doc: latest, days }
+    if (days < 30) return { state: 'expiring', doc: latest, days }
+    return { state: 'valid', doc: latest, days }
+  }
+
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="grid grid-cols-2 gap-x-3.5 gap-y-2.5">
-        <div className="col-span-full flex flex-wrap gap-x-5 gap-y-2">
-          <Ck label="E-Verified" checked={sub.e_verified} onChange={(v) => patch({ e_verified: v })} />
-          <Ck label="W9 Received" checked={sub.w9_received} onChange={(v) => patch({ w9_received: v })} />
-          <Ck label="Insurance Certs" checked={sub.insurance_certs} onChange={(v) => patch({ insurance_certs: v })} />
-          <Ck label="Sub Agreement Signed" checked={sub.sub_agreement_signed} onChange={(v) => patch({ sub_agreement_signed: v })} />
-          <Ck label="Signed Contract" checked={sub.doc_signed_contract} onChange={(v) => patch({ doc_signed_contract: v })} />
-          <Ck label="Licenses on File" checked={sub.doc_licenses} onChange={(v) => patch({ doc_licenses: v })} />
+    <div className="space-y-4">
+      {/* Hold status card */}
+      <div className={`rounded-lg border p-4 ${sub.compliance_hold ? 'border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/40' : 'border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40'}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            {sub.compliance_hold ? (
+              <ShieldAlert className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
+            ) : (
+              <ShieldCheck className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600" />
+            )}
+            <div>
+              <div className={`text-sm font-bold ${sub.compliance_hold ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                {sub.compliance_hold ? 'COMPLIANCE HOLD' : 'COMPLIANT'}
+              </div>
+              {sub.compliance_hold && sub.compliance_hold_reason && (
+                <div className="mt-1 text-xs text-red-600/90 dark:text-red-300">{sub.compliance_hold_reason}</div>
+              )}
+              {sub.compliance_hold && (
+                <div className="mt-1 text-[11px] text-red-600/80 dark:text-red-400/80">
+                  Excluded from new work orders and dispatch until all required documents are valid. Hold is not auto-lifted — a MANAGER must reactivate after verification.
+                </div>
+              )}
+              {sub.compliance_recalc_at && (
+                <div className="mt-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Last recalculated {new Date(sub.compliance_recalc_at).toLocaleString()}
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={recalc}
+            disabled={recalcing}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${recalcing ? 'animate-spin' : ''}`} />
+            Recalculate
+          </button>
         </div>
-        <Ro label="COI Expiration" value={sub.coi_expiration_date?.toString().slice(0, 10)} type="date" onBlur={(v) => patch({ coi_expiration_date: v || null })} />
-        <Ro label="Workers Comp Expiry" value={sub.workers_comp_expiry?.toString().slice(0, 10)} type="date" onBlur={(v) => patch({ workers_comp_expiry: v || null })} />
-        <Ro label="General Liability Expiry" value={sub.general_liability_expiry?.toString().slice(0, 10)} type="date" onBlur={(v) => patch({ general_liability_expiry: v || null })} />
-        <Ro label="Background Check Status" value={sub.background_check_status} onBlur={(v) => patch({ background_check_status: v || null })} />
-        <Ro label="Safety Rating (EMR)" value={sub.safety_rating_emr?.toString()} type="number" onBlur={(v) => patch({ safety_rating_emr: v === '' ? null : Number(v) })} />
-        <Ro label="License Number" value={sub.license_number} onBlur={(v) => patch({ license_number: v || null })} />
       </div>
-      <div className="mt-3 border-t border-border pt-3">
-        <AddressesPanel entityType="subcontractor" entityId={sub.id} />
+
+      {/* Required documents checklist */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="mb-2.5 flex items-center justify-between">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Required Documents</div>
+          <div className="text-[10px] text-muted-foreground">Missing or expired → auto-hold</div>
+        </div>
+        <div className="space-y-2">
+          {required.map((r) => {
+            const s = docStatus(r.key)
+            return (
+              <div key={r.key} className="flex items-center justify-between rounded border border-border bg-background px-3 py-2">
+                <div className="flex items-center gap-2.5">
+                  {s.state === 'missing' && <div className="h-2 w-2 rounded-full bg-red-500" />}
+                  {s.state === 'expired' && <div className="h-2 w-2 rounded-full bg-red-500" />}
+                  {s.state === 'expiring' && <div className="h-2 w-2 rounded-full bg-amber-500" />}
+                  {s.state === 'valid' && <div className="h-2 w-2 rounded-full bg-emerald-500" />}
+                  <div>
+                    <div className="text-sm font-medium text-foreground">{r.label}</div>
+                    {s.doc && (
+                      <div className="text-[11px] text-muted-foreground">
+                        {s.doc.doc_name}
+                        {s.doc.expires_at && ` · expires ${new Date(s.doc.expires_at).toLocaleDateString()}`}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {s.state === 'missing' && (
+                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700">Missing</span>
+                )}
+                {s.state === 'expired' && (
+                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700">Expired</span>
+                )}
+                {s.state === 'expiring' && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">{s.days}d left</span>
+                )}
+                {s.state === 'valid' && (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">Valid</span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        <div className="mt-2 text-[10px] text-muted-foreground">
+          Upload or manage documents on the <span className="font-semibold">Documents</span> tab.
+        </div>
+      </div>
+
+      {/* Legacy quick flags + date fields */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="mb-2.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Quick Flags</div>
+        <div className="grid grid-cols-2 gap-x-3.5 gap-y-2.5">
+          <div className="col-span-full flex flex-wrap gap-x-5 gap-y-2">
+            <Ck label="E-Verified" checked={sub.e_verified} onChange={(v) => patch({ e_verified: v })} />
+            <Ck label="W9 Received" checked={sub.w9_received} onChange={(v) => patch({ w9_received: v })} />
+            <Ck label="Insurance Certs" checked={sub.insurance_certs} onChange={(v) => patch({ insurance_certs: v })} />
+            <Ck label="Sub Agreement Signed" checked={sub.sub_agreement_signed} onChange={(v) => patch({ sub_agreement_signed: v })} />
+            <Ck label="Signed Contract" checked={sub.doc_signed_contract} onChange={(v) => patch({ doc_signed_contract: v })} />
+            <Ck label="Licenses on File" checked={sub.doc_licenses} onChange={(v) => patch({ doc_licenses: v })} />
+          </div>
+          <Ro label="COI Expiration" value={sub.coi_expiration_date?.toString().slice(0, 10)} type="date" onBlur={(v) => patch({ coi_expiration_date: v || null })} />
+          <Ro label="Workers Comp Expiry" value={sub.workers_comp_expiry?.toString().slice(0, 10)} type="date" onBlur={(v) => patch({ workers_comp_expiry: v || null })} />
+          <Ro label="General Liability Expiry" value={sub.general_liability_expiry?.toString().slice(0, 10)} type="date" onBlur={(v) => patch({ general_liability_expiry: v || null })} />
+          <Ro label="Background Check Status" value={sub.background_check_status} onBlur={(v) => patch({ background_check_status: v || null })} />
+          <Ro label="Safety Rating (EMR)" value={sub.safety_rating_emr?.toString()} type="number" onBlur={(v) => patch({ safety_rating_emr: v === '' ? null : Number(v) })} />
+          <Ro label="License Number" value={sub.license_number} onBlur={(v) => patch({ license_number: v || null })} />
+        </div>
+        <div className="mt-3 border-t border-border pt-3">
+          <AddressesPanel entityType="subcontractor" entityId={sub.id} />
+        </div>
       </div>
     </div>
   )

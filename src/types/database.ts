@@ -413,6 +413,9 @@ export interface Subcontractor {
   last_audit_date: string | null
   audit_note: string | null
   notes: string | null
+  compliance_hold: boolean
+  compliance_hold_reason: string | null
+  compliance_recalc_at: string | null
   created_by: string | null
   created_at: string
   updated_at: string
