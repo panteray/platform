@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
     .select('id, kedb_number, title, symptoms, workaround, category, match_count, last_matched_at')
     .eq('org_id', dbUser.org_id)
     .is('archived_at', null)
+    .gt('expires_at', new Date().toISOString())
 
   if (body.category) query = query.eq('category', body.category)
 

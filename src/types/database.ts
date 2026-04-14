@@ -2111,6 +2111,11 @@ export interface PsaTicket {
   completed_at: string | null
   resolved_at: string | null
   closed_at: string | null
+  pir_completed_at: string | null
+  pir_root_cause: string | null
+  pir_timeline: string | null
+  pir_lessons_learned: string | null
+  pir_action_items: string | null
   created_by: string | null
   created_at: string
   updated_at: string

@@ -15,6 +15,7 @@ import { PSA_STATUS_TRANSITIONS } from '@/types/database'
 import { JobCostFlyout } from '@/components/psa/JobCostFlyout'
 import { KedbMatchBanner } from '@/components/psa/KedbMatchBanner'
 import { CiImpactPanel } from '@/components/psa/CiImpactPanel'
+import { PirPanel } from '@/components/psa/PirPanel'
 
 type TicketDetail = PsaTicket & {
   customer?: { id: string; name: string } | null
@@ -283,6 +284,9 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
           </div>
         )}
       </div>
+
+      {/* Post-Incident Report — P1/P2 only, hides otherwise */}
+      <PirPanel ticketId={ticket.id} priority={ticket.priority} />
 
       {/* CI Impact — hides itself when no asset or no relationships */}
       <CiImpactPanel ticketId={ticket.id} />

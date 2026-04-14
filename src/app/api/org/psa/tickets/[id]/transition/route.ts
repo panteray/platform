@@ -130,6 +130,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       gateFailures.push('G9: At least one customer-visible note required')
     }
 
+    // G10 (cond): P1/P2 tickets require completed Post-Incident Report
+    if (ticket.priority === 'P1' || ticket.priority === 'P2') {
+      if (!ticket.pir_completed_at) {
+        gateFailures.push('G10: Post-Incident Report required on P1/P2 tickets')
+      }
+    }
+
     if (gateFailures.length > 0) {
       return NextResponse.json({ error: 'Closeout gates failed', gate_failures: gateFailures }, { status: 400 })
     }
@@ -218,6 +225,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : null,
       notes: `Status → ${toStatus}`,
     })
+  }
+
+  // Auto-trigger problem suggestion on P1 → RESOLVED
+  // (spec: "Auto-trigger on 3+ recurrences in 30 days or P1 closure")
+  if (toStatus === 'RESOLVED' && ticket.priority === 'P1' && ticket.customer_id && ticket.category) {
+    const { data: existing } = await admin
+      .from('psa_problem_suggestions')
+      .select('id')
+      .eq('org_id', dbUser.org_id)
+      .eq('customer_id', ticket.customer_id)
+      .eq('category', ticket.category)
+      .in('status', ['pending', 'accepted'])
+      .limit(1)
+    if (!existing || existing.length === 0) {
+      await admin.from('psa_problem_suggestions').insert({
+        org_id: dbUser.org_id,
+        customer_id: ticket.customer_id,
+        category: ticket.category,
+        incident_count: 1,
+        window_days: 30,
+        sample_ticket_ids: [id],
+      })
+    }
   }
 
   return NextResponse.json(data)
