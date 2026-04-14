@@ -1941,3 +1941,86 @@ export interface RiskAssessment {
   created_at: string
   updated_at: string
 }
+
+// ---- Asset Intelligence (Phase 5) ----
+
+export type AssetStatus = 'active' | 'maintenance' | 'retired' | 'rma' | 'lost' | 'replaced'
+export type AssetMaintenanceType = 'preventive' | 'repair' | 'inspection' | 'firmware_update' | 'cleaning' | 'calibration'
+export type AssetEventType =
+  | 'installed' | 'serviced' | 'firmware_updated' | 'relocated'
+  | 'retired' | 'rma_initiated' | 'replaced' | 'reactivated'
+  | 'inspection_passed' | 'inspection_failed'
+
+export interface Asset {
+  id: string
+  org_id: string
+  project_id: string | null
+  install_item_id: string | null
+  device_id: string | null
+  customer_id: string | null
+  site_id: string | null
+  asset_tag: string | null
+  label: string
+  category: string | null
+  vendor: string | null
+  model: string | null
+  serial_number: string | null
+  mac_address: string | null
+  status: AssetStatus
+  install_date: string | null
+  warranty_start: string | null
+  warranty_expires_at: string | null
+  eol_date: string | null
+  retired_at: string | null
+  firmware_version: string | null
+  ip_address: string | null
+  location_notes: string | null
+  position_x: number | null
+  position_y: number | null
+  photos: Array<{ url: string; caption?: string; taken_at?: string }>
+  specs: Record<string, unknown>
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AssetFirmwareHistory {
+  id: string
+  org_id: string
+  asset_id: string
+  version: string
+  previous_version: string | null
+  updated_at: string
+  updated_by: string | null
+  notes: string | null
+  cve_fixes: string[] | null
+}
+
+export interface AssetMaintenance {
+  id: string
+  org_id: string
+  asset_id: string
+  type: AssetMaintenanceType
+  scheduled_at: string | null
+  completed_at: string | null
+  completed_by: string | null
+  technician_notes: string | null
+  cost: number | null
+  parts_used: Array<{ part_number?: string; description?: string; quantity?: number; cost?: number }>
+  photos: Array<{ url: string; caption?: string }>
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AssetLifecycleEvent {
+  id: string
+  org_id: string
+  asset_id: string
+  event_type: AssetEventType
+  event_at: string
+  details: Record<string, unknown>
+  user_id: string | null
+  created_at: string
+}
