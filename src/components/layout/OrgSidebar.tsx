@@ -37,6 +37,7 @@ const deliveryNav = [
   { href: '/org/projects', label: 'Projects', icon: 'projects', exact: false },
   { href: '/org/surveys', label: 'Surveys', icon: 'surveys', exact: false },
   { href: '/org/assets', label: 'Assets', icon: 'device-library', exact: false },
+  { href: '/org/psa/tickets', label: 'Service Desk', icon: 'management', exact: false },
 ]
 
 const toolsNav = [

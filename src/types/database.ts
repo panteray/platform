@@ -2024,3 +2024,178 @@ export interface AssetLifecycleEvent {
   user_id: string | null
   created_at: string
 }
+
+// ============================================================
+// PSA Service Desk (Phase 6A)
+// ============================================================
+
+export type PsaVertical = 'SEC' | 'NET' | 'AV' | 'MSP' | 'CYB' | 'SVC' | 'INT'
+
+export type PsaTicketType = 'INCIDENT' | 'SERVICE_REQUEST' | 'SCOPE_CHANGE' | 'CHANGE' | 'PROBLEM' | 'EVENT' | 'INTERNAL'
+
+export type PsaPriority = 'P1' | 'P2' | 'P3' | 'P4' | 'P5'
+
+export type PsaTicketStatus =
+  | 'NEW' | 'OPEN' | 'SCHEDULED' | 'EN_ROUTE' | 'ON_SITE' | 'WORK_IN_PROGRESS'
+  | 'WAITING_ON_CUSTOMER' | 'WAITING_ON_PARTS' | 'WAITING_ON_VENDOR' | 'WAITING_ON_SITE_ACCESS'
+  | 'NEEDS_RMA' | 'COMPLETED' | 'RESOLVED' | 'CANCELLED'
+
+export type PsaSlaEventType = 'CLOCK_START' | 'PAUSE' | 'RESUME' | 'BREACH_RESPONSE' | 'BREACH_RESOLUTION'
+
+export interface PsaSlaPolicy {
+  id: string
+  org_id: string
+  vertical: PsaVertical
+  ticket_type: PsaTicketType
+  priority: PsaPriority
+  response_min: number
+  resolution_min: number
+  applies_24x7: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface PsaJobType {
+  id: string
+  org_id: string
+  vertical: PsaVertical
+  name: string
+  checklist_template: unknown[]
+  required_skills: string[]
+  default_sla_policy_id: string | null
+  auto_tags: string[]
+  require_photos: boolean
+  estimated_duration_min: number | null
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface PsaTicket {
+  id: string
+  org_id: string
+  ticket_number: string
+  customer_id: string | null
+  asset_id: string | null
+  site_id: string | null
+  project_id: string | null
+  parent_ticket_id: string | null
+  vertical: PsaVertical
+  category: string | null
+  ticket_type: PsaTicketType
+  priority: PsaPriority
+  status: PsaTicketStatus
+  title: string
+  description: string | null
+  resolution_notes: string | null
+  assigned_to: string | null
+  job_type_id: string | null
+  costing_enabled: boolean
+  sla_policy_id: string | null
+  sla_response_due: string | null
+  sla_resolution_due: string | null
+  sla_response_breached: boolean
+  sla_resolution_breached: boolean
+  sla_paused_at: string | null
+  sla_total_pause_min: number
+  change_window_start: string | null
+  change_window_end: string | null
+  first_response_at: string | null
+  completed_at: string | null
+  resolved_at: string | null
+  closed_at: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PsaTicketStatusLog {
+  id: string
+  org_id: string
+  ticket_id: string
+  from_status: PsaTicketStatus | null
+  to_status: PsaTicketStatus
+  changed_by: string | null
+  reason: string | null
+  created_at: string
+}
+
+export interface PsaTicketNote {
+  id: string
+  org_id: string
+  ticket_id: string
+  author_id: string | null
+  body: string
+  internal_only: boolean
+  created_at: string
+}
+
+export interface PsaTimeEntry {
+  id: string
+  org_id: string
+  ticket_id: string
+  user_id: string
+  hours: number
+  description: string | null
+  billable: boolean
+  rate: number | null
+  entry_date: string
+  created_at: string
+  updated_at: string
+}
+
+export interface PsaTicketPart {
+  id: string
+  org_id: string
+  ticket_id: string
+  part_number: string | null
+  description: string
+  quantity: number
+  cost: number | null
+  markup_pct: number | null
+  serial_number: string | null
+  created_at: string
+}
+
+export interface PsaTicketPhoto {
+  id: string
+  org_id: string
+  ticket_id: string
+  photo_url: string
+  caption: string | null
+  phase: string
+  created_by: string | null
+  created_at: string
+}
+
+export interface PsaSlaEvent {
+  id: string
+  org_id: string
+  ticket_id: string
+  event_type: PsaSlaEventType
+  event_at: string
+  duration_paused_min: number | null
+  notes: string | null
+}
+
+// Status machine: valid transitions per Spec 9.4
+export const PSA_STATUS_TRANSITIONS: Record<PsaTicketStatus, PsaTicketStatus[]> = {
+  NEW: ['OPEN', 'SCHEDULED', 'CANCELLED'],
+  OPEN: ['SCHEDULED', 'EN_ROUTE', 'WORK_IN_PROGRESS', 'WAITING_ON_CUSTOMER', 'WAITING_ON_PARTS', 'WAITING_ON_VENDOR', 'WAITING_ON_SITE_ACCESS', 'CANCELLED'],
+  SCHEDULED: ['EN_ROUTE', 'OPEN', 'WAITING_ON_CUSTOMER', 'WAITING_ON_SITE_ACCESS', 'CANCELLED'],
+  EN_ROUTE: ['ON_SITE', 'SCHEDULED', 'OPEN', 'CANCELLED'],
+  ON_SITE: ['WORK_IN_PROGRESS', 'WAITING_ON_CUSTOMER', 'WAITING_ON_SITE_ACCESS', 'EN_ROUTE'],
+  WORK_IN_PROGRESS: ['COMPLETED', 'WAITING_ON_CUSTOMER', 'WAITING_ON_PARTS', 'WAITING_ON_VENDOR', 'NEEDS_RMA', 'ON_SITE'],
+  WAITING_ON_CUSTOMER: ['OPEN', 'WORK_IN_PROGRESS', 'CANCELLED'],
+  WAITING_ON_PARTS: ['OPEN', 'WORK_IN_PROGRESS', 'CANCELLED'],
+  WAITING_ON_VENDOR: ['OPEN', 'WORK_IN_PROGRESS', 'CANCELLED'],
+  WAITING_ON_SITE_ACCESS: ['OPEN', 'SCHEDULED', 'EN_ROUTE', 'CANCELLED'],
+  NEEDS_RMA: ['OPEN', 'WORK_IN_PROGRESS', 'CANCELLED'],
+  COMPLETED: ['RESOLVED', 'WORK_IN_PROGRESS'],
+  RESOLVED: [],
+  CANCELLED: [],
+}
+
+export const PSA_WAITING_STATUSES: PsaTicketStatus[] = [
+  'WAITING_ON_CUSTOMER', 'WAITING_ON_PARTS', 'WAITING_ON_VENDOR', 'WAITING_ON_SITE_ACCESS', 'NEEDS_RMA',
+]
