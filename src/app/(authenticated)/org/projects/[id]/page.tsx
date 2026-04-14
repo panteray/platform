@@ -48,8 +48,7 @@ type Tab = (typeof TABS)[number]
 export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>()
   const { user } = useUser()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [project, setProject] = useState<any>(null)
+  const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('Overview')
 
