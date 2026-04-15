@@ -45,6 +45,7 @@ const deliveryNav = [
 ]
 
 const serviceNav = [
+  { href: '/org/field', label: 'My Day', icon: 'management', exact: false },
   { href: '/org/service', label: 'Service Desk', icon: 'management', exact: false },
   { href: '/org/compliance/technicians', label: 'Compliance', icon: 'management', exact: false },
 ]

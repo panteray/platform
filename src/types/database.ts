@@ -2133,6 +2133,10 @@ export interface PsaTicket {
   pir_timeline: string | null
   pir_lessons_learned: string | null
   pir_action_items: string | null
+  completion_signature_data: string | null
+  completion_lat: number | null
+  completion_lng: number | null
+  completion_captured_at: string | null
   created_by: string | null
   created_at: string
   updated_at: string

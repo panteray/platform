@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Red_Rose, Epilogue, JetBrains_Mono } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { ThemeProvider } from '@/components/layout/ThemeProvider'
@@ -34,8 +34,20 @@ export const metadata: Metadata = {
   },
 }
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: '#0f172a',
+}
+
 /* FOUC prevention: apply saved theme class before paint. Daylight = :root (no class needed). */
 const themeScript = `(function(){try{var t=localStorage.getItem('panteray-theme');var v=['morning','dusk','midnight'];if(v.indexOf(t)!==-1){document.documentElement.classList.add(t)}}catch(e){}})();`
+
+/* Service worker registration: production only, after load to avoid dev HMR conflicts */
+const swScript = `(function(){if('serviceWorker' in navigator && location.protocol === 'https:'){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})}})();`
 
 export default function RootLayout({
   children,
@@ -50,6 +62,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: swScript }} />
       </head>
       <body className="font-sans">
         <ThemeProvider>

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Clock, AlertCircle, CheckCircle2, User, Building2,
-  Package, FileText, DollarSign, Camera, History, Plus, X, Send, Receipt,
+  Package, FileText, DollarSign, Camera, History, Send, Receipt,
 } from 'lucide-react'
 import type {
   PsaTicket, PsaTicketStatus, PsaPriority, PsaVertical,
@@ -16,6 +16,10 @@ import { JobCostFlyout } from '@/components/psa/JobCostFlyout'
 import { KedbMatchBanner } from '@/components/psa/KedbMatchBanner'
 import { CiImpactPanel } from '@/components/psa/CiImpactPanel'
 import { PirPanel } from '@/components/psa/PirPanel'
+import { TimeEntryPanel } from '@/components/psa/TimeEntryPanel'
+import { PartsPanel } from '@/components/psa/PartsPanel'
+import { PhotosPanel } from '@/components/psa/PhotosPanel'
+import { CompletionModal } from '@/components/psa/CompletionModal'
 
 type TicketDetail = PsaTicket & {
   customer?: { id: string; name: string } | null
@@ -92,6 +96,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const [gateFailures, setGateFailures] = useState<string[] | null>(null)
   const [showCosting, setShowCosting] = useState(false)
   const [generatingInvoice, setGeneratingInvoice] = useState(false)
+  const [showCompletion, setShowCompletion] = useState(false)
 
   async function generateInvoice() {
     setGeneratingInvoice(true)
@@ -121,6 +126,11 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   async function transition(toStatus: PsaTicketStatus, reason?: string) {
     setTransitionError(null)
     setGateFailures(null)
+    // Intercept COMPLETED → RESOLVED — must capture customer signature + geolocation first
+    if (toStatus === 'RESOLVED' && ticket?.status === 'COMPLETED') {
+      setShowCompletion(true)
+      return
+    }
     const res = await fetch(`/api/org/psa/tickets/${id}/transition`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -305,14 +315,22 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
         <div className="p-6">
           {tab === 'details'  && <DetailsTab ticket={ticket} onReload={load} />}
           {tab === 'notes'    && <NotesTab ticketId={ticket.id} notes={ticket.notes} onReload={load} />}
-          {tab === 'time'     && <TimeTab ticketId={ticket.id} entries={ticket.time_entries} onReload={load} />}
-          {tab === 'parts'    && <PartsTab ticketId={ticket.id} parts={ticket.parts} onReload={load} />}
-          {tab === 'photos'   && <PhotosTab photos={ticket.photos} />}
+          {tab === 'time'     && <TimeEntryPanel ticketId={ticket.id} entries={ticket.time_entries} onReload={load} />}
+          {tab === 'parts'    && <PartsPanel ticketId={ticket.id} parts={ticket.parts} onReload={load} />}
+          {tab === 'photos'   && <PhotosPanel ticketId={ticket.id} photos={ticket.photos} onReload={load} />}
           {tab === 'activity' && <ActivityTab log={ticket.status_log} />}
         </div>
       </div>
 
       <JobCostFlyout ticketId={ticket.id} open={showCosting} onClose={() => setShowCosting(false)} />
+
+      <CompletionModal
+        open={showCompletion}
+        ticketId={ticket.id}
+        onClose={() => setShowCompletion(false)}
+        onComplete={load}
+        existingResolutionNotes={ticket.resolution_notes}
+      />
     </div>
   )
 }
@@ -517,214 +535,6 @@ function NotesTab({ ticketId, notes, onReload }: {
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-// ----- Time entries tab -----
-function TimeTab({ ticketId, entries, onReload }: {
-  ticketId: string; entries: TicketDetail['time_entries']; onReload: () => void
-}) {
-  const [showForm, setShowForm] = useState(false)
-  const [hours, setHours] = useState('')
-  const [description, setDescription] = useState('')
-  const [billable, setBillable] = useState(true)
-  const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0])
-
-  async function submit() {
-    const h = parseFloat(hours)
-    if (!h || h <= 0) return
-    await fetch(`/api/org/psa/tickets/${ticketId}/time`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hours: h, description, billable, entry_date: entryDate }),
-    })
-    setHours(''); setDescription(''); setShowForm(false)
-    onReload()
-  }
-
-  const total = entries.reduce((sum, e) => sum + Number(e.hours), 0)
-  const billableTotal = entries.filter(e => e.billable).reduce((sum, e) => sum + Number(e.hours), 0)
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-sm">
-          <span className="font-semibold">{total.toFixed(2)}h</span> total
-          <span className="text-neutral-500 ml-2">({billableTotal.toFixed(2)}h billable)</span>
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
-        >
-          {showForm ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-          {showForm ? 'Cancel' : 'Log Time'}
-        </button>
-      </div>
-
-      {showForm && (
-        <div className="border border-neutral-200 rounded p-4 grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-neutral-600 mb-1">Hours</label>
-            <input type="number" step="0.25" value={hours} onChange={e => setHours(e.target.value)}
-              className="w-full px-3 py-1.5 border border-neutral-300 rounded text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-neutral-600 mb-1">Date</label>
-            <input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)}
-              className="w-full px-3 py-1.5 border border-neutral-300 rounded text-sm" />
-          </div>
-          <div className="col-span-2">
-            <label className="block text-xs font-medium text-neutral-600 mb-1">Description</label>
-            <input type="text" value={description} onChange={e => setDescription(e.target.value)}
-              className="w-full px-3 py-1.5 border border-neutral-300 rounded text-sm" />
-          </div>
-          <label className="col-span-2 flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={billable} onChange={e => setBillable(e.target.checked)} />
-            Billable
-          </label>
-          <button onClick={submit} className="col-span-2 px-4 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-            Save Entry
-          </button>
-        </div>
-      )}
-
-      {entries.length === 0 ? (
-        <div className="text-center text-sm text-neutral-500 py-8">No time logged</div>
-      ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-neutral-500 border-b border-neutral-200">
-              <th className="py-2 font-medium">Date</th>
-              <th className="py-2 font-medium">User</th>
-              <th className="py-2 font-medium">Hours</th>
-              <th className="py-2 font-medium">Description</th>
-              <th className="py-2 font-medium">Billable</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map(e => (
-              <tr key={e.id} className="border-b border-neutral-100">
-                <td className="py-2">{e.entry_date}</td>
-                <td className="py-2">{userName(e.user)}</td>
-                <td className="py-2 font-mono">{Number(e.hours).toFixed(2)}</td>
-                <td className="py-2 text-neutral-600">{e.description ?? '—'}</td>
-                <td className="py-2">{e.billable ? '✓' : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  )
-}
-
-// ----- Parts tab -----
-function PartsTab({ ticketId, parts, onReload }: {
-  ticketId: string; parts: PsaTicketPart[]; onReload: () => void
-}) {
-  const [showForm, setShowForm] = useState(false)
-  const [partNumber, setPartNumber] = useState('')
-  const [description, setDescription] = useState('')
-  const [quantity, setQuantity] = useState('1')
-  const [cost, setCost] = useState('')
-  const [serial, setSerial] = useState('')
-
-  async function submit() {
-    if (!description.trim()) return
-    await fetch(`/api/org/psa/tickets/${ticketId}/parts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        part_number: partNumber || null,
-        description,
-        quantity: parseFloat(quantity) || 1,
-        cost: cost ? parseFloat(cost) : null,
-        serial_number: serial || null,
-      }),
-    })
-    setPartNumber(''); setDescription(''); setQuantity('1'); setCost(''); setSerial('')
-    setShowForm(false)
-    onReload()
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-neutral-500">{parts.length} part{parts.length === 1 ? '' : 's'} used</div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
-        >
-          {showForm ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-          {showForm ? 'Cancel' : 'Add Part'}
-        </button>
-      </div>
-
-      {showForm && (
-        <div className="border border-neutral-200 rounded p-4 grid grid-cols-2 gap-3">
-          <input placeholder="Part #" value={partNumber} onChange={e => setPartNumber(e.target.value)}
-            className="px-3 py-1.5 border border-neutral-300 rounded text-sm" />
-          <input placeholder="Serial #" value={serial} onChange={e => setSerial(e.target.value)}
-            className="px-3 py-1.5 border border-neutral-300 rounded text-sm" />
-          <input placeholder="Description *" value={description} onChange={e => setDescription(e.target.value)}
-            className="col-span-2 px-3 py-1.5 border border-neutral-300 rounded text-sm" />
-          <input type="number" step="1" placeholder="Quantity" value={quantity} onChange={e => setQuantity(e.target.value)}
-            className="px-3 py-1.5 border border-neutral-300 rounded text-sm" />
-          <input type="number" step="0.01" placeholder="Cost" value={cost} onChange={e => setCost(e.target.value)}
-            className="px-3 py-1.5 border border-neutral-300 rounded text-sm" />
-          <button onClick={submit} className="col-span-2 px-4 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-            Save Part
-          </button>
-        </div>
-      )}
-
-      {parts.length === 0 ? (
-        <div className="text-center text-sm text-neutral-500 py-8">No parts logged</div>
-      ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-neutral-500 border-b border-neutral-200">
-              <th className="py-2 font-medium">Part #</th>
-              <th className="py-2 font-medium">Description</th>
-              <th className="py-2 font-medium">Qty</th>
-              <th className="py-2 font-medium">Cost</th>
-              <th className="py-2 font-medium">Serial #</th>
-            </tr>
-          </thead>
-          <tbody>
-            {parts.map(p => (
-              <tr key={p.id} className="border-b border-neutral-100">
-                <td className="py-2 font-mono text-xs">{p.part_number ?? '—'}</td>
-                <td className="py-2">{p.description}</td>
-                <td className="py-2">{p.quantity}</td>
-                <td className="py-2 font-mono">{p.cost != null ? `$${Number(p.cost).toFixed(2)}` : '—'}</td>
-                <td className="py-2 font-mono text-xs">{p.serial_number ?? '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  )
-}
-
-// ----- Photos tab (read-only for v1) -----
-function PhotosTab({ photos }: { photos: PsaTicketPhoto[] }) {
-  if (photos.length === 0) {
-    return <div className="text-center text-sm text-neutral-500 py-8">No photos uploaded</div>
-  }
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {photos.map(p => (
-        <div key={p.id} className="border border-neutral-200 rounded overflow-hidden">
-          <img src={p.photo_url} alt={p.caption ?? ''} className="w-full h-32 object-cover" />
-          <div className="p-2">
-            <div className="text-[10px] uppercase font-semibold text-neutral-500">{p.phase}</div>
-            {p.caption && <div className="text-xs text-neutral-700 mt-1">{p.caption}</div>}
-          </div>
-        </div>
-      ))}
     </div>
   )
 }
