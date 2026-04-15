@@ -40,3 +40,6 @@ export type { CoverageAreaInput, CoverageAreaOutput } from './coverage-area'
 
 export { runPlanReview, loadJurisdictionRules } from './plan-review'
 export type { PlanReviewInput, PlanReviewOutput, PlanReviewFinding, JurisdictionRules } from './plan-review'
+
+export { calculateLens, validateLensInput, COMMON_FOCAL_LENGTHS } from './lens-calculator'
+export type { LensCalcInput, LensCalcOutput } from './lens-calculator'

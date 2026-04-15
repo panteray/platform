@@ -15,6 +15,7 @@ import {
   type MountCatalog, type VendorMountPart,
   calculateCoverageArea, type CoverageAreaInput,
   runPlanReview, loadJurisdictionRules, type PlanReviewInput, type JurisdictionRules,
+  calculateLens, type LensCalcInput,
 } from '@/lib/calculators'
 
 const C = {
@@ -662,6 +663,57 @@ function PlanReviewForm() {
   </div>)
 }
 
+function LensForm() {
+  const [f, setF] = useState({
+    distance: '30',
+    sensor: '5.14',
+    resW: '1920',
+    dori: 'identification' as 'detection' | 'observation' | 'recognition' | 'identification' | 'inspection',
+    overridePpf: '',
+  })
+  const result = useAutoCalc(() => {
+    const override = parseFloat(f.overridePpf)
+    const input: LensCalcInput = {
+      distanceFt: +f.distance,
+      sensorWmm: +f.sensor,
+      resolutionW: +f.resW,
+      doriLevel: f.dori,
+      overridePpf: Number.isFinite(override) && override > 0 ? override : undefined,
+    }
+    return calculateLens(input) as unknown as Record<string, unknown>
+  }, [f])
+  const primary = result
+    ? { label: 'Required Focal Length', value: (result.requiredFocalMm as number).toFixed(2), unit: 'mm' }
+    : undefined
+  const warnings = (result?.warnings as string[] | undefined) ?? []
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <CalcInput label="Distance to Target (ft)" value={f.distance} onChange={(v) => setF({ ...f, distance: v })} />
+      <CalcInput label="Sensor Width (mm)" value={f.sensor} onChange={(v) => setF({ ...f, sensor: v })} />
+      <CalcInput label="Horizontal Resolution (px)" value={f.resW} onChange={(v) => setF({ ...f, resW: v })} />
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+      <SelectInput label="DORI Target" value={f.dori} onChange={(v) => setF({ ...f, dori: v as typeof f.dori })} options={[
+        { value: 'detection', label: 'Detection (8 PPF)' },
+        { value: 'observation', label: 'Observation (19 PPF)' },
+        { value: 'recognition', label: 'Recognition (38 PPF)' },
+        { value: 'identification', label: 'Identification (76 PPF)' },
+        { value: 'inspection', label: 'Inspection (305 PPF)' },
+      ]} />
+      <CalcInput label="Override PPF (optional)" value={f.overridePpf} onChange={(v) => setF({ ...f, overridePpf: v })} placeholder="e.g. 120" />
+    </div>
+    {result && <ResultCard title="Lens Selection Results" primary={primary} data={result} />}
+    {warnings.length > 0 && (
+      <div style={{ borderRadius: 8, border: `1px solid ${C.yellow}`, background: 'rgba(234,179,8,0.06)', padding: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.yellow, marginBottom: 6 }}>Warnings</div>
+        {warnings.map((w, i) => (
+          <div key={i} style={{ fontSize: 11, color: C.textMuted }}>• {w}</div>
+        ))}
+      </div>
+    )}
+  </div>)
+}
+
 // ---- Main page ----
 const CALC_MAP: Record<string, { name: string; Form: React.FC }> = {
   'fov-dori': { name: 'FOV / DORI Calculator', Form: FovDoriForm },
@@ -672,6 +724,7 @@ const CALC_MAP: Record<string, { name: string; Form: React.FC }> = {
   'wireless-ptp': { name: 'Wireless PtP Calculator', Form: WirelessForm },
   'acs-build': { name: 'ACS Build Engine', Form: AcsForm },
   'coverage-area': { name: 'Coverage Area Calculator', Form: CoverageAreaForm },
+  'lens': { name: 'Lens Calculator', Form: LensForm },
   'plan-review': { name: 'Plan Review (Compliance Checker)', Form: PlanReviewForm },
 }
 
