@@ -48,6 +48,7 @@ import { AvSignalFlow } from './av-signal-flow'
 import { InterconnectView } from './interconnect-view'
 import { NetworkCheckerPanel } from './network-checker-panel'
 import { WiringMapView } from './wiring-map-view'
+import { WifiHeatmapPanel } from './wifi-heatmap-panel'
 import { SoftwareCanvas } from './software-canvas'
 import { PathTracePanel } from './path-trace-panel'
 import { ReportGenerator } from './report-generator'
@@ -142,7 +143,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   /* ── UI state ── */
   const [activeTool, setActiveTool] = useState<CanvasTool>('select')
   const [activeTab, setActiveTab] = useState<string>('maps')
-  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan' | 'av' | 'interconnect' | 'wiring-map' | 'checker' | 'software' | 'pathtrace'>('topology')
+  const [additionalsView, setAdditionalsView] = useState<'topology' | 'rack' | 'vlan' | 'av' | 'interconnect' | 'wiring-map' | 'wifi' | 'checker' | 'software' | 'pathtrace'>('topology')
   const [selectedImagerIdx, setSelectedImagerIdx] = useState<number | null>(null)
   const [activeCategory, setActiveCategory] = useState<IconTabId>('camera')
   const [showGrid, setShowGrid] = useState(true)
@@ -1361,6 +1362,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 { id: 'av' as const, label: 'AV Signal Flow' },
                 { id: 'interconnect' as const, label: 'Interconnect Wiring' },
                 { id: 'wiring-map' as const, label: 'Wiring Map' },
+                { id: 'wifi' as const, label: 'WiFi Heatmap' },
                 { id: 'checker' as const, label: 'Network Checker' },
                 { id: 'software' as const, label: 'Software Quote' },
                 { id: 'pathtrace' as const, label: 'Path Trace' },
@@ -1405,6 +1407,16 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                   devices={areaDevices}
                   cables={areaCables}
                   mdfIdfs={mdfIdfs.filter(m => m.area_id === activeAreaId)}
+                />
+              )}
+              {additionalsView === 'wifi' && (
+                <WifiHeatmapPanel
+                  designId={designId}
+                  areaId={activeAreaId ?? undefined}
+                  walls={[]}
+                  canvasWidth={activeFloorPlan?.width || 1200}
+                  canvasHeight={activeFloorPlan?.height || 800}
+                  scalePxPerFt={scalePxPerFt}
                 />
               )}
               {additionalsView === 'checker' && (
