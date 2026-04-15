@@ -2,18 +2,17 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Search, ExternalLink, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
+import { ArrowLeft, Search, ExternalLink, ShieldCheck, ShieldX, Pencil } from 'lucide-react'
 
-type Status = 'LICENSE_REQUIRED' | 'NO_STATE_LICENSE' | 'ELECTRICIAN_LICENSE'
-
-interface StateRef {
+interface OrgStateLicense {
   id: string
   state: string
-  license_type: string
-  status: Status
+  license_required: boolean
+  license_type: string | null
   requirements_summary: string | null
   agency_name: string | null
   agency_url: string | null
+  notes: string | null
   last_verified_at: string | null
 }
 
@@ -23,31 +22,9 @@ const STATES = [
   'PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
 ]
 
-function StatusBadge({ status }: { status: Status }) {
-  if (status === 'LICENSE_REQUIRED') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800">
-        <ShieldAlert className="h-3 w-3" /> License required
-      </span>
-    )
-  }
-  if (status === 'ELECTRICIAN_LICENSE') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
-        <ShieldCheck className="h-3 w-3" /> Electrician
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
-      <ShieldX className="h-3 w-3" /> No state license
-    </span>
-  )
-}
-
 export default function StateLookupPage() {
   const [state, setState] = useState<string>('LA')
-  const [rows, setRows] = useState<StateRef[]>([])
+  const [row, setRow] = useState<OrgStateLicense | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -55,16 +32,17 @@ export default function StateLookupPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/org/compliance/state-licensing?state=${s}`)
+      const res = await fetch(`/api/org/compliance/state-licensing/${s}`)
       if (!res.ok) {
+        if (res.status === 404) { setRow(null); return }
         const j = await res.json().catch(() => ({}))
         throw new Error(j.error ?? 'Failed to load')
       }
       const data = await res.json()
-      setRows(Array.isArray(data) ? data : [])
+      setRow(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load')
-      setRows([])
+      setRow(null)
     } finally {
       setLoading(false)
     }
@@ -78,10 +56,16 @@ export default function StateLookupPage() {
         <Link href="/org/compliance/technicians" className="text-slate-600 hover:text-slate-900">
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-semibold text-slate-900">State Licensing Lookup</h1>
-          <p className="text-sm text-slate-600">50-state + DC reference for low-voltage / life-safety licensing requirements.</p>
+          <p className="text-sm text-slate-600">Quick reference for low-voltage / security licensing requirements.</p>
         </div>
+        <Link
+          href="/org/compliance/state-licensing"
+          className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          <Pencil className="h-3.5 w-3.5" /> Edit All States
+        </Link>
       </div>
 
       <div className="flex items-center gap-3">
@@ -102,41 +86,64 @@ export default function StateLookupPage() {
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{error}</div>
       )}
 
-      <div className="space-y-3">
-        {rows.length === 0 && !loading && !error && (
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600">
-            No reference data on file for {state}.
-          </div>
-        )}
-        {rows.map(r => (
-          <div key={r.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">{r.license_type}</div>
-                <div className="mt-1"><StatusBadge status={r.status} /></div>
+      {!row && !loading && !error && (
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600">
+          No reference data on file for {state}.
+        </div>
+      )}
+
+      {row && (
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-base font-semibold text-slate-900">
+                {row.license_type || 'No license type specified'}
               </div>
-              {r.agency_url && (
-                <a
-                  href={r.agency_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900"
-                >
-                  {r.agency_name ?? 'Agency'} <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
+              <div className="mt-1.5">
+                {row.license_required ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                    <ShieldCheck className="h-3 w-3" /> License Required
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                    <ShieldX className="h-3 w-3" /> No State License
+                  </span>
+                )}
+              </div>
             </div>
-            {r.requirements_summary && (
-              <p className="mt-3 text-sm text-slate-700">{r.requirements_summary}</p>
+            {row.agency_url && (
+              <a
+                href={row.agency_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                {row.agency_name ?? 'Licensing Authority'} <ExternalLink className="h-3 w-3" />
+              </a>
             )}
-            {r.last_verified_at && (
-              <p className="mt-3 text-xs text-slate-400">
-                Last verified {new Date(r.last_verified_at).toLocaleDateString()}
-              </p>
+            {!row.agency_url && row.agency_name && (
+              <span className="text-xs font-medium text-slate-600">{row.agency_name}</span>
             )}
           </div>
-        ))}
-      </div>
+
+          {row.requirements_summary && (
+            <p className="text-sm text-slate-700 leading-relaxed">{row.requirements_summary}</p>
+          )}
+
+          {row.notes && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+              <div className="text-xs font-medium text-amber-800 mb-1">Org Notes</div>
+              <p className="text-sm text-amber-900">{row.notes}</p>
+            </div>
+          )}
+
+          {row.last_verified_at && (
+            <p className="text-xs text-slate-400">
+              Last verified {new Date(row.last_verified_at).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
