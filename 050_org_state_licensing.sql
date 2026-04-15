@@ -8,17 +8,16 @@
 -- 1. Fix state_licensing_reference (global template)
 -- ============================================================================
 
--- Drop old CHECK constraint
+-- Wipe generic seed data FIRST (before constraint change — old rows have ELECTRICIAN_LICENSE)
+TRUNCATE state_licensing_reference;
+
+-- Now safe to drop old CHECK and add simplified one
 ALTER TABLE state_licensing_reference
   DROP CONSTRAINT IF EXISTS state_licensing_reference_status_check;
 
--- Add simplified CHECK
 ALTER TABLE state_licensing_reference
   ADD CONSTRAINT state_licensing_reference_status_check
   CHECK (status IN ('LICENSE_REQUIRED', 'NO_STATE_LICENSE'));
-
--- Wipe generic seed data
-TRUNCATE state_licensing_reference;
 
 -- Insert verified data (source: Dexter's CSV + JVSG 2026-04-15)
 INSERT INTO state_licensing_reference (state, license_type, status, requirements_summary, agency_name, agency_url) VALUES
