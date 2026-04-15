@@ -52,6 +52,13 @@ import { PathTracePanel } from './path-trace-panel'
 import { ReportGenerator } from './report-generator'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { DeviceLibraryModal } from './device-library-modal'
+import { DoorScheduleModal } from './door-schedule-modal'
+import {
+  evaluateCompatibility,
+  type DoorType as ComplianceDoorType,
+  type ElectrificationType,
+  type OccupancyType,
+} from '@/lib/door-compliance/compatibility-data'
 import { useDesignCanvas } from '@/hooks/useDesignCanvas'
 import { getFovConeTiers, calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { SimulatedView } from './simulated-view'
@@ -820,6 +827,37 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const [showFloorPlanModal, setShowFloorPlanModal] = useState(false)
   const [showObservations, setShowObservations] = useState(false)
   const [showReportGenerator, setShowReportGenerator] = useState(false)
+  const [showDoorSchedule, setShowDoorSchedule] = useState(false)
+
+  /* ── ACS device compliance summary (for Door Schedule button badge) ── */
+  const ACS_CATEGORIES = useMemo(
+    () => new Set(['access_control', 'door', 'door_controller', 'card_reader', 'electric_strike', 'maglock']),
+    [],
+  )
+  const doorScheduleSummary = useMemo(() => {
+    const acs = devices.filter(d => ACS_CATEGORIES.has(d.category))
+    let critical = 0
+    let warning = 0
+    for (const d of acs) {
+      const p = (d.properties ?? {}) as Record<string, unknown>
+      const lockType = String(p.lock_type || 'Electric Strike')
+      const construction = String(p.door_construction || 'single') as ComplianceDoorType
+      const electrification = String(
+        p.electrification ||
+          (lockType === 'Magnetic Lock'
+            ? 'surface_maglock'
+            : lockType === 'Electrified Hardware'
+            ? 'electric_latch_retraction'
+            : 'electrified_trim'),
+      ) as ElectrificationType
+      const occupancy = String(p.occupancy || 'business') as OccupancyType
+      const fireRated = !!p.fire_rated
+      const findings = evaluateCompatibility(construction, fireRated, electrification, occupancy, false)
+      if (findings.flags.some(f => f.level === 'critical')) critical++
+      else if (findings.flags.some(f => f.level === 'warning')) warning++
+    }
+    return { count: acs.length, critical, warning }
+  }, [devices, ACS_CATEGORIES])
 
   const handleFloorPlanImport = useCallback(async (result: {
     file: File; width: number; height: number; mode: 'new_area' | 'overlay'; areaName?: string
@@ -908,6 +946,28 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           <ClipboardList size={13} />
           <span style={{ fontSize: 10 }}>Notes</span>
         </button>
+        {doorScheduleSummary.count > 0 && (
+          <button
+            onClick={() => setShowDoorSchedule(true)}
+            style={{ ...btnStyle(false), padding: '4px 10px', gap: 4 }}
+            title="Door Schedule & Compliance"
+          >
+            <DoorOpen size={13} />
+            <span style={{ fontSize: 10 }}>
+              Doors ({doorScheduleSummary.count})
+              {doorScheduleSummary.critical > 0 && (
+                <span style={{ color: '#dc2626', marginLeft: 4, fontWeight: 700 }}>
+                  {doorScheduleSummary.critical}C
+                </span>
+              )}
+              {doorScheduleSummary.warning > 0 && (
+                <span style={{ color: '#d97706', marginLeft: 4, fontWeight: 700 }}>
+                  {doorScheduleSummary.warning}W
+                </span>
+              )}
+            </span>
+          </button>
+        )}
         {activeFloorPlan && (
           <button
             onClick={async () => {
@@ -1953,6 +2013,16 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           onClose={() => setShowFloorPlanModal(false)}
           hasActiveArea={!!activeAreaId}
           suggestedAreaName={`Area ${String.fromCharCode(65 + areas.length)}`}
+        />
+      )}
+
+      {/* ═══════ DOOR SCHEDULE MODAL ═══════ */}
+      {showDoorSchedule && (
+        <DoorScheduleModal
+          designName={design?.name || 'Design'}
+          devices={devices}
+          onClose={() => setShowDoorSchedule(false)}
+          onSelectDevice={(id) => { setSelectedDeviceId(id); setShowDoorSchedule(false) }}
         />
       )}
     </div>

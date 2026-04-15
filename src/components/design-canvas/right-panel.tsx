@@ -11,14 +11,33 @@
  * 24-color palette. Only visible when a device is selected on canvas.
  */
 
-import React, { useState, useCallback, useMemo } from 'react'
-import { X, Copy, Trash2, ChevronDown, ChevronRight, Settings, MapPinOff, Cctv, Server, Plus } from 'lucide-react'
+import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import { X, Copy, Trash2, ChevronDown, ChevronRight, Settings, MapPinOff, Cctv, Server, Plus, AlertTriangle, CheckCircle2, Info, AlertOctagon } from 'lucide-react'
 import { C } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { calculateMountRequirements, type MountCalcInput } from '@/lib/calculators/mount-calculator'
 import { useMountCatalog } from './use-mount-catalog'
 import { BlindSpotDiagram } from './blind-spot-diagram'
+import {
+  evaluateCompatibility,
+  DOOR_TYPE_LABELS,
+  ELECTRIFICATION_LABELS,
+  OCCUPANCY_LABELS,
+  type DoorType as ComplianceDoorType,
+  type ElectrificationType,
+  type OccupancyType,
+} from '@/lib/door-compliance/compatibility-data'
+import { validateMountingHeight } from '@/lib/door-compliance/ada-standards'
+import { calculateVoltageDrop } from '@/lib/door-compliance/voltage-drop'
+import { loadElectricStrikes, getCompatibleStrikes, type ElectricStrike } from '@/lib/door-compliance/electric-strikes'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
+
+// Map legacy lock_type labels to compliance engine electrification types
+function inferElectrification(lockType: string): ElectrificationType {
+  if (lockType === 'Magnetic Lock') return 'surface_maglock'
+  if (lockType === 'Electrified Hardware') return 'electric_latch_retraction'
+  return 'electrified_trim' // Electric Strike (default)
+}
 
 /* ─── 24 Colors ─── */
 const COLOR_PALETTE = [
@@ -194,6 +213,280 @@ function BtnGroup({ options, value, onChange }: {
         )
       })}
     </div>
+  )
+}
+
+/* ─── Door Compliance Section (IBC / NFPA / ADA / voltage drop + strike suggestions) ─── */
+function DoorComplianceSection({
+  props,
+  updateProp,
+}: {
+  props: Record<string, unknown>
+  updateProp: (key: string, value: unknown) => void
+}) {
+  const legacyLockType = String(props.lock_type || 'Electric Strike')
+  const doorConstruction = (String(props.door_construction || 'single') as ComplianceDoorType)
+  const fireRated = !!props.fire_rated
+  const occupancy = (String(props.occupancy || 'business') as OccupancyType)
+  const electrification = (String(
+    props.electrification || inferElectrification(legacyLockType),
+  ) as ElectrificationType)
+
+  const findings = useMemo(
+    () => evaluateCompatibility(doorConstruction, fireRated, electrification, occupancy, false),
+    [doorConstruction, fireRated, electrification, occupancy],
+  )
+
+  // Mounting + power
+  const readerHeight = Number(props.reader_height_in) || 0
+  const cableLengthFt = Number(props.cable_length_ft) || 0
+  const supplyVoltage = Number(props.supply_voltage) || 12
+  const lockDrawAmps = Number(props.lock_draw_amps) || 0
+  const wireGauge = String(props.wire_gauge || '18/2')
+
+  const adaResult = useMemo(
+    () => (readerHeight > 0 ? validateMountingHeight('card_reader', readerHeight) : null),
+    [readerHeight],
+  )
+  const voltageResult = useMemo(
+    () =>
+      cableLengthFt > 0 && lockDrawAmps > 0
+        ? calculateVoltageDrop(supplyVoltage, wireGauge, cableLengthFt, lockDrawAmps)
+        : null,
+    [supplyVoltage, wireGauge, cableLengthFt, lockDrawAmps],
+  )
+
+  // Electric strike recommendations
+  const [strikes, setStrikes] = useState<ElectricStrike[]>([])
+  useEffect(() => {
+    if (electrification !== 'electrified_trim' && legacyLockType !== 'Electric Strike') {
+      setStrikes([])
+      return
+    }
+    let cancelled = false
+    loadElectricStrikes().then(all => {
+      if (cancelled) return
+      setStrikes(getCompatibleStrikes(all, doorConstruction, fireRated, 5))
+    })
+    return () => { cancelled = true }
+  }, [electrification, legacyLockType, doorConstruction, fireRated])
+
+  const critical = findings.flags.filter(f => f.level === 'critical').length
+  const warnings = findings.flags.filter(f => f.level === 'warning').length
+  const summaryColor = critical > 0 ? '#dc2626' : warnings > 0 ? '#d97706' : '#16a34a'
+  const summaryLabel =
+    critical > 0 ? `${critical} critical` : warnings > 0 ? `${warnings} warning${warnings === 1 ? '' : 's'}` : 'Compliant'
+
+  return (
+    <Section title={`Compliance · ${summaryLabel}`} defaultOpen>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Summary pill */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '6px 8px', borderRadius: 4,
+          background: `${summaryColor}15`, border: `1px solid ${summaryColor}40`,
+        }}>
+          {critical > 0
+            ? <AlertOctagon size={12} color={summaryColor} />
+            : warnings > 0
+              ? <AlertTriangle size={12} color={summaryColor} />
+              : <CheckCircle2 size={12} color={summaryColor} />}
+          <span style={{ fontSize: 10, fontWeight: 600, color: summaryColor }}>
+            {summaryLabel}
+          </span>
+        </div>
+
+        {/* Compliance inputs */}
+        <div>
+          <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Construction</div>
+          <select value={doorConstruction} onChange={e => updateProp('door_construction', e.target.value)}
+            style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
+            {(Object.keys(DOOR_TYPE_LABELS) as ComplianceDoorType[]).map(k => (
+              <option key={k} value={k}>{DOOR_TYPE_LABELS[k]}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Electrification</div>
+          <select value={electrification} onChange={e => updateProp('electrification', e.target.value)}
+            style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
+            {(Object.keys(ELECTRIFICATION_LABELS) as ElectrificationType[]).map(k => (
+              <option key={k} value={k}>{ELECTRIFICATION_LABELS[k]}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Occupancy</div>
+          <select value={occupancy} onChange={e => updateProp('occupancy', e.target.value)}
+            style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
+            {(Object.keys(OCCUPANCY_LABELS) as OccupancyType[]).map(k => (
+              <option key={k} value={k}>{OCCUPANCY_LABELS[k]}</option>
+            ))}
+          </select>
+        </div>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: C.textMuted }}>
+          <input type="checkbox" checked={fireRated} onChange={e => updateProp('fire_rated', e.target.checked)} style={{ accentColor: C.accent }} />
+          Fire-rated door
+        </label>
+
+        {/* Findings list */}
+        {findings.flags.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
+            {findings.flags.map((f, i) => {
+              const color =
+                f.level === 'critical' ? '#dc2626' :
+                f.level === 'warning' ? '#d97706' :
+                f.level === 'advisory' ? '#7c3aed' : '#16a34a'
+              const Icon =
+                f.level === 'critical' ? AlertOctagon :
+                f.level === 'warning' ? AlertTriangle :
+                f.level === 'advisory' ? Info : CheckCircle2
+              return (
+                <div key={i} style={{
+                  display: 'flex', gap: 6, padding: '5px 6px', borderRadius: 3,
+                  background: `${color}10`, border: `1px solid ${color}30`,
+                }}>
+                  <Icon size={11} color={color} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 9, color: C.text, lineHeight: 1.35 }}>{f.message}</div>
+                    {f.codeRef && (
+                      <div style={{ fontSize: 8, color: C.textDim, marginTop: 2, fontFamily: 'monospace' }}>{f.codeRef}</div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {findings.codeReferences.length > 0 && (
+          <div style={{ fontSize: 8, color: C.textDim, fontFamily: 'monospace', lineHeight: 1.4 }}>
+            Codes: {findings.codeReferences.join(' · ')}
+          </div>
+        )}
+
+        {/* Mounting + power block */}
+        <div style={{ borderTop: `1px solid ${C.borderSubtle}`, paddingTop: 8, marginTop: 2 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: C.text, marginBottom: 6 }}>Mounting &amp; Power</div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            <div>
+              <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Reader Height (&quot;AFF)</div>
+              <input type="number" value={readerHeight || ''} onChange={e => updateProp('reader_height_in', Number(e.target.value) || 0)}
+                style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'monospace', outline: 'none' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Wire Gauge</div>
+              <select value={wireGauge} onChange={e => updateProp('wire_gauge', e.target.value)}
+                style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
+                {['24/4', '22/2', '22/4', '18/2', '18/4', '16/2', '14/2'].map(g => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Cable Run (ft)</div>
+              <input type="number" value={cableLengthFt || ''} onChange={e => updateProp('cable_length_ft', Number(e.target.value) || 0)}
+                style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'monospace', outline: 'none' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Lock Draw (A)</div>
+              <input type="number" step={0.01} value={lockDrawAmps || ''} onChange={e => updateProp('lock_draw_amps', Number(e.target.value) || 0)}
+                style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'monospace', outline: 'none' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Supply (V)</div>
+              <select value={supplyVoltage} onChange={e => updateProp('supply_voltage', Number(e.target.value))}
+                style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
+                <option value={12}>12 VDC</option>
+                <option value={24}>24 VDC</option>
+              </select>
+            </div>
+          </div>
+
+          {adaResult && (
+            <div style={{
+              marginTop: 8, padding: '6px 8px', borderRadius: 3,
+              background: adaResult.compliant ? '#16a34a10' : '#dc262610',
+              border: `1px solid ${adaResult.compliant ? '#16a34a30' : '#dc262630'}`,
+              fontSize: 9, color: C.text, lineHeight: 1.35,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                {adaResult.compliant
+                  ? <CheckCircle2 size={11} color="#16a34a" />
+                  : <AlertOctagon size={11} color="#dc2626" />}
+                <span style={{ fontWeight: 600 }}>
+                  ADA {adaResult.compliant ? 'OK' : 'Fail'}
+                </span>
+              </div>
+              <div>{adaResult.message}</div>
+              <div style={{ fontSize: 8, color: C.textDim, marginTop: 2, fontFamily: 'monospace' }}>{adaResult.reference}</div>
+            </div>
+          )}
+
+          {voltageResult && (
+            <div style={{
+              marginTop: 6, padding: '6px 8px', borderRadius: 3,
+              background: voltageResult.isCompliant ? '#16a34a10' : '#dc262610',
+              border: `1px solid ${voltageResult.isCompliant ? '#16a34a30' : '#dc262630'}`,
+              fontSize: 9, color: C.text, lineHeight: 1.35,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                {voltageResult.isCompliant
+                  ? <CheckCircle2 size={11} color="#16a34a" />
+                  : <AlertOctagon size={11} color="#dc2626" />}
+                <span style={{ fontWeight: 600 }}>
+                  Voltage at device: {voltageResult.voltageAtDevice}V ({voltageResult.percentageDrop}% drop)
+                </span>
+              </div>
+              <div style={{ fontSize: 8, color: C.textDim, marginTop: 2 }}>
+                Threshold: ≤10% drop on 12/24 VDC circuits
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Electric strike recommendations */}
+        {strikes.length > 0 && (
+          <div style={{ borderTop: `1px solid ${C.borderSubtle}`, paddingTop: 8, marginTop: 2 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: C.text, marginBottom: 6 }}>
+              Suggested Electric Strikes
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {strikes.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    updateProp('vendor', s.manufacturer)
+                    updateProp('model', s.model)
+                  }}
+                  style={{
+                    textAlign: 'left', padding: '6px 8px', borderRadius: 3,
+                    background: C.bgActive, border: `1px solid ${C.border}`,
+                    color: C.text, cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  <div style={{ fontSize: 10, fontWeight: 600 }}>
+                    {s.manufacturer} {s.series}
+                  </div>
+                  <div style={{ fontSize: 9, color: C.textDim, fontFamily: 'monospace', marginTop: 1 }}>
+                    {s.model}
+                  </div>
+                  <div style={{ fontSize: 8, color: C.textMuted, marginTop: 2 }}>
+                    {s.voltage} · {s.current_draw_ma}mA · {s.fail_mode.replace('_', ' ')}
+                    {s.ul_listed ? ' · UL listed' : ''}
+                    {s.fire_rated ? ` · Fire ${s.fire_rating_hours ?? ''}hr` : ''}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Section>
   )
 }
 
@@ -778,63 +1071,67 @@ export function RightPanel({
 
             {/* Access Control config — only for door/ACS devices */}
             {['access_control', 'door', 'door_controller', 'card_reader', 'electric_strike', 'maglock'].includes(device.category) && (
-              <Section title="Door Configuration" defaultOpen>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Door Type</div>
-                    <BtnGroup
-                      options={['Standard', 'ADA Auto-Operator', 'Mantrap', 'Mantrap + ADA']}
-                      value={String(props.door_type || 'Standard')}
-                      onChange={v => updateProp('door_type', v)}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Lock Type</div>
-                    <BtnGroup
-                      options={['Electric Strike', 'Magnetic Lock', 'Electrified Hardware']}
-                      value={String(props.lock_type || 'Electric Strike')}
-                      onChange={v => updateProp('lock_type', v)}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <>
+                <Section title="Door Configuration" defaultOpen>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div>
-                      <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Reader In</div>
-                      <select value={String(props.reader_in || 'proximity')} onChange={e => updateProp('reader_in', e.target.value)}
-                        style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
-                        <option value="proximity">Proximity</option><option value="smart_card">Smart Card</option>
-                        <option value="biometric">Biometric</option><option value="keypad">Keypad</option>
-                        <option value="mobile">Mobile Credential</option>
-                      </select>
+                      <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Door Type</div>
+                      <BtnGroup
+                        options={['Standard', 'ADA Auto-Operator', 'Mantrap', 'Mantrap + ADA']}
+                        value={String(props.door_type || 'Standard')}
+                        onChange={v => updateProp('door_type', v)}
+                      />
                     </div>
                     <div>
-                      <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Reader Out</div>
-                      <select value={String(props.reader_out || 'none')} onChange={e => updateProp('reader_out', e.target.value)}
-                        style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
-                        <option value="none">None</option><option value="proximity">Proximity</option><option value="smart_card">Smart Card</option>
-                        <option value="biometric">Biometric</option><option value="keypad">Keypad</option>
-                        <option value="mobile">Mobile Credential</option>
-                      </select>
+                      <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Lock Type</div>
+                      <BtnGroup
+                        options={['Electric Strike', 'Magnetic Lock', 'Electrified Hardware']}
+                        value={String(props.lock_type || 'Electric Strike')}
+                        onChange={v => updateProp('lock_type', v)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      <div>
+                        <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Reader In</div>
+                        <select value={String(props.reader_in || 'proximity')} onChange={e => updateProp('reader_in', e.target.value)}
+                          style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
+                          <option value="proximity">Proximity</option><option value="smart_card">Smart Card</option>
+                          <option value="biometric">Biometric</option><option value="keypad">Keypad</option>
+                          <option value="mobile">Mobile Credential</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Reader Out</div>
+                        <select value={String(props.reader_out || 'none')} onChange={e => updateProp('reader_out', e.target.value)}
+                          style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'inherit', outline: 'none' }}>
+                          <option value="none">None</option><option value="proximity">Proximity</option><option value="smart_card">Smart Card</option>
+                          <option value="biometric">Biometric</option><option value="keypad">Keypad</option>
+                          <option value="mobile">Mobile Credential</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: C.textMuted }}>
+                        <input type="checkbox" checked={!!props.rex} onChange={e => updateProp('rex', e.target.checked)} style={{ accentColor: C.accent }} /> REX
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: C.textMuted }}>
+                        <input type="checkbox" checked={!!props.door_contact} onChange={e => updateProp('door_contact', e.target.checked)} style={{ accentColor: C.accent }} /> Door Contact
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: C.textMuted }}>
+                        <input type="checkbox" checked={!!props.auto_operator} onChange={e => updateProp('auto_operator', e.target.checked)} style={{ accentColor: C.accent }} /> Auto-Operator
+                      </label>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Controller Assignment</div>
+                      <input value={String(props.controller_id || '')} placeholder="Controller device ID"
+                        onChange={e => updateProp('controller_id', e.target.value)}
+                        style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'monospace', outline: 'none' }} />
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: C.textMuted }}>
-                      <input type="checkbox" checked={!!props.rex} onChange={e => updateProp('rex', e.target.checked)} style={{ accentColor: C.accent }} /> REX
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: C.textMuted }}>
-                      <input type="checkbox" checked={!!props.door_contact} onChange={e => updateProp('door_contact', e.target.checked)} style={{ accentColor: C.accent }} /> Door Contact
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: C.textMuted }}>
-                      <input type="checkbox" checked={!!props.auto_operator} onChange={e => updateProp('auto_operator', e.target.checked)} style={{ accentColor: C.accent }} /> Auto-Operator
-                    </label>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 9, color: C.textDim, marginBottom: 3 }}>Controller Assignment</div>
-                    <input value={String(props.controller_id || '')} placeholder="Controller device ID"
-                      onChange={e => updateProp('controller_id', e.target.value)}
-                      style={{ width: '100%', padding: '3px 6px', background: C.bgActive, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text, fontSize: 9, fontFamily: 'monospace', outline: 'none' }} />
-                  </div>
-                </div>
-              </Section>
+                </Section>
+
+                <DoorComplianceSection props={props} updateProp={updateProp} />
+              </>
             )}
           </div>
         )}
