@@ -19,6 +19,7 @@ function computeRisk(devices: SurveyDevice[]): {
   scores: RiskScore[]
   totalWeighted: number
   contingencyPct: number
+  highMounts: number
 } {
   // CCTV risk: based on existing vs new ratio + condition
   const cctvDevices = devices.filter(d => d.system_type === 'cctv')
@@ -43,10 +44,12 @@ function computeRisk(devices: SurveyDevice[]): {
   const uniqueSystems = new Set(devices.map(d => d.system_type)).size
   const equipScore = Math.min(10, uniqueVendors * 1.5 + uniqueSystems * 1)
 
-  // Installation risk: cable run lengths, mount complexity
+  // Installation risk: cable run lengths, mount complexity, high mounts
   const longRuns = devices.filter(d => (d.cable_run_ft || 0) > 200).length
   const difficultMounts = devices.filter(d => ['pole', 'parapet', 'gooseneck', 'pendant'].includes(d.mount_type || '')).length
-  const installScore = Math.min(10, longRuns * 2 + difficultMounts * 1.5)
+  // Mount height >12 ft (144") auto-bumps install risk — scope doc requirement
+  const highMounts = devices.filter(d => (d.mount_height_in || 0) > 144).length
+  const installScore = Math.min(10, longRuns * 2 + difficultMounts * 1.5 + highMounts * 2)
 
   const scores: RiskScore[] = [
     { category: 'cctv', label: 'CCTV', score: Math.round(cctvScore * 10) / 10, maxScore: 10, weight: RISK_WEIGHTS.cctv },
@@ -66,11 +69,11 @@ function computeRisk(devices: SurveyDevice[]): {
     : totalWeighted < 8 ? 20
     : 25
 
-  return { scores, totalWeighted, contingencyPct }
+  return { scores, totalWeighted, contingencyPct, highMounts }
 }
 
 export function SurveyRiskAssessment({ devices }: Props) {
-  const { scores, totalWeighted, contingencyPct } = computeRisk(devices)
+  const { scores, totalWeighted, contingencyPct, highMounts } = computeRisk(devices)
 
   const riskColor = totalWeighted < 3 ? '#22c55e'
     : totalWeighted < 6 ? '#f59e0b'
@@ -90,6 +93,12 @@ export function SurveyRiskAssessment({ devices }: Props) {
           </span>
         </div>
       </div>
+
+      {highMounts > 0 && (
+        <div className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-700 dark:text-amber-300">
+          ⚠ {highMounts} device{highMounts === 1 ? '' : 's'} mounted above 12 ft — install risk auto-bumped (lift/boom likely required)
+        </div>
+      )}
 
       <div className="space-y-2">
         {scores.map((s) => (

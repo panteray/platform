@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   ArrowLeft, Save, Send, Plus, Trash2, MapPin, Layers,
-  ChevronDown, ChevronUp, Wifi, WifiOff,
+  ChevronDown, ChevronUp, Wifi, WifiOff, RefreshCw,
 } from 'lucide-react'
 import type { Survey, SurveyFloorPlan, SurveyDevice, SurveyInfrastructure } from '@/types/database'
 import { SurveyStatusBadge } from './SurveyStatusBadge'
 import { SURVEY_FLOOR_PLAN_MODES, SURVEY_INFRA_TYPES } from '@/lib/survey-constants'
 import { SurveyCanvas } from './SurveyCanvas'
 import { SurveyInfrastructurePanel } from './SurveyInfrastructurePanel'
+import { putLocal, getPendingSyncCount, processSyncQueue } from '@/lib/survey-offline-db'
 
 interface Props {
   surveyId: string
@@ -24,23 +25,45 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [online, setOnline] = useState(true)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [syncing, setSyncing] = useState(false)
   const [activeFloorPlan, setActiveFloorPlan] = useState<string | null>(null)
   const [showInfo, setShowInfo] = useState(true)
   const [showInfra, setShowInfra] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Online/offline detection
+  const refreshPending = useCallback(async () => {
+    const n = await getPendingSyncCount(surveyId)
+    setPendingCount(n)
+  }, [surveyId])
+
+  const runSync = useCallback(async () => {
+    if (syncing) return
+    setSyncing(true)
+    try {
+      await processSyncQueue(surveyId)
+    } finally {
+      setSyncing(false)
+      await refreshPending()
+    }
+  }, [surveyId, syncing, refreshPending])
+
+  // Online/offline detection + auto-sync on reconnect
   useEffect(() => {
-    const handleOnline = () => setOnline(true)
+    const handleOnline = () => {
+      setOnline(true)
+      runSync()
+    }
     const handleOffline = () => setOnline(false)
     setOnline(navigator.onLine)
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
+    refreshPending()
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [])
+  }, [runSync, refreshPending])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -60,24 +83,36 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
 
   useEffect(() => { load() }, [load])
 
-  // Auto-save with debounce
+  // Auto-save with debounce — write-first to IndexedDB, then push to server
   const autoSave = useCallback(async (updates: Partial<Survey>) => {
     if (!survey || survey.status === 'submitted') return
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       setSaving(true)
-      const res = await fetch(`/api/org/surveys/${surveyId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      })
-      if (res.ok) {
-        const updated = await res.json()
-        setSurvey(prev => prev ? { ...prev, ...updated } : updated)
+      // Write-first: mirror to IndexedDB + queue a sync entry
+      try {
+        await putLocal('surveys', { ...survey, ...updates, id: surveyId } as Record<string, unknown> & { id: string })
+        await refreshPending()
+      } catch {
+        // non-fatal — offline DB unavailable (SSR or private mode)
+      }
+      // Push to server if online
+      if (navigator.onLine) {
+        const res = await fetch(`/api/org/surveys/${surveyId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        })
+        if (res.ok) {
+          const updated = await res.json()
+          setSurvey(prev => prev ? { ...prev, ...updated } : updated)
+          // Successful write — drain any earlier queued mutations
+          runSync()
+        }
       }
       setSaving(false)
     }, 800)
-  }, [survey, surveyId])
+  }, [survey, surveyId, refreshPending, runSync])
 
   const handleFieldChange = (field: string, value: string) => {
     if (!survey) return
@@ -203,6 +238,26 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
           )}
         </div>
       </div>
+
+      {/* Sync Banner — pending offline writes */}
+      {pendingCount > 0 && (
+        <div className="flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+          <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
+            {pendingCount} pending change{pendingCount === 1 ? '' : 's'} not yet synced
+            {!online && ' — will sync when online'}
+          </span>
+          {online && (
+            <button
+              onClick={runSync}
+              disabled={syncing}
+              className="inline-flex items-center gap-1 rounded-md bg-amber-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing...' : 'Sync now'}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Survey Info — Collapsible */}
       <div className="rounded-lg border border-border bg-card">

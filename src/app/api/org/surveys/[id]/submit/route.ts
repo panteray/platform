@@ -46,23 +46,60 @@ export async function POST(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // If linked to an OPP, update survey_date_done
+  // If linked to an OPP, update survey_date_done and transition SURVEY → DESIGN
+  let oppTransitioned: { from: string; to: string } | null = null
   if (survey.opp_id) {
-    await admin
+    const { data: opp } = await admin
       .from('opportunities')
-      .update({ survey_date_done: new Date().toISOString().split('T')[0] })
+      .select('id, status')
       .eq('id', survey.opp_id)
       .eq('org_id', dbUser.org_id)
+      .single()
+
+    const updates: Record<string, unknown> = {
+      survey_date_done: new Date().toISOString().split('T')[0],
+    }
+    if (opp && opp.status === 'SURVEY') {
+      updates.status = 'DESIGN'
+      oppTransitioned = { from: 'SURVEY', to: 'DESIGN' }
+    }
+
+    await admin
+      .from('opportunities')
+      .update(updates)
+      .eq('id', survey.opp_id)
+      .eq('org_id', dbUser.org_id)
+
+    // Audit the OPP status transition separately so it appears in the opp timeline
+    if (oppTransitioned) {
+      await admin.from('audit_logs').insert({
+        org_id: dbUser.org_id,
+        user_id: dbUser.id,
+        action: 'opportunity.status_changed',
+        entity_type: 'opportunity',
+        entity_id: survey.opp_id,
+        details: {
+          from: oppTransitioned.from,
+          to: oppTransitioned.to,
+          trigger: 'survey_submitted',
+          survey_id: id,
+        },
+      })
+    }
   }
 
-  // Audit log
+  // Audit log for the survey submission itself
   await admin.from('audit_logs').insert({
     org_id: dbUser.org_id,
     user_id: dbUser.id,
     action: 'survey.submitted',
     entity_type: 'survey',
     entity_id: id,
-    details: { site_name: survey.site_name, opp_id: survey.opp_id },
+    details: {
+      site_name: survey.site_name,
+      opp_id: survey.opp_id,
+      opp_transitioned: oppTransitioned,
+    },
   })
 
   return NextResponse.json(data)
