@@ -356,6 +356,7 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
                 environment: (str('environment', 'indoor') as 'indoor' | 'outdoor' | 'indoor_outdoor'),
                 vendor: str('vendor') || undefined,
                 model: str('model') || undefined,
+                finish: (str('finish') === 'white' || str('finish') === 'black') ? (str('finish') as 'white' | 'black') : undefined,
               }
               const mountResult = calculateMountRequirements(mountInput, num('install_height', 9), mountCatalog)
               const customAccessories = (props.custom_accessories || []) as Array<{ name: string; qty: number }>
@@ -572,6 +573,7 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
                 environment: (str('environment', 'indoor') as 'indoor' | 'outdoor' | 'indoor_outdoor'),
                 vendor: str('vendor') || undefined,
                 model: str('model') || undefined,
+                finish: (str('finish') === 'white' || str('finish') === 'black') ? (str('finish') as 'white' | 'black') : undefined,
               }
               const mountResult = calculateMountRequirements(mountInput, num('install_height', 9), mountCatalog)
               const customAccessories = (props.custom_accessories || []) as Array<{ name: string; qty: number }>

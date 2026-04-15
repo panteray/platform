@@ -34,3 +34,9 @@ export type { AcsBuildInput, AcsBuildOutput, WiringSpec } from './acs-calculator
 
 export { calculateCableLength } from './cable-math'
 export type { WaypointLike } from './cable-math'
+
+export { calculateCoverageArea, validateCoverageAreaInput } from './coverage-area'
+export type { CoverageAreaInput, CoverageAreaOutput } from './coverage-area'
+
+export { runPlanReview, loadJurisdictionRules } from './plan-review'
+export type { PlanReviewInput, PlanReviewOutput, PlanReviewFinding, JurisdictionRules } from './plan-review'

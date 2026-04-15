@@ -77,6 +77,7 @@ export const CALCULATOR_LABELS: Record<CalculatorType, string> = {
   [CalculatorType.MOUNTING]: 'Mounting',
   [CalculatorType.WIRELESS_PTP]: 'Wireless PtP',
   [CalculatorType.CABLE_ESTIMATOR]: 'Cable Estimator',
+  [CalculatorType.COVERAGE_AREA]: 'Coverage Area',
   [CalculatorType.PLAN_REVIEW]: 'Compliance Checker',
 }
 

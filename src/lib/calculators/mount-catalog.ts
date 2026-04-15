@@ -40,7 +40,7 @@ type RawCatalog = Record<string, Record<string, RawRecord[]>>
 
 // ---- Constants ----
 
-export const MOUNT_CATALOG_VENDORS = ['Hanwha', 'Verkada', 'Avigilon'] as const
+export const MOUNT_CATALOG_VENDORS = ['Hanwha', 'Verkada', 'Avigilon', 'Axis'] as const
 
 export type MountCatalogVendor = (typeof MOUNT_CATALOG_VENDORS)[number]
 
@@ -49,8 +49,62 @@ const LOCATION_MAP: Record<string, string[]> = {
   ceiling: ['Ceiling', 'Ceiling Tile', 'Recessed Ceiling'],
   wall: ['Wall', 'Corner'],
   pole: ['Pole'],
-  pendant: [],
+  pendant: ['Pendant'],
 }
+
+// Axis fallback catalog — hardcoded from NDAA_Mount_Expert docx reference.
+// Axis publishes generic adapters that apply to most current-gen models, so
+// we index under a single `_default` model key and let `lookupMountParts`
+// fall back to it when a specific Axis model isn't in the catalog.
+const AXIS_FALLBACK_RECORDS: VendorMountPart[] = [
+  {
+    location: 'Wall',
+    part: 'AXIS T91E61 Wall Mount',
+    environment: 'Both',
+    heightGuidance: '8–14 ft typical; confirm per site',
+    jboxRequired: 'As Required',
+    jboxPart: '',
+    notes: 'Generic wall mount for Axis fixed domes/bullets',
+  },
+  {
+    location: 'Corner',
+    part: 'AXIS T91E61 + T94R01B Corner Bracket',
+    environment: 'Both',
+    heightGuidance: '8–14 ft typical',
+    jboxRequired: 'As Required',
+    jboxPart: '',
+    notes: 'Wall mount plus corner adapter',
+  },
+  {
+    location: 'Pendant',
+    part: 'AXIS T94B02D Pendant Kit',
+    environment: 'Both',
+    heightGuidance: 'Drop per ceiling height',
+    jboxRequired: 'As Required',
+    jboxPart: '',
+    notes: 'Pendant adapter for Axis domes',
+  },
+  {
+    location: 'Recessed Ceiling',
+    part: 'AXIS T94M02L Recessed Flush Mount Kit',
+    environment: 'Interior',
+    heightGuidance: '9–12 ft typical drop-ceiling',
+    jboxRequired: 'As Required',
+    jboxPart: '',
+    notes: 'Flush-mount kit for suspended ceilings',
+  },
+  {
+    location: 'Pole',
+    part: 'AXIS T91E61 + T91A47 Pole Mount',
+    environment: 'Both',
+    heightGuidance: '10–20 ft typical',
+    jboxRequired: 'As Required',
+    jboxPart: '',
+    notes: 'Wall mount with pole adapter',
+  },
+]
+
+const AXIS_DEFAULT_KEY = '_default'
 
 // ---- Loader (module-level memoization) ----
 
@@ -91,7 +145,24 @@ function normalize(raw: RawCatalog): MountCatalog {
       }))
     }
   }
+  // Merge Axis fallback under a single _default model
+  if (!out.Axis) out.Axis = {}
+  if (!out.Axis[AXIS_DEFAULT_KEY]) {
+    out.Axis[AXIS_DEFAULT_KEY] = AXIS_FALLBACK_RECORDS
+  }
   return out
+}
+
+/**
+ * Swap Hanwha/Wisenet finish suffix: parts ending in `W` (white) or `B` (black)
+ * can be re-suffixed to match the requested finish. Leaves other vendors alone.
+ */
+export function applyFinish(part: string, finish?: 'white' | 'black'): string {
+  if (!finish || !part) return part
+  const last = part.charAt(part.length - 1)
+  if (finish === 'white' && last === 'B') return part.slice(0, -1) + 'W'
+  if (finish === 'black' && last === 'W') return part.slice(0, -1) + 'B'
+  return part
 }
 
 // ---- Lookup ----
@@ -102,20 +173,32 @@ export function lookupMountParts(
   model: string | undefined,
   mountType: 'ceiling' | 'wall' | 'pole' | 'pendant',
   environment?: 'indoor' | 'outdoor' | 'indoor_outdoor',
+  finish?: 'white' | 'black',
 ): VendorMountPart[] {
-  if (!catalog || !vendor || !model) return []
+  if (!catalog || !vendor) return []
   const vendorKey = resolveVendorKey(catalog, vendor)
   if (!vendorKey) return []
-  const modelKey = resolveModelKey(catalog[vendorKey], model)
+
+  // Model resolution: exact match, else _default (Axis pattern), else no match
+  let modelKey: string | null = null
+  if (model) modelKey = resolveModelKey(catalog[vendorKey], model)
+  if (!modelKey && catalog[vendorKey][AXIS_DEFAULT_KEY]) modelKey = AXIS_DEFAULT_KEY
   if (!modelKey) return []
+
   const records = catalog[vendorKey][modelKey]
   const allowedLocations = LOCATION_MAP[mountType] ?? []
-  return records.filter((r) => {
+  const filtered = records.filter((r) => {
     if (allowedLocations.length > 0 && !allowedLocations.includes(r.location)) return false
     if (environment === 'outdoor' && r.environment !== 'Both') return false
     // 'indoor' and 'indoor_outdoor' accept both 'Interior' and 'Both'
     return true
   })
+
+  // Apply finish suffix swap (Hanwha W/B convention)
+  if (finish) {
+    return filtered.map((r) => ({ ...r, part: applyFinish(r.part, finish) }))
+  }
+  return filtered
 }
 
 // Case-insensitive vendor match (catalog keys are Title Case)

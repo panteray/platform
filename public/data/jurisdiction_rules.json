@@ -1,0 +1,74 @@
+{
+  "version": "1.0.0",
+  "updated": "2026-04-14",
+  "rules": {
+    "NDAA_PROHIBITED_VENDORS": {
+      "id": "NDAA_2019_889",
+      "title": "NDAA Section 889 — Prohibited Manufacturers",
+      "codeRef": "NDAA Sec. 889(a)(1)(A)",
+      "severity": "critical",
+      "jurisdiction": ["federal", "state", "local"],
+      "vendors": ["Hikvision", "Dahua", "Huawei", "Hytera", "ZTE", "Dahua Technology", "Hangzhou Hikvision", "HikVision"],
+      "description": "Cameras, video surveillance equipment, and network gear from these manufacturers are prohibited in federal contracts and any project using federal funds."
+    },
+    "NEC_110_26_WORKING_SPACE": {
+      "id": "NEC_110.26",
+      "title": "NEC 110.26 — Working Space Around Electrical Equipment",
+      "codeRef": "NFPA 70 (NEC) 110.26",
+      "severity": "critical",
+      "jurisdiction": ["federal", "state"],
+      "minClearanceIn": 36,
+      "description": "Minimum 36\" clear working space required in front of panels/controllers operating 150–600V."
+    },
+    "IBC_1010_DELAYED_EGRESS_ASSEMBLY": {
+      "id": "IBC_1010.1.9.8",
+      "title": "IBC 1010.1.9.8 — Delayed Egress Locks Prohibited in Assembly",
+      "codeRef": "IBC 2021 §1010.1.9.8",
+      "severity": "critical",
+      "jurisdiction": ["state", "local"],
+      "prohibitedOccupancies": ["Assembly", "A-1", "A-2", "A-3", "A-4", "A-5"],
+      "description": "Delayed egress locking is prohibited in Assembly occupancies regardless of occupant load."
+    },
+    "NFPA_80_MAGLOCK_FIRE_RATED": {
+      "id": "NFPA_80_6.4.4",
+      "title": "NFPA 80 6.4.4 — Maglocks on Fire-Rated Doors",
+      "codeRef": "NFPA 80 §6.4.4 / IBC 716.2",
+      "severity": "critical",
+      "jurisdiction": ["federal", "state", "local"],
+      "description": "Maglocks are prohibited on fire-rated door assemblies because they compromise the rated closure."
+    },
+    "IEC_62676_4_RECOGNITION_PPF": {
+      "id": "IEC_62676-4_RECOGNITION",
+      "title": "IEC 62676-4 — Minimum Recognition Pixel Density",
+      "codeRef": "IEC 62676-4 §6",
+      "severity": "warning",
+      "minPpf": 38,
+      "description": "Cameras intended for recognition-level use must achieve ≥38 PPF at the target distance."
+    },
+    "UL_2050_HIGH_SECURITY": {
+      "id": "UL_2050",
+      "title": "UL 2050 — National Industrial Security Systems",
+      "codeRef": "UL 2050",
+      "severity": "info",
+      "jurisdiction": ["federal"],
+      "description": "Projects classified for DoD/Intelligence Community work require UL 2050 listed monitoring."
+    },
+    "UL_294_ACCESS_CONTROL": {
+      "id": "UL_294",
+      "title": "UL 294 — Access Control System Units",
+      "codeRef": "UL 294",
+      "severity": "warning",
+      "jurisdiction": ["federal", "state"],
+      "description": "All access control controllers and readers on commercial projects should be UL 294 listed."
+    },
+    "ADA_309_4_REACH_RANGE": {
+      "id": "ADA_309.4",
+      "title": "ADA 309.4 — Operable Parts Reach Range",
+      "codeRef": "ADA 2010 §309.4",
+      "severity": "warning",
+      "minHeightIn": 15,
+      "maxHeightIn": 48,
+      "description": "Card readers and operable controls must be between 15\" and 48\" AFF for forward reach."
+    }
+  }
+}

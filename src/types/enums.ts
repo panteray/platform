@@ -66,7 +66,8 @@ export enum ModuleName {
 export enum CalculatorType {
   FOV_DORI = 'fov_dori', SYSTEM_STORAGE = 'system_storage',
   WIRING_SCHEMATIC = 'wiring_schematic', MOUNTING = 'mounting',
-  WIRELESS_PTP = 'wireless_ptp', CABLE_ESTIMATOR = 'cable_estimator', PLAN_REVIEW = 'plan_review',
+  WIRELESS_PTP = 'wireless_ptp', CABLE_ESTIMATOR = 'cable_estimator',
+  COVERAGE_AREA = 'coverage_area', PLAN_REVIEW = 'plan_review',
 }
 
 // ---- Phase 5 Enums ----

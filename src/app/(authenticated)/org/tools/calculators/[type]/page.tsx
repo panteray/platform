@@ -13,6 +13,8 @@ import {
   generateWiringSchematic, type WiringInput,
   loadMountCatalog, listModelsForVendor, MOUNT_CATALOG_VENDORS,
   type MountCatalog, type VendorMountPart,
+  calculateCoverageArea, type CoverageAreaInput,
+  runPlanReview, loadJurisdictionRules, type PlanReviewInput, type JurisdictionRules,
 } from '@/lib/calculators'
 
 const C = {
@@ -271,7 +273,7 @@ function CableForm() {
 }
 
 function MountForm() {
-  const [f, setF] = useState({ formFactor: 'dome', mountType: 'ceiling', weight: '1.2', diameter: '130', vendor: 'Hanwha', model: '' })
+  const [f, setF] = useState({ formFactor: 'dome', mountType: 'ceiling', weight: '1.2', diameter: '130', vendor: 'Hanwha', model: '', finish: 'white' as 'white' | 'black' })
   const [catalog, setCatalog] = useState<MountCatalog | null>(null)
 
   useEffect(() => {
@@ -290,6 +292,7 @@ function MountForm() {
       diameterMm: +f.diameter,
       vendor: f.vendor || undefined,
       model: f.model || undefined,
+      finish: f.finish,
     }
     return calculateMountRequirements(input, 0, catalog) as unknown as Record<string, unknown>
   }, [f, catalog])
@@ -304,7 +307,7 @@ function MountForm() {
       <CalcInput label="Weight (kg)" value={f.weight} onChange={(v) => setF({ ...f, weight: v })} />
       <CalcInput label="Diameter (mm)" value={f.diameter} onChange={(v) => setF({ ...f, diameter: v })} />
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 12 }}>
       <SelectInput label="Vendor (Catalog)" value={f.vendor} onChange={(v) => setF({ ...f, vendor: v, model: '' })} options={MOUNT_CATALOG_VENDORS.map(v => ({ value: v, label: v }))} />
       <div>
         <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: C.textDim, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Model</label>
@@ -325,6 +328,7 @@ function MountForm() {
           {models.map((m) => <option key={m} value={m} />)}
         </datalist>
       </div>
+      <SelectInput label="Finish" value={f.finish} onChange={(v) => setF({ ...f, finish: v as 'white' | 'black' })} options={[{ value: 'white', label: 'White' }, { value: 'black', label: 'Black' }]} />
     </div>
     {result && <ResultCard title="Mount Calculator Results" primary={undefined} data={result} />}
     {vendorParts.length > 0 && (
@@ -397,6 +401,267 @@ function AcsForm() {
   </div>)
 }
 
+function CoverageAreaForm() {
+  const [f, setF] = useState({
+    roomW: '40', roomL: '60',
+    sensor: '5.14', focal: '4', resW: '1920',
+    dori: 'recognition' as 'detection' | 'observation' | 'recognition' | 'identification',
+    overlap: '15',
+  })
+  const result = useAutoCalc(() => {
+    const input: CoverageAreaInput = {
+      roomWidthFt: +f.roomW,
+      roomLengthFt: +f.roomL,
+      sensorWmm: +f.sensor,
+      focalLengthMm: +f.focal,
+      resolutionW: +f.resW,
+      doriLevel: f.dori,
+      overlapPct: +f.overlap,
+    }
+    return calculateCoverageArea(input) as unknown as Record<string, unknown>
+  }, [f])
+  const primary = result ? { label: 'Cameras Required', value: String(result.cameraCount), unit: '' } : undefined
+  const warnings = (result?.warnings as string[] | undefined) ?? []
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+      <CalcInput label="Room Width (ft)" value={f.roomW} onChange={(v) => setF({ ...f, roomW: v })} />
+      <CalcInput label="Room Length (ft)" value={f.roomL} onChange={(v) => setF({ ...f, roomL: v })} />
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <CalcInput label="Sensor Width (mm)" value={f.sensor} onChange={(v) => setF({ ...f, sensor: v })} />
+      <CalcInput label="Focal Length (mm)" value={f.focal} onChange={(v) => setF({ ...f, focal: v })} />
+      <CalcInput label="Horizontal Resolution (px)" value={f.resW} onChange={(v) => setF({ ...f, resW: v })} />
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+      <SelectInput label="DORI Target" value={f.dori} onChange={(v) => setF({ ...f, dori: v as typeof f.dori })} options={[
+        { value: 'detection', label: 'Detection (8 PPF)' },
+        { value: 'observation', label: 'Observation (19 PPF)' },
+        { value: 'recognition', label: 'Recognition (38 PPF)' },
+        { value: 'identification', label: 'Identification (76 PPF)' },
+      ]} />
+      <CalcInput label="Overlap (%)" value={f.overlap} onChange={(v) => setF({ ...f, overlap: v })} />
+    </div>
+    {result && <ResultCard title="Coverage Area Results" primary={primary} data={result} />}
+    {warnings.length > 0 && (
+      <div style={{ borderRadius: 8, border: `1px solid ${C.yellow}`, background: 'rgba(234,179,8,0.06)', padding: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.yellow, marginBottom: 6 }}>Warnings</div>
+        {warnings.map((w, i) => (
+          <div key={i} style={{ fontSize: 11, color: C.textMuted }}>• {w}</div>
+        ))}
+      </div>
+    )}
+  </div>)
+}
+
+interface PlanReviewRow {
+  id: string
+  kind: 'device' | 'door' | 'controller'
+  label: string
+  vendor: string
+  category: string
+  electrification: string
+  fireRated: boolean
+  occupancy: string
+  readerHeightIn: string
+  clearanceIn: string
+  ulListed: boolean
+  intendedUse: string
+  calculatedPpf: string
+}
+
+function PlanReviewForm() {
+  const [projectType, setProjectType] = useState<PlanReviewInput['projectType']>('commercial')
+  const [jurisdiction, setJurisdiction] = useState<PlanReviewInput['jurisdiction']>('state')
+  const [rows, setRows] = useState<PlanReviewRow[]>([
+    { id: 'R1', kind: 'device', label: 'Lobby Cam', vendor: 'Axis', category: 'cctv', electrification: '', fireRated: false, occupancy: '', readerHeightIn: '', clearanceIn: '', ulListed: true, intendedUse: 'recognition', calculatedPpf: '45' },
+    { id: 'R2', kind: 'door', label: 'Main Entry', vendor: '', category: '', electrification: 'maglock', fireRated: true, occupancy: 'Business', readerHeightIn: '46', clearanceIn: '', ulListed: true, intendedUse: '', calculatedPpf: '' },
+    { id: 'R3', kind: 'controller', label: 'ACS Panel IDF-1', vendor: 'Mercury', category: '', electrification: '', fireRated: false, occupancy: '', readerHeightIn: '', clearanceIn: '30', ulListed: true, intendedUse: '', calculatedPpf: '' },
+  ])
+  const [rules, setRules] = useState<JurisdictionRules | null>(null)
+
+  useEffect(() => {
+    loadJurisdictionRules().then(setRules).catch(() => setRules({ version: '0', updated: '', rules: {} }))
+  }, [])
+
+  const result = useAutoCalc(() => {
+    if (!rules) return null
+    const input: PlanReviewInput = {
+      projectType,
+      jurisdiction,
+      devices: rows
+        .filter((r) => r.kind === 'device')
+        .map((r) => ({
+          id: r.id,
+          label: r.label,
+          category: (r.category || 'other') as PlanReviewInput['devices'][number]['category'],
+          vendor: r.vendor || undefined,
+          ulListed: r.ulListed,
+          intendedUse: (r.intendedUse || undefined) as PlanReviewInput['devices'][number]['intendedUse'],
+          calculatedPpf: r.calculatedPpf ? +r.calculatedPpf : undefined,
+        })),
+      doors: rows
+        .filter((r) => r.kind === 'door')
+        .map((r) => ({
+          id: r.id,
+          label: r.label,
+          electrification: (r.electrification || undefined) as PlanReviewInput['doors'][number]['electrification'],
+          fireRated: r.fireRated,
+          occupancy: r.occupancy || undefined,
+          readerHeightIn: r.readerHeightIn ? +r.readerHeightIn : undefined,
+        })),
+      controllers: rows
+        .filter((r) => r.kind === 'controller')
+        .map((r) => ({
+          id: r.id,
+          label: r.label,
+          workingClearanceIn: r.clearanceIn ? +r.clearanceIn : undefined,
+          ulListed: r.ulListed,
+        })),
+    }
+    return runPlanReview(input, rules) as unknown as Record<string, unknown>
+  }, [rows, projectType, jurisdiction, rules])
+
+  const findings = (result?.findings as Array<{ ruleId: string; title: string; codeRef: string; severity: string; message: string; entityLabel?: string; fixHint?: string }> | undefined) ?? []
+  const summary = result?.summary as { critical: number; warning: number; info: number; total: number } | undefined
+
+  const addRow = (kind: PlanReviewRow['kind']) => {
+    const id = `R${rows.length + 1}`
+    setRows([...rows, { id, kind, label: `New ${kind}`, vendor: '', category: kind === 'device' ? 'cctv' : '', electrification: '', fireRated: false, occupancy: '', readerHeightIn: '', clearanceIn: '', ulListed: true, intendedUse: '', calculatedPpf: '' }])
+  }
+  const removeRow = (id: string) => setRows(rows.filter((r) => r.id !== id))
+  const updateRow = (id: string, patch: Partial<PlanReviewRow>) => setRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+
+  const severityColor = (s: string) => s === 'critical' ? C.red : s === 'warning' ? C.yellow : C.accent
+
+  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+      <SelectInput label="Project Type" value={projectType} onChange={(v) => setProjectType(v as PlanReviewInput['projectType'])} options={[
+        { value: 'commercial', label: 'Commercial' },
+        { value: 'federal', label: 'Federal' },
+        { value: 'education', label: 'Education' },
+        { value: 'healthcare', label: 'Healthcare' },
+        { value: 'assembly', label: 'Assembly' },
+      ]} />
+      <SelectInput label="Jurisdiction" value={jurisdiction} onChange={(v) => setJurisdiction(v as PlanReviewInput['jurisdiction'])} options={[
+        { value: 'federal', label: 'Federal' },
+        { value: 'state', label: 'State' },
+        { value: 'local', label: 'Local' },
+      ]} />
+    </div>
+
+    <div style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: C.bgPanel, padding: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.text, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Entities</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => addRow('device')} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 4, background: C.accentSubtle, color: C.accent, border: `1px solid ${C.border}`, cursor: 'pointer' }}>+ Device</button>
+          <button onClick={() => addRow('door')} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 4, background: C.accentSubtle, color: C.accent, border: `1px solid ${C.border}`, cursor: 'pointer' }}>+ Door</button>
+          <button onClick={() => addRow('controller')} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 4, background: C.accentSubtle, color: C.accent, border: `1px solid ${C.border}`, cursor: 'pointer' }}>+ Controller</button>
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {rows.map((r) => (
+          <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 1fr 1fr 1fr 30px', gap: 6, alignItems: 'center', padding: 6, background: C.bgInput, borderRadius: 4, border: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: C.accent, textTransform: 'uppercase' }}>{r.kind}</span>
+            <input value={r.label} onChange={(e) => updateRow(r.id, { label: e.target.value })} placeholder="Label" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
+            {r.kind === 'device' && (
+              <>
+                <input value={r.vendor} onChange={(e) => updateRow(r.id, { vendor: e.target.value })} placeholder="Vendor" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
+                <select value={r.category} onChange={(e) => updateRow(r.id, { category: e.target.value })} style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }}>
+                  <option value="cctv">CCTV</option>
+                  <option value="access_control">Access Control</option>
+                  <option value="network">Network</option>
+                  <option value="av">AV</option>
+                  <option value="other">Other</option>
+                </select>
+                <input value={r.calculatedPpf} onChange={(e) => updateRow(r.id, { calculatedPpf: e.target.value })} placeholder="PPF" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
+              </>
+            )}
+            {r.kind === 'door' && (
+              <>
+                <select value={r.electrification} onChange={(e) => updateRow(r.id, { electrification: e.target.value })} style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }}>
+                  <option value="">—</option>
+                  <option value="maglock">Maglock</option>
+                  <option value="electric_strike">Electric Strike</option>
+                  <option value="electrified_lockset">Electrified Lockset</option>
+                  <option value="delayed_egress">Delayed Egress</option>
+                  <option value="mechanical">Mechanical</option>
+                </select>
+                <select value={r.occupancy} onChange={(e) => updateRow(r.id, { occupancy: e.target.value })} style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }}>
+                  <option value="">Occupancy</option>
+                  <option value="Assembly">Assembly</option>
+                  <option value="Business">Business</option>
+                  <option value="Educational">Educational</option>
+                  <option value="Healthcare">Healthcare</option>
+                  <option value="Mercantile">Mercantile</option>
+                </select>
+                <input value={r.readerHeightIn} onChange={(e) => updateRow(r.id, { readerHeightIn: e.target.value })} placeholder="Reader Hgt (in)" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
+                <label style={{ fontSize: 10, color: C.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <input type="checkbox" checked={r.fireRated} onChange={(e) => updateRow(r.id, { fireRated: e.target.checked })} /> Fire-rated
+                </label>
+              </>
+            )}
+            {r.kind === 'controller' && (
+              <>
+                <input value={r.vendor} onChange={(e) => updateRow(r.id, { vendor: e.target.value })} placeholder="Vendor" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
+                <input value={r.clearanceIn} onChange={(e) => updateRow(r.id, { clearanceIn: e.target.value })} placeholder="Clearance (in)" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
+                <label style={{ fontSize: 10, color: C.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <input type="checkbox" checked={r.ulListed} onChange={(e) => updateRow(r.id, { ulListed: e.target.checked })} /> UL Listed
+                </label>
+                <span />
+              </>
+            )}
+            <button onClick={() => removeRow(r.id)} style={{ fontSize: 12, background: 'transparent', color: C.red, border: 'none', cursor: 'pointer' }}>✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {summary && (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        <div style={{ padding: 12, borderRadius: 6, background: 'rgba(239,68,68,0.08)', border: `1px solid ${C.red}` }}>
+          <div style={{ fontSize: 10, color: C.red, fontWeight: 600, textTransform: 'uppercase' }}>Critical</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: C.red, fontFamily: "'SF Mono', monospace" }}>{summary.critical}</div>
+        </div>
+        <div style={{ padding: 12, borderRadius: 6, background: 'rgba(234,179,8,0.08)', border: `1px solid ${C.yellow}` }}>
+          <div style={{ fontSize: 10, color: C.yellow, fontWeight: 600, textTransform: 'uppercase' }}>Warning</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: C.yellow, fontFamily: "'SF Mono', monospace" }}>{summary.warning}</div>
+        </div>
+        <div style={{ padding: 12, borderRadius: 6, background: 'rgba(59,130,246,0.08)', border: `1px solid ${C.accent}` }}>
+          <div style={{ fontSize: 10, color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>Info</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: C.accent, fontFamily: "'SF Mono', monospace" }}>{summary.info}</div>
+        </div>
+        <div style={{ padding: 12, borderRadius: 6, background: C.bgPanel, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: C.text, fontFamily: "'SF Mono', monospace" }}>{summary.total}</div>
+        </div>
+      </div>
+    )}
+
+    {findings.length > 0 && (
+      <div style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: C.bgPanel, padding: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Findings</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {findings.map((f, i) => (
+            <div key={i} style={{ padding: 10, background: C.bgInput, borderLeft: `3px solid ${severityColor(f.severity)}`, borderRadius: 3 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: severityColor(f.severity), textTransform: 'uppercase' }}>{f.severity}</span>
+                <span style={{ fontSize: 10, color: C.textDim, fontFamily: "'SF Mono', monospace" }}>{f.codeRef}</span>
+              </div>
+              <div style={{ fontSize: 12, color: C.text, marginBottom: 3 }}>{f.message}</div>
+              {f.fixHint && <div style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic' }}>Fix: {f.fixHint}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+    {findings.length === 0 && result && (
+      <div style={{ padding: 12, borderRadius: 6, background: 'rgba(34,197,94,0.08)', border: `1px solid ${C.green}`, color: C.green, fontSize: 12, fontWeight: 600, textAlign: 'center' }}>
+        ✓ No compliance issues found
+      </div>
+    )}
+  </div>)
+}
+
 // ---- Main page ----
 const CALC_MAP: Record<string, { name: string; Form: React.FC }> = {
   'fov-dori': { name: 'FOV / DORI Calculator', Form: FovDoriForm },
@@ -406,6 +671,8 @@ const CALC_MAP: Record<string, { name: string; Form: React.FC }> = {
   'mount-calculator': { name: 'Mount Calculator', Form: MountForm },
   'wireless-ptp': { name: 'Wireless PtP Calculator', Form: WirelessForm },
   'acs-build': { name: 'ACS Build Engine', Form: AcsForm },
+  'coverage-area': { name: 'Coverage Area Calculator', Form: CoverageAreaForm },
+  'plan-review': { name: 'Plan Review (Compliance Checker)', Form: PlanReviewForm },
 }
 
 export default function CalculatorDetailPage() {

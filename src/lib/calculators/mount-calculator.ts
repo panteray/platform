@@ -38,6 +38,8 @@ export interface MountCalcInput {
   vendor?: string;
   /** Camera model (for catalog lookup) */
   model?: string;
+  /** Finish color — swaps Hanwha W/B suffix on matched parts */
+  finish?: "white" | "black";
 }
 
 // ---- Output Types ----
@@ -219,6 +221,7 @@ export function calculateMountRequirements(
     input.model,
     input.mountType,
     input.environment,
+    input.finish,
   );
   const heightGuidance = vendorParts[0]?.heightGuidance ?? null;
 

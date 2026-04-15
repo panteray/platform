@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Crosshair, HardDrive, Cable, Ruler, Wrench, Radio, DoorOpen } from 'lucide-react'
+import { Crosshair, HardDrive, Cable, Ruler, Wrench, Radio, DoorOpen, LayoutGrid, FileCheck } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 const C = {
@@ -23,6 +23,8 @@ const CALCULATORS: { type: string; name: string; description: string; Icon: Luci
   { type: 'mount-calculator', name: 'Mount Calculator', description: 'Compatible mounting hardware', Icon: Wrench },
   { type: 'wireless-ptp', name: 'Wireless PtP', description: 'Link budget, Fresnel zone, rain fade', Icon: Radio },
   { type: 'acs-build', name: 'ACS Build', description: 'Door/lock compliance, electrical load', Icon: DoorOpen },
+  { type: 'coverage-area', name: 'Coverage Area', description: 'Camera count + grid layout from room size and DORI target', Icon: LayoutGrid },
+  { type: 'plan-review', name: 'Plan Review', description: 'NDAA, NEC, IBC, NFPA, ADA, UL compliance check', Icon: FileCheck },
 ]
 
 export default function CalculatorsPage() {

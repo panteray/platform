@@ -620,6 +620,7 @@ export function RightPanel({
                 environment: (String(props.environment || 'Indoor').toLowerCase() as 'indoor' | 'outdoor' | 'indoor_outdoor'),
                 vendor: typeof props.vendor === 'string' ? props.vendor : undefined,
                 model: typeof props.model === 'string' ? props.model : undefined,
+                finish: (typeof props.finish === 'string' && (props.finish === 'white' || props.finish === 'black')) ? props.finish : undefined,
               }
               const mountResult = calculateMountRequirements(mountInput, installHeight, mountCatalog)
               const customAccessories = (props.custom_accessories || []) as Array<{ name: string; qty: number }>
