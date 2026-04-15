@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   let query = admin
     .from('psa_tickets')
-    .select('*, customer:customers(id, name), asset:assets(id, label, vendor, model), assignee:users!psa_tickets_assigned_to_fkey(id, first_name, last_name, email)')
+    .select('*, customer:customers(id, name, state), asset:assets(id, label, vendor, model), assignee:users!psa_tickets_assigned_to_fkey(id, first_name, last_name, email)')
     .eq('org_id', dbUser.org_id)
     .order('created_at', { ascending: false })
 

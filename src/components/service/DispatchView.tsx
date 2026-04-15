@@ -29,7 +29,13 @@ type AssignmentWithRefs = PsaDispatchAssignment & {
 }
 
 type UnassignedTicket = Pick<PsaTicket, 'id' | 'ticket_number' | 'title' | 'priority' | 'status' | 'vertical' | 'required_skills'> & {
-  customer?: { id: string; name: string } | null
+  customer?: { id: string; name: string; state?: string | null } | null
+}
+
+interface ComplianceCheck {
+  eligible: boolean
+  warnings: string[]
+  blockers: string[]
 }
 
 const PRIORITY_COLORS: Record<PsaPriority, string> = {
@@ -716,6 +722,34 @@ function AssignTicketDialog({ ticket, techs, date, onClose, onSaved }: {
   const [end, setEnd] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [compliance, setCompliance] = useState<Record<string, ComplianceCheck>>({})
+  const jobState = ticket.customer?.state ?? null
+
+  useEffect(() => {
+    if (!jobState) { setCompliance({}); return }
+    const stateNorm = jobState.toUpperCase().slice(0, 2)
+    let cancelled = false
+    Promise.all(
+      techs.map(async t => {
+        try {
+          const res = await fetch(`/api/org/compliance/dispatch-check?user_id=${t.id}&state=${stateNorm}`)
+          if (!res.ok) return [t.id, null] as const
+          const data = await res.json() as ComplianceCheck
+          return [t.id, data] as const
+        } catch {
+          return [t.id, null] as const
+        }
+      })
+    ).then(results => {
+      if (cancelled) return
+      const map: Record<string, ComplianceCheck> = {}
+      for (const [id, data] of results) if (data) map[id] = data
+      setCompliance(map)
+    })
+    return () => { cancelled = true }
+  }, [jobState, techs])
+
+  const activeCompliance = compliance[techId]
 
   async function submit() {
     setError(null)
@@ -766,17 +800,43 @@ function AssignTicketDialog({ ticket, techs, date, onClose, onSaved }: {
         <Field label="Tech">
           <select value={techId} onChange={e => setTechId(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded text-sm">
             {rankedTechs.map(({ tech: t, missing }) => {
-              const label = required.length === 0
-                ? `${techName(t)} (${t.role})`
+              const c = compliance[t.id]
+              const skillLabel = required.length === 0
+                ? ''
                 : missing.length === 0
-                  ? `✓ ${techName(t)} (${t.role}) — matches all skills`
-                  : `${techName(t)} (${t.role}) — missing: ${missing.join(', ')}`
-              return <option key={t.id} value={t.id}>{label}</option>
+                  ? ' ✓ skills'
+                  : ` · missing: ${missing.join(', ')}`
+              const licLabel = !c
+                ? ''
+                : c.blockers.length > 0
+                  ? ' ⚠ license required'
+                  : c.warnings.length > 0
+                    ? ' ⚠ license warning'
+                    : c.eligible && jobState
+                      ? ' ✓ licensed'
+                      : ''
+              return <option key={t.id} value={t.id}>{`${techName(t)} (${t.role})${skillLabel}${licLabel}`}</option>
             })}
           </select>
           {required.length > 0 && rankedTechs.some(r => r.missing.length > 0) && (
             <div className="mt-1 text-[11px] text-neutral-500">
               Techs missing required skills are shown with details — assignment is still allowed as a soft override.
+            </div>
+          )}
+          {jobState && activeCompliance && (activeCompliance.blockers.length > 0 || activeCompliance.warnings.length > 0) && (
+            <div className={`mt-2 rounded border p-2 text-[11px] ${
+              activeCompliance.blockers.length > 0
+                ? 'border-red-200 bg-red-50 text-red-900'
+                : 'border-amber-200 bg-amber-50 text-amber-900'
+            }`}>
+              <div className="font-semibold mb-1">
+                {jobState.toUpperCase().slice(0, 2)} licensing — {activeCompliance.blockers.length > 0 ? 'blocker' : 'warning'}
+              </div>
+              <ul className="list-disc pl-4 space-y-0.5">
+                {activeCompliance.blockers.map((b, i) => <li key={`b${i}`}>{b}</li>)}
+                {activeCompliance.warnings.map((w, i) => <li key={`w${i}`}>{w}</li>)}
+              </ul>
+              <div className="mt-1 text-[10px] opacity-80">Soft warning — assignment still allowed. Manage licenses at /org/compliance/technicians.</div>
             </div>
           )}
         </Field>

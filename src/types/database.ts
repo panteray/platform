@@ -2855,3 +2855,40 @@ export interface GeneratedContract {
   created_at: string
   updated_at: string
 }
+
+// ============================================================================
+// Compliance Engine (Phase 8)
+// ============================================================================
+
+export type StateLicenseStatus = 'LICENSE_REQUIRED' | 'NO_STATE_LICENSE' | 'ELECTRICIAN_LICENSE'
+
+export interface StateLicensingReference {
+  id: string
+  state: string
+  license_type: string
+  status: StateLicenseStatus
+  requirements_summary: string | null
+  agency_name: string | null
+  agency_url: string | null
+  last_verified_at: string | null
+  updated_at: string
+}
+
+export type TechnicianLicenseStatus = 'active' | 'expired' | 'pending' | 'revoked'
+
+export interface TechnicianLicense {
+  id: string
+  org_id: string
+  user_id: string
+  license_type: string
+  license_number: string | null
+  state: string
+  issued_date: string | null
+  expiration_date: string | null
+  document_url: string | null
+  status: TechnicianLicenseStatus
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
