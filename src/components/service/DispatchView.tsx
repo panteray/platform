@@ -4,11 +4,12 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import {
   Calendar, LayoutGrid, Clock, User, ChevronLeft, ChevronRight,
-  AlertCircle, Truck, MapPin, CheckCircle2, X,
+  AlertCircle, Truck, MapPin, CheckCircle2, X, Link2,
 } from 'lucide-react'
 import type {
   PsaDispatchAssignment, PsaDispatchStatus, PsaTicket, PsaPriority, PsaVertical,
 } from '@/types/database'
+import { missingSkills } from '@/lib/psa-skills'
 
 type TechUser = {
   id: string
@@ -27,7 +28,7 @@ type AssignmentWithRefs = PsaDispatchAssignment & {
   tech?: { id: string; first_name: string | null; last_name: string | null; email: string } | null
 }
 
-type UnassignedTicket = Pick<PsaTicket, 'id' | 'ticket_number' | 'title' | 'priority' | 'status' | 'vertical'> & {
+type UnassignedTicket = Pick<PsaTicket, 'id' | 'ticket_number' | 'title' | 'priority' | 'status' | 'vertical' | 'required_skills'> & {
   customer?: { id: string; name: string } | null
 }
 
@@ -85,6 +86,30 @@ export default function DispatchView() {
   const [selectedTech, setSelectedTech] = useState<string | null>(null)
   const [editingAssignment, setEditingAssignment] = useState<AssignmentWithRefs | null>(null)
   const [showAssignTicket, setShowAssignTicket] = useState<UnassignedTicket | null>(null)
+  const [scheduleLinkStatus, setScheduleLinkStatus] = useState<{ ticketId: string; message: string } | null>(null)
+
+  async function sendScheduleLink(ticket: UnassignedTicket) {
+    setScheduleLinkStatus({ ticketId: ticket.id, message: 'Generating…' })
+    try {
+      const res = await fetch(`/api/org/psa/tickets/${ticket.id}/schedule-link`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setScheduleLinkStatus({ ticketId: ticket.id, message: data.error ?? 'Failed' })
+        setTimeout(() => setScheduleLinkStatus(null), 3000)
+        return
+      }
+      if (data.url && typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(data.url)
+        setScheduleLinkStatus({ ticketId: ticket.id, message: 'Link copied to clipboard' })
+      } else {
+        setScheduleLinkStatus({ ticketId: ticket.id, message: data.url ?? 'Link generated' })
+      }
+      setTimeout(() => setScheduleLinkStatus(null), 3000)
+    } catch {
+      setScheduleLinkStatus({ ticketId: ticket.id, message: 'Failed' })
+      setTimeout(() => setScheduleLinkStatus(null), 3000)
+    }
+  }
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -236,6 +261,8 @@ export default function DispatchView() {
               onEditAssignment={setEditingAssignment}
               onUpdateStatus={updateStatus}
               onClickUnassigned={setShowAssignTicket}
+              onSendScheduleLink={sendScheduleLink}
+              scheduleLinkStatus={scheduleLinkStatus}
             />
           )}
           {view === 'schedule' && (
@@ -286,6 +313,7 @@ export default function DispatchView() {
 
 function CardView({
   techs, assignmentsByTech, unassigned, onDragStart, onDropOnTech, onEditAssignment, onUpdateStatus, onClickUnassigned,
+  onSendScheduleLink, scheduleLinkStatus,
 }: {
   techs: TechUser[]
   assignmentsByTech: Map<string, AssignmentWithRefs[]>
@@ -295,6 +323,8 @@ function CardView({
   onEditAssignment: (a: AssignmentWithRefs) => void
   onUpdateStatus: (id: string, status: PsaDispatchStatus) => void
   onClickUnassigned: (t: UnassignedTicket) => void
+  onSendScheduleLink: (t: UnassignedTicket) => void
+  scheduleLinkStatus: { ticketId: string; message: string } | null
 }) {
   return (
     <div className="flex gap-3 overflow-x-auto pb-4">
@@ -327,7 +357,22 @@ function CardView({
               {t.customer && (
                 <div className="text-[10px] text-neutral-500 mt-1 truncate">{t.customer.name}</div>
               )}
-              <div className="text-[10px] text-neutral-400 mt-1">{VERTICAL_LABELS[t.vertical]}</div>
+              <div className="flex items-center justify-between mt-1">
+                <div className="text-[10px] text-neutral-400">{VERTICAL_LABELS[t.vertical]}</div>
+                {(t.priority === 'P4' || t.priority === 'P5') && (
+                  <button
+                    onClick={e => { e.stopPropagation(); onSendScheduleLink(t) }}
+                    className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800 hover:underline"
+                    title="Generate customer self-scheduling link"
+                  >
+                    <Link2 className="w-3 h-3" />
+                    Send link
+                  </button>
+                )}
+              </div>
+              {scheduleLinkStatus?.ticketId === t.id && (
+                <div className="text-[10px] text-emerald-600 mt-1">{scheduleLinkStatus.message}</div>
+              )}
             </div>
           ))}
         </div>
@@ -651,7 +696,22 @@ function AssignTicketDialog({ ticket, techs, date, onClose, onSaved }: {
   onClose: () => void
   onSaved: () => void
 }) {
-  const [techId, setTechId] = useState(techs[0]?.id ?? '')
+  const required = ticket.required_skills ?? []
+  const rankedTechs = useMemo(() => {
+    const ranked = techs.map(t => {
+      const techSkillLabels = (t.skills ?? []).map(s => s.skill)
+      const missing = missingSkills(required, techSkillLabels)
+      return { tech: t, missing, matched: required.length > 0 && missing.length === 0 }
+    })
+    ranked.sort((a, b) => {
+      if (a.missing.length !== b.missing.length) return a.missing.length - b.missing.length
+      return techName(a.tech).localeCompare(techName(b.tech))
+    })
+    return ranked
+  }, [techs, required])
+
+  const firstMatch = rankedTechs.find(r => r.missing.length === 0)?.tech.id
+  const [techId, setTechId] = useState(firstMatch ?? techs[0]?.id ?? '')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [notes, setNotes] = useState('')
@@ -693,12 +753,32 @@ function AssignTicketDialog({ ticket, techs, date, onClose, onSaved }: {
           </div>
           <div className="text-sm font-medium">{ticket.title}</div>
           {ticket.customer && <div className="text-xs text-neutral-500 mt-1">{ticket.customer.name}</div>}
+          {required.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              <span className="text-[10px] uppercase tracking-wide text-neutral-500 mr-1">Required:</span>
+              {required.map(s => (
+                <span key={s} className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px]">{s}</span>
+              ))}
+            </div>
+          )}
         </div>
 
         <Field label="Tech">
           <select value={techId} onChange={e => setTechId(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded text-sm">
-            {techs.map(t => <option key={t.id} value={t.id}>{techName(t)} ({t.role})</option>)}
+            {rankedTechs.map(({ tech: t, missing }) => {
+              const label = required.length === 0
+                ? `${techName(t)} (${t.role})`
+                : missing.length === 0
+                  ? `✓ ${techName(t)} (${t.role}) — matches all skills`
+                  : `${techName(t)} (${t.role}) — missing: ${missing.join(', ')}`
+              return <option key={t.id} value={t.id}>{label}</option>
+            })}
           </select>
+          {required.length > 0 && rankedTechs.some(r => r.missing.length > 0) && (
+            <div className="mt-1 text-[11px] text-neutral-500">
+              Techs missing required skills are shown with details — assignment is still allowed as a soft override.
+            </div>
+          )}
         </Field>
 
         <div className="grid grid-cols-2 gap-3">

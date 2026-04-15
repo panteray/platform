@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     'vertical', 'category', 'ticket_type', 'priority',
     'title', 'description', 'resolution_notes',
     'assigned_to', 'job_type_id', 'costing_enabled',
-    'change_window_start', 'change_window_end',
+    'change_window_start', 'change_window_end', 'required_skills',
   ]
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const k of allowed) if (body[k] !== undefined) update[k] = body[k]

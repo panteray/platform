@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     'customer_id', 'asset_id', 'site_id', 'project_id', 'parent_ticket_id',
     'vertical', 'category', 'ticket_type', 'priority', 'title', 'description',
     'assigned_to', 'job_type_id', 'costing_enabled',
-    'change_window_start', 'change_window_end',
+    'change_window_start', 'change_window_end', 'required_skills',
   ]
   const insert: Record<string, unknown> = {
     org_id: dbUser.org_id,

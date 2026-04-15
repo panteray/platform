@@ -7,6 +7,7 @@ import {
   CheckCircle2, X,
 } from 'lucide-react'
 import type { PsaTicket, PsaTicketStatus, PsaVertical, PsaPriority, PsaTicketType } from '@/types/database'
+import { PSA_SKILLS, PSA_SKILL_VERTICAL_LABELS, groupSkillsByVertical, type PsaSkillVertical } from '@/lib/psa-skills'
 
 type TicketWithRefs = PsaTicket & {
   customer?: { id: string; name: string } | null
@@ -283,8 +284,17 @@ function CreateTicketDialog({ onClose, onCreated }: { onClose: () => void; onCre
   const [vertical, setVertical] = useState<PsaVertical>('SEC')
   const [priority, setPriority] = useState<PsaPriority>('P3')
   const [ticketType, setTicketType] = useState<PsaTicketType>('INCIDENT')
+  const [requiredSkills, setRequiredSkills] = useState<string[]>([])
+  const [showSkills, setShowSkills] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const skillGroups = groupSkillsByVertical()
+  const toggleSkill = (label: string) => {
+    setRequiredSkills((prev) =>
+      prev.includes(label) ? prev.filter((s) => s !== label) : [...prev, label]
+    )
+  }
 
   const submit = async () => {
     if (!title.trim()) return
@@ -293,7 +303,14 @@ function CreateTicketDialog({ onClose, onCreated }: { onClose: () => void; onCre
     const res = await fetch('/api/org/psa/tickets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description: description || null, vertical, priority, ticket_type: ticketType }),
+      body: JSON.stringify({
+        title,
+        description: description || null,
+        vertical,
+        priority,
+        ticket_type: ticketType,
+        required_skills: requiredSkills,
+      }),
     })
     if (res.ok) {
       onCreated()
@@ -364,6 +381,47 @@ function CreateTicketDialog({ onClose, onCreated }: { onClose: () => void; onCre
               rows={4}
               className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs outline-none focus:border-primary resize-none"
             />
+          </div>
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowSkills((v) => !v)}
+              className="text-[10px] font-bold uppercase text-muted-foreground hover:text-foreground"
+            >
+              Required Skills ({requiredSkills.length}) {showSkills ? '▴' : '▾'}
+            </button>
+            {showSkills && (
+              <div className="mt-1 max-h-48 overflow-auto rounded border border-border bg-background p-2 space-y-2">
+                {(Object.keys(skillGroups) as PsaSkillVertical[]).map((v) => (
+                  <div key={v}>
+                    <div className="text-[9px] font-bold uppercase text-muted-foreground mb-0.5">
+                      {PSA_SKILL_VERTICAL_LABELS[v]}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {skillGroups[v].map((label) => {
+                        const active = requiredSkills.includes(label)
+                        return (
+                          <button
+                            type="button"
+                            key={label}
+                            onClick={() => toggleSkill(label)}
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                              active
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {/* unused constant to keep import tree-shaken-safe */}
+                <span className="hidden">{PSA_SKILLS.length}</span>
+              </div>
+            )}
           </div>
           {error && <p className="text-[11px] text-red-600">{error}</p>}
         </div>

@@ -2123,6 +2123,7 @@ export interface PsaTicket {
   sla_total_pause_min: number
   change_window_start: string | null
   change_window_end: string | null
+  required_skills: string[]
   first_response_at: string | null
   completed_at: string | null
   resolved_at: string | null
