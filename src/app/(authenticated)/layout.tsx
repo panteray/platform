@@ -4,6 +4,7 @@ import { SidebarRouter } from '@/components/layout/SidebarRouter'
 import { Topbar } from '@/components/layout/Topbar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthenticatedShell } from '@/components/layout/AuthenticatedShell'
+import CogniSecChat from '@/components/cognisec/CogniSecChat'
 
 export default async function AuthenticatedLayout({
   children,
@@ -29,6 +30,7 @@ export default async function AuthenticatedLayout({
             </main>
           </div>
         </div>
+        <CogniSecChat userId={user.email ?? undefined} />
       </TooltipProvider>
     </AuthenticatedShell>
   )
