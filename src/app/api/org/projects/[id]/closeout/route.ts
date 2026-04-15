@@ -86,5 +86,76 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Auto-create assets from installed install_items (Phase 5 — Asset Intelligence)
+  // Only runs when SOS is signed (customer + pm signatures) AND all gates pass.
+  const isSigned = !!(insert.customer_sig_data && insert.pm_sig_data)
+  if (isSigned && allInstalled && openCOs === 0 && allQcPassed) {
+    // Load full install items + project to build assets
+    const { data: fullItems } = await admin
+      .from('install_items')
+      .select('id, device_id, area_id, label, category, vendor, model, serial_number, mac_address, installed_at, position_x, position_y, photos')
+      .eq('project_id', projectId)
+      .eq('org_id', dbUser.org_id)
+      .in('status', ['installed', 'deviation'])
+
+    const { data: project } = await admin
+      .from('projects')
+      .select('customer_id')
+      .eq('id', projectId)
+      .single()
+
+    // Skip any install_item that already has an asset record
+    const { data: existingAssets } = await admin
+      .from('assets')
+      .select('install_item_id')
+      .eq('project_id', projectId)
+      .eq('org_id', dbUser.org_id)
+      .not('install_item_id', 'is', null)
+
+    const alreadyAssetized = new Set((existingAssets ?? []).map(a => a.install_item_id as string))
+    const toCreate = (fullItems ?? []).filter(i => !alreadyAssetized.has(i.id))
+
+    if (toCreate.length > 0) {
+      const assetRows = toCreate.map(i => ({
+        org_id: dbUser.org_id,
+        project_id: projectId,
+        install_item_id: i.id,
+        device_id: i.device_id,
+        customer_id: project?.customer_id ?? null,
+        label: i.label,
+        category: i.category,
+        vendor: i.vendor,
+        model: i.model,
+        serial_number: i.serial_number,
+        mac_address: i.mac_address,
+        status: 'active',
+        install_date: i.installed_at,
+        position_x: i.position_x,
+        position_y: i.position_y,
+        photos: i.photos,
+        created_by: dbUser.id,
+      }))
+
+      const { data: newAssets } = await admin
+        .from('assets')
+        .insert(assetRows)
+        .select('id')
+
+      // Lifecycle event per asset
+      if (newAssets && newAssets.length > 0) {
+        await admin.from('asset_lifecycle_events').insert(
+          newAssets.map(a => ({
+            org_id: dbUser.org_id,
+            asset_id: a.id,
+            event_type: 'installed',
+            details: { source: 'project_closeout', project_id: projectId, sos_id: data.id },
+            user_id: dbUser.id,
+          }))
+        )
+      }
+    }
+  }
+
   return NextResponse.json(data, { status: 201 })
 }
