@@ -129,6 +129,21 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
     }
   }
 
+  const handleExportToDesign = async () => {
+    if (!confirm('Export this survey to a new Design? All floor plans and devices will be copied.')) return
+    const res = await fetch(`/api/org/surveys/${surveyId}/export-to-design`, { method: 'POST' })
+    if (res.ok) {
+      const result = await res.json()
+      alert(`Design created.\nAreas: ${result.areas_created}\nDevices: ${result.devices_copied}`)
+      if (result.design_id) {
+        window.location.href = `/org/designs/${result.design_id}`
+      }
+    } else {
+      const err = await res.json()
+      alert(err.error || 'Export failed')
+    }
+  }
+
   const handleDevicesChanged = (updated: SurveyDevice[]) => {
     setDevices(updated)
   }
@@ -176,6 +191,14 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
               className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
             >
               <Send className="h-3 w-3" /> Submit Survey
+            </button>
+          )}
+          {isSubmitted && (
+            <button
+              onClick={handleExportToDesign}
+              className="inline-flex items-center gap-1 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 transition-colors"
+            >
+              Export to Design
             </button>
           )}
         </div>

@@ -36,14 +36,29 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
   const systemLabel = SURVEY_SYSTEM_TYPES.find(s => s.value === device.system_type)?.label || device.system_type
   const deviceTypeLabel = deviceTypes.find(d => d.value === device.device_type)?.label || device.device_type
 
-  // Photo capture
+  // Photo capture — auto-captures GPS lat/lng if available (G8)
   const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setPhotoCapturing(true)
+
+    // Kick off GPS fetch in parallel with file read
+    const gpsPromise = new Promise<{ lat: number | null; lng: number | null }>((resolve) => {
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        resolve({ lat: null, lng: null })
+        return
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve({ lat: null, lng: null }),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+      )
+    })
+
     const reader = new FileReader()
     reader.onload = async (ev) => {
       const base64 = ev.target?.result as string
+      const gps = await gpsPromise
       await fetch(`/api/org/surveys/${surveyId}/photos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -51,11 +66,19 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
           device_id: device.id,
           base64,
           caption: `${device.label} — ${deviceTypeLabel}`,
+          lat: gps.lat,
+          lng: gps.lng,
         }),
       })
       setPhotoCapturing(false)
     }
     reader.readAsDataURL(file)
+  }
+
+  // Door config helpers — IPVM expanded panel
+  const dcfg = (device.door_config || {}) as Record<string, unknown>
+  const setDoor = (patch: Record<string, unknown>) => {
+    onUpdate({ door_config: { ...dcfg, ...patch } })
   }
 
   return (
@@ -266,8 +289,8 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
                 <div>
                   <label className="block text-[10px] text-muted-foreground mb-0.5">Door Type</label>
                   <select
-                    value={(device.door_config as Record<string, string>)?.door_type || ''}
-                    onChange={(e) => onUpdate({ door_config: { ...device.door_config, door_type: e.target.value } })}
+                    value={(dcfg.door_type as string) || ''}
+                    onChange={(e) => setDoor({ door_type: e.target.value })}
                     disabled={readOnly}
                     className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none"
                   >
@@ -278,8 +301,8 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
                 <div>
                   <label className="block text-[10px] text-muted-foreground mb-0.5">Lock Type</label>
                   <select
-                    value={(device.door_config as Record<string, string>)?.lock_type || ''}
-                    onChange={(e) => onUpdate({ door_config: { ...device.door_config, lock_type: e.target.value } })}
+                    value={(dcfg.lock_type as string) || ''}
+                    onChange={(e) => setDoor({ lock_type: e.target.value })}
                     disabled={readOnly}
                     className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none"
                   >
@@ -287,20 +310,132 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
                     {LOCK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
-                {['has_rex', 'has_dps', 'ada_compliant', 'auto_operator'].map((key) => (
-                  <label key={key} className="flex items-center gap-1.5">
+
+                {/* Readers count + entry/exit + credential types */}
+                <div>
+                  <label className="block text-[10px] text-muted-foreground mb-0.5">Readers</label>
+                  <div className="grid grid-cols-2 gap-1">
                     <input
-                      type="checkbox"
-                      checked={!!(device.door_config as Record<string, boolean>)?.[key]}
-                      onChange={(e) => onUpdate({ door_config: { ...device.door_config, [key]: e.target.checked } })}
+                      type="number"
+                      min={0}
+                      value={(dcfg.reader_count as number) ?? 0}
+                      onChange={(e) => setDoor({ reader_count: Number(e.target.value) || 0 })}
                       disabled={readOnly}
-                      className="h-3 w-3 rounded border-border"
+                      placeholder="Count"
+                      className="rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none"
                     />
-                    <span className="text-[10px] text-foreground">
-                      {key === 'has_rex' ? 'REX' : key === 'has_dps' ? 'Door Contact (DPS)' : key === 'ada_compliant' ? 'ADA Compliant' : 'Auto Operator'}
-                    </span>
+                    <select
+                      value={(dcfg.reader_cred as string) || ''}
+                      onChange={(e) => setDoor({ reader_cred: e.target.value })}
+                      disabled={readOnly}
+                      className="rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none"
+                    >
+                      <option value="">Credential</option>
+                      <option value="prox">Prox 125kHz</option>
+                      <option value="smartcard">Smartcard 13.56</option>
+                      <option value="mobile">Mobile/BLE</option>
+                      <option value="biometric">Biometric</option>
+                      <option value="keypad">PIN Keypad</option>
+                      <option value="multi">Multi-tech</option>
+                    </select>
+                  </div>
+                  <div className="mt-1 flex gap-2 text-[10px] text-foreground">
+                    <label className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={!!dcfg.reader_in}
+                        onChange={(e) => setDoor({ reader_in: e.target.checked })}
+                        disabled={readOnly}
+                        className="h-3 w-3"
+                      /> IN
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={!!dcfg.reader_out}
+                        onChange={(e) => setDoor({ reader_out: e.target.checked })}
+                        disabled={readOnly}
+                        className="h-3 w-3"
+                      /> OUT
+                    </label>
+                  </div>
+                </div>
+
+                {/* Outputs — lock / opener / aux */}
+                <div>
+                  <label className="block text-[10px] text-muted-foreground mb-0.5">Outputs</label>
+                  <div className="grid grid-cols-3 gap-1 text-[10px] text-foreground">
+                    <label className="flex items-center gap-1">
+                      <input type="checkbox" checked={!!dcfg.out_lock} onChange={(e) => setDoor({ out_lock: e.target.checked })} disabled={readOnly} className="h-3 w-3" /> Lock
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <input type="checkbox" checked={!!dcfg.out_opener} onChange={(e) => setDoor({ out_opener: e.target.checked })} disabled={readOnly} className="h-3 w-3" /> Opener
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <input type="checkbox" checked={!!dcfg.out_aux} onChange={(e) => setDoor({ out_aux: e.target.checked })} disabled={readOnly} className="h-3 w-3" /> Aux
+                    </label>
+                  </div>
+                </div>
+
+                {/* Inputs — REX / contacts / aux */}
+                <div>
+                  <label className="block text-[10px] text-muted-foreground mb-0.5">Inputs</label>
+                  <div className="grid grid-cols-3 gap-1 text-[10px] text-foreground">
+                    <label className="flex items-center gap-1">
+                      <input type="checkbox" checked={!!dcfg.in_rex} onChange={(e) => setDoor({ in_rex: e.target.checked })} disabled={readOnly} className="h-3 w-3" /> REX
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <input type="checkbox" checked={!!dcfg.in_contact} onChange={(e) => setDoor({ in_contact: e.target.checked })} disabled={readOnly} className="h-3 w-3" /> Contact
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <input type="checkbox" checked={!!dcfg.in_aux} onChange={(e) => setDoor({ in_aux: e.target.checked })} disabled={readOnly} className="h-3 w-3" /> Aux
+                    </label>
+                  </div>
+                </div>
+
+                {/* External Tamper / DPS / ADA */}
+                <div className="grid grid-cols-1 gap-1 text-[10px] text-foreground">
+                  <label className="flex items-center gap-1">
+                    <input type="checkbox" checked={!!dcfg.tamper_external} onChange={(e) => setDoor({ tamper_external: e.target.checked })} disabled={readOnly} className="h-3 w-3" />
+                    External Tamper
                   </label>
-                ))}
+                  <label className="flex items-center gap-1">
+                    <input type="checkbox" checked={!!dcfg.dps} onChange={(e) => setDoor({ dps: e.target.checked })} disabled={readOnly} className="h-3 w-3" />
+                    DPS (Door Position Sensor)
+                  </label>
+                  <label className="flex items-center gap-1">
+                    <input type="checkbox" checked={!!dcfg.ada} onChange={(e) => setDoor({ ada: e.target.checked })} disabled={readOnly} className="h-3 w-3" />
+                    ADA Compliant
+                  </label>
+                  <label className="flex items-center gap-1">
+                    <input type="checkbox" checked={!!dcfg.fire_rated} onChange={(e) => setDoor({ fire_rated: e.target.checked })} disabled={readOnly} className="h-3 w-3" />
+                    Fire Rated
+                  </label>
+                </div>
+
+                {/* Controller ID / Port ID */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground mb-0.5">Controller ID</label>
+                    <input
+                      defaultValue={(dcfg.controller_id as string) || ''}
+                      onChange={(e) => debouncedUpdate('door_config', { ...dcfg, controller_id: e.target.value })}
+                      disabled={readOnly}
+                      placeholder="LP1502-01"
+                      className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground mb-0.5">Port</label>
+                    <input
+                      defaultValue={(dcfg.port_id as string) || ''}
+                      onChange={(e) => debouncedUpdate('door_config', { ...dcfg, port_id: e.target.value })}
+                      disabled={readOnly}
+                      placeholder="P1"
+                      className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none"
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </div>

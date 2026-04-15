@@ -1425,6 +1425,22 @@ export interface SurveyPhoto {
   created_at: string
 }
 
+export interface SurveyCable {
+  id: string
+  survey_id: string
+  floor_plan_id: string | null
+  org_id: string
+  label: string
+  cable_type: string | null
+  color_hex: string | null
+  slack_pct: number | null
+  polyline: [number, number][]
+  length_ft: number | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 // ============================================================
 // WIFI HEATMAP (Phase 2E)
 // ============================================================

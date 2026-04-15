@@ -2,14 +2,15 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import {
-  ZoomIn, ZoomOut, Move, MousePointer, Upload,
+  ZoomIn, ZoomOut, Move, MousePointer, Upload, Ruler, Cable as CableIcon,
 } from 'lucide-react'
-import type { SurveyFloorPlan, SurveyDevice } from '@/types/database'
+import type { SurveyFloorPlan, SurveyDevice, SurveyCable } from '@/types/database'
 import {
   SURVEY_SYSTEM_TYPES, SURVEY_DEVICE_TYPES, SYSTEM_TYPE_COLORS,
   DEFAULT_FOV_ANGLES, generateDeviceLabel, resetLabelCounters,
 } from '@/lib/survey-constants'
 import { SurveyDevicePanel } from './SurveyDevicePanel'
+import { SurveyDeviceIcon } from './survey-device-icons'
 
 interface Props {
   surveyId: string
@@ -20,7 +21,7 @@ interface Props {
   readOnly?: boolean
 }
 
-type Tool = 'select' | 'pan'
+type Tool = 'select' | 'pan' | 'calibrate' | 'cable'
 
 export function SurveyCanvas({
   surveyId,
@@ -42,7 +43,95 @@ export function SurveyCanvas({
   const [activeSystem, setActiveSystem] = useState<string>('cctv')
   const [bgImage, setBgImage] = useState<string | null>(floorPlan.image_url)
 
+  // G8: scale calibration — two-point click flow
+  const [calibratePoints, setCalibratePoints] = useState<{ x: number; y: number }[]>([])
+  const [scalePxPerFt, setScalePxPerFt] = useState<number | null>(floorPlan.scale_px_per_ft ?? null)
+
+  // G8: cable polyline drawing
+  const [cables, setCables] = useState<SurveyCable[]>([])
+  const [draftCable, setDraftCable] = useState<[number, number][]>([])
+  const [cableType, setCableType] = useState<string>('Cat6')
+  const [cableColor, setCableColor] = useState<string>('#2563eb')
+  const [cableSlack, setCableSlack] = useState<number>(10)
+
   const selectedDevice = devices.find(d => d.id === selectedDeviceId) || null
+
+  // Load cables for this floor plan
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/org/surveys/${surveyId}/cables`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: SurveyCable[]) => {
+        if (cancelled) return
+        setCables((data || []).filter(c => c.floor_plan_id === floorPlan.id))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [surveyId, floorPlan.id])
+
+  // Persist calibration to floor plan
+  const saveCalibration = async (pxPerFt: number) => {
+    setScalePxPerFt(pxPerFt)
+    await fetch(`/api/org/surveys/${surveyId}/floor-plans?fp_id=${floorPlan.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scale_px_per_ft: pxPerFt }),
+    })
+  }
+
+  // Compute length of a polyline in feet using current scale
+  const polylineLengthFt = (pts: [number, number][]): number | null => {
+    if (!scalePxPerFt || pts.length < 2) return null
+    let px = 0
+    for (let i = 1; i < pts.length; i++) {
+      const dx = pts[i][0] - pts[i - 1][0]
+      const dy = pts[i][1] - pts[i - 1][1]
+      px += Math.sqrt(dx * dx + dy * dy)
+    }
+    const baseFt = px / scalePxPerFt
+    return baseFt * (1 + cableSlack / 100)
+  }
+
+  // Save a completed cable
+  const saveCable = async (polyline: [number, number][]) => {
+    if (polyline.length < 2) return
+    const lengthFt = polylineLengthFt(polyline)
+    const res = await fetch(`/api/org/surveys/${surveyId}/cables`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        floor_plan_id: floorPlan.id,
+        label: `C-${cables.length + 1}`,
+        cable_type: cableType,
+        color_hex: cableColor,
+        slack_pct: cableSlack,
+        polyline,
+        length_ft: lengthFt,
+      }),
+    })
+    if (res.ok) {
+      const created = await res.json()
+      setCables((prev) => [...prev, created])
+    }
+  }
+
+  const deleteCable = async (id: string) => {
+    const res = await fetch(`/api/org/surveys/${surveyId}/cables?cable_id=${id}`, { method: 'DELETE' })
+    if (res.ok) setCables((prev) => prev.filter(c => c.id !== id))
+  }
+
+  // WPtP pair rendering — find matched A/B pairs
+  const wptpPairs = (() => {
+    const byPair = new Map<string, SurveyDevice[]>()
+    for (const d of devices) {
+      if (d.wptp_pair_id) {
+        const arr = byPair.get(d.wptp_pair_id) || []
+        arr.push(d)
+        byPair.set(d.wptp_pair_id, arr)
+      }
+    }
+    return Array.from(byPair.values()).filter(pair => pair.length === 2)
+  })()
 
   // Handle floor plan image upload
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,16 +215,81 @@ export function SurveyCanvas({
     }
   }
 
-  // Add device via click on canvas
-  const handleCanvasClick = async (e: React.MouseEvent) => {
-    if (tool !== 'select' || readOnly || isPanning || draggingDevice) return
+  // Convert a mouse event to canvas (world) coordinates
+  const toCanvasXY = (e: React.MouseEvent): { x: number; y: number } | null => {
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return null
+    return {
+      x: (e.clientX - rect.left - pan.x) / zoom,
+      y: (e.clientY - rect.top - pan.y) / zoom,
+    }
+  }
 
-    // If clicking on empty space, deselect
+  // Add device via click on canvas / handle tool-specific clicks
+  const handleCanvasClick = async (e: React.MouseEvent) => {
+    if (readOnly || isPanning || draggingDevice) return
+
+    // Calibrate tool — collect two points, prompt for feet, save scale
+    if (tool === 'calibrate') {
+      const pt = toCanvasXY(e)
+      if (!pt) return
+      const next = [...calibratePoints, pt]
+      if (next.length === 2) {
+        const dx = next[1].x - next[0].x
+        const dy = next[1].y - next[0].y
+        const px = Math.sqrt(dx * dx + dy * dy)
+        const ftStr = typeof window !== 'undefined' ? window.prompt(`Distance between points is ${px.toFixed(1)}px. Enter real-world length in feet:`) : null
+        const ft = ftStr ? parseFloat(ftStr) : NaN
+        if (ft > 0) {
+          await saveCalibration(px / ft)
+        }
+        setCalibratePoints([])
+        setTool('select')
+      } else {
+        setCalibratePoints(next)
+      }
+      return
+    }
+
+    // Cable tool — append points to draft polyline
+    if (tool === 'cable') {
+      const pt = toCanvasXY(e)
+      if (!pt) return
+      setDraftCable((prev) => [...prev, [pt.x, pt.y]])
+      return
+    }
+
+    // Default: deselect on empty canvas click
+    if (tool !== 'select') return
     const target = e.target as HTMLElement
     if (target === canvasRef.current || target.dataset.canvasBg === 'true') {
       setSelectedDeviceId(null)
     }
   }
+
+  // Finish a draft cable on double-click / Enter
+  const finishDraftCable = async () => {
+    if (draftCable.length >= 2) {
+      await saveCable(draftCable)
+    }
+    setDraftCable([])
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (tool === 'cable' && (e.key === 'Enter' || e.key === 'Escape')) {
+        if (e.key === 'Enter') finishDraftCable()
+        else setDraftCable([])
+      }
+      if (tool === 'calibrate' && e.key === 'Escape') {
+        setCalibratePoints([])
+        setTool('select')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, draftCable, calibratePoints])
 
   // Add device from palette
   const handleAddDevice = async (systemType: string, deviceType: string) => {
@@ -274,6 +428,20 @@ export function SurveyCanvas({
           >
             <Move className="h-3.5 w-3.5" />
           </button>
+          <button
+            onClick={() => { setTool('calibrate'); setCalibratePoints([]) }}
+            title="Calibrate scale (click two points, enter distance in feet)"
+            className={`rounded p-1 ${tool === 'calibrate' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <Ruler className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => { setTool('cable'); setDraftCable([]) }}
+            title="Draw cable run (click to add points, Enter to finish, Esc to cancel)"
+            className={`rounded p-1 ${tool === 'cable' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <CableIcon className="h-3.5 w-3.5" />
+          </button>
           <div className="mx-1 h-4 w-px bg-border" />
           <button onClick={() => handleZoom(0.2)} className="rounded p-1 text-muted-foreground hover:text-foreground">
             <ZoomIn className="h-3.5 w-3.5" />
@@ -290,9 +458,55 @@ export function SurveyCanvas({
             </label>
           )}
           <span className="ml-auto text-[10px] text-muted-foreground">
-            {devices.length} devices on this area
+            {scalePxPerFt ? `${scalePxPerFt.toFixed(1)} px/ft` : 'No scale set'} · {devices.length} devices · {cables.length} cables
           </span>
         </div>
+
+        {/* Cable tool config strip */}
+        {tool === 'cable' && !readOnly && (
+          <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-2 py-1 text-[10px]">
+            <span className="text-muted-foreground">Type</span>
+            <select
+              value={cableType}
+              onChange={(e) => setCableType(e.target.value)}
+              className="rounded border border-border bg-background px-1 py-0.5"
+            >
+              {['Cat5e', 'Cat6', 'Cat6a', 'Fiber MM', 'Fiber SM', '18/2', '22/4', 'Coax RG6', 'Speaker 16/2'].map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+            <span className="text-muted-foreground">Color</span>
+            <input
+              type="color"
+              value={cableColor}
+              onChange={(e) => setCableColor(e.target.value)}
+              className="h-4 w-6 cursor-pointer"
+            />
+            <span className="text-muted-foreground">Slack %</span>
+            <input
+              type="number"
+              value={cableSlack}
+              onChange={(e) => setCableSlack(Number(e.target.value) || 0)}
+              className="w-12 rounded border border-border bg-background px-1 py-0.5"
+            />
+            <button
+              onClick={finishDraftCable}
+              disabled={draftCable.length < 2}
+              className="rounded bg-primary px-2 py-0.5 text-white disabled:opacity-40"
+            >
+              Finish ({draftCable.length} pts)
+            </button>
+            <button
+              onClick={() => setDraftCable([])}
+              className="rounded border border-border px-2 py-0.5"
+            >
+              Clear
+            </button>
+            {!scalePxPerFt && (
+              <span className="text-amber-500">⚠ Calibrate scale first for length</span>
+            )}
+          </div>
+        )}
 
         {/* Canvas Surface */}
         <div
@@ -336,6 +550,80 @@ export function SurveyCanvas({
                 <rect width="100%" height="100%" fill="url(#grid)" />
               </svg>
             )}
+
+            {/* Cables + WPtP pairs + calibrate preview (G8) */}
+            <svg
+              className="absolute pointer-events-none"
+              style={{ left: 0, top: 0, width: 4000, height: 3000, overflow: 'visible' }}
+              data-canvas-bg="true"
+            >
+              {/* Saved cables */}
+              {cables.map((c) => {
+                const pts = (c.polyline || []) as [number, number][]
+                if (pts.length < 2) return null
+                const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ')
+                return (
+                  <g key={c.id} style={{ pointerEvents: 'auto' }} onDoubleClick={() => !readOnly && deleteCable(c.id)}>
+                    <path d={d} fill="none" stroke={c.color_hex || '#2563eb'} strokeWidth={2.5} />
+                    {c.length_ft != null && (
+                      <text
+                        x={pts[Math.floor(pts.length / 2)][0]}
+                        y={pts[Math.floor(pts.length / 2)][1] - 6}
+                        fill="#fff"
+                        fontSize="10"
+                        textAnchor="middle"
+                        style={{ paintOrder: 'stroke', stroke: '#000', strokeWidth: 2 }}
+                      >
+                        {c.label} · {c.length_ft.toFixed(0)}ft
+                      </text>
+                    )}
+                  </g>
+                )
+              })}
+
+              {/* Draft cable */}
+              {draftCable.length >= 2 && (
+                <path
+                  d={draftCable.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ')}
+                  fill="none"
+                  stroke={cableColor}
+                  strokeWidth={2}
+                  strokeDasharray="5,3"
+                />
+              )}
+              {draftCable.map((p, i) => (
+                <circle key={i} cx={p[0]} cy={p[1]} r={3} fill={cableColor} />
+              ))}
+
+              {/* Calibrate preview points + line */}
+              {calibratePoints.length > 0 && (
+                <g>
+                  {calibratePoints.map((p, i) => (
+                    <circle key={i} cx={p.x} cy={p.y} r={4} fill="#f59e0b" stroke="#fff" strokeWidth={1.5} />
+                  ))}
+                  {calibratePoints.length === 2 && (
+                    <line
+                      x1={calibratePoints[0].x} y1={calibratePoints[0].y}
+                      x2={calibratePoints[1].x} y2={calibratePoints[1].y}
+                      stroke="#f59e0b" strokeWidth={2} strokeDasharray="4,3"
+                    />
+                  )}
+                </g>
+              )}
+
+              {/* WPtP A↔B pair lines (dotted teal) */}
+              {wptpPairs.map((pair, i) => (
+                <line
+                  key={`wptp-${i}`}
+                  x1={pair[0].position_x} y1={pair[0].position_y}
+                  x2={pair[1].position_x} y2={pair[1].position_y}
+                  stroke="#14b8a6"
+                  strokeWidth={2}
+                  strokeDasharray="6,4"
+                  opacity={0.85}
+                />
+              ))}
+            </svg>
 
             {/* Device Markers */}
             {devices.map((device) => {
@@ -410,17 +698,23 @@ export function SurveyCanvas({
                     />
                   )}
 
-                  {/* Marker Dot */}
+                  {/* SVG device marker (G8) */}
                   <div
-                    className="absolute rounded-full border-2 shadow-sm transition-transform"
+                    className="absolute transition-transform"
                     style={{
                       width: size,
                       height: size,
-                      backgroundColor: color,
-                      borderColor: isSelected ? '#fff' : `${color}80`,
-                      transform: isSelected ? 'scale(1.2)' : 'scale(1)',
+                      transform: isSelected ? 'scale(1.25)' : 'scale(1)',
+                      filter: isSelected ? 'drop-shadow(0 0 4px #fff)' : 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))',
                     }}
-                  />
+                  >
+                    <SurveyDeviceIcon
+                      systemType={device.system_type}
+                      deviceType={device.device_type}
+                      color={color}
+                      size={size}
+                    />
+                  </div>
 
                   {/* Label */}
                   <div
