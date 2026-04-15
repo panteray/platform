@@ -12,14 +12,8 @@
 export { calculateFovDori, getFovConeTiers, getFovConeParams, canvasDeviceToFovInput, validateFovInput, classifyDori, calculatePpfAtDistance, COMMON_SENSORS } from './fov-dori'
 export type { FovDoriInput, FovDoriOutput, FovDoriInputPartial, FovValidation, CanvasFovDevice, DoriClassification } from './fov-dori'
 
-export { calculateLpr, canvasDeviceToLprInput, canvasDevicesToLprInputs, validateLprInput } from './lpr'
-export type { LprInput, LprOutput, CanvasLprDevice, LprInputPartial, LprValidation } from './lpr'
-
 export { calculateSystemStorage, canvasDevicesToCameraSpecs, validateStorageInput } from './system-storage'
 export type { SystemStorageInput, SystemStorageOutput, CameraSpec, CanvasStorageDevice, StorageValidation, StorageCameraValidation } from './system-storage'
-
-export { calculateSolar } from './solar'
-export type { SolarInput, SolarOutput } from './solar'
 
 export { generateWiringSchematic, validateWiringInput, buildNarrative } from './wiring-schematic'
 export type { WiringInput, WiringOutput, SchematicType, WiringValidation } from './wiring-schematic'

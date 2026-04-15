@@ -72,9 +72,7 @@ export const MODULE_DESCRIPTIONS: Record<ModuleName, string> = {
 
 export const CALCULATOR_LABELS: Record<CalculatorType, string> = {
   [CalculatorType.FOV_DORI]: 'FOV/DORI',
-  [CalculatorType.LPR]: 'LPR',
   [CalculatorType.SYSTEM_STORAGE]: 'System/Storage',
-  [CalculatorType.SOLAR]: 'Solar',
   [CalculatorType.WIRING_SCHEMATIC]: 'Wiring Schematic',
   [CalculatorType.MOUNTING]: 'Mounting',
   [CalculatorType.WIRELESS_PTP]: 'Wireless PtP',

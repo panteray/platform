@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Crosshair, Car, HardDrive, Sun, Cable, Ruler, Wrench, Radio, DoorOpen } from 'lucide-react'
+import { Crosshair, HardDrive, Cable, Ruler, Wrench, Radio, DoorOpen } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 const C = {
@@ -17,9 +17,7 @@ const C = {
 
 const CALCULATORS: { type: string; name: string; description: string; Icon: LucideIcon }[] = [
   { type: 'fov-dori', name: 'FOV / DORI', description: 'Field of view, pixels per foot, DORI classification', Icon: Crosshair },
-  { type: 'lpr', name: 'LPR', description: 'License plate recognition sizing', Icon: Car },
   { type: 'system-storage', name: 'System / Storage', description: 'Bandwidth, RAID, PoE budget, 5-year TCO', Icon: HardDrive },
-  { type: 'solar', name: 'Solar', description: 'Remote camera solar power sizing', Icon: Sun },
   { type: 'wiring-schematic', name: 'Wiring Schematic', description: 'Point-to-point door wiring diagrams', Icon: Cable },
   { type: 'cable-estimator', name: 'Cable Estimator', description: 'Per-run footage, voltage drop, reel count', Icon: Ruler },
   { type: 'mount-calculator', name: 'Mount Calculator', description: 'Compatible mounting hardware', Icon: Wrench },

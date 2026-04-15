@@ -5,9 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, AlertCircle } from 'lucide-react'
 import {
   calculateFovDori, validateFovInput, type FovDoriInput,
-  calculateLpr, validateLprInput, type LprInput,
   calculateSystemStorage, type SystemStorageInput,
-  calculateSolar, type SolarInput,
   runCableEstimator, type CableEstimatorInput,
   calculateMountRequirements, type MountCalcInput,
   calculateWirelessPtp, type WirelessPtpInput,
@@ -210,32 +208,6 @@ function FovDoriForm() {
   </div>)
 }
 
-function LprForm() {
-  const [f, setF] = useState({ resW: '1920', resH: '1080', sensorW: '5.6', focal: '12', mountH: '12', targetDist: '40', speed: '35', lanes: '2' })
-  const result = useAutoCalc(() => {
-    const input: LprInput = { resolutionW: +f.resW, resolutionH: +f.resH, sensorW: +f.sensorW, focalLength: +f.focal, mountHeight: +f.mountH, targetDistance: +f.targetDist, vehicleSpeedMph: +f.speed, laneCount: +f.lanes }
-    const v = validateLprInput(input)
-    if (v.missingFields.length > 0) return null
-    return calculateLpr(input) as unknown as Record<string, unknown>
-  }, [f])
-  const primary = result ? { label: 'PPF at Target', value: formatValue(result.ppf), unit: 'px/ft' } : undefined
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-      <CalcInput label="Resolution W" value={f.resW} onChange={(v) => setF({ ...f, resW: v })} />
-      <CalcInput label="Resolution H" value={f.resH} onChange={(v) => setF({ ...f, resH: v })} />
-      <CalcInput label="Sensor W (mm)" value={f.sensorW} onChange={(v) => setF({ ...f, sensorW: v })} />
-      <CalcInput label="Focal Length (mm)" value={f.focal} onChange={(v) => setF({ ...f, focal: v })} />
-    </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-      <CalcInput label="Mount Height (ft)" value={f.mountH} onChange={(v) => setF({ ...f, mountH: v })} />
-      <CalcInput label="Target Distance (ft)" value={f.targetDist} onChange={(v) => setF({ ...f, targetDist: v })} />
-      <CalcInput label="Vehicle Speed (mph)" value={f.speed} onChange={(v) => setF({ ...f, speed: v })} />
-      <CalcInput label="Lane Count" value={f.lanes} onChange={(v) => setF({ ...f, lanes: v })} />
-    </div>
-    {result && <ResultCard title="LPR Results" primary={primary} data={result} />}
-  </div>)
-}
-
 function StorageForm() {
   const [f, setF] = useState({ cameras: '16', fps: '15', retention: '30', raidLevel: '5', driveSize: '8' })
   const result = useAutoCalc(() => {
@@ -255,24 +227,6 @@ function StorageForm() {
       <CalcInput label="Drive Size (TB)" value={f.driveSize} onChange={(v) => setF({ ...f, driveSize: v })} />
     </div>
     {result && <ResultCard title="System / Storage Results" primary={primary} data={result} />}
-  </div>)
-}
-
-function SolarForm() {
-  const [f, setF] = useState({ watts: '25', voltage: '12', days: '3', sunHours: '5' })
-  const result = useAutoCalc(() => {
-    const input: SolarInput = { cameraWatts: +f.watts, systemVoltage: +f.voltage as 12 | 24, autonomyDays: +f.days, peakSunHours: +f.sunHours }
-    return calculateSolar(input) as unknown as Record<string, unknown>
-  }, [f])
-  const primary = result ? { label: 'Panel Size', value: formatValue(result.panelWatts), unit: 'W' } : undefined
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-      <CalcInput label="Camera Watts" value={f.watts} onChange={(v) => setF({ ...f, watts: v })} />
-      <SelectInput label="System Voltage" value={f.voltage} onChange={(v) => setF({ ...f, voltage: v })} options={[{ value: '12', label: '12V' }, { value: '24', label: '24V' }]} />
-      <CalcInput label="Autonomy Days" value={f.days} onChange={(v) => setF({ ...f, days: v })} />
-      <CalcInput label="Peak Sun Hours" value={f.sunHours} onChange={(v) => setF({ ...f, sunHours: v })} />
-    </div>
-    {result && <ResultCard title="Solar Results" primary={primary} data={result} />}
   </div>)
 }
 
@@ -378,9 +332,7 @@ function AcsForm() {
 // ---- Main page ----
 const CALC_MAP: Record<string, { name: string; Form: React.FC }> = {
   'fov-dori': { name: 'FOV / DORI Calculator', Form: FovDoriForm },
-  'lpr': { name: 'LPR Calculator', Form: LprForm },
   'system-storage': { name: 'System / Storage Calculator', Form: StorageForm },
-  'solar': { name: 'Solar Calculator', Form: SolarForm },
   'wiring-schematic': { name: 'Wiring Schematic Generator', Form: WiringForm },
   'cable-estimator': { name: 'Cable Estimator', Form: CableForm },
   'mount-calculator': { name: 'Mount Calculator', Form: MountForm },

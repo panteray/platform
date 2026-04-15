@@ -64,8 +64,8 @@ export enum ModuleName {
 }
 
 export enum CalculatorType {
-  FOV_DORI = 'fov_dori', LPR = 'lpr', SYSTEM_STORAGE = 'system_storage',
-  SOLAR = 'solar', WIRING_SCHEMATIC = 'wiring_schematic', MOUNTING = 'mounting',
+  FOV_DORI = 'fov_dori', SYSTEM_STORAGE = 'system_storage',
+  WIRING_SCHEMATIC = 'wiring_schematic', MOUNTING = 'mounting',
   WIRELESS_PTP = 'wireless_ptp', CABLE_ESTIMATOR = 'cable_estimator', PLAN_REVIEW = 'plan_review',
 }
 
