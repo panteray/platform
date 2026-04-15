@@ -23,7 +23,7 @@ const SEVERITY_CONFIG: Record<string, { icon: typeof AlertTriangle; color: strin
 
 export function NetworkCheckerPanel({ devices, cables, mdfIdfs, topologyNodes, topologyLinks, vlans }: Props) {
   const [results, setResults] = useState<CheckResult[] | null>(null)
-  const [filterLayer, setFilterLayer] = useState<'all' | 'L1' | 'L2' | 'L3'>('all')
+  const [filterLayer, setFilterLayer] = useState<'all' | 'L1' | 'L2' | 'L3' | 'CMP'>('all')
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'error' | 'warning' | 'info'>('all')
 
   const runCheck = () => {
@@ -113,7 +113,7 @@ export function NetworkCheckerPanel({ devices, cables, mdfIdfs, topologyNodes, t
               )
             })}
             <div style={{ flex: 1 }} />
-            {(['L1', 'L2', 'L3'] as const).map(l => (
+            {(['L1', 'L2', 'L3', 'CMP'] as const).map(l => (
               <button key={l} onClick={() => setFilterLayer(filterLayer === l ? 'all' : l)}
                 style={{ padding: '4px 10px', fontSize: 10, fontWeight: 600, background: filterLayer === l ? `${C.accent}15` : 'transparent', border: `1px solid ${filterLayer === l ? C.accent : C.border}`, borderRadius: 4, color: filterLayer === l ? C.accent : C.textMuted, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {l}

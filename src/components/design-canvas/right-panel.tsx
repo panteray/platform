@@ -216,6 +216,82 @@ function BtnGroup({ options, value, onChange }: {
   )
 }
 
+/* ─── Compliance Badges — NDAA §889 + UL 294 / UL 10C ─── */
+function ComplianceBadges({ props }: { props: Record<string, unknown> }) {
+  const ndaa = props.ndaa_compliant as boolean | undefined
+  const ul = props.ul_listed as boolean | undefined
+  const ulCode = props.ul_listing_code as string | undefined
+  const fireRated = props.fire_rated === true
+  const standard = fireRated ? 'UL 10C' : 'UL 294'
+
+  const pill = (
+    label: string,
+    state: boolean | undefined,
+    tooltip: string,
+  ) => {
+    const color =
+      state === true ? '#16a34a' : state === false ? '#dc2626' : '#6b7280'
+    const bg =
+      state === true ? 'rgba(22,163,74,0.12)' :
+      state === false ? 'rgba(220,38,38,0.12)' :
+      'rgba(107,114,128,0.12)'
+    const icon = state === true ? '✓' : state === false ? '✗' : '?'
+    return (
+      <div
+        title={tooltip}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '4px 8px', borderRadius: 4,
+          background: bg, border: `1px solid ${color}40`,
+          fontSize: 10, fontWeight: 600, color,
+        }}
+      >
+        <span style={{ fontSize: 11 }}>{icon}</span>
+        <span>{label}</span>
+      </div>
+    )
+  }
+
+  const ndaaTooltip =
+    ndaa === true
+      ? 'NDAA §889 compliant — permitted in federal-funded installs'
+      : ndaa === false
+      ? 'NDAA §889 VIOLATION — prohibited in federal-funded installs. Replace with compliant model.'
+      : 'NDAA status not set on library item. Verify and flag.'
+  const ulTooltip =
+    ul === true
+      ? `${standard} listed${ulCode ? ` — ${ulCode}` : ''}`
+      : ul === false
+      ? `Not ${standard} listed. AHJ may reject. Verify with manufacturer.`
+      : `${standard} listing not verified on library item.`
+
+  return (
+    <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {pill('NDAA §889', ndaa, ndaaTooltip)}
+      {pill(standard, ul, ulTooltip)}
+      {ul === true && ulCode && (
+        <div
+          title={`UL listing code: ${ulCode}`}
+          style={{
+            padding: '4px 8px', borderRadius: 4,
+            background: 'rgba(59,130,246,0.12)',
+            border: '1px solid rgba(59,130,246,0.4)',
+            fontSize: 9, fontWeight: 600, color: '#3b82f6',
+            fontFamily: 'var(--font-mono, monospace)',
+          }}
+        >
+          {ulCode}
+        </div>
+      )}
+      {(ndaa === false || ul === false) && (
+        <div style={{ width: '100%', fontSize: 9, color: '#dc2626', marginTop: 2 }}>
+          Replace with a compliant model via Device Library.
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─── Door Compliance Section (IBC / NFPA / ADA / voltage drop + strike suggestions) ─── */
 function DoorComplianceSection({
   props,
@@ -767,7 +843,6 @@ export function RightPanel({
                   ['AOV', props.aov || '—'],
                   ['Sensor', props.sensor_w ? `${props.sensor_w}mm` : '—'],
                   ['IR', props.ir || (props.ir_range ? `${props.ir_range}ft` : '—')],
-                  ['NDAA', props.ndaa_compliant === true ? 'Yes' : props.ndaa_compliant === false ? 'No' : '—'],
                   ['Env', props.environment || '—'],
                   ['Codecs', props.codecs || '—'],
                 ] as [string, string][]).filter(([, v]) => v !== '—').map(([k, v]) => (
@@ -777,6 +852,9 @@ export function RightPanel({
                   </div>
                 ))}
               </div>
+
+              {/* Compliance badges */}
+              <ComplianceBadges props={props} />
 
               {/* H-FOV / V-FOV computed */}
               {sensorW > 0 && focalLength > 0 && (

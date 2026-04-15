@@ -7,13 +7,25 @@
 
 export interface CheckResult {
   id: string
-  layer: 'L1' | 'L2' | 'L3'
+  layer: 'L1' | 'L2' | 'L3' | 'CMP'
   severity: 'error' | 'warning' | 'info'
   check: string
   message: string
   deviceId?: string
   deviceLabel?: string
 }
+
+// ---- Compliance category sets ----
+const NDAA_APPLIES_CATS = new Set([
+  'cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye',
+  'multisensor_quad', 'multisensor_dual', 'nvr', 'encoder',
+  'access_control', 'door_controller', 'card_reader',
+  'intercom', 'wireless_ap', 'bridge',
+])
+const UL_ACS_CATS = new Set([
+  'access_control', 'door', 'door_controller', 'card_reader',
+  'electric_strike', 'maglock',
+])
 
 export interface NetworkCheckerInput {
   devices: Array<{
@@ -160,6 +172,72 @@ export function runNetworkChecker(input: NetworkCheckerInput): NetworkCheckerOut
   }
   for (const [ip, labels] of ipMap) {
     if (labels.length > 1) addResult('L3', 'error', 'Duplicate IP', `IP ${ip} assigned to ${labels.length} devices: ${labels.join(', ')}`)
+  }
+
+  // ═══ CMP — Compliance Checks ═══
+
+  // NDAA §889 — device-level compliance
+  for (const d of input.devices) {
+    if (!NDAA_APPLIES_CATS.has(d.category)) continue
+    const ndaa = d.properties?.ndaa_compliant
+    const vendor = String(d.properties?.vendor || '')
+    if (ndaa === false) {
+      addResult(
+        'CMP',
+        'error',
+        'NDAA §889 Violation',
+        `${d.label || d.category}${vendor ? ` (${vendor})` : ''} is non-NDAA-compliant. Prohibited in federal-funded installs. Replace with a compliant model.`,
+        d.id,
+        d.label,
+      )
+    } else if (ndaa == null) {
+      addResult(
+        'CMP',
+        'info',
+        'NDAA Unverified',
+        `${d.label || d.category}${vendor ? ` (${vendor})` : ''} has no NDAA status set. Verify compliance and flag in the device library.`,
+        d.id,
+        d.label,
+      )
+    }
+  }
+
+  // UL 294 — access control hardware + UL 10C — fire-rated door hardware
+  for (const d of input.devices) {
+    const isAcs = UL_ACS_CATS.has(d.category)
+    const isFireRated = d.properties?.fire_rated === true
+    if (!isAcs && !isFireRated) continue
+    const ul = d.properties?.ul_listed
+    const ulCode = d.properties?.ul_listing_code as string | undefined
+    const standard = isFireRated ? 'UL 10C (fire-rated hardware)' : 'UL 294 (access control)'
+    if (ul === false) {
+      addResult(
+        'CMP',
+        'warning',
+        'UL Listing Required',
+        `${d.label || d.category} is not UL listed. ${standard} expected. AHJ may reject.`,
+        d.id,
+        d.label,
+      )
+    } else if (ul == null) {
+      addResult(
+        'CMP',
+        'info',
+        'UL Listing Unverified',
+        `${d.label || d.category} has no UL listing status. Verify against ${standard}.`,
+        d.id,
+        d.label,
+      )
+    } else if (ul === true && !ulCode && isFireRated) {
+      addResult(
+        'CMP',
+        'info',
+        'UL Code Missing',
+        `${d.label || d.category} is UL listed but no listing code recorded. Add code for AHJ submittal.`,
+        d.id,
+        d.label,
+      )
+    }
   }
 
   // Topology node checks

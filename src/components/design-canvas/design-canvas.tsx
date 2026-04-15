@@ -733,6 +733,8 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     if (item.poe_standard) catalogSpecs.poe_standard = item.poe_standard
     if (item.wattage != null) catalogSpecs.wattage = item.wattage
     if (item.ndaa_compliant != null) catalogSpecs.ndaa_compliant = item.ndaa_compliant
+    if (item.ul_listed != null) catalogSpecs.ul_listed = item.ul_listed
+    if (item.ul_listing_code) catalogSpecs.ul_listing_code = item.ul_listing_code
     if (item.vendor) catalogSpecs.vendor = item.vendor
     if (item.model) catalogSpecs.model = item.model
     if (item.partnumber) catalogSpecs.partnumber = item.partnumber
