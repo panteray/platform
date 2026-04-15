@@ -10,7 +10,14 @@
  * - Camera specs come from device_library_items only.
  * - Mount type comes from user selection on canvas.
  * - If required data is missing, returns empty results with missing fields list.
+ *
+ * Optional vendor-specific SKU lookup: pass a MountCatalog as the 3rd arg
+ * to `calculateMountRequirements` and it will populate `vendorParts` from
+ * the catalog. Callers that don't provide a catalog get `vendorParts: []`.
  */
+
+import type { MountCatalog, VendorMountPart } from "./mount-catalog";
+import { lookupMountParts } from "./mount-catalog";
 
 // ---- Input Types ----
 
@@ -27,6 +34,10 @@ export interface MountCalcInput {
   environment?: "indoor" | "outdoor" | "indoor_outdoor";
   /** IP rating of the camera (e.g., "IP67") — filters outdoor mounts */
   ipRating?: string;
+  /** Camera vendor (for catalog lookup) */
+  vendor?: string;
+  /** Camera model (for catalog lookup) */
+  model?: string;
 }
 
 // ---- Output Types ----
@@ -51,6 +62,10 @@ export interface MountCalcOutput {
   liftRequired: boolean;
   /** Missing data that prevents full calculation */
   missingFields: string[];
+  /** Vendor-specific parts matched from MountCatalog (empty if no catalog or no match) */
+  vendorParts: VendorMountPart[];
+  /** Height guidance from the first matched vendor part (null if no match) */
+  heightGuidance: string | null;
 }
 
 // ---- Mount Compatibility Rules ----
@@ -191,11 +206,21 @@ const LIFT_THRESHOLD_FT = 12;
 export function calculateMountRequirements(
   input: MountCalcInput,
   mountHeightFt?: number,
+  catalog?: MountCatalog | null,
 ): MountCalcOutput {
   const missingFields: string[] = [];
 
   if (!input.formFactor) missingFields.push("formFactor");
   if (!input.mountType) missingFields.push("mountType");
+
+  const vendorParts = lookupMountParts(
+    catalog,
+    input.vendor,
+    input.model,
+    input.mountType,
+    input.environment,
+  );
+  const heightGuidance = vendorParts[0]?.heightGuidance ?? null;
 
   // Normalize form factor to base type
   const baseType = normalizeFormFactor(input.formFactor);
@@ -212,6 +237,8 @@ export function calculateMountRequirements(
       }],
       liftRequired: (mountHeightFt ?? 0) > LIFT_THRESHOLD_FT,
       missingFields,
+      vendorParts,
+      heightGuidance,
     };
   }
 
@@ -221,6 +248,8 @@ export function calculateMountRequirements(
     mounts,
     liftRequired: (mountHeightFt ?? 0) > LIFT_THRESHOLD_FT,
     missingFields,
+    vendorParts,
+    heightGuidance,
   };
 }
 

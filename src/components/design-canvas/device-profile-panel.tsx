@@ -18,6 +18,7 @@ import { C } from './constants'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
 import { calculateMountRequirements, type MountCalcInput } from '@/lib/calculators/mount-calculator'
 import { CABLE_TYPES } from '@/lib/calculators/cable-estimator'
+import { useMountCatalog } from './use-mount-catalog'
 
 const NAV_ITEMS = [
   { id: 'profile', label: 'Device Profile' },
@@ -170,6 +171,7 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
 
   const str = (key: string, fallback = '') => String(props[key] ?? fallback)
   const num = (key: string, fallback = 0) => Number(props[key]) || fallback
+  const { catalog: mountCatalog } = useMountCatalog()
 
   return (
     <div style={{
@@ -352,14 +354,36 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
                 formFactor: str('form') || device.category,
                 mountType: (str('mount_type', 'ceiling') as 'ceiling' | 'wall' | 'pole' | 'pendant'),
                 environment: (str('environment', 'indoor') as 'indoor' | 'outdoor' | 'indoor_outdoor'),
+                vendor: str('vendor') || undefined,
+                model: str('model') || undefined,
               }
-              const mountResult = calculateMountRequirements(mountInput, num('install_height', 9))
+              const mountResult = calculateMountRequirements(mountInput, num('install_height', 9), mountCatalog)
               const customAccessories = (props.custom_accessories || []) as Array<{ name: string; qty: number }>
               return (
                 <>
                   {mountResult.mounts.filter(m => m.compatible).map((m, i) => (
                     <AccRow key={i} name={m.label} qty={1} onEdit={() => {}} />
                   ))}
+                  {mountResult.vendorParts.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: C.accent, marginTop: 6, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.4, padding: '0 8px' }}>
+                        Vendor Parts — {str('vendor')}
+                      </div>
+                      {mountResult.vendorParts.map((vp, i) => (
+                        <AccRow
+                          key={`vp-${i}`}
+                          name={`${vp.part} (${vp.location})${vp.jboxPart ? ` + ${vp.jboxPart}` : ''}`}
+                          qty={1}
+                          onEdit={() => {}}
+                        />
+                      ))}
+                    </>
+                  )}
+                  {mountResult.heightGuidance && (
+                    <div style={{ fontSize: 9, color: C.textDim, padding: '4px 8px' }}>
+                      Height guidance: <span style={{ color: C.text }}>{mountResult.heightGuidance}</span>
+                    </div>
+                  )}
                   {mountResult.liftRequired && (
                     <div style={{ fontSize: 9, color: '#ef4444', fontWeight: 700, padding: '4px 8px', marginTop: 4, background: 'rgba(239,68,68,0.08)', borderRadius: 3, border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Zap size={10} /> ⚠ LIFT REQUIRED — mount height &gt; 12ft
@@ -546,8 +570,10 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
                 formFactor: str('form') || device.category,
                 mountType: (str('mount_type', 'ceiling') as 'ceiling' | 'wall' | 'pole' | 'pendant'),
                 environment: (str('environment', 'indoor') as 'indoor' | 'outdoor' | 'indoor_outdoor'),
+                vendor: str('vendor') || undefined,
+                model: str('model') || undefined,
               }
-              const mountResult = calculateMountRequirements(mountInput, num('install_height', 9))
+              const mountResult = calculateMountRequirements(mountInput, num('install_height', 9), mountCatalog)
               const customAccessories = (props.custom_accessories || []) as Array<{ name: string; qty: number }>
               return (
                 <>
@@ -562,6 +588,24 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
                   {mountResult.mounts.filter(m => !m.required && m.compatible).map((m, i) => (
                     <AccRow key={`opt-${i}`} name={`${m.label}${m.notes ? ` — ${m.notes}` : ''}`} qty={1} onEdit={() => {}} />
                   ))}
+                  {mountResult.vendorParts.length > 0 && (
+                    <>
+                      <SectionLabel>{`Vendor Parts — ${str('vendor')}`}</SectionLabel>
+                      {mountResult.vendorParts.map((vp, i) => (
+                        <AccRow
+                          key={`vp-${i}`}
+                          name={`${vp.part} (${vp.location})${vp.jboxPart ? ` + ${vp.jboxPart}` : ''}`}
+                          qty={1}
+                          onEdit={() => {}}
+                        />
+                      ))}
+                      {mountResult.heightGuidance && (
+                        <div style={{ fontSize: 9, color: C.textDim, padding: '4px 0' }}>
+                          Height guidance: <span style={{ color: C.text }}>{mountResult.heightGuidance}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
                   {mountResult.liftRequired && (
                     <div style={{ fontSize: 9, color: '#f97316', fontWeight: 600, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Zap size={10} /> Lift required (height &gt; 12ft)

@@ -16,6 +16,7 @@ import { X, Copy, Trash2, ChevronDown, ChevronRight, Settings, MapPinOff, Cctv, 
 import { C } from './constants'
 import { calculatePpfAtDistance, classifyDori } from '@/lib/calculators'
 import { calculateMountRequirements, type MountCalcInput } from '@/lib/calculators/mount-calculator'
+import { useMountCatalog } from './use-mount-catalog'
 import { BlindSpotDiagram } from './blind-spot-diagram'
 import type { DesignDevice, DesignMdfIdf } from '@/types/database'
 
@@ -210,6 +211,7 @@ export function RightPanel({
   const [activeTab, setActiveTab] = useState<TabId>('fov')
   const props = useMemo(() => (device.properties ?? {}) as Record<string, unknown>, [device.properties])
   const isCamera = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual'].includes(device.category)
+  const { catalog: mountCatalog } = useMountCatalog()
 
   const updateProp = useCallback((key: string, value: unknown) => {
     onUpdateDevice(device.id, { properties: { ...props, [key]: value } })
@@ -616,8 +618,10 @@ export function RightPanel({
                 formFactor: String(props.form || device.category),
                 mountType: (String(props.mount_type || 'Ceiling').toLowerCase() as 'ceiling' | 'wall' | 'pole' | 'pendant'),
                 environment: (String(props.environment || 'Indoor').toLowerCase() as 'indoor' | 'outdoor' | 'indoor_outdoor'),
+                vendor: typeof props.vendor === 'string' ? props.vendor : undefined,
+                model: typeof props.model === 'string' ? props.model : undefined,
               }
-              const mountResult = calculateMountRequirements(mountInput, installHeight)
+              const mountResult = calculateMountRequirements(mountInput, installHeight, mountCatalog)
               const customAccessories = (props.custom_accessories || []) as Array<{ name: string; qty: number }>
               return (
                 <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.borderSubtle}` }}>
@@ -640,6 +644,30 @@ export function RightPanel({
                     ))}
                     {mountResult.mounts.filter(m => m.compatible).length === 0 && (
                       <div style={{ fontSize: 9, color: C.textDim, fontStyle: 'italic', padding: 4 }}>No mount accessories for this configuration</div>
+                    )}
+
+                    {/* Vendor-specific parts from mount catalog */}
+                    {mountResult.vendorParts.length > 0 && (
+                      <>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: C.accent, marginTop: 6, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                          Vendor Parts — {String(props.vendor || '')}
+                        </div>
+                        {mountResult.vendorParts.map((vp, i) => (
+                          <div key={`vp-${i}`} style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '4px 8px', background: 'rgba(34,197,94,0.06)', borderRadius: 4, fontSize: 10,
+                            border: '1px solid rgba(34,197,94,0.18)',
+                          }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <span style={{ color: C.text, fontWeight: 600, fontFamily: 'monospace' }}>{vp.part}</span>
+                              <span style={{ fontSize: 8, color: C.textDim }}>{vp.location} • {vp.environment}</span>
+                            </div>
+                            {vp.jboxPart && (
+                              <span style={{ fontSize: 8, color: C.textDim, fontFamily: 'monospace' }}>+ {vp.jboxPart}</span>
+                            )}
+                          </div>
+                        ))}
+                      </>
                     )}
 
                     {/* Custom accessories — editable */}
@@ -685,6 +713,11 @@ export function RightPanel({
                       <Plus size={10} /> Add Accessory
                     </button>
                   </div>
+                  {mountResult.heightGuidance && (
+                    <div style={{ marginTop: 6, fontSize: 9, color: C.textDim, padding: '3px 6px' }}>
+                      Height guidance: <span style={{ color: C.text }}>{mountResult.heightGuidance}</span>
+                    </div>
+                  )}
                   {mountResult.liftRequired && (
                     <div style={{ marginTop: 6, fontSize: 9, color: '#ef4444', fontWeight: 700, background: 'rgba(239,68,68,0.08)', padding: '3px 6px', borderRadius: 3, border: '1px solid rgba(239,68,68,0.2)' }}>
                       ⚠ LIFT REQUIRED — {installHeight}ft

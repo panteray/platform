@@ -11,6 +11,8 @@ import {
   calculateWirelessPtp, type WirelessPtpInput,
   runAcsEngine, type AcsBuildInput,
   generateWiringSchematic, type WiringInput,
+  loadMountCatalog, listModelsForVendor, MOUNT_CATALOG_VENDORS,
+  type MountCatalog, type VendorMountPart,
 } from '@/lib/calculators'
 
 const C = {
@@ -269,11 +271,32 @@ function CableForm() {
 }
 
 function MountForm() {
-  const [f, setF] = useState({ formFactor: 'dome', mountType: 'ceiling', weight: '1.2', diameter: '130' })
+  const [f, setF] = useState({ formFactor: 'dome', mountType: 'ceiling', weight: '1.2', diameter: '130', vendor: 'Hanwha', model: '' })
+  const [catalog, setCatalog] = useState<MountCatalog | null>(null)
+
+  useEffect(() => {
+    loadMountCatalog().then(setCatalog).catch(() => setCatalog({}))
+  }, [])
+
+  const models = catalog ? listModelsForVendor(catalog, f.vendor) : []
+
   const result = useAutoCalc(() => {
-    const input: MountCalcInput = { formFactor: f.formFactor, mountType: f.mountType as 'ceiling' | 'wall' | 'pole' | 'pendant', environment: 'indoor', ipRating: 'IP66', weightKg: +f.weight, diameterMm: +f.diameter }
-    return calculateMountRequirements(input) as unknown as Record<string, unknown>
-  }, [f])
+    const input: MountCalcInput = {
+      formFactor: f.formFactor,
+      mountType: f.mountType as 'ceiling' | 'wall' | 'pole' | 'pendant',
+      environment: 'indoor',
+      ipRating: 'IP66',
+      weightKg: +f.weight,
+      diameterMm: +f.diameter,
+      vendor: f.vendor || undefined,
+      model: f.model || undefined,
+    }
+    return calculateMountRequirements(input, 0, catalog) as unknown as Record<string, unknown>
+  }, [f, catalog])
+
+  const vendorParts = (result?.vendorParts as VendorMountPart[] | undefined) ?? []
+  const heightGuidance = (result?.heightGuidance as string | null | undefined) ?? null
+
   return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
       <SelectInput label="Form Factor" value={f.formFactor} onChange={(v) => setF({ ...f, formFactor: v })} options={[{ value: 'dome', label: 'Dome' }, { value: 'bullet', label: 'Bullet' }, { value: 'turret', label: 'Turret' }, { value: 'ptz', label: 'PTZ' }, { value: 'fisheye', label: 'Fisheye' }]} />
@@ -281,7 +304,52 @@ function MountForm() {
       <CalcInput label="Weight (kg)" value={f.weight} onChange={(v) => setF({ ...f, weight: v })} />
       <CalcInput label="Diameter (mm)" value={f.diameter} onChange={(v) => setF({ ...f, diameter: v })} />
     </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+      <SelectInput label="Vendor (Catalog)" value={f.vendor} onChange={(v) => setF({ ...f, vendor: v, model: '' })} options={MOUNT_CATALOG_VENDORS.map(v => ({ value: v, label: v }))} />
+      <div>
+        <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: C.textDim, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Model</label>
+        <input
+          list="mount-models"
+          type="text"
+          value={f.model}
+          onChange={(e) => setF({ ...f, model: e.target.value })}
+          placeholder={catalog ? `${models.length} ${f.vendor} models` : 'Loading...'}
+          style={{
+            height: 36, width: '100%', borderRadius: 6,
+            border: `1px solid ${C.border}`, background: C.bgInput,
+            padding: '0 10px', fontSize: 13, color: C.text,
+            outline: 'none', fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
+          }}
+        />
+        <datalist id="mount-models">
+          {models.map((m) => <option key={m} value={m} />)}
+        </datalist>
+      </div>
+    </div>
     {result && <ResultCard title="Mount Calculator Results" primary={undefined} data={result} />}
+    {vendorParts.length > 0 && (
+      <div style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: C.bgPanel, padding: 16 }}>
+        <h3 style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          Vendor Parts — {f.vendor} {f.model}
+        </h3>
+        {heightGuidance && (
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>Height guidance: <span style={{ color: C.text }}>{heightGuidance}</span></div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {vendorParts.map((vp, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.18)', borderRadius: 4 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{vp.part}</div>
+                <div style={{ fontSize: 10, color: C.textDim }}>{vp.location} • {vp.environment} • J-Box: {vp.jboxRequired}</div>
+              </div>
+              {vp.jboxPart && (
+                <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>+ {vp.jboxPart}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
   </div>)
 }
 

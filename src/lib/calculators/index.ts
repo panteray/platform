@@ -23,6 +23,8 @@ export type { CableEstimatorInput, CableEstimatorOutput, CableRun } from './cabl
 
 export { calculateMountRequirements, validateMountInput } from './mount-calculator'
 export type { MountCalcInput, MountCalcOutput, MountOption } from './mount-calculator'
+export { loadMountCatalog, lookupMountParts, listModelsForVendor, MOUNT_CATALOG_VENDORS } from './mount-catalog'
+export type { MountCatalog, MountCatalogVendor, VendorMountPart } from './mount-catalog'
 
 export { calculateWirelessPtp, validateWirelessInput } from './wireless-ptp'
 export type { WirelessPtpInput, WirelessPtpOutput, WirelessPtpInputPartial, WirelessValidation } from './wireless-ptp'
