@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { FileText, AlertCircle, Plus } from 'lucide-react'
+import { FileText, AlertCircle, Plus, TrendingUp } from 'lucide-react'
 import type { Invoice, InvoiceStatus } from '@/types/database'
 
 type InvoiceRow = Invoice & {
@@ -72,12 +72,20 @@ export default function InvoicesView() {
           <h1 className="text-2xl font-semibold">Invoices</h1>
           <p className="text-sm text-muted-foreground">Manage and track customer invoices</p>
         </div>
-        <Link
-          href="/org/psa/invoices/new"
-          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" /> New Invoice
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/org/psa/invoices/aging"
+            className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-accent"
+          >
+            <TrendingUp className="h-4 w-4" /> Aging Report
+          </Link>
+          <Link
+            href="/org/psa/invoices/new"
+            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" /> New Invoice
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-4">

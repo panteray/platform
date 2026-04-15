@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyOrgCRM } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PSA_STATUS_TRANSITIONS, PSA_WAITING_STATUSES, type PsaTicketStatus } from '@/types/database'
+import { generateInvoiceFromTicket } from '@/lib/psa-invoicing'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -247,6 +248,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         window_days: 30,
         sample_ticket_ids: [id],
       })
+    }
+  }
+
+  // G12c: Auto-invoice on RESOLVED when costing is enabled.
+  // Creates a DRAFT invoice (not sent) and logs to ticket notes. Best-effort.
+  if (toStatus === 'RESOLVED' && ticket.costing_enabled) {
+    try {
+      const result = await generateInvoiceFromTicket(admin, {
+        orgId: dbUser.org_id,
+        ticketId: id,
+        createdBy: dbUser.id,
+        source: 'TICKET_AUTO',
+      })
+      if (result.created) {
+        await admin.from('psa_ticket_notes').insert({
+          org_id: dbUser.org_id,
+          ticket_id: id,
+          author_id: dbUser.id,
+          body: `Draft invoice auto-generated on closeout (subtotal $${result.subtotal?.toFixed(2) ?? '0.00'}).`,
+          internal_only: true,
+        })
+      }
+    } catch (e) {
+      // Do not fail the transition if invoice generation hits an error — log only.
+      console.error('[auto-invoice] failed for ticket', id, e)
     }
   }
 
