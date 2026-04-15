@@ -40,6 +40,7 @@ const engineeringNav = [
 
 const deliveryNav = [
   { href: '/org/projects', label: 'Projects', icon: 'projects', exact: false },
+  { href: '/org/assets', label: 'Assets', icon: 'device-library', exact: false },
   { href: '/org/field-ops', label: 'Field Ops', icon: 'management', exact: false },
 ]
 
