@@ -162,6 +162,12 @@ export default function TechnicianCompliancePage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
+            href="/org/compliance/org-docs"
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            <ExternalLink className="h-4 w-4" /> Org docs
+          </Link>
+          <Link
             href="/org/compliance/state-lookup"
             className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >

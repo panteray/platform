@@ -2892,3 +2892,29 @@ export interface TechnicianLicense {
   created_at: string
   updated_at: string
 }
+
+// Org compliance docs — insurance, UL certs, bonds (Phase 8E / Slice G)
+export type OrgComplianceDocType =
+  | 'GENERAL_LIABILITY' | 'WORKERS_COMP' | 'EO_INSURANCE' | 'CYBER_LIABILITY'
+  | 'AUTO_INSURANCE' | 'UMBRELLA' | 'BOND'
+  | 'UL_827' | 'UL_2050' | 'UL_294' | 'UL_10C' | 'OTHER'
+
+export type OrgComplianceDocStatus = 'active' | 'expired' | 'pending' | 'cancelled'
+
+export interface OrgComplianceDoc {
+  id: string
+  org_id: string
+  doc_type: OrgComplianceDocType
+  policy_number: string | null
+  carrier: string | null
+  coverage_limit: number | null
+  effective_date: string | null
+  expiration_date: string | null
+  audit_due_date: string | null
+  document_url: string | null
+  notes: string | null
+  status: OrgComplianceDocStatus
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
