@@ -14,6 +14,7 @@ const SalesDashboard = dynamic(() => import('@/components/org/SalesDashboard').t
 const PresalesDashboard = dynamic(() => import('@/components/org/PresalesDashboard').then(m => ({ default: m.PresalesDashboard })))
 const PMDashboard = dynamic(() => import('@/components/org/PMDashboard').then(m => ({ default: m.PMDashboard })))
 const FieldDashboard = dynamic(() => import('@/components/org/FieldDashboard').then(m => ({ default: m.FieldDashboard })))
+const ExecutiveDashboard = dynamic(() => import('@/components/org/ExecutiveDashboard').then(m => ({ default: m.ExecutiveDashboard })))
 
 export default function OrgDashboard() {
   const [divisionFilter, setDivisionFilter] = useState('ALL')
@@ -41,7 +42,7 @@ export default function OrgDashboard() {
     switch (userRole) {
       case UserRole.ORG_ADMIN:
       case UserRole.ORG_MANAGER:
-        return <OrgAdminDashboard {...props} />
+        return <ExecutiveDashboard {...props} />
       case UserRole.MANAGER:
       case UserRole.OPERATIONS:
         return <ManagerDashboard {...props} />

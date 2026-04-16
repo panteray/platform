@@ -5,6 +5,7 @@ import { Topbar } from '@/components/layout/Topbar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthenticatedShell } from '@/components/layout/AuthenticatedShell'
 import CogniSecChat from '@/components/cognisec/CogniSecChat'
+import GlobalSearch from '@/components/layout/GlobalSearch'
 
 export default async function AuthenticatedLayout({
   children,
@@ -30,6 +31,7 @@ export default async function AuthenticatedLayout({
             </main>
           </div>
         </div>
+        <GlobalSearch />
         <CogniSecChat userId={user.email ?? undefined} />
       </TooltipProvider>
     </AuthenticatedShell>

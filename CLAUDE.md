@@ -148,7 +148,7 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
 - **Testing:** Vitest 2.1
 - **Package manager:** pnpm 10.33 — lockfile: `pnpm-lock.yaml` (CI uses `--frozen-lockfile`)
 - **Prod hosting:** Google Cloud Run (us-east1)
-- **CI/CD:** Google Cloud Build (auto-deploys on push to main, ~3–5 min)
+- **CI/CD:** Google Cloud Build (auto-deploys on push to main, ~10 min)
 
 ---
 
@@ -391,7 +391,7 @@ The `__resetDori` handler then recalculates `target_distance` from missing/wrong
 - Lockfile: `pnpm-lock.yaml` only — never `package-lock.json`
 - CI: `--frozen-lockfile`
 - Push directly to main: `git push origin HEAD:main`
-- Cloud Build deploys automatically (~3–5 min)
+- Cloud Build deploys automatically (~10 min)
 - Commit messages: descriptive
 - SQL migration files live at repo root (no `supabase/migrations/` folder)
 
