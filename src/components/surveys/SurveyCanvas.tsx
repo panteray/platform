@@ -120,6 +120,7 @@ export function SurveyCanvas({
     if (!mapsApiKey || scriptLoadedRef.current) return
     if (typeof google !== 'undefined' && google.maps) {
       scriptLoadedRef.current = true
+      setMapReady(true)
       return
     }
 
