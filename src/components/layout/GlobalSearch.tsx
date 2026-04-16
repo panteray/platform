@@ -143,24 +143,24 @@ export default function GlobalSearch() {
     >
       <div className="fixed inset-0 bg-black/50" />
       <div
-        className="relative z-10 w-full max-w-lg rounded-xl border border-slate-200 bg-white shadow-2xl"
+        className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
-        <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
-          <Search className="h-4 w-4 shrink-0 text-slate-400" />
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground/60" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => handleInputChange(e.target.value)}
             placeholder="Search across all entities..."
-            className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
           />
-          {loading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-slate-400" />}
+          {loading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground/60" />}
           <button
             onClick={() => setOpen(false)}
-            className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 hover:text-slate-600"
+            className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/60 hover:text-muted-foreground"
           >
             ESC
           </button>
@@ -169,21 +169,21 @@ export default function GlobalSearch() {
         {/* Results area */}
         <div className="max-h-[400px] overflow-y-auto p-2">
           {showEmpty && (
-            <p className="px-3 py-8 text-center text-sm text-slate-400">
+            <p className="px-3 py-8 text-center text-sm text-muted-foreground/60">
               Type to search across all entities...
             </p>
           )}
 
           {showRecent && (
             <div>
-              <p className="px-3 py-1.5 text-xs font-medium text-slate-400">Recent searches</p>
+              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground/60">Recent searches</p>
               {recentSearches.map((q) => (
                 <button
                   key={q}
                   onClick={() => handleRecentClick(q)}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-50"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent"
                 >
-                  <Clock className="h-3.5 w-3.5 text-slate-400" />
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground/60" />
                   {q}
                 </button>
               ))}
@@ -191,7 +191,7 @@ export default function GlobalSearch() {
           )}
 
           {showNoResults && (
-            <p className="px-3 py-8 text-center text-sm text-slate-400">
+            <p className="px-3 py-8 text-center text-sm text-muted-foreground/60">
               No results found for &ldquo;{query}&rdquo;
             </p>
           )}
@@ -202,18 +202,18 @@ export default function GlobalSearch() {
             const label = config?.label ?? type
             return (
               <div key={type}>
-                <p className="px-3 py-1.5 text-xs font-medium text-slate-400">{label}</p>
+                <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground/60">{label}</p>
                 {items.map((item, idx) => (
                   <button
                     key={`${type}-${idx}`}
                     onClick={() => handleResultClick(item)}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-50"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-accent"
                   >
-                    <Icon className="h-4 w-4 shrink-0 text-slate-400" />
+                    <Icon className="h-4 w-4 shrink-0 text-muted-foreground/60" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-slate-800">{item.title}</p>
+                      <p className="truncate text-sm text-foreground">{item.title}</p>
                       {item.subtitle && (
-                        <p className="truncate text-xs text-slate-400">{item.subtitle}</p>
+                        <p className="truncate text-xs text-muted-foreground/60">{item.subtitle}</p>
                       )}
                     </div>
                   </button>

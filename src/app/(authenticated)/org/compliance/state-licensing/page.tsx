@@ -128,12 +128,12 @@ export default function StateLicensingPage() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href="/org/compliance/technicians" className="text-slate-600 hover:text-slate-900">
+        <Link href="/org/compliance/technicians" className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">State Licensing Requirements</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-2xl font-bold text-foreground font-display">State Licensing Requirements</h1>
+          <p className="text-sm text-muted-foreground">
             Editable 50-state + DC reference for security camera and alarm system installer licensing.
           </p>
         </div>
@@ -141,32 +141,32 @@ export default function StateLicensingPage() {
 
       {/* Stats */}
       <div className="flex gap-4">
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2">
-          <div className="text-2xl font-bold text-red-900">{reqCount}</div>
-          <div className="text-xs text-red-700">License Required</div>
+        <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-2">
+          <div className="text-2xl font-bold text-destructive">{reqCount}</div>
+          <div className="text-xs text-destructive">License Required</div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2">
-          <div className="text-2xl font-bold text-slate-900">{noReqCount}</div>
-          <div className="text-xs text-slate-600">No State License</div>
+        <div className="rounded-lg border border-border bg-secondary px-4 py-2">
+          <div className="text-2xl font-bold text-foreground">{noReqCount}</div>
+          <div className="text-xs text-muted-foreground">No State License</div>
         </div>
       </div>
 
       {/* Search + Filter */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by state, license type, or agency…"
-            className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm focus:border-slate-900 focus:outline-none"
+            className="h-10 w-full rounded-md border border-border bg-card pl-9 pr-3 text-sm focus:border-primary focus:outline-none"
           />
         </div>
-        <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-0.5">
+        <div className="flex items-center gap-1 rounded-md border border-border bg-card p-0.5">
           <button
             onClick={() => setFilter('all')}
             className={`flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium transition-colors ${
-              filter === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+              filter === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'
             }`}
           >
             <Filter className="h-3 w-3" /> All
@@ -174,7 +174,7 @@ export default function StateLicensingPage() {
           <button
             onClick={() => setFilter('required')}
             className={`flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium transition-colors ${
-              filter === 'required' ? 'bg-red-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+              filter === 'required' ? 'bg-destructive text-primary-foreground' : 'text-muted-foreground hover:bg-accent'
             }`}
           >
             <ShieldCheck className="h-3 w-3" /> Required
@@ -182,7 +182,7 @@ export default function StateLicensingPage() {
           <button
             onClick={() => setFilter('not_required')}
             className={`flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium transition-colors ${
-              filter === 'not_required' ? 'bg-slate-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+              filter === 'not_required' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'
             }`}
           >
             <ShieldX className="h-3 w-3" /> Not Required
@@ -192,26 +192,26 @@ export default function StateLicensingPage() {
 
       {/* Table */}
       {loading ? (
-        <div className="py-12 text-center text-sm text-slate-500">Loading…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left">
+            <thead className="bg-secondary text-left">
               <tr>
-                <th className="whitespace-nowrap px-4 py-3 font-medium text-slate-700">State</th>
-                <th className="whitespace-nowrap px-4 py-3 font-medium text-slate-700">Required</th>
-                <th className="px-4 py-3 font-medium text-slate-700">License Type</th>
-                <th className="px-4 py-3 font-medium text-slate-700">Requirements</th>
-                <th className="px-4 py-3 font-medium text-slate-700">Licensing Authority</th>
-                <th className="px-4 py-3 font-medium text-slate-700">Notes</th>
-                <th className="px-4 py-3 font-medium text-slate-700 w-20"></th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium text-foreground">State</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium text-foreground">Required</th>
+                <th className="px-4 py-3 font-medium text-foreground">License Type</th>
+                <th className="px-4 py-3 font-medium text-foreground">Requirements</th>
+                <th className="px-4 py-3 font-medium text-foreground">Licensing Authority</th>
+                <th className="px-4 py-3 font-medium text-foreground">Notes</th>
+                <th className="px-4 py-3 font-medium text-foreground w-20"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border">
               {filtered.map(row => (
                 editId === row.id ? (
                   <tr key={row.id} className="bg-blue-50/50">
-                    <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">
+                    <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
                       {row.state} — {STATE_NAMES[row.state]}
                     </td>
                     <td className="px-4 py-3">
@@ -219,8 +219,8 @@ export default function StateLicensingPage() {
                         onClick={() => setEditData(d => ({ ...d, license_required: !d.license_required }))}
                         className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                           editData.license_required
-                            ? 'bg-red-100 text-red-800 border border-red-200'
-                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            ? 'bg-destructive/10 text-destructive border border-destructive/20'
+                            : 'bg-muted text-foreground border border-border'
                         }`}
                       >
                         {editData.license_required ? 'Yes' : 'No'}
@@ -230,7 +230,7 @@ export default function StateLicensingPage() {
                       <input
                         value={editData.license_type ?? ''}
                         onChange={e => setEditData(d => ({ ...d, license_type: e.target.value }))}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                        className="w-full rounded border border-border px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
                         placeholder="License type"
                       />
                     </td>
@@ -239,7 +239,7 @@ export default function StateLicensingPage() {
                         value={editData.requirements_summary ?? ''}
                         onChange={e => setEditData(d => ({ ...d, requirements_summary: e.target.value }))}
                         rows={2}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none resize-y"
+                        className="w-full rounded border border-border px-2 py-1 text-sm focus:border-blue-500 focus:outline-none resize-y"
                         placeholder="Requirements"
                       />
                     </td>
@@ -247,13 +247,13 @@ export default function StateLicensingPage() {
                       <input
                         value={editData.agency_name ?? ''}
                         onChange={e => setEditData(d => ({ ...d, agency_name: e.target.value }))}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                        className="w-full rounded border border-border px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
                         placeholder="Agency name"
                       />
                       <input
                         value={editData.agency_url ?? ''}
                         onChange={e => setEditData(d => ({ ...d, agency_url: e.target.value }))}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                        className="w-full rounded border border-border px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
                         placeholder="https://..."
                       />
                     </td>
@@ -261,7 +261,7 @@ export default function StateLicensingPage() {
                       <input
                         value={editData.notes ?? ''}
                         onChange={e => setEditData(d => ({ ...d, notes: e.target.value }))}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                        className="w-full rounded border border-border px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
                         placeholder="Org notes"
                       />
                     </td>
@@ -270,14 +270,14 @@ export default function StateLicensingPage() {
                         <button
                           onClick={saveEdit}
                           disabled={saving}
-                          className="rounded p-1.5 text-green-700 hover:bg-green-100 disabled:opacity-50"
+                          className="rounded p-1.5 text-success hover:bg-success/10 disabled:opacity-50"
                           title="Save"
                         >
                           <Check className="h-4 w-4" />
                         </button>
                         <button
                           onClick={cancelEdit}
-                          className="rounded p-1.5 text-slate-500 hover:bg-slate-100"
+                          className="rounded p-1.5 text-muted-foreground hover:bg-accent"
                           title="Cancel"
                         >
                           <X className="h-4 w-4" />
@@ -286,54 +286,54 @@ export default function StateLicensingPage() {
                     </td>
                   </tr>
                 ) : (
-                  <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">
+                  <tr key={row.id} className="hover:bg-secondary transition-colors">
+                    <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
                       <span className="font-bold">{row.state}</span>
-                      <span className="ml-1.5 text-slate-500">{STATE_NAMES[row.state]}</span>
+                      <span className="ml-1.5 text-muted-foreground">{STATE_NAMES[row.state]}</span>
                     </td>
                     <td className="px-4 py-3">
                       {row.license_required ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-destructive/20 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
                           <ShieldCheck className="h-3 w-3" /> Required
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground">
                           <ShieldX className="h-3 w-3" /> None
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-700 max-w-[200px]">
-                      {row.license_type || <span className="text-slate-400">—</span>}
+                    <td className="px-4 py-3 text-foreground max-w-[200px]">
+                      {row.license_type || <span className="text-muted-foreground/60">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 max-w-[280px]">
+                    <td className="px-4 py-3 text-muted-foreground max-w-[280px]">
                       <span className="line-clamp-2">{row.requirements_summary || '—'}</span>
                     </td>
                     <td className="px-4 py-3 max-w-[200px]">
                       {row.agency_name ? (
                         <div>
-                          <div className="text-slate-700 font-medium text-xs">{row.agency_name}</div>
+                          <div className="text-foreground font-medium text-xs">{row.agency_name}</div>
                           {row.agency_url && (
                             <a
                               href={row.agency_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-0.5 text-xs text-blue-600 hover:text-blue-800"
+                              className="inline-flex items-center gap-0.5 text-xs text-primary hover:text-primary/80"
                             >
                               Website <ExternalLink className="h-3 w-3" />
                             </a>
                           )}
                         </div>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-muted-foreground/60">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs max-w-[150px]">
-                      {row.notes || <span className="text-slate-300">—</span>}
+                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-[150px]">
+                      {row.notes || <span className="text-muted-foreground/40">—</span>}
                     </td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => startEdit(row)}
-                        className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        className="rounded p-1.5 text-muted-foreground/60 hover:bg-accent hover:text-foreground"
                         title="Edit"
                       >
                         <Pencil className="h-4 w-4" />
@@ -344,7 +344,7 @@ export default function StateLicensingPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     No states match your search.
                   </td>
                 </tr>

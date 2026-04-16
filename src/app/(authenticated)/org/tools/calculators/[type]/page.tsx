@@ -18,21 +18,6 @@ import {
   calculateLens, type LensCalcInput,
 } from '@/lib/calculators'
 
-const C = {
-  bg: '#0f1117',
-  bgPanel: '#171a23',
-  bgInput: '#1c2030',
-  border: '#262b38',
-  text: '#e4e7ec',
-  textMuted: '#8b93a6',
-  textDim: '#555d72',
-  accent: '#3b82f6',
-  accentSubtle: 'rgba(59,130,246,0.08)',
-  green: '#22c55e',
-  red: '#ef4444',
-  yellow: '#eab308',
-}
-
 // --- IPVM pattern: glow-on-change input ---
 function CalcInput({ label, value, onChange, placeholder, error, glowing }: {
   label: string; value: string; onChange: (v: string) => void; placeholder?: string; error?: string; glowing?: boolean
@@ -50,34 +35,20 @@ function CalcInput({ label, value, onChange, placeholder, error, glowing }: {
 
   return (
     <div>
-      <label style={{
-        display: 'block', fontSize: 10, fontWeight: 500,
-        color: error ? C.red : C.textDim, marginBottom: 4,
-        textTransform: 'uppercase', letterSpacing: '0.04em',
-      }}>{label}</label>
+      <label className={`block text-[10px] font-medium mb-1 uppercase tracking-wider ${error ? 'text-destructive' : 'text-muted-foreground/70'}`}>{label}</label>
       <input
         ref={ref}
         type="tel"
         inputMode="decimal"
-        style={{
-          height: 36, width: '100%', borderRadius: 6,
-          border: `1px solid ${error ? C.red : glow ? C.accent : C.border}`,
-          background: C.bgInput,
-          padding: '0 10px', fontSize: 13, color: C.text,
-          outline: 'none', fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
-          boxShadow: glow ? `0 0 0 3px ${C.accent}30` : 'none',
-          transition: 'border-color 0.3s, box-shadow 0.5s',
-        }}
+        className={`h-9 w-full rounded-md border bg-secondary px-2.5 text-[13px] text-foreground font-mono outline-none transition-[border-color,box-shadow] duration-300 focus:border-primary ${error ? 'border-destructive' : glow ? 'ring-2 ring-primary/30 border-primary' : 'border-border'}`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        onFocus={(e) => { if (!error) e.currentTarget.style.borderColor = C.accent }}
-        onBlur={(e) => { if (!error && !glow) e.currentTarget.style.borderColor = C.border }}
       />
       {error && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 3 }}>
-          <AlertCircle size={10} color={C.red} />
-          <span style={{ fontSize: 10, color: C.red }}>{error}</span>
+        <div className="flex items-center gap-1 mt-1">
+          <AlertCircle size={10} className="text-destructive" />
+          <span className="text-[10px] text-destructive">{error}</span>
         </div>
       )}
     </div>
@@ -89,17 +60,8 @@ function SelectInput({ label, value, onChange, options }: {
 }) {
   return (
     <div>
-      <label style={{
-        display: 'block', fontSize: 10, fontWeight: 500,
-        color: C.textDim, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em',
-      }}>{label}</label>
-      <select style={{
-        height: 36, width: '100%', borderRadius: 6,
-        border: `1px solid ${C.border}`, background: C.bgInput,
-        padding: '0 10px', fontSize: 13, color: C.text,
-        outline: 'none', fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
-        appearance: 'none' as const,
-      }} value={value} onChange={(e) => onChange(e.target.value)}>
+      <label className="block text-[10px] font-medium text-muted-foreground/70 mb-1 uppercase tracking-wider">{label}</label>
+      <select className="h-9 w-full rounded-md border border-border bg-secondary px-2.5 text-[13px] text-foreground font-mono outline-none appearance-none focus:border-primary" value={value} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>
@@ -114,37 +76,26 @@ function ResultCard({ title, primary, data }: {
   if (entries.length === 0 && !primary) return null
 
   return (
-    <div style={{
-      borderRadius: 8, border: `1px solid ${C.border}`, background: C.bgPanel,
-      padding: 16, marginTop: 16,
-      animation: 'fadeIn 0.3s ease',
-    }}>
-      <h3 style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: primary ? 8 : 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</h3>
+    <div className="rounded-lg border border-border bg-card p-4 mt-4 animate-in fade-in duration-300">
+      <h3 className={`text-xs font-semibold text-foreground uppercase tracking-wider ${primary ? 'mb-2' : 'mb-3'}`}>{title}</h3>
 
       {/* Primary metric — hero display */}
       {primary && (
-        <div style={{
-          display: 'flex', alignItems: 'baseline', gap: 6,
-          padding: '12px 0', marginBottom: 12,
-          borderBottom: `1px solid ${C.border}`,
-        }}>
-          <span style={{ fontSize: 28, fontWeight: 700, color: C.accent, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>
+        <div className="flex items-baseline gap-1.5 py-3 mb-3 border-b border-border">
+          <span className="text-2xl font-bold text-primary font-mono">
             {primary.value}
           </span>
-          {primary.unit && <span style={{ fontSize: 13, color: C.textMuted }}>{primary.unit}</span>}
-          <span style={{ fontSize: 11, color: C.textDim, marginLeft: 4 }}>{primary.label}</span>
+          {primary.unit && <span className="text-sm text-muted-foreground ml-1">{primary.unit}</span>}
+          <span className="text-[11px] text-muted-foreground/70 ml-1">{primary.label}</span>
         </div>
       )}
 
       {/* Secondary metrics grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 0 }}>
+      <div className="grid grid-cols-2">
         {entries.map(([k, v], i) => (
-          <div key={k} style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '8px 0', borderBottom: i < entries.length - 2 ? `1px solid ${C.border}` : 'none',
-          }}>
-            <span style={{ fontSize: 11, color: C.textMuted }}>{formatKey(k)}</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>
+          <div key={k} className={`flex justify-between items-center py-2 ${i < entries.length - 2 ? 'border-b border-border' : ''}`}>
+            <span className="text-[11px] text-muted-foreground">{formatKey(k)}</span>
+            <span className="text-[11px] font-semibold text-foreground font-mono">
               {formatValue(v)}
             </span>
           </div>
@@ -196,14 +147,14 @@ function FovDoriForm() {
     return calculateFovDori(input) as unknown as Record<string, unknown>
   }, [f])
   const primary = result ? { label: 'Horizontal FOV', value: formatValue(result.hFov), unit: 'deg' } : undefined
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+  return (<div className="flex flex-col gap-3">
+    <div className="grid grid-cols-4 gap-3">
       <CalcInput label="Resolution W (px)" value={f.resW} onChange={(v) => setF({ ...f, resW: v })} error={+f.resW <= 0 ? 'Required' : undefined} />
       <CalcInput label="Resolution H (px)" value={f.resH} onChange={(v) => setF({ ...f, resH: v })} error={+f.resH <= 0 ? 'Required' : undefined} />
       <CalcInput label="Sensor W (mm)" value={f.sensorW} onChange={(v) => setF({ ...f, sensorW: v })} error={+f.sensorW <= 0 ? 'Required' : undefined} />
       <CalcInput label="Sensor H (mm)" value={f.sensorH} onChange={(v) => setF({ ...f, sensorH: v })} />
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+    <div className="grid grid-cols-4 gap-3">
       <CalcInput label="Focal Length (mm)" value={f.focal} onChange={(v) => setF({ ...f, focal: v })} error={+f.focal <= 0 ? 'Required' : undefined} />
       <CalcInput label="Mount Height (ft)" value={f.mountH} onChange={(v) => setF({ ...f, mountH: v })} />
       <CalcInput label="Target Distance (ft)" value={f.targetDist} onChange={(v) => setF({ ...f, targetDist: v })} />
@@ -223,8 +174,8 @@ function StorageForm() {
     return calculateSystemStorage(input) as unknown as Record<string, unknown>
   }, [f])
   const primary = result ? { label: 'Total Storage', value: formatValue(result.totalStorageTB), unit: 'TB' } : undefined
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+  return (<div className="flex flex-col gap-3">
+    <div className="grid grid-cols-5 gap-3">
       <CalcInput label="Camera Count" value={f.cameras} onChange={(v) => setF({ ...f, cameras: v })} error={+f.cameras <= 0 ? 'Min 1' : undefined} />
       <CalcInput label="FPS" value={f.fps} onChange={(v) => setF({ ...f, fps: v })} />
       <CalcInput label="Retention (days)" value={f.retention} onChange={(v) => setF({ ...f, retention: v })} />
@@ -241,13 +192,13 @@ function WiringForm() {
     const input = { schematicType: f.schematicType, controllerBrand: f.controllerBrand, controllerModel: '', lockType: f.lockType, lockVendor: '', readerProtocol: f.readerProtocol, hasDps: true, hasRex: true, hasAda: false, operatorModel: '', sequencerModel: '', doorName: f.doorName, mdfIdfLocation: 'MDF' } as WiringInput
     return generateWiringSchematic(input) as unknown as Record<string, unknown>
   }, [f])
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+  return (<div className="flex flex-col gap-3">
+    <div className="grid grid-cols-3 gap-3">
       <SelectInput label="Schematic Type" value={f.schematicType} onChange={(v) => setF({ ...f, schematicType: v })} options={[{ value: 'standard_door', label: 'Standard' }, { value: 'ada_auto_operator', label: 'ADA Auto' }, { value: 'mantrap', label: 'Mantrap' }, { value: 'mantrap_ada', label: 'Mantrap ADA' }]} />
       <SelectInput label="Controller Brand" value={f.controllerBrand} onChange={(v) => setF({ ...f, controllerBrand: v })} options={[{ value: 'mercury', label: 'Mercury' }, { value: 'verkada', label: 'Verkada' }, { value: 'brivo', label: 'Brivo' }, { value: 'genetec', label: 'Genetec' }, { value: 'avigilon_alta', label: 'Avigilon Alta' }, { value: 'generic', label: 'Generic' }]} />
       <CalcInput label="Door Name" value={f.doorName} onChange={(v) => setF({ ...f, doorName: v })} />
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+    <div className="grid grid-cols-2 gap-3">
       <SelectInput label="Lock Type" value={f.lockType} onChange={(v) => setF({ ...f, lockType: v })} options={[{ value: 'maglock', label: 'Maglock' }, { value: 'electric_strike', label: 'Electric Strike' }, { value: 'mortise', label: 'Mortise' }]} />
       <SelectInput label="Reader Protocol" value={f.readerProtocol} onChange={(v) => setF({ ...f, readerProtocol: v })} options={[{ value: 'osdp', label: 'OSDP' }, { value: 'wiegand', label: 'Wiegand' }]} />
     </div>
@@ -261,8 +212,8 @@ function CableForm() {
     const input: CableEstimatorInput = { runs: [{ cableType: f.cableType, horizontalDistanceFt: +f.horizontal, verticalDropFt: +f.vertical, slackPercent: +f.slack, runId: 'run-1', label: 'Run 1', fromDevice: 'Camera', toDevice: 'MDF', mdfIdf: 'MDF-1' }], serviceLoopFt: +f.serviceLoop }
     return runCableEstimator(input) as unknown as Record<string, unknown>
   }, [f])
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+  return (<div className="flex flex-col gap-3">
+    <div className="grid grid-cols-5 gap-3">
       <CalcInput label="Horizontal (ft)" value={f.horizontal} onChange={(v) => setF({ ...f, horizontal: v })} />
       <CalcInput label="Vertical (ft)" value={f.vertical} onChange={(v) => setF({ ...f, vertical: v })} />
       <CalcInput label="Slack %" value={f.slack} onChange={(v) => setF({ ...f, slack: v })} />
@@ -301,29 +252,24 @@ function MountForm() {
   const vendorParts = (result?.vendorParts as VendorMountPart[] | undefined) ?? []
   const heightGuidance = (result?.heightGuidance as string | null | undefined) ?? null
 
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+  return (<div className="flex flex-col gap-3">
+    <div className="grid grid-cols-4 gap-3">
       <SelectInput label="Form Factor" value={f.formFactor} onChange={(v) => setF({ ...f, formFactor: v })} options={[{ value: 'dome', label: 'Dome' }, { value: 'bullet', label: 'Bullet' }, { value: 'turret', label: 'Turret' }, { value: 'ptz', label: 'PTZ' }, { value: 'fisheye', label: 'Fisheye' }]} />
       <SelectInput label="Mount Type" value={f.mountType} onChange={(v) => setF({ ...f, mountType: v })} options={[{ value: 'ceiling', label: 'Ceiling' }, { value: 'wall', label: 'Wall' }, { value: 'pole', label: 'Pole' }, { value: 'pendant', label: 'Pendant' }]} />
       <CalcInput label="Weight (kg)" value={f.weight} onChange={(v) => setF({ ...f, weight: v })} />
       <CalcInput label="Diameter (mm)" value={f.diameter} onChange={(v) => setF({ ...f, diameter: v })} />
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 12 }}>
+    <div className="grid grid-cols-[1fr_1fr_120px] gap-3">
       <SelectInput label="Vendor (Catalog)" value={f.vendor} onChange={(v) => setF({ ...f, vendor: v, model: '' })} options={MOUNT_CATALOG_VENDORS.map(v => ({ value: v, label: v }))} />
       <div>
-        <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: C.textDim, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Model</label>
+        <label className="block text-[10px] font-medium text-muted-foreground/70 mb-1 uppercase tracking-wider">Model</label>
         <input
           list="mount-models"
           type="text"
           value={f.model}
           onChange={(e) => setF({ ...f, model: e.target.value })}
           placeholder={catalog ? `${models.length} ${f.vendor} models` : 'Loading...'}
-          style={{
-            height: 36, width: '100%', borderRadius: 6,
-            border: `1px solid ${C.border}`, background: C.bgInput,
-            padding: '0 10px', fontSize: 13, color: C.text,
-            outline: 'none', fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
-          }}
+          className="h-9 w-full rounded-md border border-border bg-secondary px-2.5 text-[13px] text-foreground font-mono outline-none"
         />
         <datalist id="mount-models">
           {models.map((m) => <option key={m} value={m} />)}
@@ -333,22 +279,22 @@ function MountForm() {
     </div>
     {result && <ResultCard title="Mount Calculator Results" primary={undefined} data={result} />}
     {vendorParts.length > 0 && (
-      <div style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: C.bgPanel, padding: 16 }}>
-        <h3 style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h3 className="text-xs font-semibold text-foreground mb-2.5 uppercase tracking-wider">
           Vendor Parts — {f.vendor} {f.model}
         </h3>
         {heightGuidance && (
-          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>Height guidance: <span style={{ color: C.text }}>{heightGuidance}</span></div>
+          <div className="text-[11px] text-muted-foreground mb-2.5">Height guidance: <span className="text-foreground">{heightGuidance}</span></div>
         )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="flex flex-col gap-1.5">
           {vendorParts.map((vp, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.18)', borderRadius: 4 }}>
+            <div key={i} className="flex justify-between items-center py-2 px-2.5 bg-success/5 border border-success/20 rounded">
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.text, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>{vp.part}</div>
-                <div style={{ fontSize: 10, color: C.textDim }}>{vp.location} • {vp.environment} • J-Box: {vp.jboxRequired}</div>
+                <div className="text-xs font-semibold text-foreground font-mono">{vp.part}</div>
+                <div className="text-[10px] text-muted-foreground/70">{vp.location} • {vp.environment} • J-Box: {vp.jboxRequired}</div>
               </div>
               {vp.jboxPart && (
-                <div style={{ fontSize: 10, color: C.textMuted, fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace" }}>+ {vp.jboxPart}</div>
+                <div className="text-[10px] text-muted-foreground font-mono">+ {vp.jboxPart}</div>
               )}
             </div>
           ))}
@@ -365,18 +311,18 @@ function WirelessForm() {
     return calculateWirelessPtp(input) as unknown as Record<string, unknown>
   }, [f])
   const primary = result ? { label: 'Link Margin', value: formatValue(result.linkMarginDb), unit: 'dB' } : undefined
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+  return (<div className="flex flex-col gap-3">
+    <div className="grid grid-cols-3 gap-3">
       <CalcInput label="Distance (miles)" value={f.distance} onChange={(v) => setF({ ...f, distance: v })} />
       <CalcInput label="Frequency (GHz)" value={f.freq} onChange={(v) => setF({ ...f, freq: v })} />
       <CalcInput label="TX Power (dBm)" value={f.txPower} onChange={(v) => setF({ ...f, txPower: v })} />
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+    <div className="grid grid-cols-3 gap-3">
       <CalcInput label="Antenna Gain (dBi)" value={f.antennaGain} onChange={(v) => setF({ ...f, antennaGain: v })} />
       <CalcInput label="RX Sensitivity (dBm)" value={f.rxSens} onChange={(v) => setF({ ...f, rxSens: v })} />
       <CalcInput label="Cameras/Site" value={f.cameras} onChange={(v) => setF({ ...f, cameras: v })} />
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+    <div className="grid grid-cols-3 gap-3">
       <CalcInput label="Height A (ft)" value={f.heightA} onChange={(v) => setF({ ...f, heightA: v })} />
       <CalcInput label="Height B (ft)" value={f.heightB} onChange={(v) => setF({ ...f, heightB: v })} />
       <CalcInput label="BW/Camera (Mbps)" value={f.bwPerCam} onChange={(v) => setF({ ...f, bwPerCam: v })} />
@@ -391,8 +337,8 @@ function AcsForm() {
     const input: AcsBuildInput = { doorType: f.doorType as AcsBuildInput['doorType'], lockType: f.lockType as AcsBuildInput['lockType'], controllerDrawAmps: +f.controllerAmps, lockDrawAmps: +f.lockAmps, hasAdo: false, isMantrap: f.doorType === 'mantrap' }
     return runAcsEngine(input) as unknown as Record<string, unknown>
   }, [f])
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+  return (<div className="flex flex-col gap-3">
+    <div className="grid grid-cols-4 gap-3">
       <SelectInput label="Door Type" value={f.doorType} onChange={(v) => setF({ ...f, doorType: v })} options={[{ value: 'single', label: 'Single' }, { value: 'double', label: 'Double' }, { value: 'mantrap', label: 'Mantrap' }]} />
       <SelectInput label="Lock Type" value={f.lockType} onChange={(v) => setF({ ...f, lockType: v })} options={[{ value: 'maglock', label: 'Maglock' }, { value: 'electric_strike', label: 'Electric Strike' }, { value: 'mortise', label: 'Mortise' }]} />
       <CalcInput label="Controller Amps" value={f.controllerAmps} onChange={(v) => setF({ ...f, controllerAmps: v })} />
@@ -423,17 +369,17 @@ function CoverageAreaForm() {
   }, [f])
   const primary = result ? { label: 'Cameras Required', value: String(result.cameraCount), unit: '' } : undefined
   const warnings = (result?.warnings as string[] | undefined) ?? []
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+  return (<div className="flex flex-col gap-3">
+    <div className="grid grid-cols-2 gap-3">
       <CalcInput label="Room Width (ft)" value={f.roomW} onChange={(v) => setF({ ...f, roomW: v })} />
       <CalcInput label="Room Length (ft)" value={f.roomL} onChange={(v) => setF({ ...f, roomL: v })} />
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+    <div className="grid grid-cols-3 gap-3">
       <CalcInput label="Sensor Width (mm)" value={f.sensor} onChange={(v) => setF({ ...f, sensor: v })} />
       <CalcInput label="Focal Length (mm)" value={f.focal} onChange={(v) => setF({ ...f, focal: v })} />
       <CalcInput label="Horizontal Resolution (px)" value={f.resW} onChange={(v) => setF({ ...f, resW: v })} />
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+    <div className="grid grid-cols-2 gap-3">
       <SelectInput label="DORI Target" value={f.dori} onChange={(v) => setF({ ...f, dori: v as typeof f.dori })} options={[
         { value: 'detection', label: 'Detection (8 PPF)' },
         { value: 'observation', label: 'Observation (19 PPF)' },
@@ -444,10 +390,10 @@ function CoverageAreaForm() {
     </div>
     {result && <ResultCard title="Coverage Area Results" primary={primary} data={result} />}
     {warnings.length > 0 && (
-      <div style={{ borderRadius: 8, border: `1px solid ${C.yellow}`, background: 'rgba(234,179,8,0.06)', padding: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.yellow, marginBottom: 6 }}>Warnings</div>
+      <div className="rounded-lg border border-warning bg-warning/5 p-3">
+        <div className="text-[11px] font-semibold text-warning mb-1.5">Warnings</div>
         {warnings.map((w, i) => (
-          <div key={i} style={{ fontSize: 11, color: C.textMuted }}>• {w}</div>
+          <div key={i} className="text-[11px] text-muted-foreground">• {w}</div>
         ))}
       </div>
     )}
@@ -532,10 +478,11 @@ function PlanReviewForm() {
   const removeRow = (id: string) => setRows(rows.filter((r) => r.id !== id))
   const updateRow = (id: string, patch: Partial<PlanReviewRow>) => setRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)))
 
-  const severityColor = (s: string) => s === 'critical' ? C.red : s === 'warning' ? C.yellow : C.accent
+  const severityColor = (s: string) => s === 'critical' ? 'text-destructive' : s === 'warning' ? 'text-warning' : 'text-primary'
+  const severityBorderColor = (s: string) => s === 'critical' ? 'border-destructive' : s === 'warning' ? 'border-warning' : 'border-primary'
 
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+  return (<div className="flex flex-col gap-3">
+    <div className="grid grid-cols-2 gap-3">
       <SelectInput label="Project Type" value={projectType} onChange={(v) => setProjectType(v as PlanReviewInput['projectType'])} options={[
         { value: 'commercial', label: 'Commercial' },
         { value: 'federal', label: 'Federal' },
@@ -550,36 +497,36 @@ function PlanReviewForm() {
       ]} />
     </div>
 
-    <div style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: C.bgPanel, padding: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.text, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Entities</div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => addRow('device')} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 4, background: C.accentSubtle, color: C.accent, border: `1px solid ${C.border}`, cursor: 'pointer' }}>+ Device</button>
-          <button onClick={() => addRow('door')} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 4, background: C.accentSubtle, color: C.accent, border: `1px solid ${C.border}`, cursor: 'pointer' }}>+ Door</button>
-          <button onClick={() => addRow('controller')} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 4, background: C.accentSubtle, color: C.accent, border: `1px solid ${C.border}`, cursor: 'pointer' }}>+ Controller</button>
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex justify-between items-center mb-2">
+        <div className="text-[11px] font-semibold text-foreground uppercase tracking-wider">Entities</div>
+        <div className="flex gap-1.5">
+          <button onClick={() => addRow('device')} className="text-[11px] py-1 px-2.5 rounded border border-border bg-primary/10 text-primary cursor-pointer">+ Device</button>
+          <button onClick={() => addRow('door')} className="text-[11px] py-1 px-2.5 rounded border border-border bg-primary/10 text-primary cursor-pointer">+ Door</button>
+          <button onClick={() => addRow('controller')} className="text-[11px] py-1 px-2.5 rounded border border-border bg-primary/10 text-primary cursor-pointer">+ Controller</button>
         </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div className="flex flex-col gap-1.5">
         {rows.map((r) => (
-          <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 1fr 1fr 1fr 30px', gap: 6, alignItems: 'center', padding: 6, background: C.bgInput, borderRadius: 4, border: `1px solid ${C.border}` }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: C.accent, textTransform: 'uppercase' }}>{r.kind}</span>
-            <input value={r.label} onChange={(e) => updateRow(r.id, { label: e.target.value })} placeholder="Label" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
+          <div key={r.id} className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_30px] gap-1.5 items-center p-1.5 bg-secondary rounded border border-border">
+            <span className="text-[9px] font-bold text-primary uppercase">{r.kind}</span>
+            <input value={r.label} onChange={(e) => updateRow(r.id, { label: e.target.value })} placeholder="Label" className="text-[11px] py-1 px-1.5 bg-background border border-border rounded-sm text-foreground" />
             {r.kind === 'device' && (
               <>
-                <input value={r.vendor} onChange={(e) => updateRow(r.id, { vendor: e.target.value })} placeholder="Vendor" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
-                <select value={r.category} onChange={(e) => updateRow(r.id, { category: e.target.value })} style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }}>
+                <input value={r.vendor} onChange={(e) => updateRow(r.id, { vendor: e.target.value })} placeholder="Vendor" className="text-[11px] py-1 px-1.5 bg-background border border-border rounded-sm text-foreground" />
+                <select value={r.category} onChange={(e) => updateRow(r.id, { category: e.target.value })} className="text-[11px] py-1 px-1.5 bg-background border border-border rounded-sm text-foreground">
                   <option value="cctv">CCTV</option>
                   <option value="access_control">Access Control</option>
                   <option value="network">Network</option>
                   <option value="av">AV</option>
                   <option value="other">Other</option>
                 </select>
-                <input value={r.calculatedPpf} onChange={(e) => updateRow(r.id, { calculatedPpf: e.target.value })} placeholder="PPF" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
+                <input value={r.calculatedPpf} onChange={(e) => updateRow(r.id, { calculatedPpf: e.target.value })} placeholder="PPF" className="text-[11px] py-1 px-1.5 bg-background border border-border rounded-sm text-foreground" />
               </>
             )}
             {r.kind === 'door' && (
               <>
-                <select value={r.electrification} onChange={(e) => updateRow(r.id, { electrification: e.target.value })} style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }}>
+                <select value={r.electrification} onChange={(e) => updateRow(r.id, { electrification: e.target.value })} className="text-[11px] py-1 px-1.5 bg-background border border-border rounded-sm text-foreground">
                   <option value="">—</option>
                   <option value="maglock">Maglock</option>
                   <option value="electric_strike">Electric Strike</option>
@@ -587,7 +534,7 @@ function PlanReviewForm() {
                   <option value="delayed_egress">Delayed Egress</option>
                   <option value="mechanical">Mechanical</option>
                 </select>
-                <select value={r.occupancy} onChange={(e) => updateRow(r.id, { occupancy: e.target.value })} style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }}>
+                <select value={r.occupancy} onChange={(e) => updateRow(r.id, { occupancy: e.target.value })} className="text-[11px] py-1 px-1.5 bg-background border border-border rounded-sm text-foreground">
                   <option value="">Occupancy</option>
                   <option value="Assembly">Assembly</option>
                   <option value="Business">Business</option>
@@ -595,68 +542,68 @@ function PlanReviewForm() {
                   <option value="Healthcare">Healthcare</option>
                   <option value="Mercantile">Mercantile</option>
                 </select>
-                <input value={r.readerHeightIn} onChange={(e) => updateRow(r.id, { readerHeightIn: e.target.value })} placeholder="Reader Hgt (in)" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
-                <label style={{ fontSize: 10, color: C.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input value={r.readerHeightIn} onChange={(e) => updateRow(r.id, { readerHeightIn: e.target.value })} placeholder="Reader Hgt (in)" className="text-[11px] py-1 px-1.5 bg-background border border-border rounded-sm text-foreground" />
+                <label className="text-[10px] text-muted-foreground flex items-center gap-1">
                   <input type="checkbox" checked={r.fireRated} onChange={(e) => updateRow(r.id, { fireRated: e.target.checked })} /> Fire-rated
                 </label>
               </>
             )}
             {r.kind === 'controller' && (
               <>
-                <input value={r.vendor} onChange={(e) => updateRow(r.id, { vendor: e.target.value })} placeholder="Vendor" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
-                <input value={r.clearanceIn} onChange={(e) => updateRow(r.id, { clearanceIn: e.target.value })} placeholder="Clearance (in)" style={{ fontSize: 11, padding: '4px 6px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, color: C.text }} />
-                <label style={{ fontSize: 10, color: C.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input value={r.vendor} onChange={(e) => updateRow(r.id, { vendor: e.target.value })} placeholder="Vendor" className="text-[11px] py-1 px-1.5 bg-background border border-border rounded-sm text-foreground" />
+                <input value={r.clearanceIn} onChange={(e) => updateRow(r.id, { clearanceIn: e.target.value })} placeholder="Clearance (in)" className="text-[11px] py-1 px-1.5 bg-background border border-border rounded-sm text-foreground" />
+                <label className="text-[10px] text-muted-foreground flex items-center gap-1">
                   <input type="checkbox" checked={r.ulListed} onChange={(e) => updateRow(r.id, { ulListed: e.target.checked })} /> UL Listed
                 </label>
                 <span />
               </>
             )}
-            <button onClick={() => removeRow(r.id)} style={{ fontSize: 12, background: 'transparent', color: C.red, border: 'none', cursor: 'pointer' }}>✕</button>
+            <button onClick={() => removeRow(r.id)} className="text-xs bg-transparent text-destructive border-none cursor-pointer">✕</button>
           </div>
         ))}
       </div>
     </div>
 
     {summary && (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-        <div style={{ padding: 12, borderRadius: 6, background: 'rgba(239,68,68,0.08)', border: `1px solid ${C.red}` }}>
-          <div style={{ fontSize: 10, color: C.red, fontWeight: 600, textTransform: 'uppercase' }}>Critical</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: C.red, fontFamily: "'SF Mono', monospace" }}>{summary.critical}</div>
+      <div className="grid grid-cols-4 gap-2">
+        <div className="p-3 rounded-md bg-destructive/10 border border-destructive">
+          <div className="text-[10px] text-destructive font-semibold uppercase">Critical</div>
+          <div className="text-xl font-bold text-destructive font-mono">{summary.critical}</div>
         </div>
-        <div style={{ padding: 12, borderRadius: 6, background: 'rgba(234,179,8,0.08)', border: `1px solid ${C.yellow}` }}>
-          <div style={{ fontSize: 10, color: C.yellow, fontWeight: 600, textTransform: 'uppercase' }}>Warning</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: C.yellow, fontFamily: "'SF Mono', monospace" }}>{summary.warning}</div>
+        <div className="p-3 rounded-md bg-warning/10 border border-warning">
+          <div className="text-[10px] text-warning font-semibold uppercase">Warning</div>
+          <div className="text-xl font-bold text-warning font-mono">{summary.warning}</div>
         </div>
-        <div style={{ padding: 12, borderRadius: 6, background: 'rgba(59,130,246,0.08)', border: `1px solid ${C.accent}` }}>
-          <div style={{ fontSize: 10, color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>Info</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: C.accent, fontFamily: "'SF Mono', monospace" }}>{summary.info}</div>
+        <div className="p-3 rounded-md bg-primary/10 border border-primary">
+          <div className="text-[10px] text-primary font-semibold uppercase">Info</div>
+          <div className="text-xl font-bold text-primary font-mono">{summary.info}</div>
         </div>
-        <div style={{ padding: 12, borderRadius: 6, background: C.bgPanel, border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: C.text, fontFamily: "'SF Mono', monospace" }}>{summary.total}</div>
+        <div className="p-3 rounded-md bg-card border border-border">
+          <div className="text-[10px] text-muted-foreground font-semibold uppercase">Total</div>
+          <div className="text-xl font-bold text-foreground font-mono">{summary.total}</div>
         </div>
       </div>
     )}
 
     {findings.length > 0 && (
-      <div style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: C.bgPanel, padding: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.text, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Findings</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="text-[11px] font-semibold text-foreground mb-2 uppercase tracking-wider">Findings</div>
+        <div className="flex flex-col gap-1.5">
           {findings.map((f, i) => (
-            <div key={i} style={{ padding: 10, background: C.bgInput, borderLeft: `3px solid ${severityColor(f.severity)}`, borderRadius: 3 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, color: severityColor(f.severity), textTransform: 'uppercase' }}>{f.severity}</span>
-                <span style={{ fontSize: 10, color: C.textDim, fontFamily: "'SF Mono', monospace" }}>{f.codeRef}</span>
+            <div key={i} className={`p-2.5 bg-secondary border-l-[3px] ${severityBorderColor(f.severity)} rounded-sm`}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-[9px] font-bold ${severityColor(f.severity)} uppercase`}>{f.severity}</span>
+                <span className="text-[10px] text-muted-foreground/70 font-mono">{f.codeRef}</span>
               </div>
-              <div style={{ fontSize: 12, color: C.text, marginBottom: 3 }}>{f.message}</div>
-              {f.fixHint && <div style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic' }}>Fix: {f.fixHint}</div>}
+              <div className="text-xs text-foreground mb-0.5">{f.message}</div>
+              {f.fixHint && <div className="text-[10px] text-muted-foreground italic">Fix: {f.fixHint}</div>}
             </div>
           ))}
         </div>
       </div>
     )}
     {findings.length === 0 && result && (
-      <div style={{ padding: 12, borderRadius: 6, background: 'rgba(34,197,94,0.08)', border: `1px solid ${C.green}`, color: C.green, fontSize: 12, fontWeight: 600, textAlign: 'center' }}>
+      <div className="p-3 rounded-md bg-success/10 border border-success text-success text-xs font-semibold text-center">
         ✓ No compliance issues found
       </div>
     )}
@@ -686,13 +633,13 @@ function LensForm() {
     ? { label: 'Required Focal Length', value: (result.requiredFocalMm as number).toFixed(2), unit: 'mm' }
     : undefined
   const warnings = (result?.warnings as string[] | undefined) ?? []
-  return (<div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+  return (<div className="flex flex-col gap-3">
+    <div className="grid grid-cols-3 gap-3">
       <CalcInput label="Distance to Target (ft)" value={f.distance} onChange={(v) => setF({ ...f, distance: v })} />
       <CalcInput label="Sensor Width (mm)" value={f.sensor} onChange={(v) => setF({ ...f, sensor: v })} />
       <CalcInput label="Horizontal Resolution (px)" value={f.resW} onChange={(v) => setF({ ...f, resW: v })} />
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+    <div className="grid grid-cols-2 gap-3">
       <SelectInput label="DORI Target" value={f.dori} onChange={(v) => setF({ ...f, dori: v as typeof f.dori })} options={[
         { value: 'detection', label: 'Detection (8 PPF)' },
         { value: 'observation', label: 'Observation (19 PPF)' },
@@ -704,10 +651,10 @@ function LensForm() {
     </div>
     {result && <ResultCard title="Lens Selection Results" primary={primary} data={result} />}
     {warnings.length > 0 && (
-      <div style={{ borderRadius: 8, border: `1px solid ${C.yellow}`, background: 'rgba(234,179,8,0.06)', padding: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.yellow, marginBottom: 6 }}>Warnings</div>
+      <div className="rounded-lg border border-warning bg-warning/5 p-3">
+        <div className="text-[11px] font-semibold text-warning mb-1.5">Warnings</div>
         {warnings.map((w, i) => (
-          <div key={i} style={{ fontSize: 11, color: C.textMuted }}>• {w}</div>
+          <div key={i} className="text-[11px] text-muted-foreground">• {w}</div>
         ))}
       </div>
     )}
@@ -735,24 +682,20 @@ export default function CalculatorDetailPage() {
   const calc = CALC_MAP[calcType]
 
   if (!calc) return (
-    <div style={{ padding: 24 }}>
-      <p style={{ fontSize: 13, color: C.textMuted }}>Unknown calculator type: {calcType}</p>
+    <div className="p-6">
+      <p className="text-sm text-muted-foreground">Unknown calculator type: {calcType}</p>
     </div>
   )
 
   return (
-    <div style={{ padding: 24, fontFamily: "'Inter', sans-serif", maxWidth: 960 }}>
+    <div className="max-w-4xl">
       <button onClick={() => router.push('/org/tools/calculators')}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          fontSize: 12, color: C.accent, background: 'none', border: 'none',
-          cursor: 'pointer', marginBottom: 16, padding: 0, fontFamily: 'inherit',
-        }}
+        className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 mb-4 bg-transparent border-none cursor-pointer p-0"
       >
         <ArrowLeft size={14} /> Back to Calculators
       </button>
-      <h1 style={{ fontSize: 20, fontWeight: 700, color: C.text, marginBottom: 4 }}>{calc.name}</h1>
-      <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 24 }}>
+      <h1 className="text-2xl font-bold text-foreground mb-1">{calc.name}</h1>
+      <p className="text-sm text-muted-foreground mb-6">
         Results update live as you type. Same engine runs integrated from the design canvas.
       </p>
       <calc.Form />

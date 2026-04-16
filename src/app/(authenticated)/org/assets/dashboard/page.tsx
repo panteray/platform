@@ -46,30 +46,30 @@ function daysUntil(dateStr: string | null): number | null {
 }
 
 function DaysBadge({ days }: { days: number | null }) {
-  if (days === null) return <span className="text-xs text-slate-400">—</span>
+  if (days === null) return <span className="text-xs text-muted-foreground/60">—</span>
   if (days < 0) {
     return (
-      <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800">
+      <span className="inline-flex rounded-full border border-destructive/20 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
         Expired {Math.abs(days)}d ago
       </span>
     )
   }
   if (days <= 30) {
     return (
-      <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800">
+      <span className="inline-flex rounded-full border border-destructive/20 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
         {days}d remaining
       </span>
     )
   }
   if (days <= 60) {
     return (
-      <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+      <span className="inline-flex rounded-full border border-warning/20 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
         {days}d remaining
       </span>
     )
   }
   return (
-    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
+    <span className="inline-flex rounded-full border border-border bg-secondary px-2 py-0.5 text-xs font-medium text-foreground">
       {days}d remaining
     </span>
   )
@@ -79,12 +79,12 @@ function EventTypeBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
     created: 'border-emerald-200 bg-emerald-50 text-emerald-800',
     maintenance: 'border-blue-200 bg-blue-50 text-blue-800',
-    warranty: 'border-amber-200 bg-amber-50 text-amber-800',
-    rma: 'border-red-200 bg-red-50 text-red-800',
+    warranty: 'border-warning/20 bg-warning/10 text-warning',
+    rma: 'border-destructive/20 bg-destructive/10 text-destructive',
     status_change: 'border-purple-200 bg-purple-50 text-purple-800',
     firmware_update: 'border-cyan-200 bg-cyan-50 text-cyan-800',
   }
-  const cls = colors[type] ?? 'border-slate-200 bg-slate-50 text-slate-700'
+  const cls = colors[type] ?? 'border-border bg-secondary text-foreground'
   return (
     <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
       {type.replace(/_/g, ' ')}
@@ -113,7 +113,7 @@ export default function AssetDashboardPage() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-900 border-t-transparent" />
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     )
   }
@@ -127,13 +127,13 @@ export default function AssetDashboardPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/org/assets"
-            className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-secondary"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Asset Intelligence Dashboard</h1>
-            <p className="text-sm text-slate-600">Overview of asset health, warranties, and maintenance schedules.</p>
+            <h1 className="text-2xl font-bold text-foreground font-display">Asset Intelligence Dashboard</h1>
+            <p className="text-sm text-muted-foreground">Overview of asset health, warranties, and maintenance schedules.</p>
           </div>
         </div>
       </div>
@@ -169,16 +169,16 @@ export default function AssetDashboardPage() {
       </div>
 
       {/* Warranty Expiring (90 days) */}
-      <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+      <div className="rounded-lg border border-border bg-card shadow-sm">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Shield className="h-4 w-4 text-amber-500" />
-          <h2 className="text-sm font-semibold text-slate-900">Warranty Expiring (next 90 days)</h2>
+          <h2 className="text-sm font-semibold text-foreground">Warranty Expiring (next 90 days)</h2>
         </div>
         {(data?.warranty_expiring ?? []).length === 0 ? (
-          <div className="p-6 text-center text-sm text-slate-500">No warranties expiring in the next 90 days.</div>
+          <div className="p-6 text-center text-sm text-muted-foreground">No warranties expiring in the next 90 days.</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-600">
+            <thead className="bg-secondary text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 text-left font-medium">Asset</th>
                 <th className="px-4 py-2 text-left font-medium">Vendor</th>
@@ -191,15 +191,15 @@ export default function AssetDashboardPage() {
               {(data?.warranty_expiring ?? []).map(a => {
                 const days = daysUntil(a.warranty_expires_at)
                 return (
-                  <tr key={a.id} className="border-t border-slate-100">
+                  <tr key={a.id} className="border-t border-border">
                     <td className="px-4 py-2">
-                      <Link href={`/org/assets/${a.id}`} className="font-medium text-slate-900 hover:underline">
+                      <Link href={`/org/assets/${a.id}`} className="font-medium text-foreground hover:underline">
                         {a.label}
                       </Link>
                     </td>
-                    <td className="px-4 py-2 text-slate-600">{a.vendor ?? '—'}</td>
-                    <td className="px-4 py-2 text-slate-600">{a.model ?? '—'}</td>
-                    <td className="px-4 py-2 text-slate-600">
+                    <td className="px-4 py-2 text-muted-foreground">{a.vendor ?? '—'}</td>
+                    <td className="px-4 py-2 text-muted-foreground">{a.model ?? '—'}</td>
+                    <td className="px-4 py-2 text-muted-foreground">
                       {a.warranty_expires_at ? new Date(a.warranty_expires_at).toLocaleDateString() : '—'}
                     </td>
                     <td className="px-4 py-2"><DaysBadge days={days} /></td>
@@ -212,16 +212,16 @@ export default function AssetDashboardPage() {
       </div>
 
       {/* Upcoming Maintenance */}
-      <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+      <div className="rounded-lg border border-border bg-card shadow-sm">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Wrench className="h-4 w-4 text-blue-500" />
-          <h2 className="text-sm font-semibold text-slate-900">Upcoming Maintenance</h2>
+          <h2 className="text-sm font-semibold text-foreground">Upcoming Maintenance</h2>
         </div>
         {(data?.upcoming_maintenance ?? []).length === 0 ? (
-          <div className="p-6 text-center text-sm text-slate-500">No upcoming maintenance scheduled.</div>
+          <div className="p-6 text-center text-sm text-muted-foreground">No upcoming maintenance scheduled.</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-600">
+            <thead className="bg-secondary text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 text-left font-medium">Asset</th>
                 <th className="px-4 py-2 text-left font-medium">Type</th>
@@ -230,10 +230,10 @@ export default function AssetDashboardPage() {
             </thead>
             <tbody>
               {(data?.upcoming_maintenance ?? []).map(m => (
-                <tr key={m.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2 font-medium text-slate-900">{m.label}</td>
-                  <td className="px-4 py-2 text-slate-600">{m.maintenance_type ?? '—'}</td>
-                  <td className="px-4 py-2 text-slate-600">
+                <tr key={m.id} className="border-t border-border">
+                  <td className="px-4 py-2 font-medium text-foreground">{m.label}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{m.maintenance_type ?? '—'}</td>
+                  <td className="px-4 py-2 text-muted-foreground">
                     {m.scheduled_date ? new Date(m.scheduled_date).toLocaleDateString() : '—'}
                   </td>
                 </tr>
@@ -244,25 +244,25 @@ export default function AssetDashboardPage() {
       </div>
 
       {/* Recent Lifecycle Events */}
-      <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
-          <Activity className="h-4 w-4 text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-900">Recent Lifecycle Events</h2>
+      <div className="rounded-lg border border-border bg-card shadow-sm">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <Activity className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-foreground">Recent Lifecycle Events</h2>
         </div>
         {(data?.recent_events ?? []).length === 0 ? (
-          <div className="p-6 text-center text-sm text-slate-500">No recent lifecycle events.</div>
+          <div className="p-6 text-center text-sm text-muted-foreground">No recent lifecycle events.</div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border">
             {(data?.recent_events ?? []).map(evt => (
               <div key={evt.id} className="flex items-center gap-3 px-4 py-3">
                 <EventTypeBadge type={evt.event_type} />
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm font-medium text-slate-900">{evt.asset_label}</span>
+                  <span className="text-sm font-medium text-foreground">{evt.asset_label}</span>
                   {evt.description && (
-                    <span className="ml-2 text-sm text-slate-500">{evt.description}</span>
+                    <span className="ml-2 text-sm text-muted-foreground">{evt.description}</span>
                   )}
                 </div>
-                <span className="shrink-0 text-xs text-slate-400">
+                <span className="shrink-0 text-xs text-muted-foreground/60">
                   {new Date(evt.created_at).toLocaleDateString()}
                 </span>
               </div>

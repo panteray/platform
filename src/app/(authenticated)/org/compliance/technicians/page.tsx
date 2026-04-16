@@ -66,7 +66,7 @@ function daysUntil(dateStr: string | null): number | null {
 function ExpiryBadge({ item }: { item: { status: string; expiration_date: string | null } }) {
   if (item.status !== 'active') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700">
+      <span className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-xs font-medium text-foreground">
         {item.status}
       </span>
     )
@@ -81,21 +81,21 @@ function ExpiryBadge({ item }: { item: { status: string; expiration_date: string
   }
   if (days < 0) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800">
+      <span className="inline-flex items-center gap-1 rounded-full border border-destructive/20 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
         <ShieldAlert className="h-3 w-3" /> Expired {Math.abs(days)}d ago
       </span>
     )
   }
   if (days <= 30) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800">
+      <span className="inline-flex items-center gap-1 rounded-full border border-destructive/20 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
         <Clock className="h-3 w-3" /> Expires in {days}d
       </span>
     )
   }
   if (days <= 90) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+      <span className="inline-flex items-center gap-1 rounded-full border border-warning/20 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
         <Clock className="h-3 w-3" /> Expires in {days}d
       </span>
     )
@@ -219,39 +219,39 @@ export default function TechnicianCompliancePage() {
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Technician Compliance</h1>
-          <p className="text-sm text-slate-600">Track state licenses and certifications for field technicians. Expiring items auto-warn on dispatch.</p>
+          <h1 className="text-2xl font-bold text-foreground font-display">Technician Compliance</h1>
+          <p className="text-sm text-muted-foreground">Track state licenses and certifications for field technicians. Expiring items auto-warn on dispatch.</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
             href="/org/compliance/state-licensing"
-            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary"
           >
             <Pencil className="h-4 w-4" /> State Licensing
           </Link>
           <Link
             href="/org/compliance/org-docs"
-            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary"
           >
             <ExternalLink className="h-4 w-4" /> Org docs
           </Link>
           <Link
             href="/org/compliance/state-lookup"
-            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary"
           >
             <ExternalLink className="h-4 w-4" /> State lookup
           </Link>
           {activeTab === 'licenses' ? (
             <button
               onClick={() => setAddLicenseOpen(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="h-4 w-4" /> Add license
             </button>
           ) : (
             <button
               onClick={() => setAddCertOpen(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="h-4 w-4" /> Add certification
             </button>
@@ -260,13 +260,13 @@ export default function TechnicianCompliancePage() {
       </div>
 
       {/* Tab switcher */}
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex gap-1 border-b border-border">
         <button
           onClick={() => setActiveTab('licenses')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'licenses'
-              ? 'border-slate-900 text-slate-900'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
         >
           Licenses
@@ -275,8 +275,8 @@ export default function TechnicianCompliancePage() {
           onClick={() => setActiveTab('certifications')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'certifications'
-              ? 'border-slate-900 text-slate-900'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
         >
           Certifications
@@ -285,62 +285,62 @@ export default function TechnicianCompliancePage() {
 
       {/* Summary tiles */}
       <div className="grid grid-cols-4 gap-3">
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="text-xs font-medium uppercase text-slate-500">Total {activeTab}</div>
-          <div className="mt-1 text-2xl font-semibold text-slate-900">{currentSummary.total}</div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="text-xs font-medium uppercase text-muted-foreground">Total {activeTab}</div>
+          <div className="mt-1 text-2xl font-semibold text-foreground">{currentSummary.total}</div>
         </div>
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
           <div className="text-xs font-medium uppercase text-emerald-700">Active</div>
           <div className="mt-1 text-2xl font-semibold text-emerald-900">{currentSummary.active}</div>
         </div>
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <div className="text-xs font-medium uppercase text-amber-700">Expiring (≤90d)</div>
-          <div className="mt-1 text-2xl font-semibold text-amber-900">{currentSummary.expiring}</div>
+        <div className="rounded-lg border border-warning/20 bg-warning/10 p-4">
+          <div className="text-xs font-medium uppercase text-warning">Expiring (≤90d)</div>
+          <div className="mt-1 text-2xl font-semibold text-warning">{currentSummary.expiring}</div>
         </div>
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-          <div className="text-xs font-medium uppercase text-red-700">Expired / inactive</div>
-          <div className="mt-1 text-2xl font-semibold text-red-900">{currentSummary.expired}</div>
+        <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4">
+          <div className="text-xs font-medium uppercase text-destructive">Expired / inactive</div>
+          <div className="mt-1 text-2xl font-semibold text-destructive">{currentSummary.expired}</div>
         </div>
       </div>
 
       {/* Filter */}
       <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder={activeTab === 'licenses' ? 'Filter technicians…' : 'Filter certifications…'}
-          className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm focus:border-slate-900 focus:outline-none"
+          className="h-10 w-full rounded-md border border-border bg-card pl-9 pr-3 text-sm focus:border-primary focus:outline-none"
         />
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{error}</div>
+        <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
       )}
 
       {loading ? (
-        <div className="text-sm text-slate-500">Loading…</div>
+        <div className="text-sm text-muted-foreground">Loading…</div>
       ) : activeTab === 'licenses' ? (
         /* ===== LICENSES TAB ===== */
         <div className="space-y-3">
           {filteredTechs.map(t => {
             const techLic = licensesByUser.get(t.id) ?? []
             return (
-              <div key={t.id} className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+              <div key={t.id} className="rounded-lg border border-border bg-card shadow-sm">
+                <div className="flex items-center justify-between border-b border-border px-4 py-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">{techName(t)}</div>
-                    <div className="text-xs text-slate-500">{t.email} · {t.role}</div>
+                    <div className="text-sm font-semibold text-foreground">{techName(t)}</div>
+                    <div className="text-xs text-muted-foreground">{t.email} · {t.role}</div>
                   </div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-muted-foreground">
                     {techLic.length} {techLic.length === 1 ? 'license' : 'licenses'}
                   </div>
                 </div>
                 {techLic.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-slate-500">No licenses on file.</div>
+                  <div className="px-4 py-3 text-sm text-muted-foreground">No licenses on file.</div>
                 ) : (
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-xs uppercase text-slate-600">
+                    <thead className="bg-secondary text-xs uppercase text-muted-foreground">
                       <tr>
                         <th className="px-4 py-2 text-left font-medium">State</th>
                         <th className="px-4 py-2 text-left font-medium">Type</th>
@@ -352,18 +352,18 @@ export default function TechnicianCompliancePage() {
                     </thead>
                     <tbody>
                       {techLic.map(l => (
-                        <tr key={l.id} className="border-t border-slate-100">
-                          <td className="px-4 py-2 font-medium text-slate-900">{l.state}</td>
-                          <td className="px-4 py-2 text-slate-700">{l.license_type}</td>
-                          <td className="px-4 py-2 font-mono text-xs text-slate-600">{l.license_number ?? '—'}</td>
-                          <td className="px-4 py-2 text-slate-600">
+                        <tr key={l.id} className="border-t border-border">
+                          <td className="px-4 py-2 font-medium text-foreground">{l.state}</td>
+                          <td className="px-4 py-2 text-foreground">{l.license_type}</td>
+                          <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{l.license_number ?? '—'}</td>
+                          <td className="px-4 py-2 text-muted-foreground">
                             {l.expiration_date ? new Date(l.expiration_date).toLocaleDateString() : '—'}
                           </td>
                           <td className="px-4 py-2"><ExpiryBadge item={l} /></td>
                           <td className="px-4 py-2 text-right">
                             <button
                               onClick={() => handleDeleteLicense(l.id)}
-                              className="text-slate-400 hover:text-red-600"
+                              className="text-muted-foreground/60 hover:text-destructive"
                               title="Delete"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -378,19 +378,19 @@ export default function TechnicianCompliancePage() {
             )
           })}
           {filteredTechs.length === 0 && (
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600">
+            <div className="rounded-md border border-border bg-secondary p-6 text-center text-sm text-muted-foreground">
               No technicians found.
             </div>
           )}
         </div>
       ) : (
         /* ===== CERTIFICATIONS TAB ===== */
-        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="rounded-lg border border-border bg-card shadow-sm">
           {filteredCerts.length === 0 ? (
-            <div className="p-6 text-center text-sm text-slate-500">No certifications found.</div>
+            <div className="p-6 text-center text-sm text-muted-foreground">No certifications found.</div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-600">
+              <thead className="bg-secondary text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-4 py-2 text-left font-medium">Tech Name</th>
                   <th className="px-4 py-2 text-left font-medium">Cert Body</th>
@@ -404,22 +404,22 @@ export default function TechnicianCompliancePage() {
               </thead>
               <tbody>
                 {filteredCerts.map(c => (
-                  <tr key={c.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2 font-medium text-slate-900">
+                  <tr key={c.id} className="border-t border-border">
+                    <td className="px-4 py-2 font-medium text-foreground">
                       {c.user ? techName(c.user) : '—'}
                     </td>
-                    <td className="px-4 py-2 text-slate-700">{c.cert_body}</td>
-                    <td className="px-4 py-2 text-slate-700">{c.cert_type}</td>
-                    <td className="px-4 py-2 font-mono text-xs text-slate-600">{c.credential_id ?? '—'}</td>
-                    <td className="px-4 py-2 text-slate-600">{c.state ?? '—'}</td>
-                    <td className="px-4 py-2 text-slate-600">
+                    <td className="px-4 py-2 text-foreground">{c.cert_body}</td>
+                    <td className="px-4 py-2 text-foreground">{c.cert_type}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{c.credential_id ?? '—'}</td>
+                    <td className="px-4 py-2 text-muted-foreground">{c.state ?? '—'}</td>
+                    <td className="px-4 py-2 text-muted-foreground">
                       {c.expiration_date ? new Date(c.expiration_date).toLocaleDateString() : '—'}
                     </td>
                     <td className="px-4 py-2"><ExpiryBadge item={c} /></td>
                     <td className="px-4 py-2 text-right">
                       <button
                         onClick={() => handleDeleteCert(c.id)}
-                        className="text-slate-400 hover:text-red-600"
+                        className="text-muted-foreground/60 hover:text-destructive"
                         title="Delete"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -502,20 +502,20 @@ function AddLicenseDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h2 className="text-lg font-semibold text-slate-900">Add technician license</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+      <div className="w-full max-w-lg rounded-lg bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="text-lg font-semibold text-foreground">Add technician license</h2>
+          <button onClick={onClose} className="text-muted-foreground/60 hover:text-muted-foreground">
             <X className="h-5 w-5" />
           </button>
         </div>
         <div className="space-y-3 px-5 py-4">
           <div>
-            <label className="text-xs font-medium uppercase text-slate-600">Technician</label>
+            <label className="text-xs font-medium uppercase text-muted-foreground">Technician</label>
             <select
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+              className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
             >
               {techs.map(t => (
                 <option key={t.id} value={t.id}>{techName(t)} ({t.role})</option>
@@ -524,77 +524,77 @@ function AddLicenseDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium uppercase text-slate-600">License type</label>
+              <label className="text-xs font-medium uppercase text-muted-foreground">License type</label>
               <input
                 value={licenseType}
                 onChange={(e) => setLicenseType(e.target.value)}
                 placeholder="e.g. Life Safety Installer"
-                className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
               />
             </div>
             <div>
-              <label className="text-xs font-medium uppercase text-slate-600">State</label>
+              <label className="text-xs font-medium uppercase text-muted-foreground">State</label>
               <select
                 value={state}
                 onChange={(e) => setState(e.target.value)}
-                className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
               >
                 {STATES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium uppercase text-slate-600">License number</label>
+            <label className="text-xs font-medium uppercase text-muted-foreground">License number</label>
             <input
               value={licenseNumber}
               onChange={(e) => setLicenseNumber(e.target.value)}
-              className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-mono"
+              className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm font-mono"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium uppercase text-slate-600">Issued</label>
+              <label className="text-xs font-medium uppercase text-muted-foreground">Issued</label>
               <input
                 type="date"
                 value={issuedDate}
                 onChange={(e) => setIssuedDate(e.target.value)}
-                className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
               />
             </div>
             <div>
-              <label className="text-xs font-medium uppercase text-slate-600">Expiration</label>
+              <label className="text-xs font-medium uppercase text-muted-foreground">Expiration</label>
               <input
                 type="date"
                 value={expirationDate}
                 onChange={(e) => setExpirationDate(e.target.value)}
-                className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
               />
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium uppercase text-slate-600">Notes</label>
+            <label className="text-xs font-medium uppercase text-muted-foreground">Notes</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-sm"
             />
           </div>
           {error && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-900">{error}</div>
+            <div className="rounded-md border border-destructive/20 bg-destructive/10 p-2 text-xs text-destructive">{error}</div>
           )}
         </div>
-        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
           <button
             onClick={onClose}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !userId || !licenseType || !state}
-            className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save license'}
           </button>
@@ -656,20 +656,20 @@ function AddCertDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h2 className="text-lg font-semibold text-slate-900">Add certification</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+      <div className="w-full max-w-lg rounded-lg bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="text-lg font-semibold text-foreground">Add certification</h2>
+          <button onClick={onClose} className="text-muted-foreground/60 hover:text-muted-foreground">
             <X className="h-5 w-5" />
           </button>
         </div>
         <div className="space-y-3 px-5 py-4">
           <div>
-            <label className="text-xs font-medium uppercase text-slate-600">Technician</label>
+            <label className="text-xs font-medium uppercase text-muted-foreground">Technician</label>
             <select
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+              className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
             >
               {techs.map(t => (
                 <option key={t.id} value={t.id}>{techName(t)} ({t.role})</option>
@@ -678,40 +678,40 @@ function AddCertDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium uppercase text-slate-600">Cert body</label>
+              <label className="text-xs font-medium uppercase text-muted-foreground">Cert body</label>
               <select
                 value={certBody}
                 onChange={(e) => setCertBody(e.target.value)}
-                className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
               >
                 {CERT_BODIES.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium uppercase text-slate-600">Cert type</label>
+              <label className="text-xs font-medium uppercase text-muted-foreground">Cert type</label>
               <input
                 value={certType}
                 onChange={(e) => setCertType(e.target.value)}
                 placeholder="e.g. NICET Level II"
-                className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
               />
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium uppercase text-slate-600">Credential ID</label>
+            <label className="text-xs font-medium uppercase text-muted-foreground">Credential ID</label>
             <input
               value={credentialId}
               onChange={(e) => setCredentialId(e.target.value)}
-              className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-mono"
+              className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm font-mono"
             />
           </div>
           {certBody === 'STATE' && (
             <div>
-              <label className="text-xs font-medium uppercase text-slate-600">State</label>
+              <label className="text-xs font-medium uppercase text-muted-foreground">State</label>
               <select
                 value={state}
                 onChange={(e) => setState(e.target.value)}
-                className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
               >
                 {STATES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -719,48 +719,48 @@ function AddCertDialog({
           )}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium uppercase text-slate-600">Issue date</label>
+              <label className="text-xs font-medium uppercase text-muted-foreground">Issue date</label>
               <input
                 type="date"
                 value={issueDate}
                 onChange={(e) => setIssueDate(e.target.value)}
-                className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
               />
             </div>
             <div>
-              <label className="text-xs font-medium uppercase text-slate-600">Expiration</label>
+              <label className="text-xs font-medium uppercase text-muted-foreground">Expiration</label>
               <input
                 type="date"
                 value={expirationDate}
                 onChange={(e) => setExpirationDate(e.target.value)}
-                className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
               />
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium uppercase text-slate-600">Notes</label>
+            <label className="text-xs font-medium uppercase text-muted-foreground">Notes</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-sm"
             />
           </div>
           {error && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-900">{error}</div>
+            <div className="rounded-md border border-destructive/20 bg-destructive/10 p-2 text-xs text-destructive">{error}</div>
           )}
         </div>
-        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
           <button
             onClick={onClose}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !userId || !certBody || !certType}
-            className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save certification'}
           </button>
