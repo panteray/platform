@@ -109,6 +109,7 @@ export default function ContractSignPortalPage() {
               </div>
             )}
             {contract.signature_url && (
+              // eslint-disable-next-line @next/next/no-img-element
               <img src={contract.signature_url} alt="Signature" className="mx-auto mt-4 max-h-24" />
             )}
           </div>

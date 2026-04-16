@@ -97,6 +97,7 @@ export function PhotoGalleryModal({ photos, initialIndex = 0, onClose, onDelete,
 
       {/* Image */}
       <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: '85vw', maxHeight: '75vh' }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={photo.dataUrl || photo.url}
           alt={photo.caption || 'Device photo'}
@@ -171,6 +172,7 @@ export function PhotoGalleryModal({ photos, initialIndex = 0, onClose, onDelete,
                 transition: 'opacity 0.2s',
               }}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={p.dataUrl || p.url}
                 alt=""
@@ -244,6 +246,7 @@ export function PhotoSection({ deviceId, photos, onAddPhoto, onDeletePhoto, onCa
               }}
               onClick={() => onViewFullscreen?.(i)}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={photo.dataUrl || photo.url}
                 alt={photo.caption || 'Device photo'}

@@ -702,7 +702,7 @@ function AssignTicketDialog({ ticket, techs, date, onClose, onSaved }: {
   onClose: () => void
   onSaved: () => void
 }) {
-  const required = ticket.required_skills ?? []
+  const required = useMemo(() => ticket.required_skills ?? [], [ticket.required_skills])
   const rankedTechs = useMemo(() => {
     const ranked = techs.map(t => {
       const techSkillLabels = (t.skills ?? []).map(s => s.skill)

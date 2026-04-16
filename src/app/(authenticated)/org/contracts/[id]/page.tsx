@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Send, Copy, CheckCircle2 } from 'lucide-react'
@@ -19,14 +19,14 @@ export default function ContractDetailPage() {
   const [sending, setSending] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/api/org/contracts/generated/${params.id}`)
     if (res.ok) setContract(await res.json())
     setLoading(false)
-  }
+  }, [params.id])
 
-  useEffect(() => { if (params?.id) load() }, [params?.id])
+  useEffect(() => { if (params?.id) load() }, [params?.id, load])
 
   async function send() {
     setSending(true)
@@ -89,6 +89,7 @@ export default function ContractDetailPage() {
             {contract.sent_at && <div className="mt-2 text-xs text-slate-500">Sent {new Date(contract.sent_at).toLocaleString()}</div>}
             {contract.signed_at && <div className="mt-1 text-xs text-slate-500">Signed {new Date(contract.signed_at).toLocaleString()}</div>}
             {contract.signed_by_name && <div className="mt-1 text-xs text-slate-700">By {contract.signed_by_name}</div>}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             {contract.signature_url && <img src={contract.signature_url} alt="Signature" className="mt-3 max-h-20 border border-slate-200" />}
           </div>
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { BookOpen, Plus, Search, Clock } from 'lucide-react'
 import type { PsaKedbEntry } from '@/types/database'
@@ -12,15 +12,15 @@ export default function KedbPage() {
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ title: '', symptoms: '', workaround: '', category: '' })
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     const url = q ? `/api/org/psa/kedb?q=${encodeURIComponent(q)}` : '/api/org/psa/kedb'
     const res = await fetch(url)
     if (res.ok) setEntries(await res.json())
     setLoading(false)
-  }
+  }, [q])
 
-  useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
+  useEffect(() => { load() }, [load])
 
   async function create() {
     if (!form.title.trim() || !form.symptoms.trim()) return

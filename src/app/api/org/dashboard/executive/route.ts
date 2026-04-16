@@ -36,8 +36,7 @@ export async function GET() {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async function safeQuery<T = any>(
+  async function safeQuery<T = Record<string, unknown>>(
     fn: () => Promise<{ data: T[] | null; error: unknown }>
   ): Promise<T[]> {
     try {

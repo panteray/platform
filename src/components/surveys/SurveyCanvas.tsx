@@ -529,6 +529,7 @@ export function SurveyCanvas({
           >
             {/* Background Image */}
             {bgImage && (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={bgImage}
                 alt="Floor plan"

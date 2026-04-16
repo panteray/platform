@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { FileText, Trash2, Plus, ExternalLink } from 'lucide-react'
 
 interface SubDocument {
@@ -36,14 +36,14 @@ export function SubDocumentsTab({ subId }: { subId: string }) {
     notes: '',
   })
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/api/org/subcontractors/${subId}/documents`)
     if (res.ok) setDocs(await res.json())
     setLoading(false)
-  }
+  }, [subId])
 
-  useEffect(() => { load() }, [subId])
+  useEffect(() => { load() }, [subId, load])
 
   async function create() {
     if (!form.doc_name) return

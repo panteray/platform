@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import type { ContractTemplate, ContractClause } from '@/types/database'
 import { CONTRACT_TEMPLATE_TYPES, CONTRACT_TEMPLATE_TYPE_LABELS } from '@/types/database'
 
@@ -17,7 +17,7 @@ export default function ContractTemplateEditor({ templateId }: Props) {
   const [newVar, setNewVar] = useState({ key: '', label: '' })
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     const [tplRes, clauseRes] = await Promise.all([
       fetch(`/api/org/contracts/templates/${templateId}`),
@@ -30,9 +30,9 @@ export default function ContractTemplateEditor({ templateId }: Props) {
     }
     if (clauseRes.ok) setLibraryClauses(await clauseRes.json())
     setLoading(false)
-  }
+  }, [templateId])
 
-  useEffect(() => { load() }, [templateId])
+  useEffect(() => { load() }, [load])
 
   async function save() {
     if (!template) return

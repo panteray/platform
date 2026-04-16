@@ -186,6 +186,7 @@ export function LeadCardScanner({ onScanComplete, onClose }: LeadCardScannerProp
           {step === 'scanning' && (
             <div className="flex flex-col items-center gap-4 py-8">
               {imagePreview && (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={imagePreview}
                   alt="Business card"
@@ -207,6 +208,7 @@ export function LeadCardScanner({ onScanComplete, onClose }: LeadCardScannerProp
               {/* Card preview */}
               {imagePreview && (
                 <div className="flex justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={imagePreview}
                     alt="Business card"
