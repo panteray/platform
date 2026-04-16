@@ -8,7 +8,7 @@ export default function SurveyDetailPage() {
   if (!params?.id) return null
 
   return (
-    <div>
+    <div className="-m-6">
       <SurveyDetail
         surveyId={params.id}
         onBack={() => window.history.back()}

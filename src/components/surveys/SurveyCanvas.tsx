@@ -2,16 +2,22 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import {
-  ZoomIn, ZoomOut, Move, MousePointer, Upload, Ruler, Cable as CableIcon,
+  ZoomIn, ZoomOut, Hand, MousePointer, Ruler, Cable as CableIcon,
+  Server, X, Crosshair,
 } from 'lucide-react'
 import type { SurveyFloorPlan, SurveyDevice, SurveyCable } from '@/types/database'
 import {
   SURVEY_SYSTEM_TYPES, SURVEY_DEVICE_TYPES, SYSTEM_TYPE_COLORS,
-  DEFAULT_FOV_ANGLES, generateDeviceLabel, resetLabelCounters,
+  SURVEY_CABLE_TYPES, DEFAULT_FOV_ANGLES, generateDeviceLabel, resetLabelCounters,
 } from '@/lib/survey-constants'
+import { C, CABLE_DEFAULT_COLORS } from '../design-canvas/constants'
+import { useMapsApiKey } from '../design-canvas/use-maps-api-key'
 import { SurveyDevicePanel } from './SurveyDevicePanel'
 import { SurveyDeviceIcon } from './survey-device-icons'
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 interface Props {
   surveyId: string
   floorPlan: SurveyFloorPlan
@@ -21,8 +27,48 @@ interface Props {
   readOnly?: boolean
 }
 
-type Tool = 'select' | 'pan' | 'calibrate' | 'cable'
+type Tool = 'select' | 'pan' | 'cable' | 'mdf_idf' | 'scale' | 'place'
 
+interface InfraMarker {
+  id: string
+  type: 'mdf' | 'idf'
+  lat: number
+  lng: number
+  label: string
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+const btnStyle = (active: boolean): React.CSSProperties => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 3,
+  background: active ? C.accentSubtle : 'transparent',
+  border: active ? `1px solid ${C.accent}40` : '1px solid transparent',
+  borderRadius: 3,
+  color: active ? C.accent : C.textMuted,
+  fontSize: 10,
+  fontWeight: 500,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  padding: '2px 6px',
+  height: 26,
+})
+
+function getCableColorForType(t: string): string {
+  const key = t.toLowerCase().replace(/\s+/g, '_').replace('—', '').replace('-', '_').trim()
+  return CABLE_DEFAULT_COLORS[key] ?? CABLE_DEFAULT_COLORS.other ?? '#78716c'
+}
+
+function makeSvgDataUrl(color: string, size: number): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 1}" fill="${color}" stroke="#fff" stroke-width="2"/></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export function SurveyCanvas({
   surveyId,
   floorPlan,
@@ -31,277 +77,495 @@ export function SurveyCanvas({
   onDevicesChanged,
   readOnly = false,
 }: Props) {
-  const canvasRef = useRef<HTMLDivElement>(null)
+  const mapsApiKey = useMapsApiKey()
+
+  // Refs
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<google.maps.Map | null>(null)
+  const markersRef = useRef<Map<string, google.maps.Marker>>(new Map())
+  const cablesPolyRef = useRef<Map<string, google.maps.Polyline>>(new Map())
+  const draftPolyRef = useRef<google.maps.Polyline | null>(null)
+  const groundOverlayRef = useRef<google.maps.GroundOverlay | null>(null)
+  const infraMarkersRef = useRef<Map<string, google.maps.Marker>>(new Map())
+  const scaleLineRef = useRef<google.maps.Polyline | null>(null)
+  const scriptLoadedRef = useRef(false)
+
+  // State
   const [tool, setTool] = useState<Tool>('select')
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [isPanning, setIsPanning] = useState(false)
-  const panStart = useRef({ x: 0, y: 0 })
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
-  const [draggingDevice, setDraggingDevice] = useState<string | null>(null)
-  const dragOffset = useRef({ x: 0, y: 0 })
-  const [activeSystem, setActiveSystem] = useState<string>('cctv')
-  const [bgImage, setBgImage] = useState<string | null>(floorPlan.image_url)
+  const [mapReady, setMapReady] = useState(false)
+  const [expandedSystem, setExpandedSystem] = useState<string | null>(null)
+  const [placingDevice, setPlacingDevice] = useState<{ systemType: string; deviceType: string } | null>(null)
 
-  // G8: scale calibration — two-point click flow
-  const [calibratePoints, setCalibratePoints] = useState<{ x: number; y: number }[]>([])
-  const [scalePxPerFt, setScalePxPerFt] = useState<number | null>(floorPlan.scale_px_per_ft ?? null)
-
-  // G8: cable polyline drawing
+  // Cable state
   const [cables, setCables] = useState<SurveyCable[]>([])
-  const [draftCable, setDraftCable] = useState<[number, number][]>([])
-  const [cableType, setCableType] = useState<string>('Cat6')
-  const [cableColor, setCableColor] = useState<string>('#2563eb')
-  const [cableSlack, setCableSlack] = useState<number>(10)
+  const [draftCablePoints, setDraftCablePoints] = useState<google.maps.LatLng[]>([])
+  const [cableType, setCableType] = useState('cat6')
+  const [cableSlack, setCableSlack] = useState(10)
+
+  // Scale
+  const [scalePxPerFt, setScalePxPerFt] = useState<number | null>(floorPlan.scale_px_per_ft ?? null)
+  const [scalePoints, setScalePoints] = useState<google.maps.LatLng[]>([])
+
+  // MDF/IDF
+  const [infraMarkers, setInfraMarkers] = useState<InfraMarker[]>([])
+  const [mdfIdfType, setMdfIdfType] = useState<'mdf' | 'idf'>('mdf')
 
   const selectedDevice = devices.find(d => d.id === selectedDeviceId) || null
 
-  // Load cables for this floor plan
+  // ---------------------------------------------------------------------------
+  // Load Google Maps script
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!mapsApiKey || scriptLoadedRef.current) return
+    if (typeof google !== 'undefined' && google.maps) {
+      scriptLoadedRef.current = true
+      return
+    }
+
+    const existing = document.querySelector(`script[src*="maps.googleapis.com"]`)
+    if (existing) {
+      // Wait for it to load
+      const check = setInterval(() => {
+        if (typeof google !== 'undefined' && google.maps) {
+          scriptLoadedRef.current = true
+          clearInterval(check)
+          // Force re-render
+          setMapReady(prev => !prev)
+        }
+      }, 200)
+      return () => clearInterval(check)
+    }
+
+    const script = document.createElement('script')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}`
+    script.async = true
+    script.defer = true
+    script.onload = () => {
+      scriptLoadedRef.current = true
+      setMapReady(true)
+    }
+    document.head.appendChild(script)
+  }, [mapsApiKey])
+
+  // ---------------------------------------------------------------------------
+  // Initialize Map
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!mapContainerRef.current || !mapsApiKey) return
+    if (typeof google === 'undefined' || !google.maps) return
+    if (mapRef.current) return
+
+    const lat = floorPlan.satellite_lat ?? 30.0
+    const lng = floorPlan.satellite_lng ?? -90.0
+    const zoom = floorPlan.satellite_zoom ?? 18
+
+    const satelliteCleanStyle: google.maps.MapTypeStyle[] = [
+      { elementType: 'labels', stylers: [{ visibility: 'off' }] },
+      { featureType: 'administrative', stylers: [{ visibility: 'off' }] },
+      { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+      { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+    ]
+
+    const map = new google.maps.Map(mapContainerRef.current, {
+      center: { lat, lng },
+      zoom,
+      mapTypeId: 'satellite',
+      disableDefaultUI: true,
+      zoomControl: true,
+      gestureHandling: 'greedy',
+      draggableCursor: 'default',
+      draggingCursor: 'grabbing',
+      keyboardShortcuts: true,
+      styles: satelliteCleanStyle,
+    })
+
+    mapRef.current = map
+
+    // Map click handler
+    map.addListener('click', (e: google.maps.MapMouseEvent) => {
+      if (!e.latLng) return
+      handleMapClick(e.latLng)
+    })
+
+    map.addListener('dblclick', () => {
+      handleDblClick()
+    })
+
+    setMapReady(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapsApiKey, mapReady])
+
+  // ---------------------------------------------------------------------------
+  // Floor plan overlay
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!mapRef.current || !floorPlan.image_url) return
+    if (groundOverlayRef.current) {
+      groundOverlayRef.current.setMap(null)
+    }
+
+    const lat = floorPlan.satellite_lat ?? 30.0
+    const lng = floorPlan.satellite_lng ?? -90.0
+    const spread = 0.002 // ~220m at equator
+
+    const bounds = new google.maps.LatLngBounds(
+      { lat: lat - spread, lng: lng - spread },
+      { lat: lat + spread, lng: lng + spread }
+    )
+
+    const overlay = new google.maps.GroundOverlay(floorPlan.image_url, bounds, {
+      opacity: 0.7,
+      clickable: false,
+    })
+    overlay.setMap(mapRef.current)
+    groundOverlayRef.current = overlay
+  }, [floorPlan.image_url, floorPlan.satellite_lat, floorPlan.satellite_lng, mapReady])
+
+  // ---------------------------------------------------------------------------
+  // Load cables
+  // ---------------------------------------------------------------------------
   useEffect(() => {
     let cancelled = false
     fetch(`/api/org/surveys/${surveyId}/cables`)
-      .then((r) => r.ok ? r.json() : [])
+      .then(r => r.ok ? r.json() : [])
       .then((data: SurveyCable[]) => {
         if (cancelled) return
         setCables((data || []).filter(c => c.floor_plan_id === floorPlan.id))
       })
-      .catch((e) => { console.error('[SurveyCanvas] Failed to load cables:', e) })
+      .catch(e => console.error('[SurveyCanvas] Failed to load cables:', e))
     return () => { cancelled = true }
   }, [surveyId, floorPlan.id])
 
-  // Persist calibration to floor plan
-  const saveCalibration = async (pxPerFt: number) => {
-    setScalePxPerFt(pxPerFt)
-    await fetch(`/api/org/surveys/${surveyId}/floor-plans?fp_id=${floorPlan.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scale_px_per_ft: pxPerFt }),
-    })
-  }
-
-  // Compute length of a polyline in feet using current scale
-  const polylineLengthFt = (pts: [number, number][]): number | null => {
-    if (!scalePxPerFt || pts.length < 2) return null
-    let px = 0
-    for (let i = 1; i < pts.length; i++) {
-      const dx = pts[i][0] - pts[i - 1][0]
-      const dy = pts[i][1] - pts[i - 1][1]
-      px += Math.sqrt(dx * dx + dy * dy)
-    }
-    const baseFt = px / scalePxPerFt
-    return baseFt * (1 + cableSlack / 100)
-  }
-
-  // Save a completed cable
-  const saveCable = async (polyline: [number, number][]) => {
-    if (polyline.length < 2) return
-    const lengthFt = polylineLengthFt(polyline)
-    const res = await fetch(`/api/org/surveys/${surveyId}/cables`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        floor_plan_id: floorPlan.id,
-        label: `C-${cables.length + 1}`,
-        cable_type: cableType,
-        color_hex: cableColor,
-        slack_pct: cableSlack,
-        polyline,
-        length_ft: lengthFt,
-      }),
-    })
-    if (res.ok) {
-      const created = await res.json()
-      setCables((prev) => [...prev, created])
-    }
-  }
-
-  const deleteCable = async (id: string) => {
-    const res = await fetch(`/api/org/surveys/${surveyId}/cables?cable_id=${id}`, { method: 'DELETE' })
-    if (res.ok) setCables((prev) => prev.filter(c => c.id !== id))
-  }
-
-  // WPtP pair rendering — find matched A/B pairs
-  const wptpPairs = (() => {
-    const byPair = new Map<string, SurveyDevice[]>()
-    for (const d of devices) {
-      if (d.wptp_pair_id) {
-        const arr = byPair.get(d.wptp_pair_id) || []
-        arr.push(d)
-        byPair.set(d.wptp_pair_id, arr)
-      }
-    }
-    return Array.from(byPair.values()).filter(pair => pair.length === 2)
-  })()
-
-  // Handle floor plan image upload
-  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    // Convert to base64 for now — in production would upload to storage
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target?.result as string
-      setBgImage(dataUrl)
-
-      // Update floor plan with image URL
-      // For uploaded files, we'd normally upload to storage first
-      // This stores as data URL for offline support
-    }
-    reader.readAsDataURL(file)
-  }
-
-  // Zoom
-  const handleZoom = (delta: number) => {
-    setZoom(prev => Math.max(0.25, Math.min(4, prev + delta)))
-  }
-
-  const handleWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? -0.1 : 0.1
-    setZoom(prev => Math.max(0.25, Math.min(4, prev + delta)))
-  }, [])
-
+  // ---------------------------------------------------------------------------
+  // Load infrastructure markers
+  // ---------------------------------------------------------------------------
   useEffect(() => {
-    const el = canvasRef.current
-    if (!el) return
-    el.addEventListener('wheel', handleWheel, { passive: false })
-    return () => el.removeEventListener('wheel', handleWheel)
-  }, [handleWheel])
+    let cancelled = false
+    fetch(`/api/org/surveys/${surveyId}/infrastructure`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: Array<{ id: string; type: string; name: string; location: string | null }>) => {
+        if (cancelled || !data) return
+        // Parse infra items that have lat/lng in location field (stored as "lat,lng")
+        const markers: InfraMarker[] = []
+        for (const item of data) {
+          if (item.location && item.location.includes(',')) {
+            const [latStr, lngStr] = item.location.split(',')
+            const lat = parseFloat(latStr)
+            const lng = parseFloat(lngStr)
+            if (!isNaN(lat) && !isNaN(lng)) {
+              markers.push({
+                id: item.id,
+                type: item.type as 'mdf' | 'idf',
+                lat, lng,
+                label: item.name || item.type.toUpperCase(),
+              })
+            }
+          }
+        }
+        setInfraMarkers(markers)
+      })
+      .catch(e => console.error('[SurveyCanvas] Failed to load infra:', e))
+    return () => { cancelled = true }
+  }, [surveyId])
 
-  // Pan
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (tool === 'pan' || e.button === 1) {
-      setIsPanning(true)
-      panStart.current = { x: e.clientX - pan.x, y: e.clientY - pan.y }
-      e.preventDefault()
-    }
-  }
+  // ---------------------------------------------------------------------------
+  // Sync device markers to map
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!mapRef.current) return
+    const map = mapRef.current
+    const existing = markersRef.current
+    const currentIds = new Set(devices.map(d => d.id))
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      setPan({ x: e.clientX - panStart.current.x, y: e.clientY - panStart.current.y })
-      return
-    }
-
-    if (draggingDevice) {
-      const rect = canvasRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const x = (e.clientX - rect.left - pan.x) / zoom - dragOffset.current.x
-      const y = (e.clientY - rect.top - pan.y) / zoom - dragOffset.current.y
-
-      onDevicesChanged(
-        allDevices.map(d => d.id === draggingDevice ? { ...d, position_x: x, position_y: y } : d)
-      )
-    }
-  }
-
-  const handleMouseUp = async () => {
-    if (isPanning) {
-      setIsPanning(false)
-      return
-    }
-
-    if (draggingDevice) {
-      const device = allDevices.find(d => d.id === draggingDevice)
-      if (device) {
-        await fetch(`/api/org/surveys/${surveyId}/devices?device_id=${device.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ position_x: device.position_x, position_y: device.position_y }),
-        })
+    // Remove markers for devices that no longer exist
+    for (const [id, marker] of existing) {
+      if (!currentIds.has(id)) {
+        marker.setMap(null)
+        existing.delete(id)
       }
-      setDraggingDevice(null)
     }
+
+    // Create or update markers
+    for (const device of devices) {
+      const color = device.color_hex || SYSTEM_TYPE_COLORS[device.system_type] || '#6b7280'
+      const pos = deviceToLatLng(device, map)
+
+      if (existing.has(device.id)) {
+        const marker = existing.get(device.id)!
+        marker.setPosition(pos)
+        marker.setLabel({
+          text: device.label,
+          color: '#fff',
+          fontSize: '9px',
+          fontWeight: 'bold',
+          className: 'survey-marker-label',
+        })
+      } else {
+        const marker = new google.maps.Marker({
+          position: pos,
+          map,
+          icon: {
+            url: makeSvgDataUrl(color, 24),
+            scaledSize: new google.maps.Size(24, 24),
+            anchor: new google.maps.Point(12, 12),
+          },
+          label: {
+            text: device.label,
+            color: '#fff',
+            fontSize: '9px',
+            fontWeight: 'bold',
+            className: 'survey-marker-label',
+          },
+          draggable: !readOnly,
+          zIndex: 10,
+        })
+
+        marker.addListener('click', () => {
+          setSelectedDeviceId(device.id)
+        })
+
+        if (!readOnly) {
+          marker.addListener('dragend', () => {
+            const newPos = marker.getPosition()
+            if (!newPos || !mapRef.current) return
+            const { px, py } = latLngToDevicePos(newPos, mapRef.current)
+            // Update locally
+            onDevicesChanged(
+              allDevices.map(d => d.id === device.id ? { ...d, position_x: px, position_y: py } : d)
+            )
+            // Persist
+            fetch(`/api/org/surveys/${surveyId}/devices?device_id=${device.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ position_x: px, position_y: py }),
+            })
+          })
+        }
+
+        existing.set(device.id, marker)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [devices, mapReady, readOnly])
+
+  // ---------------------------------------------------------------------------
+  // Sync cable polylines to map
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!mapRef.current) return
+    const map = mapRef.current
+    const existing = cablesPolyRef.current
+    const currentIds = new Set(cables.map(c => c.id))
+
+    for (const [id, poly] of existing) {
+      if (!currentIds.has(id)) {
+        poly.setMap(null)
+        existing.delete(id)
+      }
+    }
+
+    for (const cable of cables) {
+      if (existing.has(cable.id)) continue
+      const pts = (cable.polyline || []) as [number, number][]
+      if (pts.length < 2) continue
+
+      // Cable polyline points stored as pixel offsets — convert to LatLng
+      const path = pts.map(([px, py]) => {
+        return pixelToLatLng(px, py, map)
+      })
+
+      const color = cable.color_hex || getCableColorForType(cable.cable_type || 'other')
+
+      const poly = new google.maps.Polyline({
+        path,
+        map,
+        strokeColor: color,
+        strokeWeight: 3,
+        strokeOpacity: 0.9,
+        zIndex: 5,
+      })
+
+      existing.set(cable.id, poly)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cables, mapReady])
+
+  // ---------------------------------------------------------------------------
+  // Sync infra markers to map
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!mapRef.current) return
+    const map = mapRef.current
+    const existing = infraMarkersRef.current
+    const currentIds = new Set(infraMarkers.map(m => m.id))
+
+    for (const [id, marker] of existing) {
+      if (!currentIds.has(id)) {
+        marker.setMap(null)
+        existing.delete(id)
+      }
+    }
+
+    for (const infra of infraMarkers) {
+      if (existing.has(infra.id)) continue
+
+      const marker = new google.maps.Marker({
+        position: { lat: infra.lat, lng: infra.lng },
+        map,
+        icon: {
+          url: makeSvgDataUrl(infra.type === 'mdf' ? '#f59e0b' : '#8b5cf6', 28),
+          scaledSize: new google.maps.Size(28, 28),
+          anchor: new google.maps.Point(14, 14),
+        },
+        label: {
+          text: infra.label,
+          color: '#fff',
+          fontSize: '10px',
+          fontWeight: 'bold',
+        },
+        zIndex: 8,
+      })
+
+      existing.set(infra.id, marker)
+    }
+  }, [infraMarkers, mapReady])
+
+  // ---------------------------------------------------------------------------
+  // Coordinate conversion helpers
+  // ---------------------------------------------------------------------------
+  function deviceToLatLng(device: SurveyDevice, map: google.maps.Map): google.maps.LatLng {
+    return pixelToLatLng(device.position_x, device.position_y, map)
   }
 
-  // Convert a mouse event to canvas (world) coordinates
-  const toCanvasXY = (e: React.MouseEvent): { x: number; y: number } | null => {
-    const rect = canvasRef.current?.getBoundingClientRect()
-    if (!rect) return null
+  function pixelToLatLng(px: number, py: number, map: google.maps.Map): google.maps.LatLng {
+    const centerLat = floorPlan.satellite_lat ?? 30.0
+    const centerLng = floorPlan.satellite_lng ?? -90.0
+    const zoom = floorPlan.satellite_zoom ?? 18
+
+    // At zoom 18, roughly 0.597 meters per pixel
+    const metersPerPx = (156543.03392 * Math.cos(centerLat * Math.PI / 180)) / Math.pow(2, zoom)
+    const offsetXMeters = (px - 500) * metersPerPx
+    const offsetYMeters = (py - 400) * metersPerPx
+
+    const lat = centerLat - (offsetYMeters / 111320)
+    const lng = centerLng + (offsetXMeters / (111320 * Math.cos(centerLat * Math.PI / 180)))
+
+    return new google.maps.LatLng(lat, lng)
+  }
+
+  function latLngToDevicePos(latLng: google.maps.LatLng, _map: google.maps.Map): { px: number; py: number } {
+    const centerLat = floorPlan.satellite_lat ?? 30.0
+    const centerLng = floorPlan.satellite_lng ?? -90.0
+    const zoom = floorPlan.satellite_zoom ?? 18
+
+    const metersPerPx = (156543.03392 * Math.cos(centerLat * Math.PI / 180)) / Math.pow(2, zoom)
+    const dLat = centerLat - latLng.lat()
+    const dLng = latLng.lng() - centerLng
+
+    const offsetYMeters = dLat * 111320
+    const offsetXMeters = dLng * 111320 * Math.cos(centerLat * Math.PI / 180)
+
     return {
-      x: (e.clientX - rect.left - pan.x) / zoom,
-      y: (e.clientY - rect.top - pan.y) / zoom,
+      px: 500 + offsetXMeters / metersPerPx,
+      py: 400 + offsetYMeters / metersPerPx,
     }
   }
 
-  // Add device via click on canvas / handle tool-specific clicks
-  const handleCanvasClick = async (e: React.MouseEvent) => {
-    if (readOnly || isPanning || draggingDevice) return
+  function latLngDistanceFt(a: google.maps.LatLng, b: google.maps.LatLng): number {
+    const R = 20902231 // Earth radius in feet
+    const dLat = (b.lat() - a.lat()) * Math.PI / 180
+    const dLng = (b.lng() - a.lng()) * Math.PI / 180
+    const sinDLat = Math.sin(dLat / 2)
+    const sinDLng = Math.sin(dLng / 2)
+    const h = sinDLat * sinDLat + Math.cos(a.lat() * Math.PI / 180) * Math.cos(b.lat() * Math.PI / 180) * sinDLng * sinDLng
+    return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+  }
 
-    // Calibrate tool — collect two points, prompt for feet, save scale
-    if (tool === 'calibrate') {
-      const pt = toCanvasXY(e)
-      if (!pt) return
-      const next = [...calibratePoints, pt]
-      if (next.length === 2) {
-        const dx = next[1].x - next[0].x
-        const dy = next[1].y - next[0].y
-        const px = Math.sqrt(dx * dx + dy * dy)
-        const ftStr = typeof window !== 'undefined' ? window.prompt(`Distance between points is ${px.toFixed(1)}px. Enter real-world length in feet:`) : null
+  // ---------------------------------------------------------------------------
+  // Map click handler (dispatches by tool)
+  // ---------------------------------------------------------------------------
+  const handleMapClickRef = useRef<(latLng: google.maps.LatLng) => void>(() => {})
+  const handleDblClickRef = useRef<() => void>(() => {})
+
+  // Keep refs in sync
+  handleMapClickRef.current = (latLng: google.maps.LatLng) => {
+    if (readOnly) return
+
+    // Place device
+    if (tool === 'place' && placingDevice) {
+      createDeviceAtLatLng(latLng, placingDevice.systemType, placingDevice.deviceType)
+      setPlacingDevice(null)
+      setTool('select')
+      return
+    }
+
+    // Cable drawing
+    if (tool === 'cable') {
+      const pts = [...draftCablePoints, latLng]
+      setDraftCablePoints(pts)
+      updateDraftPolyline(pts)
+      return
+    }
+
+    // MDF/IDF placement
+    if (tool === 'mdf_idf') {
+      placeMdfIdf(latLng)
+      return
+    }
+
+    // Scale calibration
+    if (tool === 'scale') {
+      const pts = [...scalePoints, latLng]
+      setScalePoints(pts)
+      updateScaleLine(pts)
+      if (pts.length === 2) {
+        const distFt = latLngDistanceFt(pts[0], pts[1])
+        const ftStr = typeof window !== 'undefined'
+          ? window.prompt(`Map distance: ${distFt.toFixed(1)} ft. Enter actual distance in feet (or accept this value):`, distFt.toFixed(1))
+          : null
         const ft = ftStr ? parseFloat(ftStr) : NaN
         if (ft > 0) {
-          await saveCalibration(px / ft)
+          const mapDistPx = 100 // reference
+          const pxPerFt = mapDistPx / ft
+          saveCalibration(pxPerFt)
         }
-        setCalibratePoints([])
+        setScalePoints([])
+        clearScaleLine()
         setTool('select')
-      } else {
-        setCalibratePoints(next)
       }
       return
     }
 
-    // Cable tool — append points to draft polyline
-    if (tool === 'cable') {
-      const pt = toCanvasXY(e)
-      if (!pt) return
-      setDraftCable((prev) => [...prev, [pt.x, pt.y]])
-      return
-    }
-
-    // Default: deselect on empty canvas click
-    if (tool !== 'select') return
-    const target = e.target as HTMLElement
-    if (target === canvasRef.current || target.dataset.canvasBg === 'true') {
+    // Default: deselect
+    if (tool === 'select') {
       setSelectedDeviceId(null)
     }
   }
 
-  // Finish a draft cable on double-click / Enter
-  const finishDraftCable = async () => {
-    if (draftCable.length >= 2) {
-      await saveCable(draftCable)
+  handleDblClickRef.current = () => {
+    if (tool === 'cable' && draftCablePoints.length >= 2) {
+      finishCable()
     }
-    setDraftCable([])
   }
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (tool === 'cable' && (e.key === 'Enter' || e.key === 'Escape')) {
-        if (e.key === 'Enter') finishDraftCable()
-        else setDraftCable([])
-      }
-      if (tool === 'calibrate' && e.key === 'Escape') {
-        setCalibratePoints([])
-        setTool('select')
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, draftCable, calibratePoints])
+  function handleMapClick(latLng: google.maps.LatLng) {
+    handleMapClickRef.current(latLng)
+  }
+  function handleDblClick() {
+    handleDblClickRef.current()
+  }
 
-  // Add device from palette
-  const handleAddDevice = async (systemType: string, deviceType: string) => {
-    if (readOnly) return
+  // ---------------------------------------------------------------------------
+  // Device CRUD
+  // ---------------------------------------------------------------------------
+  async function createDeviceAtLatLng(latLng: google.maps.LatLng, systemType: string, deviceType: string) {
+    if (!mapRef.current) return
+
+    const { px, py } = latLngToDevicePos(latLng, mapRef.current)
 
     resetLabelCounters()
-    const label = generateDeviceLabel(
-      systemType,
-      deviceType,
-      allDevices.map(d => d.label)
-    )
-
+    const label = generateDeviceLabel(systemType, deviceType, allDevices.map(d => d.label))
     const fovAngle = systemType === 'cctv' ? (DEFAULT_FOV_ANGLES[deviceType] || 90) : undefined
 
     const res = await fetch(`/api/org/surveys/${surveyId}/devices`, {
@@ -312,8 +576,8 @@ export function SurveyCanvas({
         system_type: systemType,
         device_type: deviceType,
         label,
-        position_x: 300 + Math.random() * 200,
-        position_y: 200 + Math.random() * 200,
+        position_x: px,
+        position_y: py,
         fov_angle: fovAngle,
         color_hex: SYSTEM_TYPE_COLORS[systemType] || '#6b7280',
       }),
@@ -326,8 +590,13 @@ export function SurveyCanvas({
     }
   }
 
-  // Delete device
-  const handleDeleteDevice = async (deviceId: string) => {
+  async function handleAddDevice(systemType: string, deviceType: string) {
+    if (readOnly) return
+    setPlacingDevice({ systemType, deviceType })
+    setTool('place')
+  }
+
+  async function handleDeleteDevice(deviceId: string) {
     const res = await fetch(`/api/org/surveys/${surveyId}/devices?device_id=${deviceId}`, {
       method: 'DELETE',
     })
@@ -337,8 +606,7 @@ export function SurveyCanvas({
     }
   }
 
-  // Update device property
-  const handleUpdateDevice = async (deviceId: string, updates: Partial<SurveyDevice>) => {
+  async function handleUpdateDevice(deviceId: string, updates: Partial<SurveyDevice>) {
     const res = await fetch(`/api/org/surveys/${surveyId}/devices?device_id=${deviceId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -350,403 +618,510 @@ export function SurveyCanvas({
     }
   }
 
-  // Device marker start drag
-  const handleDeviceMouseDown = (e: React.MouseEvent, deviceId: string) => {
-    if (readOnly) return
-    e.stopPropagation()
-    const device = devices.find(d => d.id === deviceId)
-    if (!device) return
-
-    setSelectedDeviceId(deviceId)
-
-    const rect = canvasRef.current?.getBoundingClientRect()
-    if (!rect) return
-    dragOffset.current = {
-      x: (e.clientX - rect.left - pan.x) / zoom - device.position_x,
-      y: (e.clientY - rect.top - pan.y) / zoom - device.position_y,
+  // ---------------------------------------------------------------------------
+  // Cable logic
+  // ---------------------------------------------------------------------------
+  function updateDraftPolyline(pts: google.maps.LatLng[]) {
+    if (!mapRef.current) return
+    if (draftPolyRef.current) {
+      draftPolyRef.current.setPath(pts)
+    } else {
+      const color = getCableColorForType(cableType)
+      draftPolyRef.current = new google.maps.Polyline({
+        path: pts,
+        map: mapRef.current,
+        strokeColor: color,
+        strokeWeight: 3,
+        strokeOpacity: 0.6,
+        zIndex: 15,
+      })
     }
-    setDraggingDevice(deviceId)
   }
 
+  function clearDraftPolyline() {
+    if (draftPolyRef.current) {
+      draftPolyRef.current.setMap(null)
+      draftPolyRef.current = null
+    }
+    setDraftCablePoints([])
+  }
+
+  async function finishCable() {
+    if (draftCablePoints.length < 2 || !mapRef.current) return
+
+    // Convert LatLng points to pixel positions for storage
+    const polyline: [number, number][] = draftCablePoints.map(ll => {
+      const { px, py } = latLngToDevicePos(ll, mapRef.current!)
+      return [px, py]
+    })
+
+    // Compute length in feet
+    let totalFt = 0
+    for (let i = 1; i < draftCablePoints.length; i++) {
+      totalFt += latLngDistanceFt(draftCablePoints[i - 1], draftCablePoints[i])
+    }
+    const lengthFt = totalFt * (1 + cableSlack / 100)
+    const color = getCableColorForType(cableType)
+
+    const res = await fetch(`/api/org/surveys/${surveyId}/cables`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        floor_plan_id: floorPlan.id,
+        label: `C-${cables.length + 1}`,
+        cable_type: cableType,
+        color_hex: color,
+        slack_pct: cableSlack,
+        polyline,
+        length_ft: lengthFt,
+      }),
+    })
+
+    if (res.ok) {
+      const created = await res.json()
+      setCables(prev => [...prev, created])
+    }
+
+    clearDraftPolyline()
+  }
+
+  // ---------------------------------------------------------------------------
+  // Scale calibration
+  // ---------------------------------------------------------------------------
+  async function saveCalibration(pxPerFt: number) {
+    setScalePxPerFt(pxPerFt)
+    await fetch(`/api/org/surveys/${surveyId}/floor-plans?fp_id=${floorPlan.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scale_px_per_ft: pxPerFt }),
+    })
+  }
+
+  function updateScaleLine(pts: google.maps.LatLng[]) {
+    if (!mapRef.current) return
+    if (scaleLineRef.current) {
+      scaleLineRef.current.setPath(pts)
+    } else {
+      scaleLineRef.current = new google.maps.Polyline({
+        path: pts,
+        map: mapRef.current,
+        strokeColor: '#f59e0b',
+        strokeWeight: 2,
+        strokeOpacity: 1,
+        zIndex: 20,
+      })
+    }
+  }
+
+  function clearScaleLine() {
+    if (scaleLineRef.current) {
+      scaleLineRef.current.setMap(null)
+      scaleLineRef.current = null
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // MDF/IDF placement
+  // ---------------------------------------------------------------------------
+  async function placeMdfIdf(latLng: google.maps.LatLng) {
+    const label = mdfIdfType.toUpperCase()
+    const location = `${latLng.lat()},${latLng.lng()}`
+
+    const res = await fetch(`/api/org/surveys/${surveyId}/infrastructure`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        floor_plan_id: floorPlan.id,
+        type: mdfIdfType,
+        name: `${label}-${infraMarkers.filter(m => m.type === mdfIdfType).length + 1}`,
+        location,
+      }),
+    })
+
+    if (res.ok) {
+      const created = await res.json()
+      setInfraMarkers(prev => [...prev, {
+        id: created.id,
+        type: mdfIdfType,
+        lat: latLng.lat(),
+        lng: latLng.lng(),
+        label: created.name || label,
+      }])
+    }
+
+    setTool('select')
+  }
+
+  // ---------------------------------------------------------------------------
+  // Keyboard shortcuts
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (tool === 'cable' && e.key === 'Enter') {
+        finishCable()
+      }
+      if (tool === 'cable' && e.key === 'Escape') {
+        clearDraftPolyline()
+        setTool('select')
+      }
+      if (tool === 'scale' && e.key === 'Escape') {
+        setScalePoints([])
+        clearScaleLine()
+        setTool('select')
+      }
+      if (tool === 'place' && e.key === 'Escape') {
+        setPlacingDevice(null)
+        setTool('select')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, draftCablePoints, scalePoints])
+
+  // ---------------------------------------------------------------------------
+  // Zoom controls
+  // ---------------------------------------------------------------------------
+  function handleZoomIn() {
+    if (!mapRef.current) return
+    const z = mapRef.current.getZoom()
+    if (z != null) mapRef.current.setZoom(z + 1)
+  }
+  function handleZoomOut() {
+    if (!mapRef.current) return
+    const z = mapRef.current.getZoom()
+    if (z != null) mapRef.current.setZoom(z - 1)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Stats
+  // ---------------------------------------------------------------------------
+  const deviceCounts = devices.reduce<Record<string, number>>((acc, d) => {
+    acc[d.system_type] = (acc[d.system_type] || 0) + 1
+    return acc
+  }, {})
+  const totalCableFt = cables.reduce((sum, c) => sum + (c.length_ft || 0), 0)
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
   return (
-    <div className="flex" style={{ minHeight: 500 }}>
-      {/* Device Palette — Left Sidebar */}
-      {!readOnly && (
-        <div className="w-48 border-r border-border bg-muted/30 overflow-y-auto" style={{ maxHeight: 600 }}>
-          <div className="px-2 py-2">
-            {/* System Type Tabs */}
-            <div className="flex flex-wrap gap-1 mb-2">
-              {SURVEY_SYSTEM_TYPES.map((sys) => (
-                <button
-                  key={sys.value}
-                  onClick={() => setActiveSystem(sys.value)}
-                  className={`rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
-                    activeSystem === sys.value
-                      ? 'text-white'
-                      : 'bg-muted text-muted-foreground hover:text-foreground'
-                  }`}
-                  style={activeSystem === sys.value ? { backgroundColor: sys.color } : undefined}
-                >
-                  {sys.label}
-                </button>
-              ))}
-            </div>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 500, background: C.bg }}>
+      {/* TOOL STRIP — 32px */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+        height: 32,
+        padding: '0 8px',
+        background: C.bgSurface,
+        borderBottom: `1px solid ${C.border}`,
+      }}>
+        <button style={btnStyle(tool === 'select')} onClick={() => { setTool('select'); setPlacingDevice(null) }} title="Select">
+          <MousePointer size={13} /> <span>Select</span>
+        </button>
+        <button style={btnStyle(tool === 'pan')} onClick={() => { setTool('pan'); setPlacingDevice(null) }} title="Pan">
+          <Hand size={13} /> <span>Pan</span>
+        </button>
+        {!readOnly && (
+          <>
+            <button style={btnStyle(tool === 'cable')} onClick={() => { setTool('cable'); setPlacingDevice(null); clearDraftPolyline() }} title="Draw Cable">
+              <CableIcon size={13} /> <span>Cable</span>
+            </button>
+            <button style={btnStyle(tool === 'mdf_idf')} onClick={() => { setTool('mdf_idf'); setPlacingDevice(null) }} title="Place MDF/IDF">
+              <Server size={13} /> <span>MDF/IDF</span>
+            </button>
+            <button style={btnStyle(tool === 'scale')} onClick={() => { setTool('scale'); setScalePoints([]); clearScaleLine(); setPlacingDevice(null) }} title="Calibrate Scale">
+              <Crosshair size={13} /> <span>Scale</span>
+            </button>
+          </>
+        )}
 
-            {/* Device Types */}
-            <div className="space-y-0.5">
-              {(SURVEY_DEVICE_TYPES[activeSystem as keyof typeof SURVEY_DEVICE_TYPES] || []).map((dt) => (
-                <button
-                  key={dt.value}
-                  onClick={() => handleAddDevice(activeSystem, dt.value)}
-                  className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-[11px] text-foreground hover:bg-accent transition-colors"
-                >
-                  <span
-                    className="h-2 w-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: SYSTEM_TYPE_COLORS[activeSystem] }}
-                  />
-                  {dt.label}
-                </button>
-              ))}
-            </div>
+        {/* MDF/IDF type toggle */}
+        {tool === 'mdf_idf' && !readOnly && (
+          <div style={{ marginLeft: 8, display: 'flex', gap: 2 }}>
+            <button
+              style={{ ...btnStyle(mdfIdfType === 'mdf'), fontSize: 9, padding: '1px 5px' }}
+              onClick={() => setMdfIdfType('mdf')}
+            >MDF</button>
+            <button
+              style={{ ...btnStyle(mdfIdfType === 'idf'), fontSize: 9, padding: '1px 5px' }}
+              onClick={() => setMdfIdfType('idf')}
+            >IDF</button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Canvas Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Toolbar */}
-        <div className="flex items-center gap-1 border-b border-border px-2 py-1">
-          <button
-            onClick={() => setTool('select')}
-            className={`rounded p-1 ${tool === 'select' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            <MousePointer className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => setTool('pan')}
-            className={`rounded p-1 ${tool === 'pan' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            <Move className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => { setTool('calibrate'); setCalibratePoints([]) }}
-            title="Calibrate scale (click two points, enter distance in feet)"
-            className={`rounded p-1 ${tool === 'calibrate' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            <Ruler className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => { setTool('cable'); setDraftCable([]) }}
-            title="Draw cable run (click to add points, Enter to finish, Esc to cancel)"
-            className={`rounded p-1 ${tool === 'cable' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            <CableIcon className="h-3.5 w-3.5" />
-          </button>
-          <div className="mx-1 h-4 w-px bg-border" />
-          <button onClick={() => handleZoom(0.2)} className="rounded p-1 text-muted-foreground hover:text-foreground">
-            <ZoomIn className="h-3.5 w-3.5" />
-          </button>
-          <span className="text-[10px] text-muted-foreground w-8 text-center">{Math.round(zoom * 100)}%</span>
-          <button onClick={() => handleZoom(-0.2)} className="rounded p-1 text-muted-foreground hover:text-foreground">
-            <ZoomOut className="h-3.5 w-3.5" />
-          </button>
-          <div className="mx-1 h-4 w-px bg-border" />
-          {!bgImage && floorPlan.mode === 'floorplan' && (
-            <label className="inline-flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent">
-              <Upload className="h-3 w-3" /> Upload Floor Plan
-              <input type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
-            </label>
-          )}
-          <span className="ml-auto text-[10px] text-muted-foreground">
-            {scalePxPerFt ? `${scalePxPerFt.toFixed(1)} px/ft` : 'No scale set'} · {devices.length} devices · {cables.length} cables
-          </span>
-        </div>
-
-        {/* Cable tool config strip */}
+        {/* Cable type dropdown */}
         {tool === 'cable' && !readOnly && (
-          <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-2 py-1 text-[10px]">
-            <span className="text-muted-foreground">Type</span>
+          <div style={{ marginLeft: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 9, color: C.textMuted }}>Type:</span>
             <select
               value={cableType}
-              onChange={(e) => setCableType(e.target.value)}
-              className="rounded border border-border bg-background px-1 py-0.5"
+              onChange={e => setCableType(e.target.value)}
+              style={{
+                fontSize: 9,
+                background: C.bgPanel,
+                color: C.text,
+                border: `1px solid ${C.border}`,
+                borderRadius: 3,
+                padding: '1px 4px',
+              }}
             >
-              {['Cat5e', 'Cat6', 'Cat6a', 'Fiber MM', 'Fiber SM', '18/2', '22/4', 'Coax RG6', 'Speaker 16/2'].map(t => (
-                <option key={t} value={t}>{t}</option>
+              {SURVEY_CABLE_TYPES.map(ct => (
+                <option key={ct.value} value={ct.value}>{ct.label}</option>
               ))}
             </select>
-            <span className="text-muted-foreground">Color</span>
-            <input
-              type="color"
-              value={cableColor}
-              onChange={(e) => setCableColor(e.target.value)}
-              className="h-4 w-6 cursor-pointer"
-            />
-            <span className="text-muted-foreground">Slack %</span>
+            <span style={{ fontSize: 9, color: C.textMuted }}>Slack:</span>
             <input
               type="number"
               value={cableSlack}
-              onChange={(e) => setCableSlack(Number(e.target.value) || 0)}
-              className="w-12 rounded border border-border bg-background px-1 py-0.5"
+              onChange={e => setCableSlack(Number(e.target.value) || 0)}
+              style={{
+                width: 36,
+                fontSize: 9,
+                background: C.bgPanel,
+                color: C.text,
+                border: `1px solid ${C.border}`,
+                borderRadius: 3,
+                padding: '1px 4px',
+              }}
             />
-            <button
-              onClick={finishDraftCable}
-              disabled={draftCable.length < 2}
-              className="rounded bg-primary px-2 py-0.5 text-white disabled:opacity-40"
-            >
-              Finish ({draftCable.length} pts)
-            </button>
-            <button
-              onClick={() => setDraftCable([])}
-              className="rounded border border-border px-2 py-0.5"
-            >
-              Clear
-            </button>
-            {!scalePxPerFt && (
-              <span className="text-amber-500">⚠ Calibrate scale first for length</span>
+            <span style={{ fontSize: 9, color: C.textMuted }}>%</span>
+            {draftCablePoints.length >= 2 && (
+              <button
+                style={{ ...btnStyle(false), fontSize: 9, color: C.accent }}
+                onClick={() => finishCable()}
+              >Finish ({draftCablePoints.length} pts)</button>
             )}
           </div>
         )}
 
-        {/* Canvas Surface */}
-        <div
-          ref={canvasRef}
-          className="relative flex-1 overflow-hidden bg-neutral-950"
-          style={{ cursor: tool === 'pan' || isPanning ? 'grab' : 'default', minHeight: 450 }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onClick={handleCanvasClick}
-        >
-          <div
-            style={{
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-              transformOrigin: '0 0',
-              position: 'absolute',
-              inset: 0,
-            }}
-          >
-            {/* Background Image */}
-            {bgImage && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={bgImage}
-                alt="Floor plan"
-                data-canvas-bg="true"
-                className="pointer-events-none select-none"
-                style={{ maxWidth: 'none' }}
-                draggable={false}
-              />
-            )}
+        {/* Scale hint */}
+        {tool === 'scale' && (
+          <span style={{ marginLeft: 8, fontSize: 9, color: C.textMuted }}>
+            Click two points to calibrate ({scalePoints.length}/2)
+          </span>
+        )}
 
-            {/* Grid for grid mode */}
-            {floorPlan.mode === 'grid' && (
-              <svg width="800" height="600" className="absolute inset-0" data-canvas-bg="true">
-                <defs>
-                  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-                  </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#grid)" />
-              </svg>
-            )}
+        {/* Place hint */}
+        {tool === 'place' && placingDevice && (
+          <span style={{ marginLeft: 8, fontSize: 9, color: C.accent }}>
+            Click map to place device (Esc to cancel)
+          </span>
+        )}
 
-            {/* Cables + WPtP pairs + calibrate preview (G8) */}
-            <svg
-              className="absolute pointer-events-none"
-              style={{ left: 0, top: 0, width: 4000, height: 3000, overflow: 'visible' }}
-              data-canvas-bg="true"
-            >
-              {/* Saved cables */}
-              {cables.map((c) => {
-                const pts = (c.polyline || []) as [number, number][]
-                if (pts.length < 2) return null
-                const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ')
-                return (
-                  <g key={c.id} style={{ pointerEvents: 'auto' }} onDoubleClick={() => !readOnly && deleteCable(c.id)}>
-                    <path d={d} fill="none" stroke={c.color_hex || '#2563eb'} strokeWidth={2.5} />
-                    {c.length_ft != null && (
-                      <text
-                        x={pts[Math.floor(pts.length / 2)][0]}
-                        y={pts[Math.floor(pts.length / 2)][1] - 6}
-                        fill="#fff"
-                        fontSize="10"
-                        textAnchor="middle"
-                        style={{ paintOrder: 'stroke', stroke: '#000', strokeWidth: 2 }}
-                      >
-                        {c.label} · {c.length_ft.toFixed(0)}ft
-                      </text>
-                    )}
-                  </g>
-                )
-              })}
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
 
-              {/* Draft cable */}
-              {draftCable.length >= 2 && (
-                <path
-                  d={draftCable.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ')}
-                  fill="none"
-                  stroke={cableColor}
-                  strokeWidth={2}
-                  strokeDasharray="5,3"
-                />
-              )}
-              {draftCable.map((p, i) => (
-                <circle key={i} cx={p[0]} cy={p[1]} r={3} fill={cableColor} />
-              ))}
+        {/* Zoom buttons */}
+        <button style={btnStyle(false)} onClick={handleZoomIn} title="Zoom In">
+          <ZoomIn size={13} />
+        </button>
+        <button style={btnStyle(false)} onClick={handleZoomOut} title="Zoom Out">
+          <ZoomOut size={13} />
+        </button>
+      </div>
 
-              {/* Calibrate preview points + line */}
-              {calibratePoints.length > 0 && (
-                <g>
-                  {calibratePoints.map((p, i) => (
-                    <circle key={i} cx={p.x} cy={p.y} r={4} fill="#f59e0b" stroke="#fff" strokeWidth={1.5} />
-                  ))}
-                  {calibratePoints.length === 2 && (
-                    <line
-                      x1={calibratePoints[0].x} y1={calibratePoints[0].y}
-                      x2={calibratePoints[1].x} y2={calibratePoints[1].y}
-                      stroke="#f59e0b" strokeWidth={2} strokeDasharray="4,3"
-                    />
-                  )}
-                </g>
-              )}
-
-              {/* WPtP A↔B pair lines (dotted teal) */}
-              {wptpPairs.map((pair, i) => (
-                <line
-                  key={`wptp-${i}`}
-                  x1={pair[0].position_x} y1={pair[0].position_y}
-                  x2={pair[1].position_x} y2={pair[1].position_y}
-                  stroke="#14b8a6"
-                  strokeWidth={2}
-                  strokeDasharray="6,4"
-                  opacity={0.85}
-                />
-              ))}
-            </svg>
-
-            {/* Device Markers */}
-            {devices.map((device) => {
-              const color = device.color_hex || SYSTEM_TYPE_COLORS[device.system_type] || '#6b7280'
-              const isSelected = device.id === selectedDeviceId
-              const size = 24
-
+      {/* MAIN CONTENT */}
+      <div style={{ display: 'flex', flex: 1, position: 'relative' }}>
+        {/* DEVICE PALETTE — 52px */}
+        {!readOnly && (
+          <div style={{
+            width: 52,
+            background: C.bgSurface,
+            borderRight: `1px solid ${C.border}`,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+          }}>
+            {SURVEY_SYSTEM_TYPES.map(sys => {
+              const isExpanded = expandedSystem === sys.value
+              const count = deviceCounts[sys.value] || 0
               return (
-                <div
-                  key={device.id}
-                  onMouseDown={(e) => handleDeviceMouseDown(e, device.id)}
-                  onClick={(e) => { e.stopPropagation(); setSelectedDeviceId(device.id) }}
-                  className="absolute"
-                  style={{
-                    left: device.position_x - size / 2,
-                    top: device.position_y - size / 2,
-                    width: size,
-                    height: size,
-                    cursor: readOnly ? 'pointer' : 'grab',
-                    zIndex: isSelected ? 20 : 10,
-                  }}
-                >
-                  {/* FOV Cone for CCTV */}
-                  {device.system_type === 'cctv' && device.fov_angle && device.fov_angle < 360 && (
-                    <svg
-                      className="absolute pointer-events-none"
-                      style={{
-                        left: size / 2,
-                        top: size / 2,
-                        width: 200,
-                        height: 200,
-                        transform: `translate(-100px, -100px)`,
-                        opacity: isSelected ? 0.4 : 0.2,
-                      }}
-                    >
-                      <path
-                        d={(() => {
-                          const cx = 100
-                          const cy = 100
-                          const r = 80
-                          const rot = (device.fov_rotation || 0) - 90
-                          const half = (device.fov_angle || 90) / 2
-                          const a1 = ((rot - half) * Math.PI) / 180
-                          const a2 = ((rot + half) * Math.PI) / 180
-                          const x1 = cx + r * Math.cos(a1)
-                          const y1 = cy + r * Math.sin(a1)
-                          const x2 = cx + r * Math.cos(a2)
-                          const y2 = cy + r * Math.sin(a2)
-                          const large = device.fov_angle > 180 ? 1 : 0
-                          return `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`
-                        })()}
-                        fill={color}
-                        stroke={color}
-                        strokeWidth={1}
-                      />
-                    </svg>
-                  )}
-
-                  {/* Circular coverage for speakers / vape sensors */}
-                  {(device.system_type === 'vape_environmental' || device.system_type === 'av') && (
-                    <div
-                      className="absolute rounded-full pointer-events-none"
-                      style={{
-                        left: size / 2 - 40,
-                        top: size / 2 - 40,
-                        width: 80,
-                        height: 80,
-                        border: `1.5px solid ${color}`,
-                        backgroundColor: `${color}10`,
-                        opacity: isSelected ? 0.5 : 0.2,
-                      }}
-                    />
-                  )}
-
-                  {/* SVG device marker (G8) */}
-                  <div
-                    className="absolute transition-transform"
+                <div key={sys.value}>
+                  <button
+                    onClick={() => setExpandedSystem(isExpanded ? null : sys.value)}
+                    title={sys.label}
                     style={{
-                      width: size,
-                      height: size,
-                      transform: isSelected ? 'scale(1.25)' : 'scale(1)',
-                      filter: isSelected ? 'drop-shadow(0 0 4px #fff)' : 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '100%',
+                      padding: '6px 2px',
+                      background: isExpanded ? C.bgActive : 'transparent',
+                      border: 'none',
+                      borderBottom: `1px solid ${C.borderSubtle}`,
+                      cursor: 'pointer',
+                      gap: 1,
                     }}
                   >
-                    <SurveyDeviceIcon
-                      systemType={device.system_type}
-                      deviceType={device.device_type}
-                      color={color}
-                      size={size}
-                    />
-                  </div>
-
-                  {/* Label */}
-                  <div
-                    className="absolute whitespace-nowrap text-[9px] font-bold pointer-events-none"
-                    style={{
-                      left: size + 4,
-                      top: size / 2 - 6,
+                    <div style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: '50%',
+                      background: sys.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 8,
                       color: '#fff',
-                      textShadow: '0 0 3px rgba(0,0,0,0.8)',
-                    }}
-                  >
-                    {device.label}
-                  </div>
+                      fontWeight: 700,
+                    }}>
+                      {count || ''}
+                    </div>
+                    <span style={{ fontSize: 7, color: C.textMuted, textAlign: 'center', lineHeight: 1.1 }}>
+                      {sys.label.split('/')[0].trim().substring(0, 6)}
+                    </span>
+                  </button>
+                  {/* Expanded: show device types as popup */}
+                  {isExpanded && (
+                    <div style={{
+                      position: 'absolute',
+                      left: 52,
+                      top: 0,
+                      width: 180,
+                      maxHeight: 400,
+                      overflowY: 'auto',
+                      background: C.bgPanel,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 4,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                      zIndex: 50,
+                      padding: 4,
+                    }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: C.text, padding: '4px 6px', borderBottom: `1px solid ${C.borderSubtle}`, marginBottom: 2 }}>
+                        {sys.label}
+                      </div>
+                      {(SURVEY_DEVICE_TYPES[sys.value as keyof typeof SURVEY_DEVICE_TYPES] || []).map(dt => (
+                        <button
+                          key={dt.value}
+                          onClick={() => { handleAddDevice(sys.value, dt.value); setExpandedSystem(null) }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            width: '100%',
+                            padding: '3px 6px',
+                            background: 'transparent',
+                            border: 'none',
+                            borderRadius: 2,
+                            cursor: 'pointer',
+                            fontSize: 10,
+                            color: C.text,
+                            textAlign: 'left',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = C.bgHover)}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: sys.color, flexShrink: 0 }} />
+                          {dt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
+        )}
+
+        {/* MAP CONTAINER */}
+        <div style={{ flex: 1, position: 'relative' }}>
+          <div
+            ref={mapContainerRef}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              cursor: tool === 'pan' ? 'grab' : tool === 'place' ? 'crosshair' : tool === 'cable' ? 'crosshair' : tool === 'scale' ? 'crosshair' : tool === 'mdf_idf' ? 'crosshair' : 'default',
+            }}
+          />
+
+          {/* Loading state */}
+          {!mapsApiKey && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: C.bg,
+              color: C.textMuted,
+              fontSize: 12,
+            }}>
+              Loading maps...
+            </div>
+          )}
         </div>
+
+        {/* RIGHT PANEL — device properties */}
+        {selectedDevice && (
+          <div style={{
+            width: 300,
+            borderLeft: `1px solid ${C.border}`,
+            background: C.bgPanel,
+            overflowY: 'auto',
+            position: 'relative',
+          }}>
+            <button
+              onClick={() => setSelectedDeviceId(null)}
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: C.textMuted,
+                zIndex: 5,
+              }}
+            >
+              <X size={14} />
+            </button>
+            <SurveyDevicePanel
+              device={selectedDevice}
+              surveyId={surveyId}
+              onUpdate={(updates) => handleUpdateDevice(selectedDevice.id, updates)}
+              onDelete={() => handleDeleteDevice(selectedDevice.id)}
+              onClose={() => setSelectedDeviceId(null)}
+              readOnly={readOnly}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Right Panel — Device Properties */}
-      {selectedDevice && (
-        <SurveyDevicePanel
-          device={selectedDevice}
-          surveyId={surveyId}
-          onUpdate={(updates) => handleUpdateDevice(selectedDevice.id, updates)}
-          onDelete={() => handleDeleteDevice(selectedDevice.id)}
-          onClose={() => setSelectedDeviceId(null)}
-          readOnly={readOnly}
-        />
-      )}
+      {/* STATUS BAR — 28px */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        height: 28,
+        padding: '0 10px',
+        background: C.bgSurface,
+        borderTop: `1px solid ${C.border}`,
+        fontSize: 10,
+        color: C.textMuted,
+      }}>
+        <span>Devices: {devices.length}</span>
+        {Object.entries(deviceCounts).map(([sys, count]) => {
+          const info = SURVEY_SYSTEM_TYPES.find(s => s.value === sys)
+          return (
+            <span key={sys} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: info?.color || '#6b7280' }} />
+              {info?.label || sys}: {count}
+            </span>
+          )
+        })}
+        <span style={{ width: 1, height: 14, background: C.border }} />
+        <span>Cables: {cables.length} ({totalCableFt.toFixed(0)} ft)</span>
+        <span style={{ width: 1, height: 14, background: C.border }} />
+        <span>{scalePxPerFt ? `Scale: ${scalePxPerFt.toFixed(1)} px/ft` : 'No scale set'}</span>
+        {infraMarkers.length > 0 && (
+          <>
+            <span style={{ width: 1, height: 14, background: C.border }} />
+            <span>MDF: {infraMarkers.filter(m => m.type === 'mdf').length} | IDF: {infraMarkers.filter(m => m.type === 'idf').length}</span>
+          </>
+        )}
+      </div>
     </div>
   )
 }

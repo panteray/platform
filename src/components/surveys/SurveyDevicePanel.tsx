@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
-import { X, Trash2, Camera, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { X, Trash2, Camera, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 import type { SurveyDevice } from '@/types/database'
 import {
   SURVEY_SYSTEM_TYPES, SURVEY_DEVICE_TYPES, SURVEY_DEVICE_STATUSES,
@@ -23,7 +23,24 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
   const [showDoor, setShowDoor] = useState(false)
   const [showVape, setShowVape] = useState(false)
   const [photoCapturing, setPhotoCapturing] = useState(false)
+  const [photos, setPhotos] = useState<{ id: string; url: string; caption?: string }[]>([])
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // Load existing photos for this device
+  useEffect(() => {
+    let cancelled = false
+    async function loadPhotos() {
+      try {
+        const res = await fetch(`/api/org/surveys/${surveyId}/photos?device_id=${device.id}`)
+        if (res.ok && !cancelled) {
+          const data = await res.json()
+          setPhotos(data)
+        }
+      } catch { /* non-fatal */ }
+    }
+    loadPhotos()
+    return () => { cancelled = true }
+  }, [surveyId, device.id])
 
   const debouncedUpdate = useCallback((field: string, value: unknown) => {
     if (debounceRef.current[field]) clearTimeout(debounceRef.current[field])
@@ -59,7 +76,7 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
     reader.onload = async (ev) => {
       const base64 = ev.target?.result as string
       const gps = await gpsPromise
-      await fetch(`/api/org/surveys/${surveyId}/photos`, {
+      const res = await fetch(`/api/org/surveys/${surveyId}/photos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -70,6 +87,10 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
           lng: gps.lng,
         }),
       })
+      if (res.ok) {
+        const photo = await res.json()
+        setPhotos(prev => [...prev, photo])
+      }
       setPhotoCapturing(false)
     }
     reader.readAsDataURL(file)
@@ -265,13 +286,29 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
           />
         </div>
 
-        {/* Photo Capture */}
+        {/* Photos */}
         <div>
+          <label className="block text-[10px] font-medium text-muted-foreground mb-1">
+            <Camera className="inline h-3 w-3 mr-0.5" /> Photos
+          </label>
           <label className="inline-flex cursor-pointer items-center gap-1 rounded border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent">
-            <Camera className="h-3 w-3" />
-            {photoCapturing ? 'Uploading...' : 'Take Photo'}
+            <Plus className="h-3 w-3" />
+            {photoCapturing ? 'Uploading...' : 'Add Photo'}
             <input type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} className="hidden" disabled={readOnly || photoCapturing} />
           </label>
+          {photos.length > 0 && (
+            <div className="mt-1.5 grid grid-cols-3 gap-1">
+              {photos.map((p) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={p.id}
+                  src={p.url}
+                  alt={p.caption || 'Device photo'}
+                  className="h-16 w-full rounded border border-border object-cover"
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ACS Door Config — Collapsible */}

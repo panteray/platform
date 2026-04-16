@@ -5,6 +5,7 @@ import {
   ArrowLeft, Save, Send, Plus, Trash2, MapPin, Layers,
   ChevronDown, ChevronUp, Wifi, WifiOff, RefreshCw,
 } from 'lucide-react'
+import { C } from '../design-canvas/constants'
 import type { Survey, SurveyFloorPlan, SurveyDevice, SurveyInfrastructure } from '@/types/database'
 import { SurveyStatusBadge } from './SurveyStatusBadge'
 import { SURVEY_FLOOR_PLAN_MODES, SURVEY_INFRA_TYPES } from '@/lib/survey-constants'
@@ -30,6 +31,7 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
   const [activeFloorPlan, setActiveFloorPlan] = useState<string | null>(null)
   const [showInfo, setShowInfo] = useState(true)
   const [showInfra, setShowInfra] = useState(false)
+  const [showAddMenu, setShowAddMenu] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refreshPending = useCallback(async () => {
@@ -196,7 +198,7 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
   const fpDevices = devices.filter(d => d.floor_plan_id === activeFloorPlan)
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col h-[calc(100vh-4rem)] gap-2">
       {/* Top Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -324,8 +326,8 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
       </div>
 
       {/* Floor Plan Tabs */}
-      <div className="rounded-lg border border-border bg-card">
-        <div className="flex items-center gap-1 border-b border-border px-2 py-1.5 overflow-x-auto scrollbar-hide">
+      <div className="rounded-lg border border-border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto scrollbar-hide" style={{ background: C.bgPanel, borderBottom: `1px solid ${C.border}` }}>
           {floorPlans.map((fp) => (
             <div key={fp.id} className="flex items-center gap-0.5">
               <button
@@ -349,23 +351,28 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
             </div>
           ))}
           {!isSubmitted && (
-            <div className="relative group">
-              <button className="flex items-center gap-0.5 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground">
+            <div className="relative">
+              <button
+                onClick={() => setShowAddMenu(!showAddMenu)}
+                className="flex items-center gap-0.5 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+              >
                 <Plus className="h-3 w-3" /> Add Area
               </button>
-              <div className="absolute left-0 top-full z-20 hidden group-hover:block pt-1">
-                <div className="rounded-md border border-border bg-popover shadow-md py-1 min-w-[160px]">
-                  {SURVEY_FLOOR_PLAN_MODES.map((m) => (
-                    <button
-                      key={m.value}
-                      onClick={() => handleAddFloorPlan(m.value)}
-                      className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-accent"
-                    >
-                      {m.label}
-                    </button>
-                  ))}
+              {showAddMenu && (
+                <div className="absolute left-0 top-full z-20 pt-1">
+                  <div className="rounded-md border border-border bg-popover shadow-md py-1 min-w-[160px]">
+                    {SURVEY_FLOOR_PLAN_MODES.map((m) => (
+                      <button
+                        key={m.value}
+                        onClick={() => { handleAddFloorPlan(m.value); setShowAddMenu(false) }}
+                        className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-accent"
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>
