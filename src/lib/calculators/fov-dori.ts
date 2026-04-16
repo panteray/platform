@@ -121,6 +121,17 @@ export function calculateFovDori(input: FovDoriInput): FovDoriOutput {
     targetPpf = 76,
   } = input;
 
+  // Guard against division by zero
+  if (focalLength <= 0) {
+    return {
+      hFov: 0, vFov: 0, sceneWidthFt: 0, sceneHeightFt: 0, ppf: 0,
+      dpiClassification: 'none' as DoriClassification,
+      requiredFocalLengthMm: 0, recommendedTiltDeg: 0, blindSpotFt: 0,
+      maxIdentificationDistFt: 0, maxRecognitionDistFt: 0, maxObservationDistFt: 0,
+      maxDetectionDistFt: 0, maxInspectionDistFt: 0, maxMonitorDistFt: 0,
+    };
+  }
+
   // 1. Field of View angles
   const hFov = 2 * Math.atan(sensorW / (2 * focalLength)) * RAD_TO_DEG;
   const vFov = 2 * Math.atan(sensorH / (2 * focalLength)) * RAD_TO_DEG;

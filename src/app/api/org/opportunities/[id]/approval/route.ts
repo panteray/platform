@@ -1,22 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { verifyOrgCRM } from '@/lib/auth'
 
 const APPROVER_ROLES = ['GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER', 'MANAGER']
-
-async function verifyCaller() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin
-    .from('users')
-    .select('id, role, org_id')
-    .eq('auth_id', user.id)
-    .single()
-  if (!dbUser?.org_id) return null
-  return dbUser
-}
 
 /**
  * GET /api/org/opportunities/[id]/approval
@@ -27,7 +13,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminClient()
@@ -85,7 +71,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
@@ -157,7 +143,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Only approver roles can approve/reject

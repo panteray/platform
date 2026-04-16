@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   // Get next version number for this document type
   const { data: existing } = await admin.from('opp_vault_documents')
-    .select('version').eq('opp_id', body.opp_id).eq('document_type', body.document_type)
+    .select('version').eq('opp_id', body.opp_id).eq('org_id', user.org_id).eq('document_type', body.document_type)
     .order('version', { ascending: false }).limit(1)
   const nextVersion = (existing?.[0]?.version ?? 0) + 1
 

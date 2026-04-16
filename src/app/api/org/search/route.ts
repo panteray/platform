@@ -10,6 +10,10 @@ interface SearchResult {
   url: string
 }
 
+function sanitize(s: string): string {
+  return s.replace(/[\\%_,().]/g, c => '\\' + c)
+}
+
 export async function GET(req: NextRequest) {
   const dbUser = await verifyOrgCRM()
   if (!dbUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -19,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   const orgId = dbUser.org_id
   const admin = createAdminClient()
-  const pattern = `%${q}%`
+  const pattern = `%${sanitize(q)}%`
 
   const [
     oppsRes,

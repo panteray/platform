@@ -42,6 +42,12 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminClient()
+
+  // Verify target user belongs to the same org
+  const { data: targetUser } = await admin.from('users').select('id, org_id').eq('id', body.user_id).single()
+  if (!targetUser || targetUser.org_id !== dbUser.org_id) {
+    return NextResponse.json({ error: 'Target user not in your organization' }, { status: 403 })
+  }
   const effectiveFrom = (body.effective_from as string) ?? new Date().toISOString().split('T')[0]
 
   // Close prior current rate for this user (set effective_to = new rate's effective_from - 1 day)

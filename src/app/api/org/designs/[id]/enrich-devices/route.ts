@@ -23,6 +23,18 @@ export async function POST(
   const CAMERA_CATS = ['cctv', 'dome', 'bullet', 'turret', 'ptz', 'fisheye', 'multisensor_quad', 'multisensor_dual']
   let enriched = 0
 
+  // Batch-fetch all linked library items in a single query (fixes N+1)
+  const libItemIds = [...new Set(
+    devices.filter(d => d.device_library_item_id).map(d => d.device_library_item_id as string)
+  )]
+  const libItemMap = new Map<string, Record<string, unknown>>()
+  if (libItemIds.length > 0) {
+    const { data: libItems } = await admin.from('device_library_items').select('*').in('id', libItemIds)
+    for (const item of libItems ?? []) {
+      libItemMap.set(item.id, item as Record<string, unknown>)
+    }
+  }
+
   for (const d of devices) {
     if (!CAMERA_CATS.includes(d.category)) continue
     const props = (d.properties ?? {}) as Record<string, unknown>
@@ -50,9 +62,9 @@ export async function POST(
 
     // Try to enrich from device library if linked
     if (d.device_library_item_id) {
-      const { data: libItem } = await admin.from('device_library_items').select('*').eq('id', d.device_library_item_id).single()
+      const libItem = libItemMap.get(d.device_library_item_id)
       if (libItem) {
-        const specs = (libItem.specs ?? {}) as Record<string, unknown>
+        const specs = ((libItem.specs ?? {}) as Record<string, unknown>)
         if (!props.sensor_w && specs.sensor_w) { updates.sensor_w = specs.sensor_w; needsUpdate = true }
         if (!props.focal_length && specs.focal_length) { updates.focal_length = specs.focal_length; needsUpdate = true }
         if (!props.resolution_w && specs.resolution_w) { updates.resolution_w = specs.resolution_w; needsUpdate = true }

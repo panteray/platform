@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { verifyOrgCRM } from '@/lib/auth'
 import { OppStatus, OPP_STATUS_ORDER, OPP_STATUS_TRANSITIONS } from '@/types/enums'
 
 const MANAGER_ROLES = ['GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER', 'MANAGER']
@@ -55,19 +55,9 @@ function validateTransition(
   return null
 }
 
-async function verifyCaller() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin.from('users').select('id, role, org_id, is_global_admin').eq('auth_id', user.id).single()
-  if (!dbUser || !dbUser.org_id) return null
-  return dbUser
-}
-
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json()
   const newStatus = body.new_status as OppStatus

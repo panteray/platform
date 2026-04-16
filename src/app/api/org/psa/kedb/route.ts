@@ -4,6 +4,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { canAccess } from '@/lib/roles'
 import { UserRole } from '@/types/enums'
 
+function sanitize(s: string): string {
+  return s.replace(/[\\%_,().]/g, c => '\\' + c)
+}
+
 export async function GET(req: NextRequest) {
   const dbUser = await verifyOrgCRM()
   if (!dbUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -21,7 +25,10 @@ export async function GET(req: NextRequest) {
 
   if (!includeArchived) query = query.is('archived_at', null)
   if (category) query = query.eq('category', category)
-  if (q) query = query.or(`title.ilike.%${q}%,symptoms.ilike.%${q}%`)
+  if (q) {
+    const safe = sanitize(q)
+    query = query.or(`title.ilike.%${safe}%,symptoms.ilike.%${safe}%`)
+  }
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

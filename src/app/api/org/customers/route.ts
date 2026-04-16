@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
     .select('*')
     .eq('org_id', caller.org_id)
     .order('created_at', { ascending: false })
+    .limit(200)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)

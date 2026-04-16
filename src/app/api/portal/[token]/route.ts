@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { dbError } from '@/lib/api-utils'
 
 /** GET /api/portal/:token — public token-gated read of OPP documents */
 export async function GET(
@@ -116,7 +117,7 @@ export async function POST(
     .select()
     .single()
 
-  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+  if (updateErr) return NextResponse.json({ error: dbError(updateErr) }, { status: 500 })
 
   // Update OPP: set po_received_at, trigger status consideration
   await admin

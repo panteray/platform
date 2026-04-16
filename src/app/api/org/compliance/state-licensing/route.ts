@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyOrgCRM } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { dbError } from '@/lib/api-utils'
 
 /**
  * GET /api/org/compliance/state-licensing
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
   if (licenseRequired === 'false') query = query.eq('license_required', false)
 
   const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: dbError(error) }, { status: 500 })
   return NextResponse.json(data ?? [])
 }
 
@@ -70,6 +71,6 @@ export async function PATCH(req: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: dbError(error) }, { status: 500 })
   return NextResponse.json(data)
 }

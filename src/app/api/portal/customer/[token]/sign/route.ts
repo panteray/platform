@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { dbError } from '@/lib/api-utils'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
@@ -22,6 +23,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: 'entity_type, entity_id, signature_data_url, signed_by_name required' }, { status: 400 })
   }
 
+  // Validate entity_type to prevent path traversal in storage path
+  const ALLOWED_ENTITY_TYPES = ['sow', 'contract', 'quote']
+  if (!ALLOWED_ENTITY_TYPES.includes(body.entity_type as string)) {
+    return NextResponse.json({ error: 'Invalid entity type' }, { status: 400 })
+  }
+
   // Decode data URL → upload to storage
   const dataUrl = body.signature_data_url as string
   const match = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/)
@@ -33,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const { error: uploadErr } = await admin.storage
     .from('customer-signatures')
     .upload(filename, buffer, { contentType: `image/${ext}`, upsert: true })
-  if (uploadErr) return NextResponse.json({ error: uploadErr.message }, { status: 500 })
+  if (uploadErr) return NextResponse.json({ error: dbError(uploadErr, 'Upload failed') }, { status: 500 })
 
   const { data: pub } = admin.storage.from('customer-signatures').getPublicUrl(filename)
   const signatureUrl = pub.publicUrl
@@ -57,6 +64,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) return NextResponse.json({ error: dbError(error) }, { status: 400 })
   return NextResponse.json(data, { status: 201 })
 }

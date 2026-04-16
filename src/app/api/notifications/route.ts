@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyOrgCRM } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { dbError } from '@/lib/api-utils'
 import { canAccess } from '@/lib/roles'
 import { UserRole } from '@/types/enums'
 
@@ -20,7 +21,7 @@ export async function GET(_req: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(50)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: dbError(error) }, { status: 500 })
   return NextResponse.json(data ?? [])
 }
 
@@ -44,6 +45,13 @@ export async function POST(req: NextRequest) {
   if (!body.message) return NextResponse.json({ error: 'message required' }, { status: 400 })
 
   const admin = createAdminClient()
+
+  // Verify target user belongs to the same org
+  const { data: targetUser } = await admin.from('users').select('id, org_id').eq('id', body.user_id).single()
+  if (!targetUser || targetUser.org_id !== dbUser.org_id) {
+    return NextResponse.json({ error: 'Target user not in your organization' }, { status: 403 })
+  }
+
   const { data, error } = await admin
     .from('notifications')
     .insert({
@@ -59,6 +67,6 @@ export async function POST(req: NextRequest) {
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: dbError(error) }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }

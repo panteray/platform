@@ -1,29 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { verifyOrgCRM } from '@/lib/auth'
 
 const ADMIN_ROLES = ['GLOBAL_ADMIN', 'ORG_ADMIN', 'ORG_MANAGER']
-
-async function verifyCaller() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin
-    .from('users')
-    .select('id, role, org_id')
-    .eq('auth_id', user.id)
-    .single()
-  if (!dbUser || !dbUser.org_id) return null
-  return dbUser
-}
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; messageId: string }> }
 ) {
   const { messageId } = await params
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminClient()

@@ -12,6 +12,10 @@ export async function GET(
   const { id: projectId } = await params
   const admin = createAdminClient()
 
+  // Verify project belongs to user's org
+  const { data: project } = await admin.from('projects').select('id').eq('id', projectId).eq('org_id', dbUser.org_id).single()
+  if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+
   const { data, error } = await admin
     .from('project_team')
     .select('*, users(id, first_name, last_name, email, role, avatar_url)')

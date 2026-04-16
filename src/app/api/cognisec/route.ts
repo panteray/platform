@@ -4,6 +4,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleAuth } from 'google-auth-library';
+import { verifyOrgCRM } from '@/lib/auth';
+import { dbError } from '@/lib/api-utils';
 
 const auth = new GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/cloud-platform'],
@@ -22,6 +24,9 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+
+  const dbUser = await verifyOrgCRM()
+  if (!dbUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { message, sessionId, userId } = await req.json() as {
     message: string;
@@ -61,7 +66,7 @@ export async function POST(req: NextRequest) {
     const errText = await upstream.text();
     console.error('[CogniSec API] upstream error:', upstream.status, errText);
     return NextResponse.json(
-      { error: `Agent Engine error ${upstream.status}`, detail: errText },
+      { error: dbError({ message: errText }, `Agent Engine error ${upstream.status}`) },
       { status: upstream.status }
     );
   }

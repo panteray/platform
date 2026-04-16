@@ -1,20 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-
-async function verifyCaller() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin.from('users').select('id, role, org_id').eq('auth_id', user.id).single()
-  if (!dbUser || !dbUser.org_id) return null
-  return dbUser
-}
+import { verifyOrgCRM } from '@/lib/auth'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const admin = createAdminClient()
   const { data, error } = await admin.from('opp_material_tracking').select('*').eq('opp_id', id).eq('org_id', caller.org_id).order('created_at', { ascending: true })
@@ -24,7 +14,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const body = await request.json()
   const admin = createAdminClient()
@@ -48,7 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function PATCH(request: NextRequest) {
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const body = await request.json()
   if (!body.id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
@@ -62,7 +52,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')

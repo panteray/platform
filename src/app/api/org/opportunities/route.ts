@@ -1,19 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { verifyOrgCRM } from '@/lib/auth'
 
-const OPP_ALLOWED_ROLES = ['GLOBAL_ADMIN','GLOBAL_MANAGER','ORG_ADMIN','ORG_MANAGER','MANAGER','OPERATIONS','SALES_ISR','SALES_OSR','PRESALES','PROJECT_MANAGER','TECH_SUP']
 const OPP_CREATE_ROLES = ['GLOBAL_ADMIN','GLOBAL_MANAGER','ORG_ADMIN','ORG_MANAGER','MANAGER','SALES_ISR','SALES_OSR']
-
-async function verifyCaller() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin.from('users').select('id, role, org_id, is_global_admin').eq('auth_id', user.id).single()
-  if (!dbUser || !dbUser.org_id) return null
-  return dbUser
-}
 
 async function nextOppNumber(admin: ReturnType<typeof createAdminClient>, orgId: string) {
   const { data } = await admin.from('opportunities').select('opp_number').eq('org_id', orgId).order('opp_number', { ascending: false }).limit(1)
@@ -23,16 +12,16 @@ async function nextOppNumber(admin: ReturnType<typeof createAdminClient>, orgId:
 }
 
 export async function GET() {
-  const caller = await verifyCaller()
-  if (!caller || !OPP_ALLOWED_ROLES.includes(caller.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const caller = await verifyOrgCRM()
+  if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const admin = createAdminClient()
-  const { data, error } = await admin.from('opportunities').select('*, customers(id, name, customer_type, contact_name, contact_email, contact_phone, address, state, territory, region, region_state)').eq('org_id', caller.org_id).order('created_at', { ascending: false })
+  const { data, error } = await admin.from('opportunities').select('*, customers(id, name, customer_type, contact_name, contact_email, contact_phone, address, state, territory, region, region_state)').eq('org_id', caller.org_id).order('created_at', { ascending: false }).limit(200)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)
 }
 
 export async function POST(request: NextRequest) {
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller || !OPP_CREATE_ROLES.includes(caller.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const body = await request.json()
   const admin = createAdminClient()
@@ -83,7 +72,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller || !['GLOBAL_ADMIN','ORG_ADMIN','ORG_MANAGER'].includes(caller.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')

@@ -46,6 +46,13 @@ export async function POST(req: NextRequest) {
 
   // Check for double-booking (overlapping window on same tech + date)
   if (body.scheduled_start && body.scheduled_end) {
+    // Validate ISO time format to prevent injection via .or() interpolation
+    const isoTimeRe = /^\d{2}:\d{2}(:\d{2})?$/
+    const startStr = String(body.scheduled_start)
+    const endStr = String(body.scheduled_end)
+    if (!isoTimeRe.test(startStr) || !isoTimeRe.test(endStr)) {
+      return NextResponse.json({ error: 'scheduled_start and scheduled_end must be HH:MM or HH:MM:SS' }, { status: 400 })
+    }
     const { data: overlaps } = await admin
       .from('psa_dispatch_assignments')
       .select('id, ticket_id')
@@ -53,7 +60,8 @@ export async function POST(req: NextRequest) {
       .eq('tech_id', body.tech_id)
       .eq('scheduled_date', body.scheduled_date)
       .neq('status', 'cancelled')
-      .or(`scheduled_start.lte.${body.scheduled_end},scheduled_end.gte.${body.scheduled_start}`)
+      .lte('scheduled_start', endStr)
+      .gte('scheduled_end', startStr)
 
     if (overlaps && overlaps.length > 0) {
       return NextResponse.json({

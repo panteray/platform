@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { verifyOrgCRM } from '@/lib/auth'
 
 const PN_PM_ROLES = ['GLOBAL_ADMIN','ORG_ADMIN','ORG_MANAGER']
 const PRESALES_ASSIGN_ROLES = ['GLOBAL_ADMIN','ORG_ADMIN','ORG_MANAGER','PRESALES']
@@ -34,19 +34,9 @@ const GENERAL_FIELDS = [
 
 const ADMIN_ONLY_FIELDS = ['project_number','assigned_pm_id','pn_assigned_at','po_received_at']
 
-async function verifyCaller() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data: dbUser } = await admin.from('users').select('id, role, org_id, is_global_admin').eq('auth_id', user.id).single()
-  if (!dbUser || !dbUser.org_id) return null
-  return dbUser
-}
-
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const admin = createAdminClient()
 
@@ -63,7 +53,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const caller = await verifyCaller()
+  const caller = await verifyOrgCRM()
   if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let body: Record<string, unknown>
