@@ -1,3 +1,6 @@
+// NOTE: access_token_enc / refresh_token_enc column names are misleading —
+// tokens are stored as plaintext. Encryption at rest is handled by Supabase.
+
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'

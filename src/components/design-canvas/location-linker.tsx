@@ -34,7 +34,7 @@ export function LocationLinker({ designId, customerId, currentSiteId, currentBui
     if (!customerId) return
     fetch(`/api/org/customers/${customerId}/sites`).then(async r => {
       if (r.ok) { const d = await r.json(); setSites(d.sites ?? []) }
-    }).catch(() => {})
+    }).catch((e) => { console.error('[LocationLinker] Failed to load sites:', e) })
   }, [customerId])
 
   // Fetch buildings when site changes
@@ -42,7 +42,7 @@ export function LocationLinker({ designId, customerId, currentSiteId, currentBui
     if (!siteId) { setBuildings([]); return }
     fetch(`/api/org/sites/${siteId}/buildings`).then(async r => {
       if (r.ok) { const d = await r.json(); setBuildings(d.buildings ?? []) }
-    }).catch(() => {})
+    }).catch((e) => { console.error('[LocationLinker] Failed to load buildings:', e) })
   }, [siteId])
 
   // Fetch floors when building changes
@@ -50,7 +50,7 @@ export function LocationLinker({ designId, customerId, currentSiteId, currentBui
     if (!buildingId) { setFloors([]); return }
     fetch(`/api/org/buildings/${buildingId}/floors`).then(async r => {
       if (r.ok) { const d = await r.json(); setFloors(d.floors ?? []) }
-    }).catch(() => {})
+    }).catch((e) => { console.error('[LocationLinker] Failed to load floors:', e) })
   }, [buildingId])
 
   // Fetch spaces when floor changes
@@ -58,7 +58,7 @@ export function LocationLinker({ designId, customerId, currentSiteId, currentBui
     if (!floorId) { setSpaces([]); return }
     fetch(`/api/org/floors/${floorId}/spaces`).then(async r => {
       if (r.ok) { const d = await r.json(); setSpaces(d.spaces ?? []) }
-    }).catch(() => {})
+    }).catch((e) => { console.error('[LocationLinker] Failed to load spaces:', e) })
   }, [floorId])
 
   const handleSave = useCallback(async () => {

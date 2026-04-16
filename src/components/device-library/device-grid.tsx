@@ -105,11 +105,11 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
     fetch('/api/org/device-library/distinct-resolutions')
       .then(r => r.json())
       .then(j => setDistinctResolutions(j.resolutions ?? []))
-      .catch(() => {})
+      .catch((e) => { console.error('[DeviceGrid] Failed to load resolutions:', e) })
     fetch('/api/org/device-library/manufacturers-list')
       .then(r => r.json())
       .then(j => setManufacturers(j.manufacturers ?? []))
-      .catch(() => {})
+      .catch((e) => { console.error('[DeviceGrid] Failed to load manufacturers:', e) })
   }, [])
 
   // Fetch results

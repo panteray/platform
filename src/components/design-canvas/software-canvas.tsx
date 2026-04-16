@@ -84,7 +84,7 @@ export function SoftwareCanvas({ designId, designName, oppNumber, customerName }
         createdAt: q.created_at as string, customerNotes: (q.customer_notes || '') as string,
       })))
       if (quotes?.length > 0) setCurrentVersion((quotes[0].version as number) + 1)
-    }).catch(() => {})
+    }).catch((e) => { console.error('[SoftwareCanvas] Failed to load quote versions:', e) })
   }, [designId])
 
   // handleSaveVersion is defined as a regular async function (not useCallback)
@@ -120,7 +120,7 @@ export function SoftwareCanvas({ designId, designName, oppNumber, customerName }
         setConfig({ contractTermMonths: full.contract_term_months || 36, yearlyIncreasePct: full.yearly_increase_pct || 5, onboardingFee: full.onboarding_fee || 0, markupPct: full.markup_pct || 0 })
         setCustomerNotes(full.customer_notes || '')
       }
-    }).catch(() => {})
+    }).catch((e) => { console.error('[SoftwareCanvas] Failed to load version:', e) })
   }, [designId])
 
   const handleUpdateQuoteStatus = useCallback(async (versionId: string, status: QuoteVersion['status']) => {

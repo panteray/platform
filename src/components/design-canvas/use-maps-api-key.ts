@@ -21,7 +21,7 @@ export function useMapsApiKey(): string | null {
         cachedKey = data.key
         setKey(data.key)
       })
-      .catch(() => {})
+      .catch((e) => { console.error('[useMapsApiKey] Failed to fetch maps key:', e) })
     return () => { cancelled = true }
   }, [])
 

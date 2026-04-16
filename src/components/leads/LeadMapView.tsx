@@ -132,7 +132,7 @@ export function LeadMapView({ leads, loading }: LeadMapViewProps) {
     const map = mapInstanceRef.current
     if (!map || !scriptLoaded) return
 
-    // Clear existing markers
+    // Clear existing markers and their event listeners
     markersRef.current.forEach((m) => (m.map = null))
     markersRef.current = []
 
@@ -152,8 +152,10 @@ export function LeadMapView({ leads, loading }: LeadMapViewProps) {
         display: flex; align-items: center; justify-content: center;
       `
       markerEl.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>`
-      markerEl.addEventListener('mouseenter', () => { markerEl.style.transform = 'scale(1.2)' })
-      markerEl.addEventListener('mouseleave', () => { markerEl.style.transform = 'scale(1)' })
+      const onEnter = () => { markerEl.style.transform = 'scale(1.2)' }
+      const onLeave = () => { markerEl.style.transform = 'scale(1)' }
+      markerEl.addEventListener('mouseenter', onEnter)
+      markerEl.addEventListener('mouseleave', onLeave)
 
       const marker = new google.maps.marker.AdvancedMarkerElement({
         map,
@@ -173,6 +175,18 @@ export function LeadMapView({ leads, loading }: LeadMapViewProps) {
     } else if (geocodedLeads.length === 1) {
       map.setCenter({ lat: geocodedLeads[0].lat, lng: geocodedLeads[0].lng })
       map.setZoom(12)
+    }
+
+    // Cleanup: remove markers and their DOM event listeners when effect re-runs
+    return () => {
+      markersRef.current.forEach((m) => {
+        const el = m.content as HTMLElement | null
+        if (el) {
+          el.replaceWith(el.cloneNode(true))
+        }
+        m.map = null
+      })
+      markersRef.current = []
     }
   }, [geocodedLeads, scriptLoaded])
 

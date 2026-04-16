@@ -65,7 +65,7 @@ export function SurveyCanvas({
         if (cancelled) return
         setCables((data || []).filter(c => c.floor_plan_id === floorPlan.id))
       })
-      .catch(() => {})
+      .catch((e) => { console.error('[SurveyCanvas] Failed to load cables:', e) })
     return () => { cancelled = true }
   }, [surveyId, floorPlan.id])
 

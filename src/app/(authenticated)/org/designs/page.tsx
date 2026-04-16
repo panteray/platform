@@ -40,7 +40,7 @@ export default function DesignsPage() {
     fetch('/api/org/opportunities')
       .then((r) => r.ok ? r.json() : [])
       .then((json) => setOpportunities(Array.isArray(json) ? json : json.data ?? []))
-      .catch(() => {})
+      .catch((e) => { console.error('[DesignsPage] Failed to load opportunities:', e) })
   }, [showCreate, assignDesignId])
 
   // Filter designs by tab + search
@@ -97,7 +97,7 @@ export default function DesignsPage() {
         setAssignDesignId(null)
         refresh()
       }
-    } catch { /* silent */ }
+    } catch (e) { console.error('[DesignsPage] Failed to assign opportunity:', e) }
     setAssigning(false)
   }
 

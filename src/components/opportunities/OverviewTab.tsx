@@ -52,7 +52,7 @@ export function OverviewTab({ opp, callerRole, onUpdate }: Props) {
       if (!r.ok) return
       const profile = await r.json()
       if (profile.org?.settings?.territories) setTerritories(profile.org.settings.territories)
-    }).catch(() => {})
+    }).catch((e) => { console.error('[OverviewTab] Failed to load territories:', e) })
   }, [])
 
   async function patchField(field: string, value: unknown) {
