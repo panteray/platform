@@ -133,20 +133,22 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
 
 ## Stack
 
-- **Framework:** Next.js 15.1 (App Router, Turbopack dev)
-- **UI:** React 19
-- **Language:** TypeScript 5.7
-- **Styling:** Tailwind CSS 3.4 + Radix UI + class-variance-authority
-- **Components:** Radix UI (avatar, dialog, dropdown, label, scroll-area,
-  select, separator, slot, switch, tabs, tooltip) + lucide-react
-- **Canvas:** Fabric.js 6.9
-- **Maps:** @vis.gl/react-google-maps 1.7
-- **Database:** Supabase (PostgreSQL + RLS) — @supabase/supabase-js 2.49 + @supabase/ssr 0.5
+- **Framework:** Next.js 15.1.0 (App Router, Turbopack dev)
+- **UI:** React 19.0.0
+- **Language:** TypeScript 5.7.0
+- **Styling:** Tailwind CSS 3.4.17 + Radix UI + class-variance-authority
+- **Components:** Radix UI (avatar, dialog, dropdown, label, scroll-area, select, separator, slot, switch, tabs, tooltip) + lucide-react
+- **Canvas:** Fabric.js (vendor library — not in package.json)
+- **Maps:** @vis.gl/react-google-maps 1.7.1
+- **Database:** Supabase (PostgreSQL + RLS) — @supabase/supabase-js 2.49.1 + @supabase/ssr 0.5.2
 - **Notifications:** Sonner
-- **PDF:** pdf-parse + pdfjs-dist
-- **Spreadsheet:** xlsx
-- **Testing:** Vitest 2.1
-- **Package manager:** pnpm 10.33 — lockfile: `pnpm-lock.yaml` (CI uses `--frozen-lockfile`)
+- **PDF:** pdf-parse 2.4.5 + pdfjs-dist 4.10.38
+- **Spreadsheet:** xlsx 0.18.5
+- **Documents:** docx 9.6.1 + jszip 3.10.1
+- **Auth/Integrations:** google-auth-library 10.6.2 + @zxing/browser 0.1.5
+- **Client storage:** idb 8.0.0
+- **Testing:** Vitest 2.1.0
+- **Package manager:** pnpm 10.33.0 — lockfile: `pnpm-lock.yaml` (CI uses `--frozen-lockfile`)
 - **Prod hosting:** Google Cloud Run (us-east1)
 - **CI/CD:** Google Cloud Build (auto-deploys on push to main, ~10 min)
 
@@ -156,13 +158,14 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
 ```bash
 pnpm dev          # Next dev with Turbopack
 pnpm build        # Production build
+pnpm start        # Next start (prod server)
+pnpm lint         # eslint .
 pnpm test         # Vitest run
 pnpm test:watch   # Vitest watch
 pnpm db:push      # supabase db push
 pnpm db:types     # Generate TS types → src/types/supabase.ts
 pnpm db:sync      # db:push + db:types together
 npx tsc --noEmit  # Type check only
-npx next lint     # Lint only
 ```
 
 ---
@@ -227,7 +230,9 @@ Sidebar: `Service Contracts` → `/org/psa/contracts`, `Contracts & Docs` → `/
 - `src/components/design-canvas/blind-spot-diagram.tsx` — F4 blind spot (broken)
 - `src/components/design-canvas/simulated-view.tsx` — F3 simulated scene (broken)
 - `src/components/design-canvas/use-maps-api-key.ts` — fetches Maps key via `/api/org/maps-key`
+- `src/components/design-canvas/use-map-fov-polygons.ts` — builds `google.maps.Polygon` tiers from fovData (Phase B)
 - `src/lib/calculators/fov-dori.ts` — ⚠️ DO NOT CHANGE without understanding IEC 62676-4
+- `src/lib/geo-math.ts` — coordinate math: canvas↔lat/lng, FOV cone polygons, scale at zoom (283 lines, fully implemented)
 
 ### Industry Reference (IPVM / Hanwha DesignPro / Axis Site Designer)
 
@@ -319,7 +324,7 @@ Same content as `docs/design-canvas-roadmap.md` (keep both in sync when editing)
 - Per-sensor handles: distance handle, angle handles, rotation ring — all per-imager
 - Per-sensor drag: affects ONLY that sensor's cone
 - Per-sensor persistence → `properties.per_imager_props[sIdx]`
-- Each cone tagged with `__sensorIdx` for precise drag targeting
+- Each cone targeted by local variable `sIdx` in `canvas-area.tsx` — search `sIdx` to trace drag logic
 - `perImagerData` always generated for multi-sensor cameras (per-sensor tiers, hFov, color)
 - Right panel: Sensor Heads section with per-sensor rotation sliders + Imager navigation
 - Shared specs: all sensors share optics (focal length, sensor width, resolution)
