@@ -223,7 +223,7 @@ Sidebar: `Service Contracts` → `/org/psa/contracts`, `Contracts & Docs` → `/
 - `src/components/design-canvas/device-renderer.ts` — device icon creation (PNG→SVG→circle fallback)
 - `src/components/design-canvas/polygon-clip.ts` — wall occlusion
 - `src/components/design-canvas/satellite-map.tsx` — dedicated satellite map component
-- `src/components/design-canvas/device-catalog-modal.tsx` — IPVM-style 3-col device catalog (unverified)
+- `src/components/design-canvas/device-library-modal.tsx` — IPVM-style 3-col device catalog
 - `src/components/design-canvas/blind-spot-diagram.tsx` — F4 blind spot (broken)
 - `src/components/design-canvas/simulated-view.tsx` — F3 simulated scene (broken)
 - `src/components/design-canvas/use-maps-api-key.ts` — fetches Maps key via `/api/org/maps-key`
@@ -266,7 +266,7 @@ Same content as `docs/design-canvas-roadmap.md` (keep both in sync when editing)
 |------|------|
 | **A1** | Single design origin from `satelliteConfig` center + `scalePxPerFt` (or feet-per-pixel at reference zoom). |
 | **A2** | Audit `SatelliteMap.syncTransform` (CSS translate + scale vs Mercator); consider `OverlayView` / map overlay if drift is unacceptable. |
-| **A3** | Integrate or remove unused `geo-math.ts` paths — avoid two diverging math paths. |
+| **A3** | `geo-math.ts` is fully implemented (283 lines, 14 exports). Audit for diverging paths vs canvas usage — do not duplicate math. |
 
 **Implemented:** `DesignGeoContext`, `buildDesignGeoContext`, `canvasPixelsToLatLng`, `latLngToCanvasPixels` in `geo-math.ts`; `design-canvas.tsx` builds context and passes `geoContext` to `CanvasArea` (ref `designGeoContextRef` for Phase B). `SatelliteMapHandle.syncTransform` documents CSS-sync limitations. Vitest: `geo-math.test.ts`.
 
@@ -287,7 +287,7 @@ Same content as `docs/design-canvas-roadmap.md` (keep both in sync when editing)
 
 | Step | Work |
 |------|------|
-| **C1** | Harden `__batch` / `__resetDori` + catalog `focal_length`, `sensor_w`, `resolution_w` (see **Recurring Bug: FOV Cone Reset** below). |
+| **C1** | Harden `__batch` + catalog `focal_length`, `sensor_w`, `resolution_w` (see **Recurring Bug: FOV Cone Reset** below). |
 | **C2** | Multi-sensor / panoramic edge cases per Multi-Sensor Camera Rules. |
 
 #### Phase D — Vendor-style scene / 3D / workflow
@@ -353,14 +353,13 @@ When multiple device properties change simultaneously (e.g., distance handle dra
 
 **Root cause:** Catalog specs from `item.specs` often lack `focal_length`, `sensor_w`, `resolution_w`.
 When any property update fires, `{ ...props, [prop]: val }` preserves what's there but can't add what was never there.
-The `__resetDori` handler then recalculates `target_distance` from missing/wrong specs.
+FOV then recomputes `target_distance` from missing/wrong specs on the next render cycle.
 
 **Key code paths:**
-- Device creation: `design-canvas.tsx` L442–464 (catalogSpecs from library)
-- FOV computation: `design-canvas.tsx` L216+ (fovData useMemo)
-- `__batch` handler: `design-canvas.tsx` L172
-- `__resetDori` handler: `design-canvas.tsx` L177
-- `__sensorIdx` tagging: `canvas-area.tsx` L1307, L1439, L1486, L1517
+- Device creation: `design-canvas.tsx` L702+ (catalogSpecs from library)
+- FOV computation: `design-canvas.tsx` L358+ (fovData useMemo)
+- `__batch` handler: `design-canvas.tsx` L225
+- Multi-sensor `sIdx` targeting: `canvas-area.tsx` (local variable, search `sIdx`)
 
 **Check this first** before diagnosing any FOV-related issue.
 
