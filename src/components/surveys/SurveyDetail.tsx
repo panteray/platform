@@ -249,14 +249,12 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
               <Send className="h-3 w-3" /> Submit Survey
             </button>
           )}
-          {isSubmitted && (
-            <button
-              onClick={handleExportToDesign}
-              className="inline-flex items-center gap-1 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 transition-colors"
-            >
-              Export to Design
-            </button>
-          )}
+          <button
+            onClick={handleExportToDesign}
+            className="inline-flex items-center gap-1 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 transition-colors"
+          >
+            Export to Design
+          </button>
         </div>
       </div>
 

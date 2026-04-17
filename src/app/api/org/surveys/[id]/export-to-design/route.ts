@@ -31,9 +31,6 @@ export async function POST(
     .single()
 
   if (sErr || !survey) return NextResponse.json({ error: 'Survey not found' }, { status: 404 })
-  if (survey.status !== 'submitted') {
-    return NextResponse.json({ error: 'Survey must be submitted before export' }, { status: 422 })
-  }
 
   // 2. Create design
   const { data: design, error: dErr } = await admin
