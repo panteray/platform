@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { X, Trash2, Camera, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Trash2, Camera, Plus, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import type { SurveyDevice } from '@/types/database'
 import {
   SURVEY_SYSTEM_TYPES, SURVEY_DEVICE_TYPES, SURVEY_DEVICE_STATUSES,
@@ -9,6 +9,7 @@ import {
   SURVEY_RESOLUTIONS, VAPE_DETECTION_CAPABILITIES,
   DOOR_TYPES, LOCK_TYPES,
 } from '@/lib/survey-constants'
+import { COLORS_48 } from '../design-canvas/constants'
 
 interface Props {
   device: SurveyDevice
@@ -22,11 +23,11 @@ interface Props {
 export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClose, readOnly }: Props) {
   const [showDoor, setShowDoor] = useState(false)
   const [showVape, setShowVape] = useState(false)
+  const [showColor, setShowColor] = useState(false)
   const [photoCapturing, setPhotoCapturing] = useState(false)
   const [photos, setPhotos] = useState<{ id: string; url: string; caption?: string }[]>([])
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
-  // Load existing photos for this device
   useEffect(() => {
     let cancelled = false
     async function loadPhotos() {
@@ -53,13 +54,16 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
   const systemLabel = SURVEY_SYSTEM_TYPES.find(s => s.value === device.system_type)?.label || device.system_type
   const deviceTypeLabel = deviceTypes.find(d => d.value === device.device_type)?.label || device.device_type
 
-  // Photo capture — auto-captures GPS lat/lng if available (G8)
+  const isExisting = device.status !== 'new'
+  // mount_height_in stores feet in the survey module (label says ft)
+  const mountFt = device.mount_height_in ?? null
+  const liftNeeded = mountFt != null && mountFt > 12
+
   const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setPhotoCapturing(true)
 
-    // Kick off GPS fetch in parallel with file read
     const gpsPromise = new Promise<{ lat: number | null; lng: number | null }>((resolve) => {
       if (typeof navigator === 'undefined' || !navigator.geolocation) {
         resolve({ lat: null, lng: null })
@@ -96,11 +100,12 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
     reader.readAsDataURL(file)
   }
 
-  // Door config helpers — IPVM expanded panel
   const dcfg = (device.door_config || {}) as Record<string, unknown>
   const setDoor = (patch: Record<string, unknown>) => {
     onUpdate({ door_config: { ...dcfg, ...patch } })
   }
+
+  const selectedColor = device.color_hex || '#3b82f6'
 
   return (
     <div className="w-64 border-l border-border bg-card overflow-y-auto" style={{ maxHeight: 600 }}>
@@ -123,81 +128,131 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
       </div>
 
       <div className="space-y-3 p-3">
-        {/* Status & Condition */}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Status</label>
-            <select
-              value={device.status}
-              onChange={(e) => onUpdate({ status: e.target.value as SurveyDevice['status'] })}
-              disabled={readOnly}
-              className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50"
-            >
-              {SURVEY_DEVICE_STATUSES.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Condition</label>
-            <select
-              value={device.condition || 'unknown'}
-              onChange={(e) => onUpdate({ condition: e.target.value as SurveyDevice['condition'] })}
-              disabled={readOnly}
-              className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50"
-            >
-              {SURVEY_CONDITIONS.map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-          </div>
+        {/* Status */}
+        <div>
+          <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Status</label>
+          <select
+            value={device.status}
+            onChange={(e) => onUpdate({ status: e.target.value as SurveyDevice['status'] })}
+            disabled={readOnly}
+            className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50"
+          >
+            {SURVEY_DEVICE_STATUSES.map(s => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
         </div>
 
-        {/* Existing Make/Model (for existing_keep / existing_remove) */}
-        {(device.status === 'existing_keep' || device.status === 'existing_remove') && (
-          <div>
-            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Existing Make/Model</label>
-            <input
-              defaultValue={device.existing_make_model || ''}
-              onChange={(e) => debouncedUpdate('existing_make_model', e.target.value)}
-              disabled={readOnly}
-              className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50"
-            />
-          </div>
+        {/* Condition + Existing Make/Model — only when Status = Existing */}
+        {isExisting && (
+          <>
+            <div>
+              <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Condition</label>
+              <select
+                value={device.condition || 'unknown'}
+                onChange={(e) => onUpdate({ condition: e.target.value as SurveyDevice['condition'] })}
+                disabled={readOnly}
+                className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50"
+              >
+                {SURVEY_CONDITIONS.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Existing Make/Model</label>
+              <input
+                defaultValue={device.existing_make_model || ''}
+                onChange={(e) => debouncedUpdate('existing_make_model', e.target.value)}
+                disabled={readOnly}
+                placeholder="What the label says"
+                className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50"
+              />
+            </div>
+          </>
         )}
 
         {/* Location Description */}
         <div>
-          <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Location</label>
+          <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Location Description</label>
           <input
             defaultValue={device.location_description || ''}
             onChange={(e) => debouncedUpdate('location_description', e.target.value)}
             disabled={readOnly}
-            placeholder="e.g. Main lobby, NW corner"
+            placeholder="e.g. above door 3, east hallway"
             className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50"
           />
         </div>
 
-        {/* Vendor & Model */}
+        {/* Mount Type & Height */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Vendor</label>
-            <input
-              defaultValue={device.vendor || ''}
-              onChange={(e) => debouncedUpdate('vendor', e.target.value)}
+            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Mount Type</label>
+            <select
+              value={device.mount_type || ''}
+              onChange={(e) => onUpdate({ mount_type: e.target.value || null })}
               disabled={readOnly}
               className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50"
-            />
+            >
+              <option value="">—</option>
+              {SURVEY_MOUNT_TYPES.map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
           </div>
           <div>
-            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Model</label>
+            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Mount Height (ft)</label>
             <input
-              defaultValue={device.model || ''}
-              onChange={(e) => debouncedUpdate('model', e.target.value)}
+              type="number"
+              defaultValue={device.mount_height_in || ''}
+              onChange={(e) => debouncedUpdate('mount_height_in', e.target.value ? Number(e.target.value) : null)}
               disabled={readOnly}
               className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50"
             />
           </div>
+        </div>
+
+        {/* LIFT NEEDED alert — mount > 12ft */}
+        {liftNeeded && (
+          <div className="flex items-center gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
+            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">
+              LIFT NEEDED — mount {mountFt}ft
+            </span>
+          </div>
+        )}
+
+        {/* Color Picker */}
+        <div>
+          <button
+            onClick={() => setShowColor(!showColor)}
+            disabled={readOnly}
+            className="flex w-full items-center justify-between text-[10px] font-medium text-muted-foreground"
+          >
+            <span className="flex items-center gap-1.5">
+              Color
+              <span
+                className="inline-block h-3 w-3 rounded border border-border"
+                style={{ background: selectedColor }}
+              />
+            </span>
+            {showColor ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+          {showColor && !readOnly && (
+            <div className="mt-1.5 grid grid-cols-8 gap-1 rounded border border-border p-1.5 bg-background">
+              {COLORS_48.map(c => (
+                <button
+                  key={c}
+                  onClick={() => { onUpdate({ color_hex: c }); setShowColor(false) }}
+                  title={c}
+                  className={`aspect-square rounded border transition-all ${
+                    selectedColor === c ? 'border-foreground scale-110' : 'border-border hover:scale-105'
+                  }`}
+                  style={{ background: c }}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Resolution (CCTV only) */}
@@ -218,38 +273,10 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
           </div>
         )}
 
-        {/* Mount Type & Height */}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Mount</label>
-            <select
-              value={device.mount_type || ''}
-              onChange={(e) => onUpdate({ mount_type: e.target.value || null })}
-              disabled={readOnly}
-              className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50"
-            >
-              <option value="">—</option>
-              {SURVEY_MOUNT_TYPES.map(m => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Height (in)</label>
-            <input
-              type="number"
-              defaultValue={device.mount_height_in || ''}
-              onChange={(e) => debouncedUpdate('mount_height_in', e.target.value ? Number(e.target.value) : null)}
-              disabled={readOnly}
-              className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50"
-            />
-          </div>
-        </div>
-
         {/* Cable Type & Run */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Cable</label>
+            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Cable Type</label>
             <select
               value={device.cable_type || ''}
               onChange={(e) => onUpdate({ cable_type: e.target.value || null })}
@@ -282,6 +309,11 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
             onChange={(e) => debouncedUpdate('notes', e.target.value)}
             disabled={readOnly}
             rows={2}
+            placeholder={
+              device.system_type === 'cctv' ? 'Estimated coverage, FOV direction, etc.'
+                : device.system_type === 'network' ? 'MDF/IDF location, port count, etc.'
+                : ''
+            }
             className="w-full rounded border border-border bg-background px-1.5 py-1 text-[11px] outline-none focus:border-primary disabled:opacity-50 resize-none"
           />
         </div>
@@ -348,7 +380,6 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
                   </select>
                 </div>
 
-                {/* Readers count + entry/exit + credential types */}
                 <div>
                   <label className="block text-[10px] text-muted-foreground mb-0.5">Readers</label>
                   <div className="grid grid-cols-2 gap-1">
@@ -398,7 +429,6 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
                   </div>
                 </div>
 
-                {/* Outputs — lock / opener / aux */}
                 <div>
                   <label className="block text-[10px] text-muted-foreground mb-0.5">Outputs</label>
                   <div className="grid grid-cols-3 gap-1 text-[10px] text-foreground">
@@ -414,7 +444,6 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
                   </div>
                 </div>
 
-                {/* Inputs — REX / contacts / aux */}
                 <div>
                   <label className="block text-[10px] text-muted-foreground mb-0.5">Inputs</label>
                   <div className="grid grid-cols-3 gap-1 text-[10px] text-foreground">
@@ -430,7 +459,6 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
                   </div>
                 </div>
 
-                {/* External Tamper / DPS / ADA */}
                 <div className="grid grid-cols-1 gap-1 text-[10px] text-foreground">
                   <label className="flex items-center gap-1">
                     <input type="checkbox" checked={!!dcfg.tamper_external} onChange={(e) => setDoor({ tamper_external: e.target.checked })} disabled={readOnly} className="h-3 w-3" />
@@ -450,7 +478,6 @@ export function SurveyDevicePanel({ device, surveyId, onUpdate, onDelete, onClos
                   </label>
                 </div>
 
-                {/* Controller ID / Port ID */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[10px] text-muted-foreground mb-0.5">Controller ID</label>

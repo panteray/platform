@@ -2,13 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  ArrowLeft, Save, Send, Plus, Trash2, MapPin, Layers,
-  ChevronDown, ChevronUp, Wifi, WifiOff, RefreshCw,
+  ArrowLeft, Send, Plus, Trash2, MapPin, Layers,
+  ChevronDown, ChevronRight, Wifi, WifiOff, RefreshCw, Camera,
 } from 'lucide-react'
-import { C } from '../design-canvas/constants'
 import type { Survey, SurveyFloorPlan, SurveyDevice, SurveyInfrastructure } from '@/types/database'
 import { SurveyStatusBadge } from './SurveyStatusBadge'
-import { SURVEY_FLOOR_PLAN_MODES, SURVEY_INFRA_TYPES } from '@/lib/survey-constants'
+import { SURVEY_FLOOR_PLAN_MODES } from '@/lib/survey-constants'
 import { SurveyCanvas } from './SurveyCanvas'
 import { SurveyInfrastructurePanel } from './SurveyInfrastructurePanel'
 import { putLocal, getPendingSyncCount, processSyncQueue } from '@/lib/survey-offline-db'
@@ -28,9 +27,8 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
   const [online, setOnline] = useState(true)
   const [pendingCount, setPendingCount] = useState(0)
   const [syncing, setSyncing] = useState(false)
-  const [activeFloorPlan, setActiveFloorPlan] = useState<string | null>(null)
-  const [showInfo, setShowInfo] = useState(true)
-  const [showInfra, setShowInfra] = useState(false)
+  const [canvasFloorPlanId, setCanvasFloorPlanId] = useState<string | null>(null)
+  const [expandedInfraId, setExpandedInfraId] = useState<string | null>(null)
   const [showAddMenu, setShowAddMenu] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -50,12 +48,8 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
     }
   }, [surveyId, syncing, refreshPending])
 
-  // Online/offline detection + auto-sync on reconnect
   useEffect(() => {
-    const handleOnline = () => {
-      setOnline(true)
-      runSync()
-    }
+    const handleOnline = () => { setOnline(true); runSync() }
     const handleOffline = () => setOnline(false)
     setOnline(navigator.onLine)
     window.addEventListener('online', handleOnline)
@@ -76,29 +70,21 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
       setFloorPlans(data.survey_floor_plans || [])
       setDevices(data.survey_devices || [])
       setInfrastructure(data.survey_infrastructure || [])
-      if (data.survey_floor_plans?.length > 0 && !activeFloorPlan) {
-        setActiveFloorPlan(data.survey_floor_plans[0].id)
-      }
     }
     setLoading(false)
-  }, [surveyId, activeFloorPlan])
+  }, [surveyId])
 
   useEffect(() => { load() }, [load])
 
-  // Auto-save with debounce — write-first to IndexedDB, then push to server
   const autoSave = useCallback(async (updates: Partial<Survey>) => {
     if (!survey || survey.status === 'submitted') return
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       setSaving(true)
-      // Write-first: mirror to IndexedDB + queue a sync entry
       try {
         await putLocal('surveys', { ...survey, ...updates, id: surveyId } as Record<string, unknown> & { id: string })
         await refreshPending()
-      } catch {
-        // non-fatal — offline DB unavailable (SSR or private mode)
-      }
-      // Push to server if online
+      } catch { /* offline DB unavailable */ }
       if (navigator.onLine) {
         const res = await fetch(`/api/org/surveys/${surveyId}`, {
           method: 'PATCH',
@@ -108,7 +94,6 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
         if (res.ok) {
           const updated = await res.json()
           setSurvey(prev => prev ? { ...prev, ...updated } : updated)
-          // Successful write — drain any earlier queued mutations
           runSync()
         }
       }
@@ -136,7 +121,6 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
     if (res.ok) {
       const fp = await res.json()
       setFloorPlans(prev => [...prev, fp])
-      setActiveFloorPlan(fp.id)
     }
   }
 
@@ -148,9 +132,7 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
     if (res.ok) {
       setFloorPlans(prev => prev.filter(fp => fp.id !== fpId))
       setDevices(prev => prev.filter(d => d.floor_plan_id !== fpId))
-      if (activeFloorPlan === fpId) {
-        setActiveFloorPlan(floorPlans.find(fp => fp.id !== fpId)?.id || null)
-      }
+      if (canvasFloorPlanId === fpId) setCanvasFloorPlanId(null)
     }
   }
 
@@ -172,17 +154,19 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
     if (res.ok) {
       const result = await res.json()
       alert(`Design created.\nAreas: ${result.areas_created}\nDevices: ${result.devices_copied}`)
-      if (result.design_id) {
-        window.location.href = `/org/designs/${result.design_id}`
-      }
+      if (result.design_id) window.location.href = `/org/designs/${result.design_id}`
     } else {
       const err = await res.json()
       alert(err.error || 'Export failed')
     }
   }
 
-  const handleDevicesChanged = (updated: SurveyDevice[]) => {
-    setDevices(updated)
+  const handleInfraChanged = (updated: SurveyInfrastructure) => {
+    setInfrastructure(prev => {
+      const idx = prev.findIndex(i => i.id === updated.id)
+      if (idx >= 0) return prev.map(i => i.id === updated.id ? updated : i)
+      return [...prev, updated]
+    })
   }
 
   if (loading || !survey) {
@@ -194,11 +178,46 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
   }
 
   const isSubmitted = survey.status === 'submitted'
-  const activeFp = floorPlans.find(fp => fp.id === activeFloorPlan)
-  const fpDevices = devices.filter(d => d.floor_plan_id === activeFloorPlan)
 
+  // ---- Canvas view (Screen 3) ----
+  if (canvasFloorPlanId) {
+    const activeFp = floorPlans.find(fp => fp.id === canvasFloorPlanId)
+    const fpDevices = devices.filter(d => d.floor_plan_id === canvasFloorPlanId)
+    if (!activeFp) {
+      setCanvasFloorPlanId(null)
+      return null
+    }
+    return (
+      <div className="flex flex-col h-[calc(100vh-4rem)]">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-card">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCanvasFloorPlanId(null)}
+              className="inline-flex items-center gap-1 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span className="text-xs">Back to Survey</span>
+            </button>
+            <span className="text-muted-foreground">/</span>
+            <span className="text-xs font-semibold text-foreground">{activeFp.name}</span>
+          </div>
+          {saving && <span className="text-[11px] text-muted-foreground animate-pulse">Saving...</span>}
+        </div>
+        <SurveyCanvas
+          surveyId={surveyId}
+          floorPlan={activeFp}
+          devices={fpDevices}
+          onDevicesChanged={setDevices}
+          allDevices={devices}
+          readOnly={isSubmitted}
+        />
+      </div>
+    )
+  }
+
+  // ---- Overview view (Screen 2) ----
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] gap-2">
+    <div className="flex flex-col gap-3 p-4 max-w-5xl mx-auto">
       {/* Top Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -241,7 +260,7 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
         </div>
       </div>
 
-      {/* Sync Banner — pending offline writes */}
+      {/* Sync Banner */}
       {pendingCount > 0 && (
         <div className="flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
           <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
@@ -261,106 +280,97 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
         </div>
       )}
 
-      {/* Survey Info — Collapsible */}
-      <div className="rounded-lg border border-border bg-card">
-        <button
-          onClick={() => setShowInfo(!showInfo)}
-          className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold text-foreground"
-        >
-          <span className="flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5" /> Site Information
-          </span>
-          {showInfo ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </button>
-        {showInfo && (
-          <div className="border-t border-border px-3 py-3 grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Site Name</label>
-              <input
-                value={survey.site_name || ''}
-                onChange={(e) => handleFieldChange('site_name', e.target.value)}
-                disabled={isSubmitted}
-                className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary disabled:opacity-50"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Site Address</label>
-              <input
-                value={survey.site_address || ''}
-                onChange={(e) => handleFieldChange('site_address', e.target.value)}
-                disabled={isSubmitted}
-                className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary disabled:opacity-50"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Customer</label>
-              <input
-                value={survey.customer_name || ''}
-                onChange={(e) => handleFieldChange('customer_name', e.target.value)}
-                disabled={isSubmitted}
-                className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary disabled:opacity-50"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Survey Date</label>
-              <input
-                type="date"
-                value={survey.survey_date || ''}
-                onChange={(e) => handleFieldChange('survey_date', e.target.value)}
-                disabled={isSubmitted}
-                className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary disabled:opacity-50"
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Site Notes</label>
-              <textarea
-                value={survey.site_notes || ''}
-                onChange={(e) => handleFieldChange('site_notes', e.target.value)}
-                disabled={isSubmitted}
-                rows={2}
-                className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary disabled:opacity-50 resize-none"
-              />
-            </div>
+      {/* Site Information */}
+      <section className="rounded-lg border border-border bg-card p-4">
+        <h2 className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1.5">
+          <MapPin className="h-3.5 w-3.5" /> Site Information
+        </h2>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Site Name</label>
+            <input
+              value={survey.site_name || ''}
+              onChange={(e) => handleFieldChange('site_name', e.target.value)}
+              disabled={isSubmitted}
+              className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary disabled:opacity-50"
+            />
           </div>
-        )}
-      </div>
+          <div>
+            <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">OPP Number</label>
+            <input
+              value={survey.opp_id || ''}
+              disabled
+              placeholder="Linked on create"
+              className="w-full rounded border border-border bg-muted px-2 py-1.5 text-xs text-muted-foreground outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Customer / District</label>
+            <input
+              value={survey.customer_name || ''}
+              onChange={(e) => handleFieldChange('customer_name', e.target.value)}
+              disabled={isSubmitted}
+              className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary disabled:opacity-50"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Survey Date</label>
+            <input
+              type="date"
+              value={survey.survey_date || ''}
+              onChange={(e) => handleFieldChange('survey_date', e.target.value)}
+              disabled={isSubmitted}
+              className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary disabled:opacity-50"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Project Location (address)</label>
+            <input
+              value={survey.site_address || ''}
+              onChange={(e) => handleFieldChange('site_address', e.target.value)}
+              disabled={isSubmitted}
+              className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary disabled:opacity-50"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Surveyor Name</label>
+            <input
+              value={survey.surveyor_name || ''}
+              onChange={(e) => handleFieldChange('surveyor_name', e.target.value)}
+              disabled={isSubmitted}
+              className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary disabled:opacity-50"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">General Site Observations</label>
+            <textarea
+              value={survey.site_notes || ''}
+              onChange={(e) => handleFieldChange('site_notes', e.target.value)}
+              disabled={isSubmitted}
+              rows={3}
+              className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary disabled:opacity-50 resize-none"
+            />
+          </div>
+        </div>
+      </section>
 
-      {/* Floor Plan Tabs */}
-      <div className="rounded-lg border border-border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto scrollbar-hide" style={{ background: C.bgPanel, borderBottom: `1px solid ${C.border}` }}>
-          {floorPlans.map((fp) => (
-            <div key={fp.id} className="flex items-center gap-0.5">
-              <button
-                onClick={() => setActiveFloorPlan(fp.id)}
-                className={`whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium transition-colors ${
-                  activeFloorPlan === fp.id
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {fp.name}
-              </button>
-              {!isSubmitted && (
-                <button
-                  onClick={() => handleDeleteFloorPlan(fp.id)}
-                  className="rounded p-0.5 text-muted-foreground/40 hover:text-destructive"
-                >
-                  <Trash2 className="h-2.5 w-2.5" />
-                </button>
-              )}
-            </div>
-          ))}
+      {/* Floor Plans & Areas */}
+      <section className="rounded-lg border border-border bg-card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <Layers className="h-3.5 w-3.5" /> Floor Plans & Areas
+          </h2>
           {!isSubmitted && (
             <div className="relative">
               <button
                 onClick={() => setShowAddMenu(!showAddMenu)}
-                className="flex items-center gap-0.5 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90"
               >
-                <Plus className="h-3 w-3" /> Add Area
+                <Plus className="h-3 w-3" /> Add
               </button>
               {showAddMenu && (
-                <div className="absolute left-0 top-full z-20 pt-1">
-                  <div className="rounded-md border border-border bg-popover shadow-md py-1 min-w-[160px]">
+                <div className="absolute right-0 top-full z-20 mt-1">
+                  <div className="rounded-md border border-border bg-popover shadow-md py-1 min-w-[180px]">
                     {SURVEY_FLOOR_PLAN_MODES.map((m) => (
                       <button
                         key={m.value}
@@ -377,51 +387,82 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
           )}
         </div>
 
-        {/* Canvas Area */}
-        {activeFp ? (
-          <SurveyCanvas
-            surveyId={surveyId}
-            floorPlan={activeFp}
-            devices={fpDevices}
-            onDevicesChanged={handleDevicesChanged}
-            allDevices={devices}
-            readOnly={isSubmitted}
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center py-16">
-            <Layers className="mb-2 h-8 w-8 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">No areas added yet</p>
+        {floorPlans.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-8">
+            <Layers className="mb-2 h-6 w-6 text-muted-foreground/40" />
+            <p className="text-xs text-muted-foreground">No areas added yet</p>
             {!isSubmitted && (
-              <p className="mt-1 text-xs text-muted-foreground/60">
-                Click &quot;+ Add Area&quot; to start documenting
+              <p className="mt-1 text-[11px] text-muted-foreground/60">
+                Click &quot;Add&quot; to create a floor plan or satellite area
               </p>
             )}
           </div>
         )}
-      </div>
 
-      {/* Infrastructure Panel — Collapsible */}
-      <div className="rounded-lg border border-border bg-card">
-        <button
-          onClick={() => setShowInfra(!showInfra)}
-          className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold text-foreground"
-        >
-          <span>Infrastructure ({infrastructure.length})</span>
-          {showInfra ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </button>
-        {showInfra && (
-          <SurveyInfrastructurePanel
-            surveyId={surveyId}
-            infrastructure={infrastructure}
-            onChanged={setInfrastructure}
-            readOnly={isSubmitted}
-          />
-        )}
-      </div>
+        <div className="space-y-2">
+          {floorPlans.map((fp) => {
+            const fpDeviceCount = devices.filter(d => d.floor_plan_id === fp.id).length
+            const fpInfra = infrastructure.find(i => i.floor_plan_id === fp.id) ?? null
+            const isExpanded = expandedInfraId === fp.id
+            const modeLabel = SURVEY_FLOOR_PLAN_MODES.find(m => m.value === fp.mode)?.label ?? fp.mode
+
+            return (
+              <div key={fp.id} className="rounded-lg border border-border">
+                <div className="flex items-center justify-between px-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <button
+                      onClick={() => setExpandedInfraId(isExpanded ? null : fp.id)}
+                      className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                    >
+                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                    </button>
+                    <span className="text-xs font-semibold text-foreground truncate">{fp.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{modeLabel}</span>
+                    <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                      <Camera className="h-3 w-3" /> {fpDeviceCount}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCanvasFloorPlanId(fp.id)}
+                      className="rounded-md bg-sky-600 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-sky-700"
+                    >
+                      Open Canvas
+                    </button>
+                    {!isSubmitted && (
+                      <button
+                        onClick={() => handleDeleteFloorPlan(fp.id)}
+                        className="rounded p-1 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {isExpanded && (
+                  <div className="border-t border-border bg-background/40">
+                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Infrastructure Observations
+                    </div>
+                    <SurveyInfrastructurePanel
+                      surveyId={surveyId}
+                      floorPlanId={fp.id}
+                      floorPlanName={fp.name}
+                      infrastructure={fpInfra}
+                      onChanged={handleInfraChanged}
+                      readOnly={isSubmitted}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </section>
 
       {/* Device Summary */}
-      <div className="rounded-lg border border-border bg-card p-3">
-        <h4 className="text-xs font-semibold text-foreground mb-2">Device Summary</h4>
+      <section className="rounded-lg border border-border bg-card p-4">
+        <h2 className="text-xs font-semibold text-foreground mb-3">Device Summary</h2>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           {(['cctv', 'access_control', 'network', 'av', 'vape_environmental', 'other'] as const).map((sys) => {
             const count = devices.filter(d => d.system_type === sys).length
@@ -439,7 +480,10 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
             )
           })}
         </div>
-      </div>
+        <div className="mt-3 text-center text-[11px] text-muted-foreground">
+          Total: <span className="font-semibold text-foreground">{devices.length}</span> devices
+        </div>
+      </section>
     </div>
   )
 }

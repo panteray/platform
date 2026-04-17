@@ -146,19 +146,15 @@ export const SURVEY_CONDITIONS = [
 
 // ---- Mount Types ----
 export const SURVEY_MOUNT_TYPES = [
-  { value: 'wall', label: 'Wall Mount' },
-  { value: 'ceiling', label: 'Ceiling Mount' },
-  { value: 'pendant', label: 'Pendant Mount' },
-  { value: 'corner', label: 'Corner Mount' },
-  { value: 'pole', label: 'Pole Mount' },
-  { value: 'parapet', label: 'Parapet Mount' },
-  { value: 'gooseneck', label: 'Gooseneck' },
-  { value: 'surface', label: 'Surface Mount' },
-  { value: 'flush', label: 'Flush Mount' },
+  { value: 'ceiling', label: 'Ceiling' },
+  { value: 'wall', label: 'Wall' },
+  { value: 'corner', label: 'Corner' },
+  { value: 'pole', label: 'Pole' },
+  { value: 'pendant', label: 'Pendant' },
+  { value: 'surface', label: 'Surface' },
+  { value: 'under_eave', label: 'Under-eave' },
+  { value: 'parapet', label: 'Parapet' },
   { value: 'recessed', label: 'Recessed' },
-  { value: 'rack', label: 'Rack Mount' },
-  { value: 'desk', label: 'Desk / Tabletop' },
-  { value: 'tripod', label: 'Tripod / Temp' },
   { value: 'other', label: 'Other' },
 ] as const
 
