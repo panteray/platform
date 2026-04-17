@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyOrgCRM } from '@/lib/auth'
-import { canAccess } from '@/lib/roles'
-import { UserRole } from '@/types/enums'
 
 /**
  * G8: Survey → Design handoff.
@@ -13,8 +11,6 @@ import { UserRole } from '@/types/enums'
  * survey floor plan → `design_areas`, each survey device → `design_devices`
  * with positions, labels, status, and notes preserved. Presales then
  * enriches with vendor library + FOV config in Design module.
- *
- * Gating: Manager+ only. Survey must be `submitted`.
  */
 export async function POST(
   _req: NextRequest,
@@ -22,9 +18,6 @@ export async function POST(
 ) {
   const dbUser = await verifyOrgCRM()
   if (!dbUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!canAccess(dbUser.role, UserRole.MANAGER)) {
-    return NextResponse.json({ error: 'Manager role required' }, { status: 403 })
-  }
 
   const { id } = await params
   const admin = createAdminClient()
