@@ -389,7 +389,8 @@ FOV then recomputes `target_distance` from missing/wrong specs on the next rende
 
 - Lockfile: `pnpm-lock.yaml` only — never `package-lock.json`
 - CI: `--frozen-lockfile`
-- Push directly to main: `git push origin HEAD:main`
+- **Always commit and push directly to main.** Never use feature branches.
+- Push: `git push origin HEAD:main`
 - Cloud Build deploys automatically (~10 min)
 - Commit messages: descriptive
 - SQL migration files live at repo root (no `supabase/migrations/` folder)
