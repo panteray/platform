@@ -2,8 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import {
-  ZoomIn, ZoomOut, Hand, MousePointer, Cable as CableIcon,
-  X, Crosshair, Search,
+  ZoomIn, ZoomOut, Hand, MousePointer, Ruler, Cable as CableIcon,
+  Server, X, Crosshair,
 } from 'lucide-react'
 import type { SurveyFloorPlan, SurveyDevice, SurveyCable } from '@/types/database'
 import {
@@ -13,7 +13,7 @@ import {
 import { C, CABLE_DEFAULT_COLORS } from '../design-canvas/constants'
 import { useMapsApiKey } from '../design-canvas/use-maps-api-key'
 import { SurveyDevicePanel } from './SurveyDevicePanel'
-import { SurveyDeviceIcon, surveyDeviceIconDataUrl } from './survey-device-icons'
+import { SurveyDeviceIcon } from './survey-device-icons'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,10 +24,17 @@ interface Props {
   devices: SurveyDevice[]
   allDevices: SurveyDevice[]
   onDevicesChanged: (devices: SurveyDevice[]) => void
-  readOnly?: boolean
 }
 
-type Tool = 'select' | 'pan' | 'cable' | 'scale' | 'place'
+type Tool = 'select' | 'pan' | 'cable' | 'mdf_idf' | 'scale' | 'place'
+
+interface InfraMarker {
+  id: string
+  type: 'mdf' | 'idf'
+  lat: number
+  lng: number
+  label: string
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -53,6 +60,11 @@ function getCableColorForType(t: string): string {
   return CABLE_DEFAULT_COLORS[key] ?? CABLE_DEFAULT_COLORS.other ?? '#78716c'
 }
 
+function makeSvgDataUrl(color: string, size: number): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 1}" fill="${color}" stroke="#fff" stroke-width="2"/></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -62,7 +74,6 @@ export function SurveyCanvas({
   devices,
   allDevices,
   onDevicesChanged,
-  readOnly = false,
 }: Props) {
   const mapsApiKey = useMapsApiKey()
 
@@ -73,6 +84,7 @@ export function SurveyCanvas({
   const cablesPolyRef = useRef<Map<string, google.maps.Polyline>>(new Map())
   const draftPolyRef = useRef<google.maps.Polyline | null>(null)
   const groundOverlayRef = useRef<google.maps.GroundOverlay | null>(null)
+  const infraMarkersRef = useRef<Map<string, google.maps.Marker>>(new Map())
   const scaleLineRef = useRef<google.maps.Polyline | null>(null)
   const scriptLoadedRef = useRef(false)
 
@@ -80,8 +92,7 @@ export function SurveyCanvas({
   const [tool, setTool] = useState<Tool>('select')
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
   const [mapReady, setMapReady] = useState(false)
-  const [activeCategory, setActiveCategory] = useState<string>('cctv')
-  const [paletteSearch, setPaletteSearch] = useState('')
+  const [expandedSystem, setExpandedSystem] = useState<string | null>(null)
   const [placingDevice, setPlacingDevice] = useState<{ systemType: string; deviceType: string } | null>(null)
 
   // Cable state
@@ -93,6 +104,10 @@ export function SurveyCanvas({
   // Scale
   const [scalePxPerFt, setScalePxPerFt] = useState<number | null>(floorPlan.scale_px_per_ft ?? null)
   const [scalePoints, setScalePoints] = useState<google.maps.LatLng[]>([])
+
+  // MDF/IDF
+  const [infraMarkers, setInfraMarkers] = useState<InfraMarker[]>([])
+  const [mdfIdfType, setMdfIdfType] = useState<'mdf' | 'idf'>('mdf')
 
   const selectedDevice = devices.find(d => d.id === selectedDeviceId) || null
 
@@ -222,6 +237,38 @@ export function SurveyCanvas({
   }, [surveyId, floorPlan.id])
 
   // ---------------------------------------------------------------------------
+  // Load infrastructure markers
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/org/surveys/${surveyId}/infrastructure`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: Array<{ id: string; type: string; name: string; location: string | null }>) => {
+        if (cancelled || !data) return
+        // Parse infra items that have lat/lng in location field (stored as "lat,lng")
+        const markers: InfraMarker[] = []
+        for (const item of data) {
+          if (item.location && item.location.includes(',')) {
+            const [latStr, lngStr] = item.location.split(',')
+            const lat = parseFloat(latStr)
+            const lng = parseFloat(lngStr)
+            if (!isNaN(lat) && !isNaN(lng)) {
+              markers.push({
+                id: item.id,
+                type: item.type as 'mdf' | 'idf',
+                lat, lng,
+                label: item.name || item.type.toUpperCase(),
+              })
+            }
+          }
+        }
+        setInfraMarkers(markers)
+      })
+      .catch(e => console.error('[SurveyCanvas] Failed to load infra:', e))
+    return () => { cancelled = true }
+  }, [surveyId])
+
+  // ---------------------------------------------------------------------------
   // Sync device markers to map
   // ---------------------------------------------------------------------------
   useEffect(() => {
@@ -242,21 +289,14 @@ export function SurveyCanvas({
     for (const device of devices) {
       const color = device.color_hex || SYSTEM_TYPE_COLORS[device.system_type] || '#6b7280'
       const pos = deviceToLatLng(device, map)
-      const iconUrl = surveyDeviceIconDataUrl(device.system_type, device.device_type, color, 28)
 
       if (existing.has(device.id)) {
         const marker = existing.get(device.id)!
         marker.setPosition(pos)
-        marker.setIcon({
-          url: iconUrl,
-          scaledSize: new google.maps.Size(28, 28),
-          anchor: new google.maps.Point(14, 14),
-          labelOrigin: new google.maps.Point(14, 36),
-        })
         marker.setLabel({
           text: device.label,
           color: '#fff',
-          fontSize: '10px',
+          fontSize: '9px',
           fontWeight: 'bold',
           className: 'survey-marker-label',
         })
@@ -265,19 +305,18 @@ export function SurveyCanvas({
           position: pos,
           map,
           icon: {
-            url: iconUrl,
-            scaledSize: new google.maps.Size(28, 28),
-            anchor: new google.maps.Point(14, 14),
-            labelOrigin: new google.maps.Point(14, 36),
+            url: makeSvgDataUrl(color, 24),
+            scaledSize: new google.maps.Size(24, 24),
+            anchor: new google.maps.Point(12, 12),
           },
           label: {
             text: device.label,
             color: '#fff',
-            fontSize: '10px',
+            fontSize: '9px',
             fontWeight: 'bold',
             className: 'survey-marker-label',
           },
-          draggable: !readOnly,
+          draggable: true,
           zIndex: 10,
         })
 
@@ -285,8 +324,7 @@ export function SurveyCanvas({
           setSelectedDeviceId(device.id)
         })
 
-        if (!readOnly) {
-          marker.addListener('dragend', () => {
+        marker.addListener('dragend', () => {
             const newPos = marker.getPosition()
             if (!newPos || !mapRef.current) return
             const { px, py } = latLngToDevicePos(newPos, mapRef.current)
@@ -301,13 +339,12 @@ export function SurveyCanvas({
               body: JSON.stringify({ position_x: px, position_y: py }),
             })
           })
-        }
 
         existing.set(device.id, marker)
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devices, mapReady, readOnly])
+  }, [devices, mapReady])
 
   // ---------------------------------------------------------------------------
   // Sync cable polylines to map
@@ -350,6 +387,46 @@ export function SurveyCanvas({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cables, mapReady])
+
+  // ---------------------------------------------------------------------------
+  // Sync infra markers to map
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!mapRef.current) return
+    const map = mapRef.current
+    const existing = infraMarkersRef.current
+    const currentIds = new Set(infraMarkers.map(m => m.id))
+
+    for (const [id, marker] of existing) {
+      if (!currentIds.has(id)) {
+        marker.setMap(null)
+        existing.delete(id)
+      }
+    }
+
+    for (const infra of infraMarkers) {
+      if (existing.has(infra.id)) continue
+
+      const marker = new google.maps.Marker({
+        position: { lat: infra.lat, lng: infra.lng },
+        map,
+        icon: {
+          url: makeSvgDataUrl(infra.type === 'mdf' ? '#f59e0b' : '#8b5cf6', 28),
+          scaledSize: new google.maps.Size(28, 28),
+          anchor: new google.maps.Point(14, 14),
+        },
+        label: {
+          text: infra.label,
+          color: '#fff',
+          fontSize: '10px',
+          fontWeight: 'bold',
+        },
+        zIndex: 8,
+      })
+
+      existing.set(infra.id, marker)
+    }
+  }, [infraMarkers, mapReady])
 
   // ---------------------------------------------------------------------------
   // Coordinate conversion helpers
@@ -410,8 +487,6 @@ export function SurveyCanvas({
 
   // Keep refs in sync
   handleMapClickRef.current = (latLng: google.maps.LatLng) => {
-    if (readOnly) return
-
     // Place device
     if (tool === 'place' && placingDevice) {
       createDeviceAtLatLng(latLng, placingDevice.systemType, placingDevice.deviceType)
@@ -425,6 +500,12 @@ export function SurveyCanvas({
       const pts = [...draftCablePoints, latLng]
       setDraftCablePoints(pts)
       updateDraftPolyline(pts)
+      return
+    }
+
+    // MDF/IDF placement
+    if (tool === 'mdf_idf') {
+      placeMdfIdf(latLng)
       return
     }
 
@@ -505,7 +586,6 @@ export function SurveyCanvas({
   }
 
   async function handleAddDevice(systemType: string, deviceType: string) {
-    if (readOnly) return
     setPlacingDevice({ systemType, deviceType })
     setTool('place')
   }
@@ -635,6 +715,38 @@ export function SurveyCanvas({
   }
 
   // ---------------------------------------------------------------------------
+  // MDF/IDF placement
+  // ---------------------------------------------------------------------------
+  async function placeMdfIdf(latLng: google.maps.LatLng) {
+    const label = mdfIdfType.toUpperCase()
+    const location = `${latLng.lat()},${latLng.lng()}`
+
+    const res = await fetch(`/api/org/surveys/${surveyId}/infrastructure`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        floor_plan_id: floorPlan.id,
+        type: mdfIdfType,
+        name: `${label}-${infraMarkers.filter(m => m.type === mdfIdfType).length + 1}`,
+        location,
+      }),
+    })
+
+    if (res.ok) {
+      const created = await res.json()
+      setInfraMarkers(prev => [...prev, {
+        id: created.id,
+        type: mdfIdfType,
+        lat: latLng.lat(),
+        lng: latLng.lng(),
+        label: created.name || label,
+      }])
+    }
+
+    setTool('select')
+  }
+
+  // ---------------------------------------------------------------------------
   // Keyboard shortcuts
   // ---------------------------------------------------------------------------
   useEffect(() => {
@@ -705,19 +817,32 @@ export function SurveyCanvas({
         <button style={btnStyle(tool === 'pan')} onClick={() => { setTool('pan'); setPlacingDevice(null) }} title="Pan">
           <Hand size={13} /> <span>Pan</span>
         </button>
-        {!readOnly && (
-          <>
-            <button style={btnStyle(tool === 'cable')} onClick={() => { setTool('cable'); setPlacingDevice(null); clearDraftPolyline() }} title="Draw Cable">
-              <CableIcon size={13} /> <span>Cable</span>
-            </button>
-            <button style={btnStyle(tool === 'scale')} onClick={() => { setTool('scale'); setScalePoints([]); clearScaleLine(); setPlacingDevice(null) }} title="Calibrate Scale">
-              <Crosshair size={13} /> <span>Scale</span>
-            </button>
-          </>
+        <button style={btnStyle(tool === 'cable')} onClick={() => { setTool('cable'); setPlacingDevice(null); clearDraftPolyline() }} title="Draw Cable">
+          <CableIcon size={13} /> <span>Cable</span>
+        </button>
+        <button style={btnStyle(tool === 'mdf_idf')} onClick={() => { setTool('mdf_idf'); setPlacingDevice(null) }} title="Place MDF/IDF">
+          <Server size={13} /> <span>MDF/IDF</span>
+        </button>
+        <button style={btnStyle(tool === 'scale')} onClick={() => { setTool('scale'); setScalePoints([]); clearScaleLine(); setPlacingDevice(null) }} title="Calibrate Scale">
+          <Crosshair size={13} /> <span>Scale</span>
+        </button>
+
+        {/* MDF/IDF type toggle */}
+        {tool === 'mdf_idf' && (
+          <div style={{ marginLeft: 8, display: 'flex', gap: 2 }}>
+            <button
+              style={{ ...btnStyle(mdfIdfType === 'mdf'), fontSize: 9, padding: '1px 5px' }}
+              onClick={() => setMdfIdfType('mdf')}
+            >MDF</button>
+            <button
+              style={{ ...btnStyle(mdfIdfType === 'idf'), fontSize: 9, padding: '1px 5px' }}
+              onClick={() => setMdfIdfType('idf')}
+            >IDF</button>
+          </div>
         )}
 
         {/* Cable type dropdown */}
-        {tool === 'cable' && !readOnly && (
+        {tool === 'cable' && (
           <div style={{ marginLeft: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ fontSize: 9, color: C.textMuted }}>Type:</span>
             <select
@@ -789,204 +914,104 @@ export function SurveyCanvas({
 
       {/* MAIN CONTENT */}
       <div style={{ display: 'flex', flex: 1, position: 'relative' }}>
-        {/* DEVICE PALETTE — 6 category tabs + search + device list */}
-        {!readOnly && !selectedDevice && (
-          <div style={{
-            width: 220,
+        {/* DEVICE PALETTE — 52px */}
+        <div style={{
+            width: 52,
             background: C.bgSurface,
             borderRight: `1px solid ${C.border}`,
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
           }}>
-            {/* 6 category tabs */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              borderBottom: `1px solid ${C.border}`,
-            }}>
-              {SURVEY_SYSTEM_TYPES.map(sys => {
-                const isActive = activeCategory === sys.value
-                const count = deviceCounts[sys.value] || 0
-                const short = sys.value === 'access_control' ? 'ACS'
-                  : sys.value === 'vape_environmental' ? 'Vape/Env'
-                  : sys.label
-                return (
+            {SURVEY_SYSTEM_TYPES.map(sys => {
+              const isExpanded = expandedSystem === sys.value
+              const count = deviceCounts[sys.value] || 0
+              return (
+                <div key={sys.value}>
                   <button
-                    key={sys.value}
-                    onClick={() => setActiveCategory(sys.value)}
+                    onClick={() => setExpandedSystem(isExpanded ? null : sys.value)}
                     title={sys.label}
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      width: '100%',
                       padding: '6px 2px',
-                      gap: 2,
-                      background: isActive ? C.bgActive : 'transparent',
+                      background: isExpanded ? C.bgActive : 'transparent',
                       border: 'none',
-                      borderBottom: isActive ? `2px solid ${sys.color}` : '2px solid transparent',
+                      borderBottom: `1px solid ${C.borderSubtle}`,
                       cursor: 'pointer',
+                      gap: 1,
                     }}
                   >
-                    <span style={{
-                      fontSize: 9,
-                      fontWeight: isActive ? 700 : 500,
-                      color: isActive ? C.text : C.textMuted,
-                    }}>{short}</span>
-                    {count > 0 && (
-                      <span style={{
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: '#fff',
-                        background: sys.color,
-                        padding: '0 4px',
-                        borderRadius: 6,
-                        minWidth: 14,
-                        textAlign: 'center',
-                      }}>{count}</span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Search */}
-            <div style={{ padding: 6, borderBottom: `1px solid ${C.borderSubtle}` }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                background: C.bgPanel,
-                border: `1px solid ${C.border}`,
-                borderRadius: 3,
-                padding: '2px 6px',
-              }}>
-                <Search size={11} color={C.textMuted} />
-                <input
-                  value={paletteSearch}
-                  onChange={e => setPaletteSearch(e.target.value)}
-                  placeholder="Search devices..."
-                  style={{
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    color: C.text,
-                    fontSize: 10,
-                    padding: '2px 0',
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Device list */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: 4 }}>
-              {(() => {
-                const search = paletteSearch.trim().toLowerCase()
-                const sourceCategories = search
-                  ? SURVEY_SYSTEM_TYPES.map(s => s.value)
-                  : [activeCategory]
-                const rows: { sys: string; color: string; value: string; label: string }[] = []
-                for (const catValue of sourceCategories) {
-                  const sys = SURVEY_SYSTEM_TYPES.find(s => s.value === catValue)
-                  if (!sys) continue
-                  const list = SURVEY_DEVICE_TYPES[catValue as keyof typeof SURVEY_DEVICE_TYPES] || []
-                  for (const dt of list) {
-                    if (search && !dt.label.toLowerCase().includes(search) && !dt.value.toLowerCase().includes(search)) continue
-                    rows.push({ sys: sys.value, color: sys.color, value: dt.value, label: dt.label })
-                  }
-                }
-                if (rows.length === 0) {
-                  return (
-                    <div style={{ padding: 12, textAlign: 'center', fontSize: 10, color: C.textMuted }}>
-                      No matching devices
-                    </div>
-                  )
-                }
-                return rows.map(row => (
-                  <button
-                    key={`${row.sys}:${row.value}`}
-                    onClick={() => handleAddDevice(row.sys, row.value)}
-                    style={{
+                    <div style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: '50%',
+                      background: sys.color,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '4px 6px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderRadius: 3,
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      color: C.text,
-                      textAlign: 'left',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = C.bgHover)}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <SurveyDeviceIcon systemType={row.sys} deviceType={row.value} color={row.color} size={18} />
-                    <span>{row.label}</span>
+                      justifyContent: 'center',
+                      fontSize: 8,
+                      color: '#fff',
+                      fontWeight: 700,
+                    }}>
+                      {count || ''}
+                    </div>
+                    <span style={{ fontSize: 7, color: C.textMuted, textAlign: 'center', lineHeight: 1.1 }}>
+                      {sys.label.split('/')[0].trim().substring(0, 6)}
+                    </span>
                   </button>
-                ))
-              })()}
-            </div>
-
-            {/* Placed inventory */}
-            {devices.length > 0 && (
-              <div style={{
-                borderTop: `1px solid ${C.border}`,
-                padding: 6,
-                maxHeight: 180,
-                overflowY: 'auto',
-              }}>
-                <div style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.4,
-                  color: C.textMuted,
-                  marginBottom: 4,
-                }}>
-                  Placed on map ({devices.length})
+                  {/* Expanded: show device types as popup */}
+                  {isExpanded && (
+                    <div style={{
+                      position: 'absolute',
+                      left: 52,
+                      top: 0,
+                      width: 180,
+                      maxHeight: 400,
+                      overflowY: 'auto',
+                      background: C.bgPanel,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 4,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                      zIndex: 50,
+                      padding: 4,
+                    }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: C.text, padding: '4px 6px', borderBottom: `1px solid ${C.borderSubtle}`, marginBottom: 2 }}>
+                        {sys.label}
+                      </div>
+                      {(SURVEY_DEVICE_TYPES[sys.value as keyof typeof SURVEY_DEVICE_TYPES] || []).map(dt => (
+                        <button
+                          key={dt.value}
+                          onClick={() => { handleAddDevice(sys.value, dt.value); setExpandedSystem(null) }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            width: '100%',
+                            padding: '3px 6px',
+                            background: 'transparent',
+                            border: 'none',
+                            borderRadius: 2,
+                            cursor: 'pointer',
+                            fontSize: 10,
+                            color: C.text,
+                            textAlign: 'left',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = C.bgHover)}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: sys.color, flexShrink: 0 }} />
+                          {dt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {devices.map(d => {
-                  const sys = SURVEY_SYSTEM_TYPES.find(s => s.value === d.system_type)
-                  return (
-                    <button
-                      key={d.id}
-                      onClick={() => setSelectedDeviceId(d.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        width: '100%',
-                        padding: '3px 4px',
-                        background: 'transparent',
-                        border: 'none',
-                        borderRadius: 2,
-                        cursor: 'pointer',
-                        fontSize: 10,
-                        color: C.text,
-                        textAlign: 'left',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.background = C.bgHover)}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    >
-                      <span style={{
-                        width: 6, height: 6, borderRadius: '50%',
-                        background: d.color_hex || sys?.color || '#6b7280', flexShrink: 0,
-                      }} />
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {d.label}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+              )
+            })}
           </div>
-        )}
 
         {/* MAP CONTAINER */}
         <div style={{ flex: 1, position: 'relative' }}>
@@ -995,7 +1020,7 @@ export function SurveyCanvas({
             style={{
               position: 'absolute',
               inset: 0,
-              cursor: tool === 'pan' ? 'grab' : tool === 'place' ? 'crosshair' : tool === 'cable' ? 'crosshair' : tool === 'scale' ? 'crosshair' : 'default',
+              cursor: tool === 'pan' ? 'grab' : tool === 'place' ? 'crosshair' : tool === 'cable' ? 'crosshair' : tool === 'scale' ? 'crosshair' : tool === 'mdf_idf' ? 'crosshair' : 'default',
             }}
           />
 
@@ -1046,7 +1071,6 @@ export function SurveyCanvas({
               onUpdate={(updates) => handleUpdateDevice(selectedDevice.id, updates)}
               onDelete={() => handleDeleteDevice(selectedDevice.id)}
               onClose={() => setSelectedDeviceId(null)}
-              readOnly={readOnly}
             />
           </div>
         )}
@@ -1078,6 +1102,12 @@ export function SurveyCanvas({
         <span>Cables: {cables.length} ({totalCableFt.toFixed(0)} ft)</span>
         <span style={{ width: 1, height: 14, background: C.border }} />
         <span>{scalePxPerFt ? `Scale: ${scalePxPerFt.toFixed(1)} px/ft` : 'No scale set'}</span>
+        {infraMarkers.length > 0 && (
+          <>
+            <span style={{ width: 1, height: 14, background: C.border }} />
+            <span>MDF: {infraMarkers.filter(m => m.type === 'mdf').length} | IDF: {infraMarkers.filter(m => m.type === 'idf').length}</span>
+          </>
+        )}
       </div>
     </div>
   )
