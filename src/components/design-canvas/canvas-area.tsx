@@ -435,6 +435,8 @@ function CanvasArea(props: Props) {
   useEffect(() => { onWallUpdatedRef.current = onWallUpdated }, [onWallUpdated])
   const onWallSelectedRef = useRef(onWallSelected)
   useEffect(() => { onWallSelectedRef.current = onWallSelected }, [onWallSelected])
+  const onWallDeletedRef = useRef(onWallDeleted)
+  useEffect(() => { onWallDeletedRef.current = onWallDeleted }, [onWallDeleted])
   const wallsRef = useRef(walls)
   useEffect(() => { wallsRef.current = walls }, [walls])
   const selectedWallIdRef = useRef(selectedWallId)
@@ -873,6 +875,22 @@ function CanvasArea(props: Props) {
     document.addEventListener('dblclick', onDblClick)
     return () => { document.removeEventListener('keydown', onKeyDown); document.removeEventListener('dblclick', onDblClick) }
   }, [cleanupWallDraw, completeWallDraw])
+
+  // Delete/Backspace — delete the selected wall
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      if (wallDrawRef.current) return // in draw mode, ignore
+      const wid = selectedWallIdRef.current
+      if (!wid) return
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+      e.preventDefault()
+      onWallDeletedRef.current?.(wid)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   // Google Maps script loading (reuse cached script from satellite-map if present)
   const [mapReady, setMapReady] = useState(false)
@@ -1656,25 +1674,15 @@ function CanvasArea(props: Props) {
         return { lat, lng }
       })
 
-      // Polyline — fat invisible stroke for click hit area + visible colored line
+      // Polyline — solid visible stroke; its own stroke width is the click target
       const polyline = new google.maps.Polyline({
         path,
         strokeColor: color,
-        strokeOpacity: 0,
-        strokeWeight: 8,  // invisible wide click target
+        strokeOpacity: wall.opacity ?? 0.9,
+        strokeWeight: isSelected ? 6 : 5,
         map,
         clickable: true,
         zIndex: isSelected ? 8 : 3,
-        icons: [{
-          icon: {
-            path: 'M 0,-1 0,1',
-            strokeOpacity: wall.opacity ?? 0.9,
-            strokeColor: color,
-            scale: isSelected ? 3 : 2.5,
-          },
-          offset: '0',
-          repeat: '1px',  // near-solid line appearance
-        }],
       })
 
       // Click wall polyline → select it OR insert a vertex if already selected
@@ -1753,6 +1761,69 @@ function CanvasArea(props: Props) {
 
           wallVertexEditMarkersRef.current.push(marker)
         }
+
+        // Move-whole-wall handle — drag translates all vertices by the same delta
+        const sumX = wall.points.reduce((s, p) => s + p.x, 0)
+        const sumY = wall.points.reduce((s, p) => s + p.y, 0)
+        const cx = sumX / wall.points.length
+        const cy = sumY / wall.points.length
+        const centroidLatLng = canvasPixelsToLatLng(cx, cy, ctx)
+
+        const moveHandle = new google.maps.Marker({
+          position: centroidLatLng,
+          map,
+          icon: {
+            path: 'M -6,0 L -2,-4 L -2,-2 L 2,-2 L 2,-4 L 6,0 L 2,4 L 2,2 L -2,2 L -2,4 Z',
+            scale: 1.2,
+            fillColor: color,
+            fillOpacity: 0.95,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+            rotation: 45,
+          },
+          draggable: true,
+          clickable: true,
+          zIndex: 13,
+          cursor: 'move',
+          title: 'Drag to move wall',
+        })
+
+        let dragAnchorPx: { x: number; y: number } | null = null
+        moveHandle.addListener('dragstart', () => {
+          dragAnchorPx = { x: cx, y: cy }
+        })
+        moveHandle.addListener('drag', () => {
+          const pos = moveHandle.getPosition()
+          if (!pos || !dragAnchorPx) return
+          const newCx = latLngToCanvasPixels(pos.lat(), pos.lng(), ctx)
+          const dx = newCx.x - dragAnchorPx.x
+          const dy = newCx.y - dragAnchorPx.y
+          const currentWalls = wallsRef.current ?? []
+          const currentWall = currentWalls.find(w => w.id === wallId)
+          if (!currentWall) return
+          const newPath = currentWall.points.map(pt => {
+            const { lat, lng } = canvasPixelsToLatLng(pt.x + dx, pt.y + dy, ctx)
+            return { lat, lng }
+          })
+          polyline.setPath(newPath)
+        })
+        moveHandle.addListener('dragend', () => {
+          const pos = moveHandle.getPosition()
+          if (!pos || !dragAnchorPx) return
+          const newCx = latLngToCanvasPixels(pos.lat(), pos.lng(), ctx)
+          const dx = newCx.x - dragAnchorPx.x
+          const dy = newCx.y - dragAnchorPx.y
+          const currentWalls = wallsRef.current ?? []
+          const currentWall = currentWalls.find(w => w.id === wallId)
+          if (!currentWall) return
+          const newPts = currentWall.points.map(pt => ({
+            x: Math.round(pt.x + dx),
+            y: Math.round(pt.y + dy),
+          }))
+          onWallUpdatedRef.current?.(wallId, { points: newPts })
+          dragAnchorPx = null
+        })
+        wallVertexEditMarkersRef.current.push(moveHandle)
       }
     }
   }, [walls, geoContext, mapReady, selectedWallId])
