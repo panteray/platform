@@ -44,7 +44,7 @@ export async function PATCH(
   // Only allow safe fields
   const allowed = [
     'site_name', 'site_address', 'customer_name', 'surveyor_name',
-    'survey_date', 'status', 'site_notes', 'infrastructure_notes',
+    'survey_date', 'status', 'site_notes', 'infrastructure_notes', 'opp_id',
   ]
   const updates: Record<string, unknown> = {}
   for (const key of allowed) {
@@ -88,9 +88,6 @@ export async function DELETE(
     .single()
 
   if (!survey) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (survey.status !== 'draft') {
-    return NextResponse.json({ error: 'Only draft surveys can be deleted' }, { status: 400 })
-  }
 
   const { error } = await admin
     .from('surveys')
