@@ -194,7 +194,6 @@ export const SURVEY_FLOOR_PLAN_MODES = [
   { value: 'floorplan', label: 'Floor Plan Upload' },
   { value: 'satellite', label: 'Satellite Capture' },
   { value: 'grid', label: 'Grid / Sketch' },
-  { value: 'photos_only', label: 'Photos Only' },
 ] as const
 
 // ---- Survey Statuses ----

@@ -18,7 +18,7 @@ interface Props {
 }
 
 interface OppOption { id: string; opp_number: string | null; project_name: string | null }
-interface CustomerOption { id: string; name: string }
+interface CustomerOption { id: string; name: string; address: string | null }
 
 export function SurveyDetail({ surveyId, onBack }: Props) {
   const [survey, setSurvey] = useState<Survey | null>(null)
@@ -36,6 +36,7 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [opportunities, setOpportunities] = useState<OppOption[]>([])
   const [customers, setCustomers] = useState<CustomerOption[]>([])
+  const customersRef = useRef<CustomerOption[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refreshPending = useCallback(async () => {
@@ -85,7 +86,7 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
 
   useEffect(() => { load() }, [load])
 
-  // Fetch opportunities and customers for dropdowns
+  // Fetch opportunities, customers, and current user on mount
   useEffect(() => {
     fetch('/api/org/opportunities')
       .then(r => r.ok ? r.json() : [])
@@ -95,8 +96,23 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
       .catch(() => {})
     fetch('/api/org/customers')
       .then(r => r.ok ? r.json() : [])
-      .then((data: Array<{ id: string; name: string }>) => {
-        setCustomers(data.map(c => ({ id: c.id, name: c.name })))
+      .then((data: Array<{ id: string; name: string; address: string | null }>) => {
+        const mapped = data.map(c => ({ id: c.id, name: c.name, address: c.address ?? null }))
+        setCustomers(mapped)
+        customersRef.current = mapped
+      })
+      .catch(() => {})
+    fetch('/api/org/me')
+      .then(r => r.ok ? r.json() : null)
+      .then((me: { first_name: string | null; last_name: string | null } | null) => {
+        if (!me) return
+        const fullName = [me.first_name, me.last_name].filter(Boolean).join(' ')
+        if (fullName) {
+          setSurvey(prev => {
+            if (!prev || prev.surveyor_name) return prev
+            return { ...prev, surveyor_name: fullName }
+          })
+        }
       })
       .catch(() => {})
   }, [])
@@ -128,8 +144,15 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
 
   const handleFieldChange = (field: string, value: string) => {
     if (!survey) return
-    setSurvey({ ...survey, [field]: value })
-    autoSave({ [field]: value })
+    const updates: Partial<Survey> = { [field]: value }
+    if (field === 'customer_name') {
+      const customer = customersRef.current.find(c => c.name === value)
+      if (customer?.address && !survey.site_address) {
+        updates.site_address = customer.address
+      }
+    }
+    setSurvey({ ...survey, ...updates })
+    autoSave(updates)
   }
 
   const handleAddFloorPlan = async (mode: string) => {
