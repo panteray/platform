@@ -28,6 +28,8 @@ declare module 'xlsx' {
     sheet_to_json<T = any>(sheet: any, opts?: any): T[]
     book_new(): any
     book_append_sheet(wb: any, ws: any, name?: string): void
+    decode_range(ref: string): { s: { r: number; c: number }; e: { r: number; c: number } }
+    encode_range(range: { s: { r: number; c: number }; e: { r: number; c: number } }): string
   }
 }
 

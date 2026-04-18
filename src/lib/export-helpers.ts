@@ -94,7 +94,7 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-export type ExportFormat = 'xlsx' | 'pdf' | 'docx'
+export type ExportFormat = 'xlsx' | 'xlsm' | 'pdf' | 'docx'
 
 async function toXlsx(rows: Record<string, unknown>[], sheetName: string): Promise<Blob> {
   const XLSX = await import('xlsx')
@@ -190,7 +190,18 @@ async function fetchExport<T>(designId: string, type: string): Promise<T> {
 
 // ---- Public exports ----
 
+export async function exportBomTemplate(designId: string): Promise<void> {
+  const res = await fetch(`/api/org/designs/${designId}/export/bom-xlsm`, { method: 'POST' })
+  if (!res.ok) throw new Error(`BOM template export failed: ${res.status}`)
+  const blob = await res.blob()
+  const disp = res.headers.get('Content-Disposition') || ''
+  const m = disp.match(/filename="([^"]+)"/)
+  const filename = m?.[1] || 'BOM.xlsm'
+  downloadBlob(blob, filename)
+}
+
 export async function exportBom(designId: string, format: ExportFormat = 'xlsx'): Promise<void> {
+  if (format === 'xlsm') return exportBomTemplate(designId)
   const data = await fetchExport<BomExport>(designId, 'bom')
   const columns = ['#', 'Category', 'Manufacturer', 'Model', 'Qty', 'Unit Cost', 'Total']
   const rows = data.items.map((item, i) => ({

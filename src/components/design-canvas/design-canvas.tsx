@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { C, type CanvasTool, type IconTabId, ICON_TABS, DEVICE_CATEGORY_COLORS } from './constants'
+import type { ExportFormat } from '@/lib/export-helpers'
 import { CanvasArea } from './canvas-area'
 import type { DeviceFovData } from './fov-data-types'
 import { LeftPanel } from './left-panel'
@@ -1463,7 +1464,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                       <div style={{ fontSize: 10, color: C.textDim, marginTop: 2 }}>{item.desc}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      {(['xlsx', 'pdf', 'docx'] as const).map(fmt => (
+                      {((item.key === 'bom' ? ['xlsm', 'xlsx', 'pdf', 'docx'] : ['xlsx', 'pdf', 'docx']) as readonly ExportFormat[]).map(fmt => (
                         <button key={fmt} onClick={() => {
                           const run = async () => {
                             const m = await import('@/lib/export-helpers')
@@ -1492,9 +1493,9 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                         }}
                           style={{
                             padding: '4px 10px', fontSize: 9, fontWeight: 700,
-                            background: fmt === 'xlsx' ? `${C.accent}15` : fmt === 'pdf' ? 'rgba(239,68,68,0.08)' : 'rgba(59,130,246,0.08)',
-                            color: fmt === 'xlsx' ? C.accent : fmt === 'pdf' ? '#ef4444' : '#3b82f6',
-                            border: `1px solid ${fmt === 'xlsx' ? `${C.accent}30` : fmt === 'pdf' ? 'rgba(239,68,68,0.2)' : 'rgba(59,130,246,0.2)'}`,
+                            background: fmt === 'xlsm' ? 'rgba(34,197,94,0.12)' : fmt === 'xlsx' ? `${C.accent}15` : fmt === 'pdf' ? 'rgba(239,68,68,0.08)' : 'rgba(59,130,246,0.08)',
+                            color: fmt === 'xlsm' ? '#16a34a' : fmt === 'xlsx' ? C.accent : fmt === 'pdf' ? '#ef4444' : '#3b82f6',
+                            border: `1px solid ${fmt === 'xlsm' ? 'rgba(34,197,94,0.3)' : fmt === 'xlsx' ? `${C.accent}30` : fmt === 'pdf' ? 'rgba(239,68,68,0.2)' : 'rgba(59,130,246,0.2)'}`,
                             borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit',
                             textTransform: 'uppercase',
                           }}>

@@ -53,11 +53,12 @@ export function BomTab({ oppId }: Props) {
           {total > 0 && <div className="text-xs text-muted-foreground">Total: ${total.toLocaleString()}</div>}
         </div>
         <div className="flex gap-2">
-          {(['xlsx', 'pdf', 'docx'] as const).map(fmt => (
+          {(['xlsm', 'xlsx', 'pdf', 'docx'] as const).map(fmt => (
             <button key={fmt} onClick={async () => { setExporting(true); await exportBom(designId, fmt); setExporting(false) }}
               disabled={exporting}
               className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-bold uppercase transition-colors disabled:opacity-50 ${
-                fmt === 'xlsx' ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+                fmt === 'xlsm' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
+                : fmt === 'xlsx' ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
                 : fmt === 'pdf' ? 'border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10'
                 : 'border-blue-500/20 bg-blue-500/5 text-blue-500 hover:bg-blue-500/10'
               }`}>
