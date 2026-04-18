@@ -88,12 +88,18 @@ export async function POST(
   const ws = wb.Sheets['Equipment']
   if (!ws) return NextResponse.json({ error: 'Template Equipment sheet missing' }, { status: 500 })
 
-  const setCell = (addr: string, value: string | number | null) => {
-    if (value === null || value === undefined || value === '') return
+  const setCell = (addr: string, value: string | number | null | undefined) => {
     const existing = ws[addr]
+    if (value === null || value === undefined || value === '') {
+      if (existing) ws[addr] = { ...existing, t: 's', v: '' }
+      return
+    }
     ws[addr] = { ...(existing || {}), t: typeof value === 'number' ? 'n' : 's', v: value }
-    delete ws[addr].f
+    if (ws[addr].f) delete ws[addr].f
   }
+
+  const excelDateSerial = (d: Date) =>
+    Math.floor((d.getTime() - Date.UTC(1899, 11, 30)) / 86400000)
 
   setCell('C4', opp?.opp_number || '')
   setCell('C5', opp?.project_name || design.name || '')
@@ -102,24 +108,25 @@ export async function POST(
   setCell('C8', opp?.install_address || '')
   setCell('C9', opp?.state || '')
   setCell('K4', 'V1')
-  setCell('K5', new Date().toISOString().slice(0, 10))
+  setCell('K5', excelDateSerial(new Date()))
 
   const START_ROW = 20
+  const LAST_PREFILLED_ROW = 122
+  for (let r = START_ROW; r <= LAST_PREFILLED_ROW; r++) {
+    setCell(`B${r}`, '')
+    setCell(`C${r}`, '')
+    setCell(`E${r}`, '')
+    setCell(`F${r}`, '')
+  }
   for (let i = 0; i < lines.length; i++) {
     const r = START_ROW + i
+    if (r > LAST_PREFILLED_ROW) break
     const line = lines[i]
-    setCell(`A${r}`, i + 1)
     setCell(`B${r}`, line.qty)
     setCell(`C${r}`, line.vendor)
     setCell(`E${r}`, line.pn)
     setCell(`F${r}`, line.description)
   }
-
-  const lastRow = START_ROW + Math.max(lines.length, 5) - 1
-  const currentRange = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s: { r: 0, c: 0 }, e: { r: lastRow, c: 10 } }
-  currentRange.e.r = Math.max(currentRange.e.r, lastRow)
-  currentRange.e.c = Math.max(currentRange.e.c, 10)
-  ws['!ref'] = XLSX.utils.encode_range(currentRange)
 
   const out = XLSX.write(wb, { bookType: 'xlsm', type: 'buffer', bookVBA: true, compression: true })
 
