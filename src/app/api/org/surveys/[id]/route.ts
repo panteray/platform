@@ -68,7 +68,7 @@ export async function PATCH(
   return NextResponse.json(data)
 }
 
-/** DELETE /api/org/surveys/:id — delete survey (draft only) */
+/** DELETE /api/org/surveys/:id — delete survey */
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -79,10 +79,9 @@ export async function DELETE(
   const { id } = await params
   const admin = createAdminClient()
 
-  // Only allow deleting draft surveys
   const { data: survey } = await admin
     .from('surveys')
-    .select('status')
+    .select('id')
     .eq('id', id)
     .eq('org_id', dbUser.org_id)
     .single()

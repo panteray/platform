@@ -38,6 +38,7 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
   const [customers, setCustomers] = useState<CustomerOption[]>([])
   const customersRef = useRef<CustomerOption[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const initializedRef = useRef(false)
 
   const refreshPending = useCallback(async () => {
     const n = await getPendingSyncCount(surveyId)
@@ -77,12 +78,13 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
       setFloorPlans(data.survey_floor_plans || [])
       setDevices(data.survey_devices || [])
       setInfrastructure(data.survey_infrastructure || [])
-      if (data.survey_floor_plans?.length > 0 && !activeFloorPlan) {
+      if (data.survey_floor_plans?.length > 0 && !initializedRef.current) {
         setActiveFloorPlan(data.survey_floor_plans[0].id)
+        initializedRef.current = true
       }
     }
     setLoading(false)
-  }, [surveyId, activeFloorPlan])
+  }, [surveyId])
 
   useEffect(() => { load() }, [load])
 
@@ -158,7 +160,6 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
   const handleAddFloorPlan = async (mode: string) => {
     const name = mode === 'satellite' ? 'Satellite View'
       : mode === 'grid' ? 'Sketch Area'
-      : mode === 'photos_only' ? 'Photo Survey'
       : `Area ${floorPlans.length + 1}`
 
     const res = await fetch(`/api/org/surveys/${surveyId}/floor-plans`, {

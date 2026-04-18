@@ -138,7 +138,9 @@ export async function POST(
     const rows = devices.map((d) => ({
       org_id: dbUser.org_id,
       design_id: design.id,
-      area_id: d.floor_plan_id ? fpToArea.get(d.floor_plan_id) ?? null : null,
+      area_id: d.floor_plan_id
+        ? fpToArea.get(d.floor_plan_id) ?? fpToArea.get('__default__') ?? null
+        : fpToArea.get('__default__') ?? null,
       category: mapCategory(d.system_type),
       label: d.label || '',
       position_x: d.position_x ?? 0,
@@ -172,7 +174,8 @@ export async function POST(
       .insert(rows, { count: 'exact' })
 
     if (devErr) {
-      return NextResponse.json({ error: `Device copy failed: ${devErr.message}`, design_id: design.id }, { status: 500 })
+      await admin.from('designs').delete().eq('id', design.id)
+      return NextResponse.json({ error: `Device copy failed: ${devErr.message}` }, { status: 500 })
     }
     copied = count ?? rows.length
   }
