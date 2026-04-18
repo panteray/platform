@@ -7,7 +7,6 @@ import {
 } from 'lucide-react'
 import { C } from '../design-canvas/constants'
 import type { Survey, SurveyFloorPlan, SurveyDevice, SurveyInfrastructure } from '@/types/database'
-import { SurveyStatusBadge } from './SurveyStatusBadge'
 import { SURVEY_FLOOR_PLAN_MODES } from '@/lib/survey-constants'
 import { SurveyCanvas } from './SurveyCanvas'
 import { SurveyInfrastructurePanel } from './SurveyInfrastructurePanel'
@@ -231,7 +230,6 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
           <span className="text-sm font-semibold text-foreground">
             {survey.site_name || 'Untitled Survey'}
           </span>
-          <SurveyStatusBadge status={survey.status} />
           {!online && (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
               <WifiOff className="h-3 w-3" /> Offline
@@ -382,34 +380,36 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
 
       {/* Floor Plan Tabs */}
       <div className="rounded-lg border border-border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto scrollbar-hide" style={{ background: C.bgPanel, borderBottom: `1px solid ${C.border}` }}>
-          {floorPlans.map((fp) => (
-            <div key={fp.id} className="flex items-center gap-0.5">
-              <button
-                onClick={() => setActiveFloorPlan(fp.id)}
-                className={`whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium transition-colors ${
-                  activeFloorPlan === fp.id ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {fp.name}
-              </button>
-              <button
-                onClick={() => handleDeleteFloorPlan(fp.id)}
-                className="rounded p-0.5 text-muted-foreground/40 hover:text-destructive"
-              >
-                <Trash2 className="h-2.5 w-2.5" />
-              </button>
-            </div>
-          ))}
-          <div className="relative">
+        <div className="flex items-center" style={{ background: C.bgPanel, borderBottom: `1px solid ${C.border}` }}>
+          <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto scrollbar-hide flex-1 min-w-0">
+            {floorPlans.map((fp) => (
+              <div key={fp.id} className="flex items-center gap-0.5 shrink-0">
+                <button
+                  onClick={() => setActiveFloorPlan(fp.id)}
+                  className={`whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                    activeFloorPlan === fp.id ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {fp.name}
+                </button>
+                <button
+                  onClick={() => handleDeleteFloorPlan(fp.id)}
+                  className="rounded p-0.5 text-muted-foreground/40 hover:text-destructive"
+                >
+                  <Trash2 className="h-2.5 w-2.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="relative shrink-0 px-1">
             <button
               onClick={() => setShowAddMenu(!showAddMenu)}
-              className="flex items-center gap-0.5 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+              className="flex items-center gap-0.5 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground whitespace-nowrap"
             >
               <Plus className="h-3 w-3" /> Add Area
             </button>
             {showAddMenu && (
-              <div className="absolute left-0 top-full z-20 pt-1">
+              <div className="absolute right-0 top-full z-20 pt-1">
                 <div className="rounded-md border border-border bg-popover shadow-md py-1 min-w-[160px]">
                   {SURVEY_FLOOR_PLAN_MODES.map((m) => (
                     <button

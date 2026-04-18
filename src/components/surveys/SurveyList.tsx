@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, MapPin, Camera, Layers, Trash2, ExternalLink } from 'lucide-react'
 import type { Survey } from '@/types/database'
-import { SurveyStatusBadge } from './SurveyStatusBadge'
 
 interface Props {
   oppId?: string
@@ -95,7 +94,6 @@ export function SurveyList({ oppId, oppNumber, onSelect, onCreate }: Props) {
                     <span className="text-sm font-semibold text-foreground truncate">
                       {survey.site_name || 'Untitled Survey'}
                     </span>
-                    <SurveyStatusBadge status={survey.status} />
                   </div>
                   {survey.site_address && (
                     <p className="mt-0.5 text-xs text-muted-foreground truncate">
@@ -114,15 +112,13 @@ export function SurveyList({ oppId, oppNumber, onSelect, onCreate }: Props) {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {survey.status === 'draft' && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(survey.id) }}
-                      className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(survey.id) }}
+                    className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                   <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
               </div>
