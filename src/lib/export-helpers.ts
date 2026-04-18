@@ -96,11 +96,15 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export type ExportFormat = 'xlsx' | 'xlsm' | 'pdf' | 'docx'
 
+function sanitizeSheetName(name: string): string {
+  return name.replace(/[:\\/?*[\]]/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 31) || 'Sheet1'
+}
+
 async function toXlsx(rows: Record<string, unknown>[], sheetName: string): Promise<Blob> {
   const XLSX = await import('xlsx')
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, sheetName)
+  XLSX.utils.book_append_sheet(wb, ws, sanitizeSheetName(sheetName))
   const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
   return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
 }
@@ -122,7 +126,20 @@ function toPdfPrint(title: string, rows: Record<string, unknown>[], columns: str
     <table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>
     </body></html>`
   const w = window.open('', '_blank', 'width=900,height=700')
-  if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500) }
+  if (w) {
+    w.document.write(html)
+    w.document.close()
+    w.onload = () => {
+      const imgs = Array.from(w.document.images)
+      if (imgs.length === 0) { w.print(); return }
+      let remaining = imgs.length
+      const done = () => { if (--remaining <= 0) w.print() }
+      imgs.forEach(img => {
+        if (img.complete) done()
+        else { img.onload = done; img.onerror = done }
+      })
+    }
+  }
 }
 
 /** Generate a DOCX blob from rows using the docx npm package */
@@ -351,7 +368,20 @@ export async function exportHardwareSchedule(designId: string, format: ExportFor
       </div>
       </body></html>`
     const w = window.open('', '_blank', 'width=900,height=700')
-    if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500) }
+    if (w) {
+      w.document.write(html)
+      w.document.close()
+      w.onload = () => {
+        const imgs = Array.from(w.document.images)
+        if (imgs.length === 0) { w.print(); return }
+        let remaining = imgs.length
+        const done = () => { if (--remaining <= 0) w.print() }
+        imgs.forEach(img => {
+          if (img.complete) done()
+          else { img.onload = done; img.onerror = done }
+        })
+      }
+    }
     return
   }
 
@@ -398,7 +428,7 @@ export async function exportHardwareSchedule(designId: string, format: ExportFor
         if (imgRes.ok) {
           const imgBuf = await imgRes.arrayBuffer()
           children.push(new Paragraph({ children: [new ImageRun({
-            type: 'png', data: Buffer.from(imgBuf),
+            type: 'png', data: new Uint8Array(imgBuf),
             transformation: { width: 600, height: 300 },
             altText: { title: `${areaName} Map`, description: 'Satellite map of area', name: 'area-map' },
           })] }))
