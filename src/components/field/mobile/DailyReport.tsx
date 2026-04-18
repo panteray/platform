@@ -79,7 +79,7 @@ export function DailyReport({ projectId, onCountChange }: Props) {
           className="flex w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 py-4 text-sm font-semibold text-blue-700 active:bg-blue-100"
         >
           <Plus className="h-4 w-4" />
-          Submit today's progress report
+          Submit today&apos;s progress report
         </button>
       )}
 

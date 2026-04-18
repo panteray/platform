@@ -41,7 +41,7 @@ export default function FieldProjectDetailPage() {
     return (
       <div className="-m-6 flex h-[calc(100dvh-56px)] flex-col items-center justify-center bg-neutral-50 p-6 text-center">
         <p className="text-sm font-medium text-neutral-600">Project not found</p>
-        <p className="mt-1 text-xs text-neutral-400">Or you don't have access</p>
+        <p className="mt-1 text-xs text-neutral-400">Or you don&apos;t have access</p>
       </div>
     )
   }
