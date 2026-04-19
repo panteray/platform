@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { Search, Sunrise, Sun, Sunset, Moon, Bell, ChevronRight, Check } from 'lucide-react'
+import { Search, Sunrise, Sun, Sunset, Moon, Bell, ChevronRight, Check, Menu } from 'lucide-react'
 import { useTheme, type Theme } from '@/components/layout/ThemeProvider'
 import { useNotifications } from '@/hooks/useNotifications'
 import { NotificationPanel } from '@/components/layout/NotificationPanel'
+import { useSidebarState } from '@/hooks/useSidebarState'
 import { useUser } from '@/hooks/useUser'
 import { roleLabel } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
@@ -128,6 +129,7 @@ export function Topbar() {
   const pathname = usePathname()
   const { notifications } = useNotifications(50)
   const { userRole } = useUser()
+  const { toggleMobile } = useSidebarState()
   const [notifOpen, setNotifOpen] = useState(false)
 
   const unreadCount = notifications.filter((n) => !n.read).length
@@ -139,6 +141,16 @@ export function Topbar() {
     <header className="flex h-12 min-h-[48px] items-center justify-between border-b border-border bg-card px-5">
       {/* Left: Breadcrumb + Search */}
       <div className="flex flex-1 items-center gap-5">
+        {/* Mobile hamburger */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground md:hidden"
+          onClick={toggleMobile}
+          aria-label="Toggle navigation"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
         {/* Breadcrumb */}
         <nav className="flex shrink-0 items-center gap-1.5 text-sm">
           {crumbs.map((crumb, i) => (

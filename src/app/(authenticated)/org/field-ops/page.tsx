@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { HardHat, MapPin, Clock, AlertTriangle, ArrowRight } from 'lucide-react'
 import type { Project } from '@/types/database'
+import { InstallAppButton } from '@/components/layout/InstallAppButton'
 
 type FieldProject = Project & {
   pm?: { first_name: string | null; last_name: string | null } | null
@@ -60,12 +61,15 @@ export default function FieldOpsPage() {
           <h1 className="text-lg font-bold text-foreground">Field Ops</h1>
           <span className="text-xs text-muted-foreground">({filtered.length} projects in field)</span>
         </div>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search projects, PN, site, customer…"
-          className="w-64 rounded-md border border-border bg-background px-3 py-1.5 text-xs outline-none focus:border-primary"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search projects, PN, site, customer…"
+            className="w-64 rounded-md border border-border bg-background px-3 py-1.5 text-xs outline-none focus:border-primary"
+          />
+          <InstallAppButton label="Install for Field Use" />
+        </div>
       </div>
 
       <div className="mb-4 grid grid-cols-3 gap-3">

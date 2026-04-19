@@ -1,5 +1,13 @@
 @import 'react-grid-layout/css/styles.css';
 
+/* Mobile drawer: sidebar slides in from the left on small screens.
+   Animates `left` instead of `transform` because transform was getting
+   stuck in the browser compositor during dev-mode re-renders. */
+@media (max-width: 767px) {
+  .pt-mobile-drawer { left: -256px; transition: left 200ms ease; }
+  .pt-mobile-drawer[data-mobile-open="true"] { left: 0; }
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

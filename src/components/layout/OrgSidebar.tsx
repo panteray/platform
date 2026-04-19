@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
@@ -148,8 +148,15 @@ export function OrgSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { user, userRole } = useUser()
-  const { collapsed, toggle, mounted } = useSidebarState()
+  const { collapsed, toggle, mounted, mobileOpen, closeMobile } = useSidebarState()
   const sections = useSectionState()
+
+  // Force browser to reflow when drawer opens/closes; without this,
+  // Chromium can cache the composited position during dev HMR.
+  useLayoutEffect(() => {
+    const el = document.getElementById('pt-mobile-drawer')
+    if (el) { el.style.display = 'none'; void el.offsetHeight; el.style.display = '' }
+  }, [mobileOpen])
 
   const canManage = userRole ? canManageUsers(userRole) : false
   const canCRM = userRole ? canManageCRM(userRole) : false
@@ -175,10 +182,23 @@ export function OrgSidebar() {
   }
 
   return (
+    <>
+      {/* Mobile backdrop */}
+      <div
+        onClick={closeMobile}
+        className={cn(
+          'fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity md:hidden',
+          mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+        )}
+        aria-hidden="true"
+      />
     <aside
+      id="pt-mobile-drawer"
+      data-mobile-open={mobileOpen}
       className={cn(
-        'flex flex-col border-r border-border bg-card transition-all duration-200',
-        collapsed ? 'w-16 min-w-[64px]' : 'w-60 min-w-[240px]'
+        'pt-mobile-drawer flex flex-col border-r border-border bg-card',
+        'fixed inset-y-0 z-50 w-64 md:static md:z-auto md:w-auto md:left-auto',
+        collapsed ? 'md:w-16 md:min-w-[64px]' : 'md:w-60 md:min-w-[240px]'
       )}
     >
       {/* Brand logo */}
@@ -319,6 +339,7 @@ export function OrgSidebar() {
           )}
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   )
 }
