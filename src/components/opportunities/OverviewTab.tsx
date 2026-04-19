@@ -179,7 +179,7 @@ export function OverviewTab({ opp, callerRole, onUpdate }: Props) {
         <div><label className={lc}>OPP Number</label><input className={ic} defaultValue={opp.opp_number ?? ''} onBlur={(e) => { if (e.target.value !== (opp.opp_number ?? '')) patchField('opp_number', e.target.value) }} /></div>
         <div><label className={lc}>Customer</label><select className={ic} value={opp.customer_id ?? ''} onChange={(e) => {
           const cid = e.target.value || null; patchField('customer_id', cid)
-          if (cid) { const c = customers.find((x) => x.id === cid); if (c) { /* auto-populate POC + location */ if (c.contact_name) patchField('poc_name', c.contact_name); if (c.contact_email) patchField('poc_email', c.contact_email); if (c.contact_phone) patchField('poc_phone', c.contact_phone); if (c.customer_type) patchField('customer_vertical', c.customer_type) } }
+          if (cid) { const c = customers.find((x) => x.id === cid); if (c) { /* auto-populate POC + location */ if (c.contact_name) patchField('poc_name', c.contact_name); if (c.contact_email) patchField('poc_email', c.contact_email); if (c.contact_phone) patchField('poc_phone', c.contact_phone); if (c.customer_type) patchField('customer_vertical', c.customer_type); if (c.address) patchField('install_address', c.address); if (c.state) patchField('state', c.state); if (c.territory) patchField('territory', c.territory) } }
         }}><option value="">—</option>{customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
       </div>
       <div><label className={lc}>Project Name</label><input className={ic} defaultValue={opp.project_name ?? ''} onBlur={(e) => patchField('project_name', e.target.value)} /></div>

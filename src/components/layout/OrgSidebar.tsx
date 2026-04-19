@@ -164,7 +164,8 @@ export function OrgSidebar() {
 
   function isActive(href: string, exact: boolean) {
     if (exact) return pathname === href
-    return pathname.startsWith(href) && (href !== '/org' || pathname === '/org')
+    if (href === '/org') return pathname === '/org'
+    return pathname === href || pathname.startsWith(href + '/')
   }
 
   async function handleLogout() {

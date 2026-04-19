@@ -45,12 +45,12 @@
     --elevated:             0 0% 100%;
 
     /* --- Text --- */
-    --foreground:           224 50% 13%;         /* #111827 near-black */
-    --card-foreground:      224 50% 13%;
-    --secondary-foreground: 224 50% 13%;
-    --muted-foreground:     220 13% 46%;         /* #64748B */
-    --accent-foreground:    224 50% 13%;
-    --popover-foreground:   224 50% 13%;
+    --foreground:           224 71% 4%;          /* #030712 deep near-black */
+    --card-foreground:      224 71% 4%;
+    --secondary-foreground: 224 71% 4%;
+    --muted-foreground:     220 22% 32%;         /* #3F4A5E stronger contrast */
+    --accent-foreground:    224 71% 4%;
+    --popover-foreground:   224 71% 4%;
 
     /* --- Borders --- */
     --border:               220 20% 88%;         /* #D8DCE4 visible */
@@ -106,10 +106,10 @@
     --popover:              40 30% 99%;
     --elevated:             40 30% 99%;
 
-    --foreground:           24 20% 16%;           /* #302820 warm near-black */
-    --card-foreground:      24 20% 16%;
-    --secondary-foreground: 24 20% 16%;
-    --muted-foreground:     28 12% 48%;           /* #837568 warm gray */
+    --foreground:           24 25% 10%;           /* #201914 deep warm black */
+    --card-foreground:      24 25% 10%;
+    --secondary-foreground: 24 25% 10%;
+    --muted-foreground:     28 18% 32%;           /* #5E4E3E stronger warm gray */
     --accent-foreground:    24 20% 16%;
     --popover-foreground:   24 20% 16%;
 
@@ -160,10 +160,10 @@
     --popover:              224 50% 8%;
     --elevated:             224 38% 16%;
 
-    --foreground:           40 25% 92%;            /* #F0EBDF warm white */
-    --card-foreground:      40 25% 92%;
-    --secondary-foreground: 40 25% 92%;
-    --muted-foreground:     220 15% 65%;           /* #97A3B8 */
+    --foreground:           40 30% 96%;            /* #F7F3EA brighter warm white */
+    --card-foreground:      40 30% 96%;
+    --secondary-foreground: 40 30% 96%;
+    --muted-foreground:     220 18% 78%;           /* #BFC6D4 brighter */
     --accent-foreground:    40 25% 92%;
     --popover-foreground:   40 25% 92%;
 
@@ -214,10 +214,10 @@
     --popover:              240 10% 6%;
     --elevated:             240 8% 14%;
 
-    --foreground:           0 0% 93%;               /* #EDEDED */
-    --card-foreground:      0 0% 93%;
-    --secondary-foreground: 0 0% 93%;
-    --muted-foreground:     240 5% 58%;             /* #8E8FA0 */
+    --foreground:           0 0% 98%;               /* #FAFAFA */
+    --card-foreground:      0 0% 98%;
+    --secondary-foreground: 0 0% 98%;
+    --muted-foreground:     240 8% 72%;             /* #B3B5C2 brighter */
     --accent-foreground:    0 0% 93%;
     --popover-foreground:   0 0% 93%;
 

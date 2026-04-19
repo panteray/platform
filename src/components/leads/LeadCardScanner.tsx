@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Camera, Upload, X, Loader2, Check, RotateCcw } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Camera, Upload, X, Loader2, Check, RotateCcw, Aperture } from 'lucide-react'
 
 interface LeadCardScannerProps {
   onScanComplete: (data: Record<string, string | null>) => void
   onClose: () => void
 }
 
-type Step = 'capture' | 'scanning' | 'review' | 'error'
+type Step = 'capture' | 'camera' | 'scanning' | 'review' | 'error'
 
 const FIELD_LABELS: Record<string, string> = {
   first_name: 'First Name',
@@ -33,6 +33,53 @@ export function LeadCardScanner({ onScanComplete, onClose }: LeadCardScannerProp
   const [errorMsg, setErrorMsg] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  function stopStream() {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+  }
+
+  async function openCamera() {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      cameraInputRef.current?.click()
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      })
+      streamRef.current = stream
+      setStep('camera')
+      setTimeout(() => { if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}) } }, 0)
+    } catch {
+      cameraInputRef.current?.click()
+    }
+  }
+
+  function capturePhoto() {
+    const video = videoRef.current
+    if (!video) return
+    const canvas = document.createElement('canvas')
+    const maxDim = 1600
+    let w = video.videoWidth
+    let h = video.videoHeight
+    if (w > maxDim || h > maxDim) {
+      const ratio = Math.min(maxDim / w, maxDim / h)
+      w = Math.round(w * ratio); h = Math.round(h * ratio)
+    }
+    canvas.width = w; canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(video, 0, 0, w, h)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+    stopStream()
+    void runScan(dataUrl)
+  }
+
+  useEffect(() => () => stopStream(), [])
 
   async function compressImage(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -65,35 +112,40 @@ export function LeadCardScanner({ onScanComplete, onClose }: LeadCardScannerProp
     })
   }
 
-  async function handleFile(file: File) {
-    if (!file.type.startsWith('image/')) {
-      setErrorMsg('Please select an image file.')
-      setStep('error')
-      return
-    }
-
+  async function runScan(dataUrl: string) {
+    setImagePreview(dataUrl)
+    setStep('scanning')
     try {
-      const compressed = await compressImage(file)
-      setImagePreview(compressed)
-      setStep('scanning')
-
       const res = await fetch('/api/org/leads/card-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: compressed }),
+        body: JSON.stringify({ image: dataUrl }),
       })
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'OCR failed' }))
         setErrorMsg(err.error ?? 'OCR processing failed')
         setStep('error')
         return
       }
-
       const data = await res.json()
       setRawText(data.raw ?? '')
       setParsed(data.parsed ?? {})
       setStep('review')
+    } catch {
+      setErrorMsg('Failed to process image')
+      setStep('error')
+    }
+  }
+
+  async function handleFile(file: File) {
+    if (!file.type.startsWith('image/')) {
+      setErrorMsg('Please select an image file.')
+      setStep('error')
+      return
+    }
+    try {
+      const compressed = await compressImage(file)
+      await runScan(compressed)
     } catch {
       setErrorMsg('Failed to process image')
       setStep('error')
@@ -114,11 +166,17 @@ export function LeadCardScanner({ onScanComplete, onClose }: LeadCardScannerProp
   }
 
   function handleRetry() {
+    stopStream()
     setStep('capture')
     setImagePreview(null)
     setParsed({})
     setRawText('')
     setErrorMsg('')
+  }
+
+  function handleClose() {
+    stopStream()
+    onClose()
   }
 
   return (
@@ -132,7 +190,7 @@ export function LeadCardScanner({ onScanComplete, onClose }: LeadCardScannerProp
             {step === 'review' && 'Review Scanned Data'}
             {step === 'error' && 'Scan Error'}
           </h3>
-          <button onClick={onClose} className="rounded p-1 hover:bg-muted">
+          <button onClick={handleClose} className="rounded p-1 hover:bg-muted">
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>
@@ -149,7 +207,7 @@ export function LeadCardScanner({ onScanComplete, onClose }: LeadCardScannerProp
 
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => cameraInputRef.current?.click()}
+                  onClick={openCamera}
                   className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border p-6 hover:border-primary/40 hover:bg-muted/30 transition-colors"
                 >
                   <Camera className="h-8 w-8 text-muted-foreground" />
@@ -179,6 +237,29 @@ export function LeadCardScanner({ onScanComplete, onClose }: LeadCardScannerProp
                 className="hidden"
                 onChange={handleFileChange}
               />
+            </div>
+          )}
+
+          {/* CAMERA STEP */}
+          {step === 'camera' && (
+            <div className="space-y-3">
+              <div className="relative overflow-hidden rounded-lg border border-border bg-black">
+                <video ref={videoRef} playsInline muted className="h-auto w-full" />
+              </div>
+              <div className="flex justify-center gap-2">
+                <button
+                  onClick={handleRetry}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-4 text-xs hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={capturePhoto}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  <Aperture className="h-4 w-4" /> Capture
+                </button>
+              </div>
             </div>
           )}
 
@@ -263,7 +344,7 @@ export function LeadCardScanner({ onScanComplete, onClose }: LeadCardScannerProp
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
           {step === 'capture' && (
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="h-8 rounded-md border border-border px-4 text-xs hover:bg-muted"
             >
               Cancel
@@ -290,7 +371,7 @@ export function LeadCardScanner({ onScanComplete, onClose }: LeadCardScannerProp
           {step === 'error' && (
             <>
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="h-8 rounded-md border border-border px-4 text-xs hover:bg-muted"
               >
                 Cancel
