@@ -3,7 +3,12 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ChevronDown } from 'lucide-react'
+import {
+  ChevronDown, LayoutDashboard, Sparkles, Target, Building2, Factory, HardHat, Truck,
+  ClipboardCheck, Ruler, FolderKanban, Package, Wrench, Sun, Headphones, ShieldCheck,
+  BookOpen, Boxes, Calculator, Settings as SettingsIcon, PanelLeft, LogOut,
+  type LucideIcon,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { canManageUsers, canManageCRM } from '@/lib/roles'
@@ -12,53 +17,54 @@ import { useSidebarState } from '@/hooks/useSidebarState'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-/* Brand SVG sprite icon — renders from /brand/panteray-icons-sprite.svg */
-function PtIcon({ name, className }: { name: string; className?: string }) {
-  return (
-    <svg className={cn('pt-icon', className)} aria-hidden="true">
-      <use href={`/brand/panteray-icons-sprite.svg#pt-${name}`} />
-    </svg>
-  )
+type NavItem = {
+  href: string
+  label: string
+  icon: LucideIcon
+  color: string
+  exact?: boolean
+  requiresAdmin?: boolean
+  requiresCRM?: boolean
 }
 
-const orgNav = [
-  { href: '/org', label: 'Dashboard', icon: 'dashboard', exact: true, requiresAdmin: false, requiresCRM: false },
+const orgNav: NavItem[] = [
+  { href: '/org', label: 'Dashboard', icon: LayoutDashboard, color: 'text-blue-500', exact: true },
 ]
 
-const settingsNav = [
-  { href: '/org/management', label: 'Management', icon: 'settings', exact: false },
+const settingsNav: NavItem[] = [
+  { href: '/org/management', label: 'Management', icon: SettingsIcon, color: 'text-slate-500' },
 ]
 
-const crmNav = [
-  { href: '/org/leads', label: 'Leads', icon: 'leads', exact: false },
-  { href: '/org/opportunities', label: 'Opportunities', icon: 'opportunities', exact: false },
-  { href: '/org/customers', label: 'Customers', icon: 'customers', exact: false },
-  { href: '/org/manufacturers', label: 'Manufacturers', icon: 'manufacturers', exact: false },
-  { href: '/org/subcontractors', label: 'Subcontractors', icon: 'subcontractors', exact: false },
-  { href: '/org/distributors', label: 'Distributors', icon: 'distributors', exact: false },
+const crmNav: NavItem[] = [
+  { href: '/org/leads', label: 'Leads', icon: Sparkles, color: 'text-pink-500' },
+  { href: '/org/opportunities', label: 'Opportunities', icon: Target, color: 'text-amber-500' },
+  { href: '/org/customers', label: 'Customers', icon: Building2, color: 'text-cyan-500' },
+  { href: '/org/manufacturers', label: 'Manufacturers', icon: Factory, color: 'text-orange-500' },
+  { href: '/org/subcontractors', label: 'Subcontractors', icon: HardHat, color: 'text-yellow-500' },
+  { href: '/org/distributors', label: 'Distributors', icon: Truck, color: 'text-sky-500' },
 ]
 
-const engineeringNav = [
-  { href: '/org/surveys', label: 'Surveys', icon: 'surveys', exact: false },
-  { href: '/org/designs', label: 'Designs', icon: 'designs', exact: false },
+const engineeringNav: NavItem[] = [
+  { href: '/org/surveys', label: 'Surveys', icon: ClipboardCheck, color: 'text-teal-500' },
+  { href: '/org/designs', label: 'Designs', icon: Ruler, color: 'text-violet-500' },
 ]
 
-const deliveryNav = [
-  { href: '/org/projects', label: 'Projects', icon: 'projects', exact: false },
-  { href: '/org/assets', label: 'Assets', icon: 'device-library', exact: false },
-  { href: '/org/field-ops', label: 'Field Ops', icon: 'management', exact: false },
+const deliveryNav: NavItem[] = [
+  { href: '/org/projects', label: 'Projects', icon: FolderKanban, color: 'text-indigo-500' },
+  { href: '/org/assets', label: 'Assets', icon: Package, color: 'text-rose-500' },
+  { href: '/org/field-ops', label: 'Field Ops', icon: Wrench, color: 'text-emerald-600' },
 ]
 
-const serviceNav = [
-  { href: '/org/field', label: 'My Day', icon: 'management', exact: false },
-  { href: '/org/service', label: 'Service Desk', icon: 'management', exact: false },
-  { href: '/org/compliance/technicians', label: 'Compliance', icon: 'management', exact: false },
+const serviceNav: NavItem[] = [
+  { href: '/org/field', label: 'My Day', icon: Sun, color: 'text-amber-500' },
+  { href: '/org/service', label: 'Service Desk', icon: Headphones, color: 'text-blue-600' },
+  { href: '/org/compliance/technicians', label: 'Compliance', icon: ShieldCheck, color: 'text-green-600' },
 ]
 
-const toolsNav = [
-  { href: '/org/psa/kedb', label: 'KB', icon: 'device-library', exact: false },
-  { href: '/org/tools/device-library', label: 'Device Library', icon: 'device-library', exact: false },
-  { href: '/org/tools/calculators', label: 'Calculators', icon: 'calculators', exact: false },
+const toolsNav: NavItem[] = [
+  { href: '/org/psa/kedb', label: 'KB', icon: BookOpen, color: 'text-purple-500' },
+  { href: '/org/tools/device-library', label: 'Device Library', icon: Boxes, color: 'text-fuchsia-500' },
+  { href: '/org/tools/calculators', label: 'Calculators', icon: Calculator, color: 'text-lime-600' },
 ]
 
 function NavLink({
@@ -66,10 +72,11 @@ function NavLink({
   active,
   collapsed,
 }: {
-  item: { href: string; label: string; icon: string }
+  item: NavItem
   active: boolean
   collapsed: boolean
 }) {
+  const Icon = item.icon
   const link = (
     <Link
       href={item.href}
@@ -77,14 +84,14 @@ function NavLink({
         'relative flex items-center rounded-lg text-sm transition-all duration-150',
         collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2',
         active
-          ? 'bg-primary/15 text-primary font-medium'
+          ? 'bg-primary/15 text-foreground font-medium'
           : 'text-muted-foreground hover:bg-accent hover:text-foreground'
       )}
     >
       {active && !collapsed && (
         <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-primary" />
       )}
-      <PtIcon name={item.icon} className={cn(active && 'text-primary')} />
+      <Icon className={cn('h-[18px] w-[18px] shrink-0', item.color)} strokeWidth={2} />
       {!collapsed && <span>{item.label}</span>}
     </Link>
   )
@@ -238,7 +245,7 @@ export function OrgSidebar() {
         {orgNav
           .filter((item) => !item.requiresAdmin || canManage)
           .map((item) => (
-            <NavLink key={item.href} item={item} active={isActive(item.href, item.exact)} collapsed={collapsed} />
+            <NavLink key={item.href} item={item} active={isActive(item.href, item.exact ?? false)} collapsed={collapsed} />
           ))}
 
         {/* CRM Section */}
@@ -309,7 +316,7 @@ export function OrgSidebar() {
                 collapsed ? 'justify-center px-2' : 'gap-3 px-3'
               )}
             >
-              <PtIcon name="collapse" />
+              <PanelLeft className="h-[18px] w-[18px] shrink-0" />
               {!collapsed && <span className="text-sm">Collapse</span>}
             </button>
           </div>
@@ -323,7 +330,7 @@ export function OrgSidebar() {
                   onClick={handleLogout}
                   className="flex w-full items-center justify-center rounded-lg p-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                  <PtIcon name="sign-out" />
+                  <LogOut className="h-[18px] w-[18px] shrink-0" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" className="text-xs font-normal">Sign Out</TooltipContent>
@@ -333,7 +340,7 @@ export function OrgSidebar() {
               onClick={handleLogout}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              <PtIcon name="sign-out" />
+              <LogOut className="h-[18px] w-[18px] shrink-0" />
               Sign Out
             </button>
           )}
