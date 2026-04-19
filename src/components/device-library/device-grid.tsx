@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Search, X, SlidersHorizontal, LayoutGrid, List, ShieldCheck, ShieldAlert } from 'lucide-react'
+import { Search, X, SlidersHorizontal, LayoutGrid, List, ShieldCheck, ShieldAlert, DoorOpen, Network as NetworkIcon, Volume2, Wind, HardDrive, Package } from 'lucide-react'
 import type { DeviceSearchResult } from '@/types/database'
 import { DEVICE_CATEGORIES } from '@/types/enums'
 
@@ -36,19 +36,28 @@ const FORM_ICON_MAP: Record<string, string> = {
   dualsensor: '/icons/cctv/dualsensor.png',
 }
 
-function FormIcon({ type, size = 20 }: { type: string; size?: number; color?: string }) {
+const CATEGORY_FALLBACK_ICON: Record<string, typeof DoorOpen> = {
+  access_control: DoorOpen,
+  network: NetworkIcon,
+  av: Volume2,
+  vape_environmental: Wind,
+  servers_nvr: HardDrive,
+  other: Package,
+}
+
+function FormIcon({ type, size = 20, category }: { type: string; size?: number; color?: string; category?: string }) {
   const key = type.toLowerCase().replace(/[\s_-]/g, '')
-  const src = FORM_ICON_MAP[key] || FORM_ICON_MAP.box
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt={type}
-      width={size}
-      height={size}
-      style={{ objectFit: 'contain' }}
-    />
-  )
+  const cctvSrc = FORM_ICON_MAP[key]
+  // For CCTV or matching form factor, use the PNG. Otherwise fall back to a category-appropriate lucide icon.
+  if (category === 'cctv' || (!category && cctvSrc)) {
+    const src = cctvSrc || FORM_ICON_MAP.box
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt={type} width={size} height={size} style={{ objectFit: 'contain' }} />
+    )
+  }
+  const Fallback = (category && CATEGORY_FALLBACK_ICON[category]) || Package
+  return <Fallback size={size} />
 }
 
 /* ───────── Form factor list ───────── */
@@ -504,7 +513,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
             {Array.from(groups.entries()).map(([formFactor, devices]) => (
               <div key={formFactor}>
                 <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                  <FormIcon type={formFactor} size={16} color="currentColor" />
+                  <FormIcon type={formFactor} size={16} color="currentColor" category={category} />
                   {formFactor.replace(/_/g, ' ')}
                   <span className="text-xs font-normal text-muted-foreground">({devices.length})</span>
                 </h3>
@@ -582,7 +591,7 @@ function DeviceCard({ device, onClick }: { device: DeviceSearchResult; onClick: 
     >
       {/* Form icon as placeholder for product image */}
       <div className="h-14 w-full flex items-center justify-center text-muted-foreground group-hover:text-[#2b8fce] transition-colors">
-        <FormIcon type={form} size={40} color="currentColor" />
+        <FormIcon type={form} size={40} color="currentColor" category={device.category} />
       </div>
       {/* Model */}
       <p className="text-[11px] font-medium text-foreground text-center leading-tight truncate w-full">

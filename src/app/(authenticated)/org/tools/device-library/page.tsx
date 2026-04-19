@@ -194,18 +194,22 @@ function SideDrawer({ item, onClose, onSaved, onDeleted }: {
             <SpecRow label="Category" value={item.category} />
             <SpecRow label="Form" value={item.form} />
             <SpecRow label="Part Number" value={item.partnumber} />
-            <SpecRow label="Resolution" value={item.resolution} />
-            <SpecRow label="IR" value={item.ir} />
-            <SpecRow label="Super Low Light" value={item.super_low_light != null ? (item.super_low_light ? 'Yes' : 'No') : null} />
-            <SpecRow label="Focal Length" value={item.focal_length} />
-            <SpecRow label="Focal Type" value={item.focal_type} />
-            <SpecRow label="AoV / FoV" value={item.aov} />
-            <SpecRow label="Imager Count" value={item.imager_count} />
-            <SpecRow label="Multi-Imager Type" value={item.multi_imager_type} />
-            <SpecRow label="Codecs" value={item.codecs} />
-            {item.fisheye_view && <SpecRow label="Fisheye View" value={`${item.fisheye_view}°`} />}
+            {item.category === 'cctv' && (
+              <>
+                <SpecRow label="Resolution" value={item.resolution} />
+                <SpecRow label="IR" value={item.ir} />
+                <SpecRow label="Super Low Light" value={item.super_low_light != null ? (item.super_low_light ? 'Yes' : 'No') : null} />
+                <SpecRow label="Focal Length" value={item.focal_length} />
+                <SpecRow label="Focal Type" value={item.focal_type} />
+                <SpecRow label="AoV / FoV" value={item.aov} />
+                <SpecRow label="Imager Count" value={item.imager_count} />
+                <SpecRow label="Multi-Imager Type" value={item.multi_imager_type} />
+                <SpecRow label="Codecs" value={item.codecs} />
+                {item.fisheye_view && <SpecRow label="Fisheye View" value={`${item.fisheye_view}°`} />}
+                <SpecRow label="FPS" value={item.fps} />
+              </>
+            )}
             <SpecRow label="Environment" value={item.environment} />
-            <SpecRow label="FPS" value={item.fps} />
             <SpecRow label="PoE Standard" value={item.poe_standard} />
             <SpecRow label="Wattage" value={item.wattage != null ? `${item.wattage}W` : null} />
             <div>
