@@ -2,26 +2,19 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Building2, Cpu } from 'lucide-react'
+import { LayoutDashboard, Building2, Cpu, PanelLeft, LogOut, type LucideIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useSidebarState } from '@/hooks/useSidebarState'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-/* Brand SVG sprite icon */
-function PtIcon({ name, className }: { name: string; className?: string }) {
-  return (
-    <svg className={cn('pt-icon', className)} aria-hidden="true">
-      <use href={`/brand/panteray-icons-sprite.svg#pt-${name}`} />
-    </svg>
-  )
-}
+type AdminNavItem = { href: string; label: string; icon: LucideIcon; color: string; match: string }
 
-const adminNav = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, ptIcon: 'dashboard', match: '/admin' },
-  { href: '/admin/organizations', label: 'Organizations', icon: Building2, ptIcon: 'manufacturers', match: '/admin/organizations' },
-  { href: '/admin/device-library', label: 'Device Library', icon: Cpu, ptIcon: 'device-library', match: '/admin/device-library' },
+const adminNav: AdminNavItem[] = [
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, color: 'text-blue-500', match: '/admin' },
+  { href: '/admin/organizations', label: 'Organizations', icon: Building2, color: 'text-orange-500', match: '/admin/organizations' },
+  { href: '/admin/device-library', label: 'Device Library', icon: Cpu, color: 'text-fuchsia-500', match: '/admin/device-library' },
 ]
 
 export function Sidebar() {
@@ -104,7 +97,7 @@ export function Sidebar() {
               {active && !collapsed && (
                 <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-primary" />
               )}
-              <PtIcon name={item.ptIcon} className={cn(active && 'text-primary')} />
+              <item.icon className={cn('h-[18px] w-[18px] shrink-0', item.color)} strokeWidth={2} />
               {!collapsed && item.label}
             </Link>
           )
@@ -133,7 +126,7 @@ export function Sidebar() {
                 collapsed ? 'justify-center px-2' : 'gap-3 px-3'
               )}
             >
-              <PtIcon name="collapse" />
+              <PanelLeft className="h-[18px] w-[18px] shrink-0" />
               {!collapsed && <span className="text-sm">Collapse</span>}
             </button>
           </div>
@@ -147,7 +140,7 @@ export function Sidebar() {
                   onClick={handleLogout}
                   className="flex w-full items-center justify-center rounded-lg p-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                  <PtIcon name="sign-out" />
+                  <LogOut className="h-[18px] w-[18px] shrink-0" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" className="text-xs font-normal">Sign Out</TooltipContent>
@@ -157,7 +150,7 @@ export function Sidebar() {
               onClick={handleLogout}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              <PtIcon name="sign-out" />
+              <LogOut className="h-[18px] w-[18px] shrink-0" />
               Sign Out
             </button>
           )}
