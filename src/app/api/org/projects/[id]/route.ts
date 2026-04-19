@@ -59,6 +59,48 @@ export async function PATCH(
     'name', 'pm_id', 'status', 'risk_score', 'risk_level', 'contingency_pct',
     'site_address', 'site_city', 'site_state', 'site_zip', 'site_notes',
     'start_date', 'target_end_date', 'actual_end_date', 'budget_amount', 'customer_id',
+    // Identity / routing
+    'pm_comments', 'project_type', 'vertical', 'date_submitted',
+    'order_number', 'order_date', 'customer_number', 'campus_building_room', 'install_address',
+    // Status
+    'ship_status', 'operation_status', 'signoff_status', 'closeout_status',
+    // Dates / aging
+    'approx_install_date', 'tentative_date', 'confirmed_scheduled_date',
+    'est_completion_date', 'actual_equip_delivery_date', 'equip_paid_date',
+    // RMA / invoicing
+    'rma_processing_date', 'rma_number', 'invoice_received_date', 'invoice_number',
+    'invoice_processed_date', 'sos_sent_date', 'sos_received_date', 'quote_received', 'po_sent',
+    // Personnel
+    'resource_coordinator_id', 'resource_coordinator_text',
+    'technical_supervisor_id', 'technical_supervisor_text',
+    'lead_tech_id', 'lead_tech_text', 'technicians_text',
+    'outside_pm_id', 'outside_pm_text',
+    'pm_mentor_id', 'pm_mentor_text',
+    'service_coordinator_id', 'service_coordinator_text',
+    'inside_sales_id', 'inside_sales_text',
+    'outside_sales_id', 'outside_sales_text',
+    'subcontractor_labor_id', 'subcontractor_labor_text',
+    'subcontractor_programming_id', 'subcontractor_programming_text',
+    // POC
+    'poc_name', 'poc_phone', 'poc_email',
+    // Program / contract
+    'erate', 'program_requirements', 'warranty_90_day', 'contract_type',
+    'multiple_install_lines', 'multiple_program_lines',
+    // SSC
+    'ssc_term_date', 'ssc_renewal_number',
+    'ssc_block_hours_approved', 'ssc_block_hours_used', 'ssc_block_hours_remaining',
+    'ssc_active', 'ssc_status', 'ssc_duration', 'ssc_forced', 'ssc_charged',
+    'ssc_to_finance_invoice', 'satisfaction_survey_sent',
+    // Financials
+    'order_amount', 'equipment_cost', 'labor_customer_cost', 'labor_cost_only',
+    'misc_bom', 'misc_labor', 'lift_rental',
+    'programming_customer_cost', 'programming_material_cost',
+    'ssc_customer_cost', 'ssc_material_cost',
+    'contingency_amount', 'sub_quote_amount', 'sub_cost_parts_labor',
+    'hts_technician_cost', 'job_materials_cost', 'misc_job_costs',
+    'shipping_cost', 'project_balance',
+    // Shipping
+    'shipping_company',
   ]
   const update: Record<string, unknown> = {}
   for (const key of allowed) {

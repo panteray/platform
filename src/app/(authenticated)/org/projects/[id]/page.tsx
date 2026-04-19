@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react'
 import type { Project } from '@/types/database'
 import { useUser } from '@/hooks/useUser'
 import { ProjectOverviewTab } from '@/components/projects/ProjectOverviewTab'
+import { ProjectDataFieldsTab } from '@/components/projects/ProjectDataFieldsTab'
 import { ProjectTasksTab } from '@/components/projects/ProjectTasksTab'
 import { ProjectInstallTab } from '@/components/projects/ProjectInstallTab'
 import { ProjectDailyReportsTab } from '@/components/projects/ProjectDailyReportsTab'
@@ -42,7 +43,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-700',
 }
 
-const TABS = ['Overview', 'Team', 'Tasks', 'Install', 'Daily Reports', 'Van Stock', 'Subs', 'Change Orders', 'RAID', 'Risk', 'QC', 'Status Reports', 'Lessons Learned', 'Closeout', 'Documents'] as const
+const TABS = ['Overview', 'Data', 'Team', 'Tasks', 'Install', 'Daily Reports', 'Van Stock', 'Subs', 'Change Orders', 'RAID', 'Risk', 'QC', 'Status Reports', 'Lessons Learned', 'Closeout', 'Documents'] as const
 type Tab = (typeof TABS)[number]
 
 export default function ProjectDetailPage() {
@@ -127,6 +128,12 @@ export default function ProjectDetailPage() {
       <div className="rounded-lg border border-border bg-card p-4">
         {tab === 'Overview' && (
           <ProjectOverviewTab
+            project={project}
+            onUpdate={updated => setProject(updated)}
+          />
+        )}
+        {tab === 'Data' && (
+          <ProjectDataFieldsTab
             project={project}
             onUpdate={updated => setProject(updated)}
           />
