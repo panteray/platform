@@ -3,7 +3,12 @@ import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
-  serverExternalPackages: ['pdf-parse'],
+  serverExternalPackages: ['pdf-parse', '@sparticuz/chromium', 'puppeteer-core'],
+  outputFileTracingIncludes: {
+    '/api/org/designs/*/export/hardware-schedule-pdf': [
+      './node_modules/@sparticuz/chromium/**/*',
+    ],
+  },
   images: {
     remotePatterns: [
       {

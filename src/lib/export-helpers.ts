@@ -271,119 +271,25 @@ export async function exportHardwareSchedule(designId: string, format: ExportFor
     return
   }
 
-  // For PDF — per-device panel document (field execution reference)
+  // For PDF — server-side render via puppeteer-core + @sparticuz/chromium
   if (format === 'pdf') {
-    // Fetch Maps API key for static map snapshots
-    let mapsKey = ''
-    try {
-      const keyRes = await fetch('/api/org/maps-key')
-      if (keyRes.ok) { const kd = await keyRes.json(); mapsKey = kd.key || '' }
-    } catch { /* no map images */ }
-
-    const areaBlocks = data.areas.map(area => {
-      const areaName = area.areaName || area.areaId
-      const devicePanels = area.devices.map((d, di) => {
-        const p = (d.properties ?? {}) as Record<string, unknown>
-        const vendor = String(p.manufacturer || p.vendor || '—')
-        const model = String(p.model || '—')
-        const pn = String(p.partnumber || p.part_number || '—')
-        const mountType = d.mount_type || String(p.mount_type || '—')
-        const installHeight = Number(p.install_height) || 0
-        const environment = String(p.environment || '—')
-        const mountSurface = String(p.mount_surface || '—')
-        const cableType = String(p.cable_type || 'Cat6')
-        const ipAddr = String(p.ip_address || '—')
-        const notes = String(p.device_notes || p.notes || '')
-        const liftReq = installHeight > 12
-
-        return `
-          <div style="page-break-inside:avoid;border:1px solid #ccc;border-radius:6px;padding:14px;margin-bottom:12px;background:${liftReq ? '#fff5f5' : '#fafafa'}">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
-              <div>
-                <span style="font-size:15px;font-weight:700;color:#333">${d.label || `Device ${di + 1}`}</span>
-                <span style="margin-left:8px;font-size:10px;padding:2px 8px;border-radius:3px;background:#522F82;color:#fff;text-transform:uppercase;font-weight:600">${d.category.replace(/_/g, ' ')}</span>
-                ${d.status !== 'planned' ? `<span style="margin-left:4px;font-size:10px;padding:2px 6px;border-radius:3px;background:#f0f0f0;color:#666">${d.status}</span>` : ''}
-              </div>
-              ${liftReq ? '<span style="font-size:10px;font-weight:700;color:#ef4444;background:rgba(239,68,68,0.1);padding:2px 8px;border-radius:3px">⚠ LIFT REQUIRED</span>' : ''}
-            </div>
-            <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px">
-              <tr><td style="padding:3px 8px;color:#888;width:130px">Manufacturer</td><td style="padding:3px 8px;font-weight:600">${vendor}</td><td style="padding:3px 8px;color:#888;width:130px">Model</td><td style="padding:3px 8px;font-weight:600">${model}</td></tr>
-              <tr><td style="padding:3px 8px;color:#888">Part Number</td><td style="padding:3px 8px;font-family:monospace">${pn}</td><td style="padding:3px 8px;color:#888">Mount Type</td><td style="padding:3px 8px">${mountType}</td></tr>
-              <tr><td style="padding:3px 8px;color:#888">Install Height</td><td style="padding:3px 8px">${installHeight > 0 ? installHeight + 'ft' : '—'}</td><td style="padding:3px 8px;color:#888">Environment</td><td style="padding:3px 8px">${environment}</td></tr>
-              <tr><td style="padding:3px 8px;color:#888">Mount Surface</td><td style="padding:3px 8px">${mountSurface}</td><td style="padding:3px 8px;color:#888">Cable Type</td><td style="padding:3px 8px">${cableType}</td></tr>
-              <tr><td style="padding:3px 8px;color:#888">IP Address</td><td style="padding:3px 8px;font-family:monospace">${ipAddr}</td><td style="padding:3px 8px;color:#888">Position</td><td style="padding:3px 8px;font-family:monospace">(${d.position_x}, ${d.position_y})</td></tr>
-            </table>
-            ${notes ? `<div style="font-size:10px;color:#666;padding:4px 8px;background:#f8f8f8;border-radius:3px;margin-top:4px"><strong>Notes:</strong> ${notes}</div>` : ''}
-          </div>`
-      }).join('')
-
-      // Build static map URL with device markers for this area
-      let mapImg = ''
-      if (mapsKey && area.satellite_lat && area.satellite_lng) {
-        const markers = area.devices.slice(0, 15).map((d, i) => {
-          // We can't convert canvas px to lat/lng without the geo context, so use the area center
-          // and label with device index — this gives a reference map, not exact positions
-          return `markers=color:red%7Clabel:${String.fromCharCode(65 + i)}%7C${area.satellite_lat},${area.satellite_lng}`
-        }).join('&')
-        const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${area.satellite_lat},${area.satellite_lng}&zoom=${area.satellite_zoom || 18}&size=800x400&maptype=satellite&${markers}&key=${mapsKey}`
-        mapImg = `<div style="margin-bottom:12px;border:1px solid #ddd;border-radius:4px;overflow:hidden"><img src="${mapUrl}" style="width:100%;display:block" alt="Area map" /></div>`
-      }
-
-      return `
-        <div style="page-break-before:always">
-          <h2 style="color:#333;border-bottom:2px solid #522F82;padding-bottom:4px;margin-bottom:12px">${areaName}</h2>
-          <div style="font-size:11px;color:#888;margin-bottom:12px">${area.devices.length} device(s) in this area</div>
-          ${mapImg}
-          ${devicePanels}
-        </div>`
-    }).join('')
-
-    // Material list
-    const materialRows = data.areas.flatMap(a => a.devices.map(d => {
-      const p = (d.properties ?? {}) as Record<string, unknown>
-      return `<tr><td style="border:1px solid #ddd;padding:4px 8px;font-size:10px">${d.label}</td><td style="border:1px solid #ddd;padding:4px 8px;font-size:10px">${String(p.manufacturer || '—')}</td><td style="border:1px solid #ddd;padding:4px 8px;font-size:10px;font-family:monospace">${String(p.model || '—')}</td><td style="border:1px solid #ddd;padding:4px 8px;font-size:10px;font-family:monospace">${String(p.partnumber || p.part_number || '—')}</td><td style="border:1px solid #ddd;padding:4px 8px;font-size:10px">${d.category.replace(/_/g, ' ')}</td></tr>`
-    })).join('')
-
-    const html = `<!DOCTYPE html><html><head><title>Hardware Schedule — ${data.designName}</title>
-      <style>body{font-family:system-ui,sans-serif;max-width:900px;margin:0 auto;padding:30px;color:#1a1a1a;font-size:13px}
-      h1{font-size:22px;color:#522F82;margin:0 0 4px}h2{font-size:16px;color:#333}
-      .cover{text-align:center;padding:60px 0;page-break-after:always}
-      .cover h1{font-size:28px;margin-bottom:8px}.cover .opp{color:#c0392b;font-size:16px;font-weight:600}
-      .cover .info{font-size:13px;color:#666;margin-top:20px;line-height:1.6}
-      @media print{body{margin:0;padding:15px}.cover{padding:40px 0}}</style></head><body>
-      <div class="cover">
-        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:2px;margin-bottom:20px">Howard Technology Solutions</div>
-        <h1>${data.designName}</h1>
-        <div style="font-size:14px;color:#666;margin-bottom:30px">Hardware Schedule</div>
-        <div class="opp">Generated ${new Date().toLocaleDateString()}</div>
-        <div class="info">${data.totalDevices} devices across ${data.areas.length} area(s)</div>
-      </div>
-      ${areaBlocks}
-      <div style="page-break-before:always">
-        <h2 style="color:#333;border-bottom:2px solid #522F82;padding-bottom:4px">Material List</h2>
-        <table style="width:100%;border-collapse:collapse;margin-top:12px">
-          <thead><tr><th style="border:1px solid #ddd;padding:5px 8px;background:#f5f5f5;font-size:10px;font-weight:600;text-align:left">Label</th><th style="border:1px solid #ddd;padding:5px 8px;background:#f5f5f5;font-size:10px;font-weight:600;text-align:left">Manufacturer</th><th style="border:1px solid #ddd;padding:5px 8px;background:#f5f5f5;font-size:10px;font-weight:600;text-align:left">Model</th><th style="border:1px solid #ddd;padding:5px 8px;background:#f5f5f5;font-size:10px;font-weight:600;text-align:left">Part #</th><th style="border:1px solid #ddd;padding:5px 8px;background:#f5f5f5;font-size:10px;font-weight:600;text-align:left">Category</th></tr></thead>
-          <tbody>${materialRows}</tbody>
-        </table>
-      </div>
-      </body></html>`
-    const w = window.open('', '_blank', 'width=900,height=700')
-    if (w) {
-      w.document.write(html)
-      w.document.close()
-      w.onload = () => {
-        const imgs = Array.from(w.document.images)
-        if (imgs.length === 0) { w.print(); return }
-        let remaining = imgs.length
-        const done = () => { if (--remaining <= 0) w.print() }
-        imgs.forEach(img => {
-          if (img.complete) done()
-          else { img.onload = done; img.onerror = done }
-        })
-      }
+    const res = await fetch(`/api/org/designs/${designId}/export/hardware-schedule-pdf`, { method: 'POST' })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'PDF generation failed' }))
+      throw new Error(err.detail || err.error || 'PDF generation failed')
     }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${sanitizeFilename(data.designName)}_Hardware_Schedule.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
     return
   }
+
 
   // For DOCX — per-device panel document
   const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, BorderStyle, ShadingType, PageBreak } = await import('docx')
