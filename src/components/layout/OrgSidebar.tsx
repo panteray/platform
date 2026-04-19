@@ -1,7 +1,9 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { ChevronDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { canManageUsers, canManageCRM } from '@/lib/roles'
@@ -21,7 +23,10 @@ function PtIcon({ name, className }: { name: string; className?: string }) {
 
 const orgNav = [
   { href: '/org', label: 'Dashboard', icon: 'dashboard', exact: true, requiresAdmin: false, requiresCRM: false },
-  { href: '/org/management', label: 'Settings', icon: 'settings', exact: false, requiresAdmin: false, requiresCRM: false },
+]
+
+const settingsNav = [
+  { href: '/org/management', label: 'Management', icon: 'settings', exact: false },
 ]
 
 const crmNav = [
@@ -96,11 +101,55 @@ function NavLink({
   return link
 }
 
+const SECTION_STORAGE_KEY = 'panteray.sidebar.sections'
+type SectionKey = 'crm' | 'engineering' | 'delivery' | 'service' | 'tools' | 'settings'
+const DEFAULT_OPEN: Record<SectionKey, boolean> = {
+  crm: true, engineering: true, delivery: true, service: true, tools: true, settings: true,
+}
+
+function useSectionState() {
+  const [open, setOpen] = useState<Record<SectionKey, boolean>>(DEFAULT_OPEN)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+    try {
+      const raw = localStorage.getItem(SECTION_STORAGE_KEY)
+      if (raw) setOpen({ ...DEFAULT_OPEN, ...JSON.parse(raw) })
+    } catch {}
+  }, [])
+  const toggle = (k: SectionKey) => {
+    setOpen((prev) => {
+      const next = { ...prev, [k]: !prev[k] }
+      try { localStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+  return { open, toggle, mounted }
+}
+
+function SectionHeader({ label, isOpen, onToggle, collapsed }: { label: string; isOpen: boolean; onToggle: () => void; collapsed: boolean }) {
+  return (
+    <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
+      <div className="border-t border-border" />
+      {!collapsed && (
+        <button
+          onClick={onToggle}
+          className="mt-2 flex w-full items-center justify-between rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground"
+        >
+          <span>{label}</span>
+          <ChevronDown className={cn('h-3 w-3 transition-transform', !isOpen && '-rotate-90')} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 export function OrgSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { user, userRole } = useUser()
   const { collapsed, toggle, mounted } = useSidebarState()
+  const sections = useSectionState()
 
   const canManage = userRole ? canManageUsers(userRole) : false
   const canCRM = userRole ? canManageCRM(userRole) : false
@@ -174,11 +223,8 @@ export function OrgSidebar() {
         {/* CRM Section */}
         {canCRM && (
           <>
-            <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
-              <div className="border-t border-border" />
-              {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">CRM</p>}
-            </div>
-            {crmNav.map((item) => (
+            <SectionHeader label="CRM" isOpen={sections.open.crm} onToggle={() => sections.toggle('crm')} collapsed={collapsed} />
+            {(collapsed || sections.open.crm) && crmNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
             ))}
           </>
@@ -187,11 +233,8 @@ export function OrgSidebar() {
         {/* Engineering Section */}
         {canCRM && (
           <>
-            <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
-              <div className="border-t border-border" />
-              {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Engineering</p>}
-            </div>
-            {engineeringNav.map((item) => (
+            <SectionHeader label="Engineering" isOpen={sections.open.engineering} onToggle={() => sections.toggle('engineering')} collapsed={collapsed} />
+            {(collapsed || sections.open.engineering) && engineeringNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
             ))}
           </>
@@ -200,11 +243,8 @@ export function OrgSidebar() {
         {/* Delivery Section */}
         {canCRM && (
           <>
-            <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
-              <div className="border-t border-border" />
-              {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Delivery</p>}
-            </div>
-            {deliveryNav.map((item) => (
+            <SectionHeader label="Delivery" isOpen={sections.open.delivery} onToggle={() => sections.toggle('delivery')} collapsed={collapsed} />
+            {(collapsed || sections.open.delivery) && deliveryNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
             ))}
           </>
@@ -213,11 +253,8 @@ export function OrgSidebar() {
         {/* Service Section */}
         {canCRM && (
           <>
-            <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
-              <div className="border-t border-border" />
-              {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Service</p>}
-            </div>
-            {serviceNav.map((item) => (
+            <SectionHeader label="Service" isOpen={sections.open.service} onToggle={() => sections.toggle('service')} collapsed={collapsed} />
+            {(collapsed || sections.open.service) && serviceNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
             ))}
           </>
@@ -226,15 +263,18 @@ export function OrgSidebar() {
         {/* Tools Section */}
         {canTools && (
           <>
-            <div className={cn('pb-1 pt-3', collapsed ? 'px-1' : 'px-2')}>
-              <div className="border-t border-border" />
-              {!collapsed && <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Tools</p>}
-            </div>
-            {toolsNav.map((item) => (
+            <SectionHeader label="Tools" isOpen={sections.open.tools} onToggle={() => sections.toggle('tools')} collapsed={collapsed} />
+            {(collapsed || sections.open.tools) && toolsNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
             ))}
           </>
         )}
+
+        {/* Settings Section */}
+        <SectionHeader label="Settings" isOpen={sections.open.settings} onToggle={() => sections.toggle('settings')} collapsed={collapsed} />
+        {(collapsed || sections.open.settings) && settingsNav.map((item) => (
+          <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
+        ))}
       </nav>
 
       {/* Bottom */}
