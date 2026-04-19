@@ -67,7 +67,7 @@ Do not re-explain why it should work. Do not repeat a previous failed approach.
 
 - **Never claim code works.** Say "pushed — not verified in browser."
 - **Never blame the user.** If Dexter says it doesn't work, the code is wrong.
-- **Claude cannot verify Fabric.js canvas interactions from the terminal.** Do not pretend otherwise.
+- **Claude cannot verify Google Maps canvas interactions from the terminal.** Do not pretend otherwise.
 - After a failed fix → stop, ask for a screen recording, do not guess again
 - TypeScript errors = 0 does NOT mean the feature works. Browser testing is the only verification.
 
@@ -138,8 +138,7 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
 - **Language:** TypeScript 5.7.0
 - **Styling:** Tailwind CSS 3.4.17 + Radix UI + class-variance-authority
 - **Components:** Radix UI (avatar, dialog, dropdown, label, scroll-area, select, separator, slot, switch, tabs, tooltip) + lucide-react
-- **Canvas:** Fabric.js (vendor library — not in package.json)
-- **Maps:** @vis.gl/react-google-maps 1.7.1
+- **Maps / Canvas:** Google Maps JavaScript API via @vis.gl/react-google-maps 1.7.1 — this IS the canvas (devices, FOV, walls, cables all rendered as native Maps objects)
 - **Database:** Supabase (PostgreSQL + RLS) — @supabase/supabase-js 2.49.1 + @supabase/ssr 0.5.2
 - **Notifications:** Sonner
 - **PDF:** pdf-parse 2.4.5 + pdfjs-dist 4.10.38
@@ -211,107 +210,61 @@ Sidebar: `Service Contracts` → `/org/psa/contracts`, `Contracts & Docs` → `/
 
 ## Design Canvas Architecture
 
-- **Fabric.js** = canvas interaction/rendering engine
-- **Google Maps** = passive satellite backdrop (behind canvas, synchronized)
-- **FOV cones** = Fabric.js Polygons — LOCAL coordinates only (0,0 = camera apex)
-- **Wall clipping** = Sutherland-Hodgman polygon clipping algorithm
-- **DORI tiers** = IEC 62676-4 — 6 tiers: Monitor 4+ PPF, Detection 8+, Observation 19+, Recognition 38+, Identification 76+, Inspection 305+
-- **DORI colors**: Monitor=#6b7280, Detection=#ef4444, Observation=#f97316, Recognition=#eab308, Identification=#22c55e, Inspection=#8b5cf6
+Google Maps IS the canvas. Fabric.js has been completely removed.
+
+- **Rendering engine:** Google Maps JavaScript API
+- **Satellite base:** `google.maps.Map` in `'satellite'` mode (or `'roadmap'` for floor plan areas)
+- **Devices:** `google.maps.Marker` with SVG symbol icons — camera direction shown as rotatable notch
+- **FOV cones:** `google.maps.Polygon` in lat/lng coordinates via `use-map-fov-polygons.ts`
+- **Walls:** `google.maps.Polyline`
+- **Cables:** `google.maps.Polyline` with waypoints
+- **Floor plans:** `google.maps.GroundOverlay`
+- **Pan/zoom:** Native Google Maps (`gestureHandling: 'greedy'`)
+- **Coordinates:** DB stores `position_x`/`position_y` in canvas pixels; rendered by converting to lat/lng via `geo-math.ts`
+- **DORI tiers:** IEC 62676-4 — computed in `fov-dori.ts`, rendered as layered Polygons per tier
 
 ### Key Files
 
-- `src/components/design-canvas/canvas-area.tsx` — events, rendering, FOV cones, handles
-- `src/components/design-canvas/design-canvas.tsx` — orchestrator, FOV data, device lifecycle, toolbar
-- `src/components/design-canvas/fov-renderer.ts` — FOV geometry (buildConePoints, buildFovTiers)
-- `src/components/design-canvas/device-renderer.ts` — device icon creation (PNG→SVG→circle fallback)
-- `src/components/design-canvas/polygon-clip.ts` — wall occlusion
-- `src/components/design-canvas/satellite-map.tsx` — dedicated satellite map component
+- `src/components/design-canvas/canvas-area.tsx` — Google Maps canvas: device markers, FOV polygons, walls, cables, floor plan overlay, all interaction
+- `src/components/design-canvas/design-canvas.tsx` — orchestrator: state, FOV data, device lifecycle, toolbar, panels
+- `src/components/design-canvas/geo-math.ts` — coordinate math: canvas pixels ↔ lat/lng, FOV cone polygons, scale at zoom (283 lines)
+- `src/components/design-canvas/use-map-fov-polygons.ts` — hook that builds `google.maps.Polygon` DORI tiers from fovData
 - `src/components/design-canvas/device-library-modal.tsx` — IPVM-style 3-col device catalog
-- `src/components/design-canvas/blind-spot-diagram.tsx` — F4 blind spot (broken)
-- `src/components/design-canvas/simulated-view.tsx` — F3 simulated scene (broken)
+- `src/components/design-canvas/simulated-view.tsx` — simulated scene overlay (wired, functional)
+- `src/components/design-canvas/blind-spot-diagram.tsx` — blind spot SVG diagram (not wired into UI)
 - `src/components/design-canvas/use-maps-api-key.ts` — fetches Maps key via `/api/org/maps-key`
-- `src/components/design-canvas/use-map-fov-polygons.ts` — builds `google.maps.Polygon` tiers from fovData (Phase B)
+- `src/components/design-canvas/satellite-map.tsx` — standalone secondary map component (not main canvas)
+- `src/components/design-canvas/fov-renderer.ts` — legacy FOV geometry functions (dead code, not called)
+- `src/components/design-canvas/device-renderer.ts` — legacy Fabric device icon functions (dead code, not called)
 - `src/lib/calculators/fov-dori.ts` — ⚠️ DO NOT CHANGE without understanding IEC 62676-4
-- `src/lib/geo-math.ts` — coordinate math: canvas↔lat/lng, FOV cone polygons, scale at zoom (283 lines, fully implemented)
 
-### Industry Reference (IPVM / Hanwha DesignPro / Axis Site Designer)
-
-- All major tools: Google Maps foundation + FOV cones rendered on map
-- IPVM: Google Maps + map polygons (lat/lng) + DORI color tiers + wall occlusion
-- Hanwha DesignPro: Google Maps + FOV cones + PPF zones + 3D preview
-- Axis Site Designer: Google Maps + FOV visualization + 3D preview
-- Our approach: Fabric.js canvas + Google Maps as synchronized satellite backdrop
-- `fov-dori.ts` is production-quality IEC 62676-4 — FOV logic in `design-canvas.tsx` is correct and reusable
-
-### Design Canvas Roadmap (IPVM / DesignPro / Axis parity)
+### Design Canvas Roadmap
 
 Same content as `docs/design-canvas-roadmap.md` (keep both in sync when editing).
 
-**Suggested order:** Phase 0 → A → B (optional) → C (can parallel early Phase 0) → D (product-dependent) → E (ongoing).
+#### Phase 0 — Basemap & install address ✅ IMPLEMENTED
 
-#### Phase 0 — Basemap & install address
+`satelliteConfig` built from active area's geocoded `satellite_lat`/`satellite_lng`/`satellite_zoom`. Map initializes at that center and zoom. Floor plans rendered as `GroundOverlay`.
 
-**Goal:** Canvas defaults to satellite at the job address; optional floor plan on top; pan/zoom feels interactive (canvas-driven sync with `SatelliteMap`).
+#### Phase A — Geospatial truth model ✅ IMPLEMENTED
 
-| Step | Work |
-|------|------|
-| **0.1** | On design load or area create: resolve install address (opportunity / design) → `POST /api/org/geocode` → persist `satellite_lat`, `satellite_lng`, `satellite_zoom` on `design_areas`. |
-| **0.2** | `design-canvas.tsx`: build `satelliteConfig` from active area’s `satellite_lat` / `satellite_lng` / `satellite_zoom` (+ opacity) and pass to `CanvasArea` (required for satellite layer to show). |
-| **0.3** | Optional: PATCH area when user recenters map or changes zoom (persist map state). |
-| **0.4** | **Interaction:** default = canvas-driven pan/zoom + `syncTransform` (current architecture). Map-first (gestures on map, overlay canvas for devices) = separate product decision. |
-| **0.5** | Floor plan: API allows PNG, JPG, JPEG, SVG, PDF. Canvas uses `FabricImage.fromURL` — JPEG/SVG path; add PDF → raster (pdf.js or server) if PDF must display on Fabric. |
+`DesignGeoContext` + `buildDesignGeoContext()` in `geo-math.ts`. `design-canvas.tsx` builds context and passes `geoContext` to `CanvasArea`. All pixel↔lat/lng conversion routes through `geo-math.ts`. Vitest: `geo-math.test.ts`.
 
-**Touches:** `src/app/api/org/designs/[id]/areas/route.ts`, `design-canvas.tsx`, design/opportunity fetch, `canvas-area.tsx`, `satellite-map.tsx`, floor-plans route + canvas loader for PDF if required.
+#### Phase B — Native map FOV layer ✅ IMPLEMENTED
 
-#### Phase A — Geospatial truth model
-
-**Goal:** Single coherent model: design origin ↔ feet ↔ lat/lng so map and canvas stay aligned.
-
-| Step | Work |
-|------|------|
-| **A1** | Single design origin from `satelliteConfig` center + `scalePxPerFt` (or feet-per-pixel at reference zoom). |
-| **A2** | Audit `SatelliteMap.syncTransform` (CSS translate + scale vs Mercator); consider `OverlayView` / map overlay if drift is unacceptable. |
-| **A3** | `geo-math.ts` is fully implemented (283 lines, 14 exports). Audit for diverging paths vs canvas usage — do not duplicate math. |
-
-**Implemented:** `DesignGeoContext`, `buildDesignGeoContext`, `canvasPixelsToLatLng`, `latLngToCanvasPixels` in `geo-math.ts`; `design-canvas.tsx` builds context and passes `geoContext` to `CanvasArea` (ref `designGeoContextRef` for Phase B). `SatelliteMapHandle.syncTransform` documents CSS-sync limitations. Vitest: `geo-math.test.ts`.
-
-#### Phase B — Native map FOV layer (optional)
-
-**Goal:** Optional `google.maps.Polygon` tiers from same logical FOV as Fabric; `generateFovConePolygon` in `geo-math.ts` where appropriate.
-
-| Step | Work |
-|------|------|
-| **B1** | Per device: camera lat/lng from position + design center + scale (`pixelToLatLng`). |
-| **B2** | Map rotation/bearing consistent with Fabric rotation in `canvas-area.tsx` / `fov-renderer.ts`. |
-| **B3** | Update/recreate polygons on pan/zoom (throttle; align with FOV drag suppression). |
-| **B4** | Wall occlusion on map requires walls in lat/lng + clip in geographic space — larger scope; short term: unclipped map polygons or clip on Fabric only. |
-
-**Implemented:** `use-map-fov-polygons.ts` builds `google.maps.Polygon` from `fovData` + `canvasPixelsToLatLng` + `generateFovConePolygon` / `generateCirclePolygon` (360° / speakers). Ground radius uses `alignMapConeRadiusFeet` (`geo-math.ts`) so Mercator ft/px at `satellite_zoom + log2(fabricZoom)` matches canvas `scalePxPerFt`. Respects `showFovCones`, selection-only mode, hidden categories, PPF zone filters, multisensor tiers, PTZ pan ring. Skips rebuild while `isDraggingFov` (same pattern as Fabric FOV). Walls not clipped on map (B4).
+`use-map-fov-polygons.ts` renders `google.maps.Polygon` DORI tiers per device per sensor. Respects `showFovCones`, hidden categories, PPF zone filters, multi-sensor angles, PTZ pan ring. Skips rebuild while `isDraggingFov`. Wall occlusion on map not implemented (B4 still TODO).
 
 #### Phase C — FOV editing parity & spec stability
 
-| Step | Work |
-|------|------|
-| **C1** | Harden `__batch` + catalog `focal_length`, `sensor_w`, `resolution_w` (see **Recurring Bug: FOV Cone Reset** below). |
-| **C2** | Multi-sensor / panoramic edge cases per Multi-Sensor Camera Rules. |
+`__batch` handler and catalogSpecs stamping implemented. Multi-sensor rotation and distance handles implemented. Wall occlusion on map (B4) still outstanding.
 
 #### Phase D — Vendor-style scene / 3D / workflow
 
-| Step | Work |
-|------|------|
-| **D1** | `camera-3d-preview.tsx` — improve or replace (WebGL/Three vs 2.5D) as scoped. |
-| **D2** | `simulated-view.tsx` / `blind-spot-diagram.tsx` — fix or retire per roadmap. |
-| **D3** | BOM / export — separate from FOV; scope explicitly. |
+`simulated-view.tsx` — wired, shows CSS gradient scene placeholder. `blind-spot-diagram.tsx` — not wired. `camera-3d-preview.tsx` — exists, not production-ready. BOM/export not implemented.
 
 #### Phase E — Verification matrix
 
-| Check | Method |
-|-------|--------|
-| Address → satellite | Design with install address → area shows satellite at geocoded center; no address → defined fallback. |
-| Pan/zoom | Wheel + drag at multiple zooms; imagery tracks; no runaway drift. |
-| Floor plan | JPEG/SVG upload + render; PDF if Phase 0.5 implemented. |
-| Fabric vs map FOV | If Phase B: alignment spot-checks. |
-| Specs | Partial catalog specs → no FOV reset. |
+Not implemented.
 
 ---
 
@@ -320,35 +273,14 @@ Same content as `docs/design-canvas-roadmap.md` (keep both in sync when editing)
 - Each sensor head = independent camera (IPVM pattern)
 - Per-sensor rotation → `properties.sensor_angles` (number array)
 - Default angles: Dual = `[base-45, base+45]`, Quad = `[base, base+90, base+180, base+270]`
-- Per-sensor FOV cones: own DORI tiers, centerline, and labels
-- Per-sensor handles: distance handle, angle handles, rotation ring — all per-imager
-- Per-sensor drag: affects ONLY that sensor's cone
+- Per-sensor FOV cones: own DORI tiers rendered as separate Polygons
+- Per-sensor drag: affects ONLY that sensor's cone via local variable `sIdx` in `canvas-area.tsx`
 - Per-sensor persistence → `properties.per_imager_props[sIdx]`
-- Each cone targeted by local variable `sIdx` in `canvas-area.tsx` — search `sIdx` to trace drag logic
 - `perImagerData` always generated for multi-sensor cameras (per-sensor tiers, hFov, color)
-- Right panel: Sensor Heads section with per-sensor rotation sliders + Imager navigation
 - Shared specs: all sensors share optics (focal length, sensor width, resolution)
-- Sensor colors: S1=#3b82f6, S2=#22c55e, S3=#f97316, S4=#a855f7 (`SENSOR_COLORS` constant)
-- `properties.locked` = Lock Camera — device drag disabled, imagers rotate only
-- IPVM supports 2–5 imagers per multi-sensor camera
-- 180/360 panoramic: uses `2*pi*r` — NOT triangle-based cone
-
----
-
-## Non-Camera Coverage (Speakers / Vape Sensors)
-
-- Circular coverage zones via `properties.coverage_radius` (ft)
-- Defaults: speakers=25ft (#8b5cf6), vape/environmental=15ft (#14b8a6)
-- Uses same FOV pipeline with 360° hFov, single opacity tier
-
----
-
-## Batch Update Pattern
-
-When multiple device properties change simultaneously (e.g., distance handle drag):
-- Send `onDeviceUpdateProp(id, '__batch', mergedObject)` with ALL changed props in one object
-- `design-canvas.tsx` `__batch` handler calls `updateDevice(id, { properties: val })` directly
-- Never call `onDeviceUpdateProp` twice sequentially for the same drag — second call reads stale state and clobbers the first
+- Sensor colors: S1=#3b82f6, S2=#22c55e, S3=#f97316, S4=#a855f7 (`SENSOR_COLORS` in canvas-area.tsx L2012)
+- Supported: 2-imager (multisensor_dual) and 4-imager (multisensor_quad)
+- 180/360 panoramic: uses `generateCirclePolygon` — NOT triangle-based cone
 
 ---
 
@@ -356,9 +288,7 @@ When multiple device properties change simultaneously (e.g., distance handle dra
 
 **Symptom:** Add a camera → FOV renders → make any change → cone resets to default size
 
-**Root cause:** Catalog specs from `item.specs` often lack `focal_length`, `sensor_w`, `resolution_w`.
-When any property update fires, `{ ...props, [prop]: val }` preserves what's there but can't add what was never there.
-FOV then recomputes `target_distance` from missing/wrong specs on the next render cycle.
+**Root cause:** Catalog specs from `item.specs` often lack `focal_length`, `sensor_w`, `resolution_w`. When any property update fires, `{ ...props, [prop]: val }` preserves what's there but can't add what was never there. FOV then recomputes `target_distance` from missing/wrong specs on the next render cycle.
 
 **Key code paths:**
 - Device creation: `design-canvas.tsx` L702+ (catalogSpecs from library)
@@ -372,12 +302,11 @@ FOV then recomputes `target_distance` from missing/wrong specs on the next rende
 
 ## Critical Rules
 
-- **Pan behavior (live code):** Left-click on empty canvas = pan. Left-click on device = select. Middle-click anywhere = pan. Space+drag = pan. Pan tool = pan everywhere.
-- FOV polygons: LOCAL coordinates ONLY — never absolute canvas coordinates
-- Never call Fabric.js private `_calcDimensions()` — use `updateFovPolygon()`
-- Device properties snake_case: `sensor_w`, `sensor_h`, `focal_length`,
-  `resolution_w`, `resolution_h`, `target_distance`, `install_height`, `tilt_angle`
+- **Device click = select. Map drag = pan. Scroll = zoom.** All via native Google Maps.
+- FOV polygons are lat/lng coordinates — generated by `generateFovConePolygon()` in `geo-math.ts`
+- Device properties snake_case: `sensor_w`, `sensor_h`, `focal_length`, `resolution_w`, `resolution_h`, `target_distance`, `install_height`, `tilt_angle`
 - `properties` JSONB on DesignDevice is untyped — always use correct snake_case keys
+- `fov-renderer.ts` and `device-renderer.ts` are dead code — do not add calls to them
 
 ---
 
