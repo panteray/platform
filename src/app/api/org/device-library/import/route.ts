@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { verifyDeviceLibraryAccess } from '@/lib/auth'
+import { verifyDeviceLibraryAccess, canWriteDeviceLibrary } from '@/lib/auth'
 import { parseSpreadsheetRows } from '@/lib/device-import-parser'
 import type { ParsedImportRow } from '@/lib/device-import-parser'
 import * as XLSX from 'xlsx'
@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
     const dbUser = await verifyDeviceLibraryAccess()
     if (!dbUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (!canWriteDeviceLibrary(dbUser.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const orgId = dbUser.org_id

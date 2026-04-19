@@ -8,6 +8,10 @@ import {
 } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { DEVICE_CATEGORIES, DEVICE_LIBRARY_ROLES } from '@/types/enums'
+
+const DEVICE_LIBRARY_WRITE_ROLES = [
+  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER', 'PRESALES',
+] as const
 import type { DeviceLibraryItem } from '@/types/database'
 import { DeviceGrid } from '@/components/device-library/device-grid'
 
@@ -103,8 +107,8 @@ function EditForm({
 
 // ---- Side Drawer ----
 
-function SideDrawer({ item, onClose, onSaved, onDeleted }: {
-  item: DeviceLibraryItem; onClose: () => void; onSaved: () => void; onDeleted: () => void
+function SideDrawer({ item, onClose, onSaved, onDeleted, canWrite }: {
+  item: DeviceLibraryItem; onClose: () => void; onSaved: () => void; onDeleted: () => void; canWrite: boolean
 }) {
   const specs = (item.specs ?? {}) as Record<string, unknown>
   const [editing, setEditing] = useState(false)
@@ -154,14 +158,12 @@ function SideDrawer({ item, onClose, onSaved, onDeleted }: {
     } finally { setDeleting(false) }
   }
 
-  const isOrgOwned = !!item.org_id
-
   return (
     <div className="w-[38%] flex-shrink-0 rounded-lg border border-border bg-background p-4 space-y-4 overflow-y-auto max-h-[80vh]">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-foreground">{item.vendor} {item.model}</h2>
         <div className="flex items-center gap-1">
-          {isOrgOwned && !editing && (
+          {canWrite && !editing && (
             <>
               <button onClick={startEdit} className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Edit">
                 <Pencil className="h-3.5 w-3.5" />
@@ -251,6 +253,7 @@ export default function DeviceLibraryPage() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   const hasAccess = userRole && (DEVICE_LIBRARY_ROLES as readonly string[]).includes(userRole)
+  const canWrite = !!userRole && (DEVICE_LIBRARY_WRITE_ROLES as readonly string[]).includes(userRole)
 
   const loadFullItem = useCallback(async (id: string) => {
     try {
@@ -293,22 +296,29 @@ export default function DeviceLibraryPage() {
           <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Device Library</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Browse hardware specifications across all device categories</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/org/tools/device-library/import"
-            className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors">
-            <Upload className="h-4 w-4" /> Import Devices
-          </Link>
-          <Link href="/org/tools/device-library/enrich"
-            className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors">
-            <Sparkles className="h-4 w-4" /> Enrich Devices
-          </Link>
-        </div>
+        {canWrite && (
+          <div className="flex items-center gap-2">
+            <Link href="/org/tools/device-library/import"
+              className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors">
+              <Upload className="h-4 w-4" /> Import Devices
+            </Link>
+            <Link href="/org/tools/device-library/enrich"
+              className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors">
+              <Sparkles className="h-4 w-4" /> Enrich Devices
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Content: DeviceGrid + optional drawer */}
       <div className="flex flex-1 overflow-hidden" key={refreshKey}>
         <div className={`flex-1 overflow-hidden ${selectedItem ? 'max-w-[62%]' : ''}`}>
-          <DeviceGrid mode="browse" onBrowseClick={loadFullItem} />
+          <DeviceGrid
+            mode="browse"
+            onBrowseClick={loadFullItem}
+            onBulkChanged={() => setRefreshKey(k => k + 1)}
+            canWrite={canWrite}
+          />
         </div>
 
         {selectedItem && (
@@ -317,6 +327,7 @@ export default function DeviceLibraryPage() {
             onClose={() => setSelectedItem(null)}
             onSaved={handleSaved}
             onDeleted={() => { setSelectedItem(null); setRefreshKey(k => k + 1) }}
+            canWrite={canWrite}
           />
         )}
       </div>

@@ -16,6 +16,15 @@ const DEVICE_LIBRARY_ALLOWED_ROLES = [
   'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP', 'LEAD',
 ]
 
+const DEVICE_LIBRARY_WRITE_ROLES = [
+  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER', 'PRESALES',
+]
+
+/** Returns true if the given role can add/edit/delete device library items. */
+export function canWriteDeviceLibrary(role: string | null | undefined): boolean {
+  return !!role && DEVICE_LIBRARY_WRITE_ROLES.includes(role)
+}
+
 /** Verify caller is GLOBAL_ADMIN or GLOBAL_MANAGER. Returns auth user or null. */
 export async function verifyGlobalAdmin() {
   const supabase = await createClient()

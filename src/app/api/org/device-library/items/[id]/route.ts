@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { verifyDeviceLibraryAccess } from '@/lib/auth'
+import { verifyDeviceLibraryAccess, canWriteDeviceLibrary } from '@/lib/auth'
 
 export async function GET(
   _req: NextRequest,
@@ -37,12 +37,14 @@ export async function PATCH(
   if (!dbUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  if (!canWriteDeviceLibrary(dbUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { id } = await params
   const orgId = dbUser.org_id
   const admin = createAdminClient()
 
-  // Only allow editing org-owned items
   const { data: existing } = await admin
     .from('device_library_items')
     .select('id, org_id')
@@ -53,8 +55,9 @@ export async function PATCH(
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  if (existing.org_id !== orgId) {
-    return NextResponse.json({ error: 'Cannot edit global or other org items' }, { status: 403 })
+  const isAdmin = dbUser.role === 'GLOBAL_ADMIN' || dbUser.role === 'ORG_ADMIN' || dbUser.is_global_admin
+  if (existing.org_id !== orgId && !(existing.org_id === null && isAdmin)) {
+    return NextResponse.json({ error: 'Cannot edit this item' }, { status: 403 })
   }
 
   let body: Record<string, unknown>
@@ -109,6 +112,9 @@ export async function DELETE(
   if (!dbUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  if (!canWriteDeviceLibrary(dbUser.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { id } = await params
   const orgId = dbUser.org_id
@@ -124,8 +130,9 @@ export async function DELETE(
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  if (existing.org_id !== orgId) {
-    return NextResponse.json({ error: 'Cannot delete global or other org items' }, { status: 403 })
+  const isAdmin = dbUser.role === 'GLOBAL_ADMIN' || dbUser.role === 'ORG_ADMIN' || dbUser.is_global_admin
+  if (existing.org_id !== orgId && !(existing.org_id === null && isAdmin)) {
+    return NextResponse.json({ error: 'Cannot delete this item' }, { status: 403 })
   }
 
   const { error: delErr } = await admin

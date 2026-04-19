@@ -360,6 +360,7 @@ export const HUDDLE_ADMIN_ROLES = ['GLOBAL_ADMIN', 'ORG_ADMIN', 'ORG_MANAGER'] a
 export enum DeviceCategory {
   CCTV = 'cctv',
   ACCESS_CONTROL = 'access_control',
+  SERVERS_NVR = 'servers_nvr',
   NETWORK = 'network',
   AV = 'av',
   VAPE_ENVIRONMENTAL = 'vape_environmental',
@@ -379,6 +380,7 @@ export type ImportFileType = 'pdf' | 'xlsx' | 'csv'
 export const DEVICE_CATEGORIES = [
   { value: 'cctv', label: 'CCTV' },
   { value: 'access_control', label: 'Access Control' },
+  { value: 'servers_nvr', label: 'Servers / NVR' },
   { value: 'network', label: 'Network' },
   { value: 'av', label: 'AV' },
   { value: 'vape_environmental', label: 'Vape / Environmental' },
