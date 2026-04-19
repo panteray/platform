@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* react-grid-layout (editable user dashboards) */
+@import 'react-grid-layout/css/styles.css';
+@import 'react-resizable/css/styles.css';
+
+.react-grid-item.react-grid-placeholder {
+  background: rgba(82, 47, 130, 0.18) !important;
+  border-radius: 0.5rem;
+  opacity: 1 !important;
+}
+.react-grid-item > .react-resizable-handle::after {
+  border-color: rgba(82, 47, 130, 0.5);
+}
+
 /*
  * PANTERAY DESIGN SYSTEM — 4 TIME-OF-DAY THEMES
  *

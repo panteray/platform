@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { Plus, Search, Briefcase, List, Columns3, BarChart3 } from 'lucide-react'
 import { useOpportunities } from '@/hooks/useOpportunities'
 import { useUser } from '@/hooks/useUser'
-import { PipelineSummary } from '@/components/opportunities/PipelineSummary'
 import { OppKanban } from '@/components/opportunities/OppKanban'
 import { OppDashboard } from '@/components/opportunities/OppDashboard'
 import { OPP_STATUS_LABELS, OppType } from '@/types/enums'
@@ -77,8 +76,6 @@ export default function OpportunitiesPage() {
       {pageView === 'kanban' && <OppKanban opportunities={filtered} loading={loading} />}
 
       {pageView === 'table' && <>
-      <PipelineSummary opportunities={opportunities} />
-
       {/* Discipline filter */}
       <div className="flex flex-wrap gap-1.5">
         {Object.values(OppType).map((t) => (

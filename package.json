@@ -44,6 +44,7 @@
     "puppeteer-core": "^24.41.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-grid-layout": "^2.2.3",
     "sonner": "^1.7.0",
     "tailwind-merge": "^3.5.0",
     "xlsx": "^0.18.5"
@@ -54,6 +55,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/react-grid-layout": "^2.1.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.1.0",

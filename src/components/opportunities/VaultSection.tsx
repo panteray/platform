@@ -33,7 +33,7 @@ export function VaultSection({ oppId }: Props) {
     <div className="rounded-lg border border-border bg-card p-4 mt-4">
       <div className="flex items-center gap-2 mb-3">
         <FileText className="h-4 w-4 text-primary" />
-        <span className="text-sm font-semibold text-foreground">Design Vault</span>
+        <span className="text-sm font-semibold text-foreground">Opp Vault</span>
         <span className="text-[10px] text-muted-foreground">({docs.length} documents)</span>
       </div>
 
