@@ -3,6 +3,7 @@ import { verifyPrintToken } from '@/lib/pdf/print-token'
 import { loadHardwareScheduleData } from '@/lib/pdf/hardware-schedule-data'
 import { SITE_REQUIREMENTS } from '@/lib/export-templates/site-requirements'
 import { SiteMap } from './site-map'
+import { FloorPlanMap } from './floor-plan-map'
 import { ReadyMarker } from './ready-marker'
 
 export const dynamic = 'force-dynamic'
@@ -23,7 +24,12 @@ export default async function PrintPage({
   const data = await loadHardwareScheduleData(designId, claims.orgId)
   if (!data) notFound()
 
-  const { design, opp, vertical, mapsKey, areas, materialsByArea, totals, generatedAt } = data
+  const { design, opp, vertical, mapsKey, areas, materialsByArea, totals, vaultImages, generatedAt } = data
+  const allAreaPhotos = areas.flatMap(a => a.photos.map(p => ({ ...p, areaName: a.name })))
+  const appendixPhotos = [
+    ...allAreaPhotos,
+    ...vaultImages.map(v => ({ ...v, areaName: 'Vault' })),
+  ]
   const siteReq = vertical ? SITE_REQUIREMENTS[vertical] : null
   const title = opp?.project_name || design.name
   const oppNum = opp?.opp_number ? `OPP-${opp.opp_number}` : design.name
@@ -206,11 +212,25 @@ export default async function PrintPage({
                   }))}
                   mdfs={a.mdfs.map(m => ({ id: m.id, name: m.name, position_x: m.position_x, position_y: m.position_y }))}
                   walls={a.walls.map(w => ({ id: w.id, points: w.points, color: w.color }))}
+                  photos={a.photos.map(p => ({
+                    id: p.id, url: p.url, caption: p.caption,
+                    lat: p.lat, lng: p.lng, deviceId: p.deviceId,
+                  }))}
                 />
               ) : (
-                <div className="nomap">No satellite coordinates set for this area.</div>
+                <FloorPlanMap
+                  areaId={a.id}
+                  floorPlanUrl={a.floorPlanUrl}
+                  devices={a.devices.map(d => ({
+                    id: d.id, label: d.label, category: d.category, status: d.status,
+                    position_x: d.position_x, position_y: d.position_y, rotation: d.rotation,
+                    cableRunFt: d.cableRunFt, mdfName: d.mdfName,
+                  }))}
+                  mdfs={a.mdfs.map(m => ({ id: m.id, name: m.name, position_x: m.position_x, position_y: m.position_y }))}
+                  walls={a.walls.map(w => ({ id: w.id, points: w.points, color: w.color }))}
+                />
               )}
-              <div className="caption">{a.devices.length} device(s) · {a.mdfs.length} MDF/IDF · {a.walls.length} wall segments</div>
+              <div className="caption">{a.devices.length} device(s) · {a.mdfs.length} MDF/IDF · {a.walls.length} wall segments · {a.photos.length} photo(s)</div>
             </div>
           ))}
         </section>
@@ -308,10 +328,33 @@ export default async function PrintPage({
           </ul>
         </section>
 
+        {/* 14b. Photo Appendix */}
+        {appendixPhotos.length > 0 ? (
+          <section className="page">
+            <h2>{siteReq ? '14' : '14'}. Photo Appendix</h2>
+            <p>Site photos referenced on location maps (survey + vault).</p>
+            <div className="photo-grid">
+              {appendixPhotos.map(p => (
+                <div key={`${p.source}-${p.id}`} className="photo-item">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.url} alt={p.caption || ''} />
+                  <div className="photo-meta">
+                    <div className="photo-area">{p.areaName}</div>
+                    {p.caption ? <div className="photo-cap">{p.caption}</div> : null}
+                    {p.distanceFt != null && p.deviceId ? (
+                      <div className="photo-dist">{p.distanceFt}ft from device</div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         {/* 15. Vertical Appendix */}
         {siteReq ? (
           <section className="page">
-            <h2>14. {siteReq.title}</h2>
+            <h2>{appendixPhotos.length > 0 ? '15' : '14'}. {siteReq.title}</h2>
             <ul>
               {siteReq.bullets.map((b, i) => <li key={i}>{b}</li>)}
             </ul>
@@ -358,4 +401,11 @@ li { margin-bottom: 3pt; }
 .sitemap .caption { font-size: 9pt; color: #666; margin-top: 4pt; }
 .nomap { padding: 40pt; text-align: center; background: #f3f4f6; color: #6b7280; font-size: 10pt; border: 0.5pt solid #e5e7eb; }
 .check li { list-style: none; }
+.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10pt; margin-top: 8pt; }
+.photo-item { page-break-inside: avoid; border: 0.5pt solid #e5e7eb; background: #fafafa; }
+.photo-item img { display: block; width: 100%; height: 130pt; object-fit: cover; }
+.photo-meta { padding: 4pt 6pt; font-size: 8.5pt; }
+.photo-area { font-weight: 700; color: #522F82; }
+.photo-cap { color: #444; margin-top: 1pt; }
+.photo-dist { color: #888; font-size: 8pt; margin-top: 1pt; }
 `

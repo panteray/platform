@@ -35,6 +35,15 @@ interface Mdf {
   position_y: number
 }
 
+interface PhotoCalloutLite {
+  id: string
+  url: string
+  caption: string | null
+  lat: number | null
+  lng: number | null
+  deviceId: string | null
+}
+
 export interface SiteMapProps {
   areaId: string
   mapsKey: string
@@ -45,6 +54,7 @@ export interface SiteMapProps {
   devices: DeviceLite[]
   mdfs: Mdf[]
   walls: Wall[]
+  photos?: PhotoCalloutLite[]
 }
 
 declare global {
@@ -55,6 +65,8 @@ declare global {
         Polygon: new (opts: Record<string, unknown>) => unknown
         Polyline: new (opts: Record<string, unknown>) => unknown
         Marker: new (opts: Record<string, unknown>) => unknown
+        Size: new (w: number, h: number) => unknown
+        Point: new (x: number, y: number) => unknown
         SymbolPath: { CIRCLE: number }
         event: { addListenerOnce: (m: unknown, ev: string, cb: () => void) => void }
       }
@@ -122,7 +134,7 @@ function tierDistances(props: Record<string, unknown>, hFovDeg: number): Record<
   }
 }
 
-export function SiteMap({ areaId, mapsKey, lat, lng, zoom, scalePxPerFt, devices, mdfs, walls }: SiteMapProps) {
+export function SiteMap({ areaId, mapsKey, lat, lng, zoom, scalePxPerFt, devices, mdfs, walls, photos = [] }: SiteMapProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [failed, setFailed] = useState(false)
 
@@ -204,6 +216,43 @@ export function SiteMap({ areaId, mapsKey, lat, lng, zoom, scalePxPerFt, devices
           })
         }
 
+        // Photo callouts: place a photo marker offset from matched device with leader polyline
+        const devicePosMap = new Map<string, { lat: number; lng: number }>()
+        for (const d of devices) {
+          devicePosMap.set(d.id, canvasPixelsToLatLng(d.position_x, d.position_y, geoCtx))
+        }
+        const matchedPhotos = photos.filter(p => p.deviceId && devicePosMap.has(p.deviceId!))
+        const offsetDirs = [0, 45, 90, 135, 180, 225, 270, 315]
+        const OFFSET_FT = 35
+        const FT_PER_METER_LOCAL = 3.28084
+        const ftToDeg = (ft: number, atLat: number) => {
+          const meters = ft / FT_PER_METER_LOCAL
+          return {
+            dLat: (meters / 111320),
+            dLng: (meters / (111320 * Math.cos(atLat * Math.PI / 180))),
+          }
+        }
+        matchedPhotos.forEach((ph, i) => {
+          const dPos = devicePosMap.get(ph.deviceId!)!
+          const dir = (offsetDirs[i % offsetDirs.length]) * Math.PI / 180
+          const { dLat, dLng } = ftToDeg(OFFSET_FT, dPos.lat)
+          const photoLat = dPos.lat + dLat * Math.cos(dir)
+          const photoLng = dPos.lng + dLng * Math.sin(dir)
+          new gm.Polyline({
+            path: [dPos, { lat: photoLat, lng: photoLng }], map,
+            strokeColor: '#fbbf24', strokeOpacity: 0.9, strokeWeight: 2,
+          })
+          new gm.Marker({
+            position: { lat: photoLat, lng: photoLng }, map,
+            icon: {
+              url: ph.url,
+              scaledSize: new gm.Size(48, 36),
+              anchor: new gm.Point(24, 18),
+            },
+            title: ph.caption || '',
+          })
+        })
+
         for (const m of mdfs) {
           const pos = canvasPixelsToLatLng(m.position_x, m.position_y, geoCtx)
           new gm.Marker({
@@ -230,7 +279,7 @@ export function SiteMap({ areaId, mapsKey, lat, lng, zoom, scalePxPerFt, devices
     })()
 
     return () => { cancelled = true }
-  }, [areaId, mapsKey, lat, lng, zoom, scalePxPerFt, devices, mdfs, walls])
+  }, [areaId, mapsKey, lat, lng, zoom, scalePxPerFt, devices, mdfs, walls, photos])
 
   if (failed) {
     return <div style={{ width: '100%', height: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6', color: '#6b7280', fontSize: 12, border: '1px solid #e5e7eb' }}>Site map unavailable (no satellite coordinates)</div>
