@@ -12,15 +12,63 @@ import { readdirSync, statSync } from 'node:fs'
 import { join, basename } from 'node:path'
 
 // ─── Category inference from filename ───
+// Ordered rules: first match wins. Explicit keyword lists per category.
+const CATEGORY_RULES = [
+  // servers_nvr (check before cctv so "VMS" and "NVR" don't bleed into camera patterns)
+  { cat: 'servers_nvr', patterns: [
+    /\bnvr-dvr\b/i, /\bnvr\b/i, /\bdvr\b/i, /\bserver-element\b/i, /\bserver\b/i,
+    /\bvms software\b/i, /\bvideo wall\b/i,
+  ]},
+  // access_control (check before intercom/doorbell sneaks into cctv)
+  { cat: 'access_control', patterns: [
+    /\bacs controller\b/i, /\bacs expansion\b/i, /\bacs power supply\b/i, /^avigilon_acs_/i,
+    /\bcard reader\b/i, /^avigilon_card_readers/i,
+    /\belectric strike\b/i, /\bmagnetic lock\b/i, /\belec lockset\b/i, /\belec exit device\b/i,
+    /\bautomatic door operator\b/i, /\bwireless receiver hub\b/i,
+    /\brequest to exit\b/i, /\bdoor contact\b/i, /\bsingle door\b/i, /\bdouble door\b/i,
+    /\bintercom end point\b/i, /\bintercom master station\b/i, /^avigilon_intercoms_/i,
+    /\bwindow contact\b/i,
+  ]},
+  // cctv — cameras, encoders that are camera-side (analog encoder), IR illuminators, video doorbells, LPR
+  { cat: 'cctv', patterns: [
+    /\bfixed camera\b/i, /\bptz camera\b/i, /\bmulti-?lens camera\b/i, /\bbox camera\b/i,
+    /\blicense plate reader\b/i, /^avigilon_license_plate_reader/i,
+    /^avigilon_fixed_cameras/i, /^avigilon_ptz_camera/i, /^avigilon_multi-lens_cameras/i,
+    /^axis_.*camera/i, /\bipro FCAM\b/i, /\bfcam eps\b/i,
+    /\bir illuminator\b/i, /\bvideo doorbell\b/i,
+    /\banalog video encoder\b/i,
+  ]},
+  // network
+  { cat: 'network', patterns: [
+    /\bnetwork switch\b/i, /\bwireless access point\b/i, /\bcellular communicator\b/i,
+  ]},
+  // av
+  { cat: 'av', patterns: [
+    /\bspeaker\b/i, /\bmicrophone\b/i,
+  ]},
+  // vape_environmental — environmental sensors, fire alarm, intrusion detection
+  { cat: 'vape_environmental', patterns: [
+    /\bvape sensor\b/i, /\btriton sensors\b/i,
+    /\bsmoke detector\b/i, /\bheat detector\b/i, /\bcarbon monoxide\b/i, /\bwater sensor\b/i,
+    /\bglass break\b/i, /\bmotion detector\b/i, /\bpanic button\b/i, /\bsiren\b/i,
+    /\balarm sounder\b/i, /\balarm strobe\b/i, /\bbill trap\b/i,
+    /\bfa annunciator\b/i, /\bfa communicator\b/i, /\bfa control panel\b/i,
+    /\bfa expander\b/i, /\bfa power supply\b/i, /\bfa pull station\b/i,
+    /\bids expansion\b/i, /\bids keypad\b/i, /\bids panel\b/i,
+    /\bgeneral multi-sensor\b/i,
+  ]},
+  // other — generic parts
+  { cat: 'other', patterns: [
+    /\bgeneral component\b/i, /\benclosure\b/i, /\brelay\b/i, /\bbattery\b/i,
+  ]},
+]
+
 function inferCategory(fileName) {
-  const n = fileName.toLowerCase()
-  if (/(fixed|ptz|multi.?lens|multilens|box|dome|turret|bullet|fisheye).*camera|^axis_|_cameras_|\biPRO FCAM\b|FCAM EP|license plate reader|lpr/i.test(fileName)) return 'cctv'
-  if (/camera|\bcam\b/.test(n) && !/intercom/.test(n)) return 'cctv'
-  if (/acs |acs_|access control|card reader|electric strike|magnetic lock|elec lockset|elec exit|automatic door operator|wireless receiver hub|intercom|door contact|double door|single door|request to exit|battery|acs power/.test(n)) return 'access_control'
-  if (/nvr|dvr|server|video wall/.test(n)) return 'servers_nvr'
-  if (/network switch|analog video encoder|wireless access point|cellular communicator/.test(n)) return 'network'
-  if (/speaker|microphone|ir illuminator|video doorbell/.test(n)) return 'av'
-  if (/vape|smoke detector|heat detector|carbon monoxide|water sensor|glass break|motion detector|window contact|panic button|siren|alarm sounder|alarm strobe|bill trap|fa [a-z]+|ids [a-z]+|relay|fa_/.test(n)) return 'vape_environmental'
+  for (const { cat, patterns } of CATEGORY_RULES) {
+    for (const re of patterns) {
+      if (re.test(fileName)) return cat
+    }
+  }
   return 'other'
 }
 
@@ -170,12 +218,14 @@ const seen = new Set()
 const records = []
 let totalParsed = 0
 
+const fileCatMap = []
 for (const f of files) {
   const base = basename(f)
   const category = inferCategory(base)
   let devices
   try { devices = parseWorkbook(f) } catch (e) { process.stderr.write(`skip ${base}: ${e.message}\n`); continue }
   totalParsed += devices.length
+  fileCatMap.push({ base, category, count: devices.length })
   // Vendor fallback: infer from filename prefix (Axis_, avigilon_, Eagle Eye -, etc.)
   let fallbackVendor = null
   if (/^axis_/i.test(base)) fallbackVendor = 'Axis'
@@ -238,4 +288,15 @@ const byCategory = {}
 for (const r of records) byCategory[r.category] = (byCategory[r.category] || 0) + 1
 for (const [cat, n] of Object.entries(byCategory).sort((a,b)=>b[1]-a[1])) {
   process.stderr.write(`  ${cat}: ${n}\n`)
+}
+
+// File → category mapping (dedup by basename)
+process.stderr.write('\nFile → category (unique basenames):\n')
+const seenBase = new Set()
+const sorted = fileCatMap.filter(x => {
+  if (seenBase.has(x.base)) return false
+  seenBase.add(x.base); return true
+}).sort((a,b) => a.category.localeCompare(b.category) || a.base.localeCompare(b.base))
+for (const { base, category, count } of sorted) {
+  process.stderr.write(`  [${category.padEnd(20)}] ${base} (${count})\n`)
 }
