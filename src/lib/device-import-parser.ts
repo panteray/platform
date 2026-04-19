@@ -24,9 +24,10 @@ export function hasLetterAndDigit(s: string): boolean {
 export const CATEGORY_RULES: [string, RegExp][] = [
   ['vape_environmental', /vape|thc|smoke|gunshot|air quality|humidity|co2|environmental sensor/i],
   ['access_control', /controller|reader|lock|intercom|rex|power supply|access panel/i],
+  ['servers_nvr', /\bnvr\b|\bdvr\b|\bvms\b|recording server|storage array|\bnas\b|\bsan\b|video wall|workstation/i],
   ['network', /switch|firewall|wireless|router|\bap\b|ont|gateway|patch panel/i],
   ['av', /display|projector|speaker|amplifier|microphone|mixer|conferencing/i],
-  ['cctv', /camera|nvr|vms|dome|bullet|ptz|lpr|fisheye|panoramic/i],
+  ['cctv', /camera|dome|bullet|ptz|lpr|fisheye|panoramic/i],
 ]
 
 export function detectCategory(line: string): string {

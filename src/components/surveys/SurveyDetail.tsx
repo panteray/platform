@@ -498,10 +498,10 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
       {/* Device Summary */}
       <div className="rounded-lg border border-border bg-card p-3">
         <h4 className="text-xs font-semibold text-foreground mb-2">Device Summary</h4>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-          {(['cctv', 'access_control', 'network', 'av', 'vape_environmental', 'other'] as const).map((sys) => {
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
+          {(['cctv', 'access_control', 'servers_nvr', 'network', 'av', 'vape_environmental', 'other'] as const).map((sys) => {
             const count = devices.filter(d => d.system_type === sys).length
-            const label = sys === 'cctv' ? 'CCTV' : sys === 'access_control' ? 'ACS' : sys === 'network' ? 'Network' : sys === 'av' ? 'AV' : sys === 'vape_environmental' ? 'Vape/Env' : 'Other'
+            const label = sys === 'cctv' ? 'CCTV' : sys === 'access_control' ? 'ACS' : sys === 'servers_nvr' ? 'Servers/NVR' : sys === 'network' ? 'Network' : sys === 'av' ? 'AV' : sys === 'vape_environmental' ? 'Vape/Env' : 'Other'
             return (
               <div key={sys} className="text-center rounded border border-border p-2">
                 <p className="text-lg font-bold text-foreground">{count}</p>

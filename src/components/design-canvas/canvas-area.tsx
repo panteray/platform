@@ -133,6 +133,8 @@ const DEVICE_SVG_PATHS: Record<string, { path: string; color: string }> = {
   av: { path: 'M -6,-8 L 6,-8 L 6,8 L -6,8 Z M -3,-5 L 3,-5 L 3,5 L -3,5 Z', color: '#ec4899' },
   speaker: { path: 'M -4,-8 L 0,-8 L 6,-4 L 6,4 L 0,8 L -4,8 Z', color: '#8b5cf6' },
   intercom: { path: 'M -5,-7 L 5,-7 L 5,7 L -5,7 Z M 0,-3 A 3,3 0 1,0 0,3 A 3,3 0 1,0 0,-3 Z', color: '#8b5cf6' },
+  // Servers / NVR category
+  servers_nvr: { path: 'M -8,-10 L 8,-10 L 8,10 L -8,10 Z M -6,-6 L 6,-6 M -6,-2 L 6,-2 M -6,2 L 6,2', color: '#64748b' },
   // Environmental
   vape_environmental: { path: 'M 0,-9 L 8,-3 L 5,9 L -5,9 L -8,-3 Z', color: '#14b8a6' },
   // Infrastructure

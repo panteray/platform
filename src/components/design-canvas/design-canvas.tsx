@@ -90,7 +90,7 @@ const CATEGORY_MAP: Record<string, string[]> = {
   network: ['network'],
   av: ['av'],
   sensors: ['vape_environmental'],
-  other: ['other'],
+  other: ['other', 'servers_nvr'],
 }
 
 /* ─── Device label prefix map (stable module-scope constant) ─── */
@@ -103,7 +103,7 @@ const LABEL_PREFIX: Record<string, string> = {
   nvr: 'NVR', router: 'RTR', firewall: 'FW', wireless_ap: 'AP',
   bridge: 'PTP', server: 'SVR', monitor: 'MON', patch_panel: 'PP',
   av: 'AV', speaker: 'SPK', intercom: 'INT',
-  vape_environmental: 'ENV', other: 'DEV',
+  vape_environmental: 'ENV', servers_nvr: 'NVR', other: 'DEV',
 }
 
 /* ─── Page tabs (Hanwha-style top nav) ─── */

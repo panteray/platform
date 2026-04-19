@@ -34,7 +34,7 @@ export interface PlanReviewFinding {
 export interface PlanReviewDevice {
   id: string
   label: string
-  category: 'cctv' | 'access_control' | 'network' | 'av' | 'other'
+  category: 'cctv' | 'access_control' | 'servers_nvr' | 'network' | 'av' | 'vape_environmental' | 'other'
   vendor?: string
   model?: string
   ulListed?: boolean

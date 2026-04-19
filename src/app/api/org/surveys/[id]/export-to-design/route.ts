@@ -125,9 +125,10 @@ export async function POST(
     switch (st) {
       case 'cctv': return 'cctv'
       case 'access_control': return 'access_control'
+      case 'servers_nvr': return 'servers_nvr'
       case 'network': return 'network'
       case 'av': return 'av'
-      case 'vape_environmental': return 'other'
+      case 'vape_environmental': return 'vape_environmental'
       default: return 'other'
     }
   }

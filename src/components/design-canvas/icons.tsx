@@ -99,6 +99,7 @@ export const CATEGORY_TO_ICON: Record<string, string> = {
   // Fallback mappings for DeviceCategory enums
   cctv: 'dome_camera',
   access_control: 'door',
+  servers_nvr: 'server',
   network: 'switch',
   av: 'horn_speaker',
   vape_environmental: 'junction_box',
@@ -149,6 +150,7 @@ export const LABEL_CODES: Record<string, string> = {
   // Category-level fallbacks
   cctv: 'CAM',
   access_control: 'ACS',
+  servers_nvr: 'NVR',
   network: 'NET',
   av: 'AV',
   vape_environmental: 'ENV',

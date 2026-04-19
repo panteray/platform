@@ -551,6 +551,7 @@ const DEFAULT_PRICING: BomPricingConfig = {
     ptz: 2.5, fisheye: 2.0,
     multisensor_quad: 3.0, multisensor_dual: 2.5,
     access_control: 2.0, door: 3.0,
+    servers_nvr: 2.0,
     network: 1.0, switch: 0.5, nvr: 2.0,
     av: 1.5, speaker: 1.0,
     vape_environmental: 1.0, sensors: 0.75,

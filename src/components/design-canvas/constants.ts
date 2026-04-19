@@ -60,7 +60,7 @@ export const COLORS_48 = [
 export const DEVICE_CATEGORY_COLORS: Record<string, string> = {
   cctv: '#3b82f6', dome: '#3b82f6', bullet: '#3b82f6', turret: '#3b82f6',
   ptz: '#8b5cf6', fisheye: '#06b6d4', multisensor_quad: '#a855f7', multisensor_dual: '#a855f7',
-  access_control: '#f97316', network: '#22c55e', av: '#eab308', vape_environmental: '#ef4444',
+  access_control: '#f97316', servers_nvr: '#64748b', network: '#22c55e', av: '#eab308', vape_environmental: '#ef4444',
   speaker: '#eab308', intercom: '#f97316', door: '#f97316',
 }
 

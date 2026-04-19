@@ -50,6 +50,11 @@ const FORM_TYPES_MAP: Record<string, { id: string; label: string }[]> = {
     { id: 'display', label: 'Display' }, { id: 'speaker', label: 'Speaker' },
     { id: 'microphone', label: 'Mic' }, { id: 'amplifier', label: 'Amp' },
   ],
+  servers_nvr: [
+    { id: 'nvr', label: 'NVR' }, { id: 'dvr', label: 'DVR' },
+    { id: 'server', label: 'Server' }, { id: 'storage', label: 'Storage' },
+    { id: 'workstation', label: 'Workstation' }, { id: 'monitor', label: 'Monitor' },
+  ],
 }
 
 /* ─── Favorites localStorage key ─── */

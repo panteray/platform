@@ -10,7 +10,7 @@
 
 import React, { useState, useMemo } from 'react'
 import {
-  Plus, Minus, Cctv, DoorOpen, Network, Speaker, Cpu, Box,
+  Plus, Minus, Cctv, DoorOpen, Network, Speaker, Cpu, Box, HardDrive,
   Locate, MapPinOff, MapPin, ChevronDown, ChevronRight, Trash2,
 } from 'lucide-react'
 import { C } from './constants'
@@ -20,13 +20,13 @@ const CAT_ICON: Record<string, React.ReactNode> = {
   cctv: <Cctv size={14} />, dome: <Cctv size={14} />, bullet: <Cctv size={14} />,
   turret: <Cctv size={14} />, ptz: <Cctv size={14} />, fisheye: <Cctv size={14} />,
   multisensor_quad: <Cctv size={14} />, multisensor_dual: <Cctv size={14} />,
-  access_control: <DoorOpen size={14} />, network: <Network size={14} />,
+  access_control: <DoorOpen size={14} />, servers_nvr: <HardDrive size={14} />, network: <Network size={14} />,
   av: <Speaker size={14} />, vape_environmental: <Cpu size={14} />,
 }
 const CAT_COLOR: Record<string, string> = {
   cctv: '#3b82f6', dome: '#3b82f6', bullet: '#3b82f6', turret: '#3b82f6',
   ptz: '#8b5cf6', fisheye: '#06b6d4', multisensor_quad: '#a855f7', multisensor_dual: '#a855f7',
-  access_control: '#f97316', network: '#22c55e', av: '#eab308', vape_environmental: '#ef4444',
+  access_control: '#f97316', servers_nvr: '#64748b', network: '#22c55e', av: '#eab308', vape_environmental: '#ef4444',
 }
 
 interface ModelGroup {

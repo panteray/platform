@@ -90,6 +90,21 @@ function Controller({ color, size = 24 }: IconProps) {
   )
 }
 
+// ─── SERVERS / NVR ──────────────────────────────────────────────────────
+function ServerRack({ color, size = 24 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="4" y="3" width="16" height="18" rx="1" fill={color} stroke="#fff" strokeWidth="1.2" />
+      <rect x="6" y="5" width="12" height="3" fill="#fff" opacity="0.25" />
+      <circle cx="7.5" cy="6.5" r="0.6" fill="#fff" />
+      <rect x="6" y="9.5" width="12" height="3" fill="#fff" opacity="0.25" />
+      <circle cx="7.5" cy="11" r="0.6" fill="#fff" />
+      <rect x="6" y="14" width="12" height="3" fill="#fff" opacity="0.25" />
+      <circle cx="7.5" cy="15.5" r="0.6" fill="#fff" />
+    </svg>
+  )
+}
+
 // ─── NETWORK ────────────────────────────────────────────────────────────
 function NetworkSwitch({ color, size = 24 }: IconProps) {
   return (
@@ -223,6 +238,18 @@ function rawController(color: string, size: number) {
     size,
   )
 }
+function rawServerRack(color: string, size: number) {
+  return svgRoot(
+    `<rect x="4" y="3" width="16" height="18" rx="1" fill="${color}" stroke="#fff" stroke-width="1.2"/>` +
+    `<rect x="6" y="5" width="12" height="3" fill="#fff" opacity="0.25"/>` +
+    `<circle cx="7.5" cy="6.5" r="0.6" fill="#fff"/>` +
+    `<rect x="6" y="9.5" width="12" height="3" fill="#fff" opacity="0.25"/>` +
+    `<circle cx="7.5" cy="11" r="0.6" fill="#fff"/>` +
+    `<rect x="6" y="14" width="12" height="3" fill="#fff" opacity="0.25"/>` +
+    `<circle cx="7.5" cy="15.5" r="0.6" fill="#fff"/>`,
+    size,
+  )
+}
 function rawSwitch(color: string, size: number) {
   const ports = [4, 7, 10, 13, 16, 19].map(x => `<rect x="${x}" y="10" width="1.6" height="4" fill="#fff"/>`).join('')
   return svgRoot(
@@ -298,6 +325,7 @@ export function surveyDeviceSvgString(
     return rawSpeaker(color, size)
   }
   if (systemType === 'vape_environmental') return rawVape(color, size)
+  if (systemType === 'servers_nvr') return rawServerRack(color, size)
   return rawGeneric(color, size)
 }
 
@@ -359,6 +387,11 @@ export function SurveyDeviceIcon({
   // Vape / environmental
   if (systemType === 'vape_environmental') {
     return <VapeSensor color={color} size={size} />
+  }
+
+  // Servers / NVR
+  if (systemType === 'servers_nvr') {
+    return <ServerRack color={color} size={size} />
   }
 
   // Fallback

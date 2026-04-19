@@ -33,6 +33,7 @@ const NETWORK_TYPES = ['network', 'switch', 'access_switch', 'rack', 'nvr', 'rou
 const ACS_TYPES = ['access_control', 'door', 'card_reader', 'electric_strike', 'maglock', 'door_controller']
 const AV_TYPES = ['av', 'speaker', 'monitor', 'amplifier']
 const VAPE_ENV_TYPES = ['vape_environmental', 'vape_detector', 'environmental_detector']
+const SERVERS_NVR_TYPES = ['servers_nvr']
 
 // --- Reusable sub-components ---
 
@@ -244,8 +245,9 @@ export function DesignDashboard({ designId, onNavigateCanvas }: DesignDashboardP
     const net = devices.filter(d => NETWORK_TYPES.includes(d.category)).length
     const av = devices.filter(d => AV_TYPES.includes(d.category)).length
     const vape = devices.filter(d => VAPE_ENV_TYPES.includes(d.category)).length
-    const other = devices.length - cam - acs - net - av - vape
-    return { cam, acs, net, av, vape, other, total: devices.length }
+    const srv = devices.filter(d => SERVERS_NVR_TYPES.includes(d.category)).length
+    const other = devices.length - cam - acs - net - av - vape - srv
+    return { cam, acs, net, av, vape, srv, other, total: devices.length }
   }, [devices])
 
   const storageOutput: SystemStorageOutput | null = useMemo(() => {
@@ -353,6 +355,7 @@ export function DesignDashboard({ designId, onNavigateCanvas }: DesignDashboardP
           <DonutChart segments={[
             { label: 'Cameras', value: counts.cam, color: '#3b82f6' },
             { label: 'Access Control', value: counts.acs, color: '#f97316' },
+            { label: 'Servers/NVR', value: counts.srv, color: '#64748b' },
             { label: 'Network', value: counts.net, color: '#22c55e' },
             { label: 'AV', value: counts.av, color: '#8b5cf6' },
             { label: 'Vape/Env', value: counts.vape, color: '#ef4444' },
