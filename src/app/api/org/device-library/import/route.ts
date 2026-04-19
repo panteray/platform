@@ -124,17 +124,25 @@ export async function POST(req: NextRequest) {
     }
 
     const newRows: ParsedImportRow[] = []
+    const seenKeys = new Set<string>()
     let skipped = 0
     for (const row of parsedRows) {
       const v = (row.vendor ?? vendor ?? 'Unknown').toLowerCase().trim()
       const m = (row.model || row.partnumber || '').toLowerCase().trim()
       const p = (row.partnumber || '').toLowerCase().trim()
-      const isDupe =
-        (m && existingKeys.has(`${v}::m::${m}`)) ||
-        (p && existingKeys.has(`${v}::p::${p}`))
-      if (isDupe) {
+      const mKey = m ? `${v}::m::${m}` : ''
+      const pKey = p ? `${v}::p::${p}` : ''
+      const isDupeExisting =
+        (mKey && existingKeys.has(mKey)) ||
+        (pKey && existingKeys.has(pKey))
+      const isDupeInBatch =
+        (mKey && seenKeys.has(mKey)) ||
+        (pKey && seenKeys.has(pKey))
+      if (isDupeExisting || isDupeInBatch) {
         skipped++
       } else {
+        if (mKey) seenKeys.add(mKey)
+        if (pKey) seenKeys.add(pKey)
         newRows.push(row)
       }
     }
