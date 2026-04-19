@@ -1060,6 +1060,7 @@ export interface DesignDevice {
   billing_type: string
   recurring_cost: number
   zone_id: string | null
+  placed?: boolean
   created_at: string
   updated_at: string
 }

@@ -55,6 +55,7 @@ import { PathTracePanel } from './path-trace-panel'
 import { ReportGenerator } from './report-generator'
 import { RequirementsBar, type RequirementItem } from './requirements-bar'
 import { DeviceLibraryModal } from './device-library-modal'
+import { BomTab } from './bom-tab'
 import { DoorScheduleModal } from './door-schedule-modal'
 import {
   evaluateCompatibility,
@@ -113,6 +114,7 @@ const PAGE_TABS = [
   { id: 'devices', label: 'Devices' },
   { id: 'additionals', label: 'Additionals' },
   { id: 'hardware', label: 'Hardware' },
+  { id: 'bom', label: 'BOM' },
   { id: 'reports', label: 'Reports' },
 ] as const
 
@@ -307,9 +309,12 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
     devices.filter(d => d.area_id === activeAreaId)
   , [devices, activeAreaId])
 
-  // Devices placed on canvas (excludes un-placed devices)
+  // Devices placed on canvas (excludes un-placed / BOM-only devices)
   const canvasDevices = useMemo(() =>
-    areaDevices.filter(d => !(d.properties as Record<string, unknown> | null)?.unplaced)
+    areaDevices.filter(d => {
+      if (d.placed === false) return false
+      return !(d.properties as Record<string, unknown> | null)?.unplaced
+    })
   , [areaDevices])
 
   const areaCables = useMemo(() =>
@@ -1436,6 +1441,18 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
               )}
             </div>
           </div>
+        )}
+
+        {/* ── BOM TAB — editable material list that feeds the xlsm export ── */}
+        {activeTab === 'bom' && (
+          <BomTab
+            designId={designId}
+            devices={devices}
+            activeAreaId={activeAreaId}
+            addDevice={addDevice}
+            updateDeviceProps={updateDeviceProps}
+            deleteDevice={deleteDevice}
+          />
         )}
 
         {/* ── REPORTS TAB — multi-format export ── */}

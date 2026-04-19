@@ -245,6 +245,7 @@ export async function POST(
       billing_type: body.billing_type || 'one_time',
       recurring_cost: body.recurring_cost ?? 0,
       zone_id: body.zone_id || null,
+      placed: body.placed ?? true,
     })
     .select()
     .single()
