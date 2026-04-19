@@ -17,7 +17,7 @@ import { BomTab } from '@/components/opportunities/BomTab'
 import { HardwareScheduleTab } from '@/components/opportunities/HardwareScheduleTab'
 import { SowTab } from '@/components/opportunities/SowTab'
 import { CompileEngine } from '@/components/opportunities/CompileEngine'
-import { VaultSection } from '@/components/opportunities/VaultSection'
+import { OppVaultTab } from '@/components/vault/OppVaultTab'
 import { OppStatusTimeline } from '@/components/opportunities/OppStatusTimeline'
 import { OppApprovalGate } from '@/components/opportunities/OppApprovalGate'
 import { SurveyModule } from '@/components/surveys/SurveyModule'
@@ -112,7 +112,9 @@ export default function OppDetailPage() {
       </div>
 
       {/* Vault + Customer Card */}
-      <VaultSection oppId={opp.id} />
+      <div className="mt-4 rounded-lg border border-border bg-card p-4">
+        <OppVaultTab oppId={opp.id} />
+      </div>
       {opp.customer_id && <CustomerCard customerId={opp.customer_id} />}
 
       {/* Compile Engine Modal */}

@@ -1,10 +1,8 @@
+@import 'react-grid-layout/css/styles.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* react-grid-layout (editable user dashboards) */
-@import 'react-grid-layout/css/styles.css';
-@import 'react-resizable/css/styles.css';
 
 .react-grid-item.react-grid-placeholder {
   background: rgba(82, 47, 130, 0.18) !important;
