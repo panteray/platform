@@ -300,10 +300,6 @@ function SideDrawer({ item, element, onClose, onSaved, onDeleted, canWrite }: {
             <SpecRow label="Element" value={element.name} />
             <SpecRow label="Category" value={item.category} />
             <SpecRow label="Part Number" value={item.partnumber} />
-            <div>
-              <p className="text-[11px] text-muted-foreground">NDAA</p>
-              <NdaaBadge value={item.ndaa_compliant} />
-            </div>
           </div>
           <div className="border-t border-border pt-3">
             <ElementAttributeForm element={element} values={attributes} onChange={() => {}} readOnly />

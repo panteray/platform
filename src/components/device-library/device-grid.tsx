@@ -501,45 +501,32 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
                 </div>
               )}
 
-              {/* NDAA — always */}
-              <div>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">NDAA Compliance</p>
-                <div className="flex gap-1.5">
-                  {[{ value: '', label: 'Any' }, { value: 'true', label: 'Compliant' }, { value: 'false', label: 'Non-compliant' }].map(opt => {
-                    const active = selectedNdaa === opt.value
-                    return (
-                      <button key={opt.value}
-                        onClick={() => setSelectedNdaa(opt.value as '' | 'true' | 'false')}
-                        className={`px-3 py-1 rounded-md border text-xs font-medium transition-colors ${
-                          active ? 'border-[#2b8fce] bg-[#2b8fce]/10 text-[#2b8fce]' : 'border-border text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* UL — always */}
-              <div>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">UL Listing</p>
-                <div className="flex gap-1.5">
-                  {[{ value: '', label: 'Any' }, { value: 'true', label: 'Listed' }, { value: 'false', label: 'Not Listed' }].map(opt => {
-                    const active = selectedUl === opt.value
-                    return (
-                      <button key={opt.value}
-                        onClick={() => setSelectedUl(opt.value as '' | 'true' | 'false')}
-                        className={`px-3 py-1 rounded-md border text-xs font-medium transition-colors ${
-                          active ? 'border-[#2b8fce] bg-[#2b8fce]/10 text-[#2b8fce]' : 'border-border text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+              {/* UL — only for lock elements */}
+              {(() => {
+                const el = elements.find(e => e.id === selectedElementId)
+                const isLock = el && /lock/i.test(el.name)
+                if (!isLock) return null
+                return (
+                  <div>
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">UL Listing</p>
+                    <div className="flex gap-1.5">
+                      {[{ value: '', label: 'Any' }, { value: 'true', label: 'Listed' }, { value: 'false', label: 'Not Listed' }].map(opt => {
+                        const active = selectedUl === opt.value
+                        return (
+                          <button key={opt.value}
+                            onClick={() => setSelectedUl(opt.value as '' | 'true' | 'false')}
+                            className={`px-3 py-1 rounded-md border text-xs font-medium transition-colors ${
+                              active ? 'border-[#2b8fce] bg-[#2b8fce]/10 text-[#2b8fce]' : 'border-border text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
 
               <button
                 onClick={() => setShowFilters(false)}
