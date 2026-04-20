@@ -1,0 +1,198 @@
+Device Library Import Log
+=========================
+Parsed: 127
+Skipped: 0
+Unique elements: 59
+Total profiles: 1861
+Total accessories: 1033
+Profile ↔ accessory links: 1826
+
+Per-element breakdown:
+  ACS Controller                      [access_control] — 21 profiles, 30 accessories, schema: 33 attrs
+  ACS Expansion Module                [access_control] — 13 profiles, 2 accessories, schema: 31 attrs
+  ACS Power Supply                    [access_control] — 4 profiles, 0 accessories, schema: 40 attrs
+  Alarm Sounder                       [intrusion] — 6 profiles, 8 accessories, schema: 35 attrs
+  Alarm Strobe                        [intrusion] — 1 profiles, 0 accessories, schema: 33 attrs
+  Analog Video Encoder                [servers_nvr] — 1 profiles, 0 accessories, schema: 35 attrs
+  Automatic Door Operator             [access_control] — 20 profiles, 0 accessories, schema: 38 attrs
+  Battery                             [other] — 4 profiles, 0 accessories, schema: 30 attrs
+  Bill Trap Sensor                    [vape_environmental] — 0 profiles, 0 accessories, schema: 30 attrs
+  Carbon Monoxide Detector            [fire] — 1 profiles, 0 accessories, schema: 31 attrs
+  Card Reader                         [access_control] — 67 profiles, 18 accessories, schema: 35 attrs
+  Cellular Communicator               [intrusion] — 41 profiles, 11 accessories, schema: 33 attrs
+  Door Contact                        [access_control] — 17 profiles, 0 accessories, schema: 36 attrs
+  Double Door                         [access_control] — 3 profiles, 0 accessories, schema: 39 attrs
+  Elec Exit Device                    [access_control] — 36 profiles, 0 accessories, schema: 39 attrs
+  Elec Lockset                        [access_control] — 35 profiles, 10 accessories, schema: 40 attrs
+  Electric Strike                     [access_control] — 25 profiles, 0 accessories, schema: 35 attrs
+  Enclosure                           [other] — 73 profiles, 0 accessories, schema: 38 attrs
+  FA Annunciator Panel                [fire] — 5 profiles, 0 accessories, schema: 30 attrs
+  FA Communicator                     [fire] — 1 profiles, 0 accessories, schema: 28 attrs
+  FA Control Panel                    [fire] — 8 profiles, 0 accessories, schema: 36 attrs
+  FA Expander Panel                   [fire] — 18 profiles, 0 accessories, schema: 32 attrs
+  FA Power Supply                     [fire] — 18 profiles, 0 accessories, schema: 33 attrs
+  FA Pull Station                     [fire] — 8 profiles, 0 accessories, schema: 31 attrs
+  Fixed Camera                        [cctv] — 727 profiles, 273 accessories, schema: 58 attrs
+  General Component                   [other] — 14 profiles, 0 accessories, schema: 30 attrs
+  General Multi-Sensor Device         [vape_environmental] — 11 profiles, 29 accessories, schema: 40 attrs
+  Glass Break Detector                [intrusion] — 4 profiles, 0 accessories, schema: 35 attrs
+  Heat Detector                       [fire] — 2 profiles, 0 accessories, schema: 36 attrs
+  IDS Expansion Module                [intrusion] — 42 profiles, 6 accessories, schema: 31 attrs
+  IDS Keypad                          [intrusion] — 65 profiles, 24 accessories, schema: 32 attrs
+  IDS Panel                           [intrusion] — 33 profiles, 39 accessories, schema: 35 attrs
+  IR Illuminator                      [cctv] — 5 profiles, 0 accessories, schema: 32 attrs
+  Intercom End Point                  [av] — 7 profiles, 25 accessories, schema: 33 attrs
+  Intercom Master Station             [av] — 3 profiles, 16 accessories, schema: 35 attrs
+  License Plate Reader                [cctv] — 6 profiles, 23 accessories, schema: 40 attrs
+  Magnetic Lock                       [access_control] — 19 profiles, 0 accessories, schema: 31 attrs
+  Microphone                          [av] — 1 profiles, 0 accessories, schema: 29 attrs
+  Motion Detector                     [intrusion] — 12 profiles, 0 accessories, schema: 38 attrs
+  Multi-Lens Camera                   [cctv] — 116 profiles, 355 accessories, schema: 57 attrs
+  NVR-DVR                             [servers_nvr] — 59 profiles, 22 accessories, schema: 35 attrs
+  Network Switch                      [network] — 4 profiles, 0 accessories, schema: 33 attrs
+  PTZ Camera                          [cctv] — 138 profiles, 67 accessories, schema: 54 attrs
+  Panic Button                        [intrusion] — 19 profiles, 0 accessories, schema: 32 attrs
+  Relay                               [other] — 5 profiles, 0 accessories, schema: 30 attrs
+  Request to Exit                     [access_control] — 5 profiles, 0 accessories, schema: 33 attrs
+  Server                              [servers_nvr] — 65 profiles, 8 accessories, schema: 34 attrs
+  Single Door                         [access_control] — 10 profiles, 0 accessories, schema: 42 attrs
+  Siren                               [intrusion] — 2 profiles, 8 accessories, schema: 39 attrs
+  Smoke Detector                      [fire] — 5 profiles, 0 accessories, schema: 36 attrs
+  Speaker                             [av] — 2 profiles, 0 accessories, schema: 43 attrs
+  VMS Software                        [servers_nvr] — 10 profiles, 0 accessories, schema: 38 attrs
+  Vape Sensor                         [vape_environmental] — 6 profiles, 7 accessories, schema: 28 attrs
+  Video Doorbell                      [cctv] — 3 profiles, 16 accessories, schema: 33 attrs
+  Video Wall                          [servers_nvr] — 1 profiles, 4 accessories, schema: 35 attrs
+  Water Sensor                        [vape_environmental] — 8 profiles, 0 accessories, schema: 33 attrs
+  Window Contact                      [intrusion] — 1 profiles, 0 accessories, schema: 33 attrs
+  Wireless Access Point               [network] — 1 profiles, 9 accessories, schema: 38 attrs
+  Wireless Receiver Hub               [intrusion] — 24 profiles, 23 accessories, schema: 39 attrs
+
+File-by-file log:
+OK   ACS Controller-Element_Profile copy.xlsx → ACS Controller (1 profiles, 4 accessories)
+OK   ACS Controller-Element_Profile.xlsx → ACS Controller (9 profiles, 0 accessories)
+OK   ACS Controller-Verkada_Element_Profile.xlsx → ACS Controller (5 profiles, 20 accessories)
+OK   ACS Expansion Module-Element_Profile.xlsx → ACS Expansion Module (6 profiles, 0 accessories)
+OK   ACS Power Supply-Element_Profile.xlsx → ACS Power Supply (4 profiles, 0 accessories)
+OK   Alarm Sounder-Element_Profile copy.xlsx → Alarm Sounder (1 profiles, 8 accessories)
+OK   Alarm Sounder-Element_Profile.xlsx → Alarm Sounder (5 profiles, 0 accessories)
+OK   Alarm Strobe-Element_Profile.xlsx → Alarm Strobe (1 profiles, 0 accessories)
+OK   Automatic Door Operator-Element_Profile_26.10.25 (2).xlsx → Automatic Door Operator (20 profiles, 0 accessories)
+OK   Axis_Fixed Camera-Element_Profile_202604.xlsx → Fixed Camera (301 profiles, 3 accessories)
+OK   Axis_Multi-Lens Camera-Element_Profile_202603.xlsx → Multi-Lens Camera (38 profiles, 0 accessories)
+OK   Axis_PTZ Camera-Element_Profile_202601.xlsx → PTZ Camera (42 profiles, 0 accessories)
+OK   Battery-Element_Profile.xlsx → Battery (4 profiles, 0 accessories)
+OK   Bill Trap Sensor-Element_Profile.xlsx → Bill Trap Sensor (0 profiles, 0 accessories)
+OK   Carbon Monoxide Detector-Element_Profile copy.xlsx → Carbon Monoxide Detector (1 profiles, 0 accessories)
+OK   Carbon Monoxide Detector-Element_Profile.xlsx → Carbon Monoxide Detector (1 profiles, 0 accessories)
+OK   Card Reader-Element_Profile copy 2.xlsx → Card Reader (4 profiles, 1 accessories)
+OK   Card Reader-Element_Profile copy 3.xlsx → Card Reader (3 profiles, 9 accessories)
+OK   Card Reader-Element_Profile copy.xlsx → Card Reader (34 profiles, 0 accessories)
+OK   Card Reader-Element_Profile.xlsx → Card Reader (12 profiles, 0 accessories)
+OK   Card Reader-Element_Profile[87].xlsx → Card Reader (34 profiles, 0 accessories)
+OK   Card Reader-Element_Profile_Allegion_07.01.24 (10).xlsx → Card Reader (8 profiles, 0 accessories)
+OK   Cellular Communicator-Element_Profile copy.xlsx → Cellular Communicator (2 profiles, 11 accessories)
+OK   Cellular Communicator-Element_Profile.xlsx → Cellular Communicator (39 profiles, 0 accessories)
+OK   Door Contact-Element_Profile copy.xlsx → Door Contact (1 profiles, 0 accessories)
+OK   Door Contact-Element_Profile.xlsx → Door Contact (16 profiles, 0 accessories)
+OK   Double Door-Element_Profile.xlsx → Double Door (3 profiles, 0 accessories)
+OK   Eagle Eye - Analog Video Encoder-Element_Profile (1).xlsx → Analog Video Encoder (1 profiles, 0 accessories)
+OK   Eagle Eye - Fixed Camera-Element_Profile.xlsx → Fixed Camera (18 profiles, 0 accessories)
+OK   Eagle Eye - General Component-Element_Profile.xlsx → General Component (13 profiles, 0 accessories)
+OK   Eagle Eye - NVR-DVR-Element_Profile.xlsx → NVR-DVR (16 profiles, 0 accessories)
+OK   Eagle Eye - Network Switch-Element_Profile (1).xlsx → Network Switch (4 profiles, 0 accessories)
+OK   Elec Exit Device-Element_Profile_Allegion_07.01.24 (6).xlsx → Elec Exit Device (36 profiles, 0 accessories)
+OK   Elec Lockset-Element_Profile copy.xlsx → Elec Lockset (2 profiles, 10 accessories)
+OK   Elec Lockset-Element_Profile.xlsx → Elec Lockset (15 profiles, 0 accessories)
+OK   Elec Lockset-Element_Profile_Allegion_06.28.24 (6).xlsx → Elec Lockset (18 profiles, 0 accessories)
+OK   Electric Strike-Element_Profile_Allegion_07.01.24 (6).xlsx → Electric Strike (25 profiles, 0 accessories)
+OK   Enclosure-Element_Profile copy 2.xlsx → Enclosure (4 profiles, 0 accessories)
+OK   Enclosure-Element_Profile copy 3.xlsx → Enclosure (33 profiles, 0 accessories)
+OK   Enclosure-Element_Profile copy.xlsx → Enclosure (8 profiles, 0 accessories)
+OK   Enclosure-Element_Profile.xlsx → Enclosure (35 profiles, 0 accessories)
+OK   Enclosure-Element_Profile[6].xlsx → Enclosure (5 profiles, 0 accessories)
+OK   FA Annunciator Panel-Element_Profile.xlsx → FA Annunciator Panel (5 profiles, 0 accessories)
+OK   FA Communicator-Element_Profile.xlsx → FA Communicator (22 profiles, 0 accessories)
+OK   FA Control Panel-Element_Profile.xlsx → FA Control Panel (8 profiles, 0 accessories)
+OK   FA Expander Panel-Element_Profile.xlsx → FA Expander Panel (18 profiles, 0 accessories)
+OK   FA Power Supply-Element_Profile.xlsx → FA Power Supply (18 profiles, 0 accessories)
+OK   FA Pull Station-Element_Profile.xlsx → FA Pull Station (8 profiles, 0 accessories)
+OK   Fixed Camera-Element_Profile 20240215.xlsx → Fixed Camera (19 profiles, 0 accessories)
+OK   Fixed Camera-Element_Profile copy 2.xlsx → Fixed Camera (42 profiles, 39 accessories)
+OK   Fixed Camera-Element_Profile copy 3.xlsx → Fixed Camera (38 profiles, 37 accessories)
+OK   Fixed Camera-Element_Profile copy.xlsx → Fixed Camera (18 profiles, 0 accessories)
+OK   Fixed Camera-Element_Profile.xlsx → Fixed Camera (14 profiles, 66 accessories)
+OK   Fixed Camera-Element_Profile_202604 (1).xlsx → Fixed Camera (301 profiles, 3 accessories)
+OK   General Component-Element_Profile.xlsx → General Component (1 profiles, 0 accessories)
+OK   General Multi-Sensor Device-Element_Profile copy 2.xlsx → General Multi-Sensor Device (4 profiles, 5 accessories)
+OK   General Multi-Sensor Device-Element_Profile copy.xlsx → General Multi-Sensor Device (6 profiles, 24 accessories)
+OK   General Multi-Sensor Device-Element_Profile.xlsx → General Multi-Sensor Device (1 profiles, 0 accessories)
+OK   Glass Break Detector-Element_Profile copy.xlsx → Glass Break Detector (1 profiles, 0 accessories)
+OK   Glass Break Detector-Element_Profile.xlsx → Glass Break Detector (3 profiles, 0 accessories)
+OK   Heat Detector-Element_Profile.xlsx → Heat Detector (2 profiles, 0 accessories)
+OK   IDS Expansion Module-Element_Profile copy.xlsx → IDS Expansion Module (1 profiles, 6 accessories)
+OK   IDS Expansion Module-Element_Profile.xlsx → IDS Expansion Module (41 profiles, 0 accessories)
+OK   IDS Keypad-Element_Profile copy 2.xlsx → IDS Keypad (5 profiles, 24 accessories)
+OK   IDS Keypad-Element_Profile copy.xlsx → IDS Keypad (2 profiles, 0 accessories)
+OK   IDS Keypad-Element_Profile.xlsx → IDS Keypad (58 profiles, 0 accessories)
+OK   IDS Panel-Element_Profile copy.xlsx → IDS Panel (3 profiles, 39 accessories)
+OK   IDS Panel-Element_Profile.xlsx → IDS Panel (30 profiles, 0 accessories)
+OK   IR Illuminator-Element_Profile-20240214.xlsx → IR Illuminator (5 profiles, 0 accessories)
+OK   Intercom End Point-Element_Profile.xlsx → Intercom End Point (7 profiles, 25 accessories)
+OK   Intercom Master Station-Element_Profile.xlsx → Intercom Master Station (1 profiles, 5 accessories)
+OK   License Plate Reader-Element_Profile 20240215.xlsx → License Plate Reader (2 profiles, 0 accessories)
+OK   Magnetic Lock-Element_Profile_Allegion_06.28.24 (4).xlsx → Magnetic Lock (19 profiles, 0 accessories)
+OK   Microphone Element Profile.xlsx → Microphone (1 profiles, 0 accessories)
+OK   Motion Detector-Element_Profile copy.xlsx → Motion Detector (1 profiles, 0 accessories)
+OK   Motion Detector-Element_Profile.xlsx → Motion Detector (11 profiles, 0 accessories)
+OK   Multi-Lens Camera-Element_Profile 20240215.xlsx → Multi-Lens Camera (7 profiles, 0 accessories)
+OK   Multi-Lens Camera-Element_Profile I-PRO 06-26-2024 - current.xlsx → Multi-Lens Camera (30 profiles, 240 accessories)
+OK   Multi-Lens Camera-Element_Profile copy 2.xlsx → Multi-Lens Camera (6 profiles, 27 accessories)
+OK   Multi-Lens Camera-Element_Profile copy.xlsx → Multi-Lens Camera (4 profiles, 20 accessories)
+OK   Multi-Lens Camera-Element_Profile.xlsx → Multi-Lens Camera (1 profiles, 7 accessories)
+OK   Multi-Lens Camera-Element_Profile_202603.xlsx → Multi-Lens Camera (38 profiles, 0 accessories)
+OK   NVR-DVR-Element_Profile 20240215.xlsx → NVR-DVR (33 profiles, 0 accessories)
+OK   NVR-DVR-Element_Profile copy 2.xlsx → NVR-DVR (7 profiles, 13 accessories)
+OK   NVR-DVR-Element_Profile copy.xlsx → NVR-DVR (1 profiles, 9 accessories)
+OK   NVR-DVR-Element_Profile.xlsx → NVR-DVR (3 profiles, 0 accessories)
+OK   PTZ Camera-Element_Profile 20240215.xlsx → PTZ Camera (3 profiles, 0 accessories)
+OK   PTZ Camera-Element_Profile I-PRO 06-26-2024 - current.xlsx → PTZ Camera (66 profiles, 0 accessories)
+OK   PTZ Camera-Element_Profile copy.xlsx → PTZ Camera (3 profiles, 12 accessories)
+OK   PTZ Camera-Element_Profile.xlsx → PTZ Camera (1 profiles, 7 accessories)
+OK   PTZ Camera-Element_Profile_202601 (1).xlsx → PTZ Camera (42 profiles, 0 accessories)
+OK   Panic Button-Element_Profile copy.xlsx → Panic Button (1 profiles, 0 accessories)
+OK   Panic Button-Element_Profile.xlsx → Panic Button (18 profiles, 0 accessories)
+OK   Relay-Element_Profile copy.xlsx → Relay (1 profiles, 0 accessories)
+OK   Relay-Element_Profile.xlsx → Relay (1 profiles, 0 accessories)
+OK   Relay-Element_Profile[60].xlsx → Relay (3 profiles, 0 accessories)
+OK   Request to Exit-Element_Profile.xlsx → Request to Exit (5 profiles, 0 accessories)
+OK   Request to Exit-Element_Profile[49].xlsx → Request to Exit (5 profiles, 0 accessories)
+OK   Server-Element_Profile.xlsx → Server (65 profiles, 8 accessories)
+OK   Single Door-Element_Profile.xlsx → Single Door (6 profiles, 0 accessories)
+OK   Single Door-Element_Profile[59].xlsx → Single Door (4 profiles, 0 accessories)
+OK   Siren-Element_Profile.xlsx → Siren (2 profiles, 8 accessories)
+OK   Smoke Detector-Element_Profile.xlsx → Smoke Detector (5 profiles, 0 accessories)
+OK   Speaker-Element_Profile 20240215.xlsx → Speaker (2 profiles, 0 accessories)
+OK   Triton Sensors Vape Sensor-Element_Profile.xlsx → Vape Sensor (3 profiles, 2 accessories)
+OK   VMS Software-Element_Profile-20240214.xlsx → VMS Software (10 profiles, 0 accessories)
+OK   Vape Sensor-Element_Profile.xlsx → Vape Sensor (3 profiles, 5 accessories)
+OK   Video Doorbell-Element_Profile copy.xlsx → Video Doorbell (1 profiles, 16 accessories)
+OK   Video Doorbell-Element_Profile.xlsx → Video Doorbell (2 profiles, 0 accessories)
+OK   Video Wall-Element_Profile.xlsx → Video Wall (1 profiles, 4 accessories)
+OK   Water Sensor-Element_Profile copy.xlsx → Water Sensor (1 profiles, 0 accessories)
+OK   Water Sensor-Element_Profile.xlsx → Water Sensor (7 profiles, 0 accessories)
+OK   Window Contact-Element_Profile.xlsx → Window Contact (1 profiles, 0 accessories)
+OK   Wireless Access Point-Element_Profile.xlsx → Wireless Access Point (1 profiles, 9 accessories)
+OK   Wireless Receiver Hub-Element_Profile copy 2.xlsx → Wireless Receiver Hub (5 profiles, 23 accessories)
+OK   Wireless Receiver Hub-Element_Profile copy.xlsx → Wireless Receiver Hub (11 profiles, 0 accessories)
+OK   Wireless Receiver Hub-Element_Profile.xlsx → Wireless Receiver Hub (4 profiles, 0 accessories)
+OK   Wireless Receiver Hub-Element_Profile_Allegion_06.28.24 (4).xlsx → Wireless Receiver Hub (5 profiles, 0 accessories)
+OK   avigilon_ACS_controller_q1_2026.xlsx → ACS Controller (6 profiles, 6 accessories)
+OK   avigilon_ACS_expansion_q1_2026.xlsx → ACS Expansion Module (7 profiles, 2 accessories)
+OK   avigilon_card_readers_q1_2026.xlsx → Card Reader (7 profiles, 8 accessories)
+OK   avigilon_fixed_cameras_q1_2026.xlsx → Fixed Camera (204 profiles, 152 accessories)
+OK   avigilon_intercoms_master_station_q1_2026.xlsx → Intercom Master Station (2 profiles, 11 accessories)
+OK   avigilon_license_plate_reader_camera_q1_2026.xlsx → License Plate Reader (4 profiles, 23 accessories)
+OK   avigilon_multi-lens_cameras_q1_2026.xlsx → Multi-Lens Camera (49 profiles, 61 accessories)
+OK   avigilon_ptz_camera_q1_2026.xlsx → PTZ Camera (23 profiles, 48 accessories)
+OK   iPRO FCAM EPs - current.xlsx → Fixed Camera (77 profiles, 0 accessories)
