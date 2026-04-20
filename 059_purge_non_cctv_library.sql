@@ -62,7 +62,27 @@ UPDATE design_devices
 DELETE FROM device_library_items
  WHERE category <> 'cctv';
 
--- Verify no orphans remain
+-- Null any remaining orphans (includes pre-existing orphans from earlier state)
+DO $$
+DECLARE
+  v_preexisting INT;
+BEGIN
+  SELECT COUNT(*) INTO v_preexisting
+    FROM design_devices dd
+   WHERE dd.device_library_item_id IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM device_library_items li WHERE li.id = dd.device_library_item_id);
+
+  RAISE NOTICE 'Pre-existing orphan design_devices rows nulled: %', v_preexisting;
+END $$;
+
+UPDATE design_devices
+   SET device_library_item_id = NULL
+ WHERE device_library_item_id IS NOT NULL
+   AND NOT EXISTS (
+     SELECT 1 FROM device_library_items li WHERE li.id = design_devices.device_library_item_id
+   );
+
+-- Final verification
 DO $$
 DECLARE
   v_orphan_design INT;
