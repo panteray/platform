@@ -36,10 +36,14 @@ BEGIN
     JOIN device_library_items li ON li.id = dd.device_library_item_id
    WHERE li.category <> 'cctv';
 
-  SELECT COUNT(*) INTO v_assets
-    FROM device_assets da
-    JOIN device_library_items li ON li.id = da.device_id
-   WHERE li.category <> 'cctv';
+  IF to_regclass('public.device_assets') IS NOT NULL THEN
+    EXECUTE 'SELECT COUNT(*) FROM device_assets da
+               JOIN device_library_items li ON li.id = da.device_id
+              WHERE li.category <> ''cctv'''
+      INTO v_assets;
+  ELSE
+    v_assets := 0;
+  END IF;
 
   RAISE NOTICE 'device_library_items: total=%, keep_cctv=%, delete=%', v_total, v_keep, v_drop;
   RAISE NOTICE 'design_devices rows to null: %', v_design;
