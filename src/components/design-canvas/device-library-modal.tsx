@@ -11,7 +11,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { X, Plus, Search, Star, Cctv, ChevronDown } from 'lucide-react'
 import { C } from './constants'
-import type { DeviceSearchResult } from '@/types/database'
+import type { DeviceSearchResult, DeviceElement } from '@/types/database'
 
 const ACCENT = '#6d28d9'
 
@@ -105,6 +105,8 @@ export function DeviceLibraryModal({ category, onClose, onSelect }: DeviceLibrar
   const [envFilter, setEnvFilter] = useState<'all' | 'indoor' | 'outdoor'>('all')
   const [aiFilter, setAiFilter] = useState<'all' | 'ai' | 'non-ai'>('all')
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [elements, setElements] = useState<DeviceElement[]>([])
+  const [selectedElementId, setSelectedElementId] = useState('')
   const [brandsWidth, setBrandsWidth] = useState(200)
   const [modelsWidth, setModelsWidth] = useState(260)
   const resizingRef = useRef<{ col: 'brands' | 'models'; startX: number; startW: number } | null>(null)
@@ -112,6 +114,17 @@ export function DeviceLibraryModal({ category, onClose, onSelect }: DeviceLibrar
 
   // Load favorites from localStorage on mount
   useEffect(() => { setFavorites(loadFavorites()) }, [])
+
+  // Load elements for filtering
+  useEffect(() => {
+    fetch('/api/org/device-library/elements')
+      .then(r => r.ok ? r.json() : { elements: [] })
+      .then(j => setElements(j.elements ?? []))
+      .catch(() => setElements([]))
+  }, [])
+
+  // Reset element filter when category changes
+  useEffect(() => { setSelectedElementId('') }, [category])
 
   // Column resize drag handlers
   useEffect(() => {
@@ -160,6 +173,8 @@ export function DeviceLibraryModal({ category, onClose, onSelect }: DeviceLibrar
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase().trim()
     return allDevices.filter(d => {
+      // Element filter (non-CCTV element-driven taxonomy)
+      if (selectedElementId && d.element_id !== selectedElementId) return false
       // Search: vendor, model, partnumber
       if (q) {
         const haystack = `${d.vendor} ${d.model} ${d.partnumber || ''}`.toLowerCase()
@@ -195,7 +210,7 @@ export function DeviceLibraryModal({ category, onClose, onSelect }: DeviceLibrar
       }
       return true
     })
-  }, [allDevices, searchQuery, activeFormFactors, selectedResolution, envFilter, aiFilter])
+  }, [allDevices, searchQuery, activeFormFactors, selectedResolution, envFilter, aiFilter, selectedElementId])
 
   // ── Brands list (from filtered results) ──
   const brands = useMemo(() => {
@@ -463,6 +478,26 @@ export function DeviceLibraryModal({ category, onClose, onSelect }: DeviceLibrar
 
               {/* Filters row */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                {/* Element dropdown — non-CCTV taxonomy */}
+                {category !== 'cctv' && elements.some(el => el.category === category) && (
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      value={selectedElementId}
+                      onChange={e => setSelectedElementId(e.target.value)}
+                      style={{
+                        ...inputStyle, fontSize: 11, padding: '4px 24px 4px 8px', borderRadius: 6,
+                        appearance: 'none', minWidth: 140, cursor: 'pointer',
+                      }}
+                    >
+                      <option value="">All Elements</option>
+                      {elements.filter(el => el.category === category).map(el => (
+                        <option key={el.id} value={el.id}>{el.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={12} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: C.textDim }} />
+                  </div>
+                )}
+
                 {/* Form factor icons */}
                 {FORM_FACTORS.map(ff => (
                   <button

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import {
   X, ShieldCheck, ShieldAlert, ShieldQuestion,
@@ -12,8 +12,9 @@ import { DEVICE_CATEGORIES, DEVICE_LIBRARY_ROLES } from '@/types/enums'
 const DEVICE_LIBRARY_WRITE_ROLES = [
   'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER', 'PRESALES',
 ] as const
-import type { DeviceLibraryItem } from '@/types/database'
+import type { DeviceLibraryItem, DeviceElement } from '@/types/database'
 import { DeviceGrid } from '@/components/device-library/device-grid'
+import { ElementAttributeForm } from '@/components/device-library/ElementAttributeForm'
 
 const EDITABLE_FIELDS = [
   { key: 'vendor', label: 'Manufacturer', type: 'text' },
@@ -105,16 +106,96 @@ function EditForm({
   )
 }
 
+// ---- Dynamic Edit Form (schema-driven, non-CCTV) ----
+
+function DynamicEditForm({
+  element, headerValues, attrValues, onHeaderChange, onAttrChange, onSave, onCancel, saving,
+}: {
+  element: DeviceElement
+  headerValues: Record<string, unknown>
+  attrValues: Record<string, unknown>
+  onHeaderChange: (key: string, val: unknown) => void
+  onAttrChange: (key: string, val: unknown) => void
+  onSave: () => void
+  onCancel: () => void
+  saving: boolean
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+        <div className="space-y-1">
+          <label className="text-[11px] text-muted-foreground">Manufacturer</label>
+          <input type="text" value={String(headerValues.vendor ?? '')}
+            onChange={(e) => onHeaderChange('vendor', e.target.value)}
+            className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground focus:border-ring focus:outline-none" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[11px] text-muted-foreground">Model</label>
+          <input type="text" value={String(headerValues.model ?? '')}
+            onChange={(e) => onHeaderChange('model', e.target.value)}
+            className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground focus:border-ring focus:outline-none" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[11px] text-muted-foreground">Part Number</label>
+          <input type="text" value={String(headerValues.partnumber ?? '')}
+            onChange={(e) => onHeaderChange('partnumber', e.target.value)}
+            className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground focus:border-ring focus:outline-none" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[11px] text-muted-foreground">NDAA Compliant</label>
+          <div className="flex items-center gap-2 h-8">
+            <input type="checkbox" checked={!!headerValues.ndaa_compliant}
+              onChange={(e) => onHeaderChange('ndaa_compliant', e.target.checked)}
+              className="accent-current" />
+            <span className="text-xs text-muted-foreground">{headerValues.ndaa_compliant ? 'Yes' : 'No'}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-border pt-3">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+          {element.name} Attributes
+        </p>
+        <ElementAttributeForm
+          element={element}
+          values={attrValues}
+          onChange={onAttrChange}
+        />
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        <button onClick={onSave} disabled={saving}
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          <Save className="h-3 w-3" />{saving ? 'Saving...' : 'Save'}
+        </button>
+        <button onClick={onCancel}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ---- Side Drawer ----
 
-function SideDrawer({ item, onClose, onSaved, onDeleted, canWrite }: {
-  item: DeviceLibraryItem; onClose: () => void; onSaved: () => void; onDeleted: () => void; canWrite: boolean
+function SideDrawer({ item, element, onClose, onSaved, onDeleted, canWrite }: {
+  item: DeviceLibraryItem
+  element: DeviceElement | null
+  onClose: () => void
+  onSaved: () => void
+  onDeleted: () => void
+  canWrite: boolean
 }) {
   const specs = (item.specs ?? {}) as Record<string, unknown>
+  const attributes = (item.attributes ?? {}) as Record<string, unknown>
+  const isCctv = item.category === 'cctv'
+  const useDynamic = !isCctv && element !== null
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [editValues, setEditValues] = useState<Record<string, unknown>>({})
+  const [editAttrs, setEditAttrs] = useState<Record<string, unknown>>({})
 
   function startEdit() {
     setEditValues({
@@ -129,6 +210,7 @@ function SideDrawer({ item, onClose, onSaved, onDeleted, canWrite }: {
       wattage: item.wattage ?? '', ndaa_compliant: item.ndaa_compliant,
       ul_listed: item.ul_listed ?? false, ul_listing_code: item.ul_listing_code ?? '',
     })
+    setEditAttrs({ ...attributes })
     setEditing(true)
   }
 
@@ -136,11 +218,20 @@ function SideDrawer({ item, onClose, onSaved, onDeleted, canWrite }: {
     setSaving(true)
     try {
       const body: Record<string, unknown> = {}
-      for (const f of EDITABLE_FIELDS) {
-        const val = editValues[f.key]
-        if (f.type === 'number') body[f.key] = val != null && val !== '' ? Number(val) : null
-        else if (f.type === 'checkbox') body[f.key] = !!val
-        else body[f.key] = val || null
+      if (useDynamic) {
+        body.vendor = editValues.vendor || null
+        body.model = editValues.model || null
+        body.partnumber = editValues.partnumber || null
+        body.category = editValues.category || null
+        body.ndaa_compliant = !!editValues.ndaa_compliant
+        body.attributes = editAttrs
+      } else {
+        for (const f of EDITABLE_FIELDS) {
+          const val = editValues[f.key]
+          if (f.type === 'number') body[f.key] = val != null && val !== '' ? Number(val) : null
+          else if (f.type === 'checkbox') body[f.key] = !!val
+          else body[f.key] = val || null
+        }
       }
       const res = await fetch(`/api/org/device-library/items/${item.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -189,7 +280,35 @@ function SideDrawer({ item, onClose, onSaved, onDeleted, canWrite }: {
       </div>
 
       {editing ? (
-        <EditForm values={editValues} onChange={(key, val) => setEditValues(prev => ({ ...prev, [key]: val }))} onSave={handleSave} onCancel={() => setEditing(false)} saving={saving} />
+        useDynamic && element ? (
+          <DynamicEditForm
+            element={element}
+            headerValues={editValues}
+            attrValues={editAttrs}
+            onHeaderChange={(key, val) => setEditValues(prev => ({ ...prev, [key]: val }))}
+            onAttrChange={(key, val) => setEditAttrs(prev => ({ ...prev, [key]: val }))}
+            onSave={handleSave}
+            onCancel={() => setEditing(false)}
+            saving={saving}
+          />
+        ) : (
+          <EditForm values={editValues} onChange={(key, val) => setEditValues(prev => ({ ...prev, [key]: val }))} onSave={handleSave} onCancel={() => setEditing(false)} saving={saving} />
+        )
+      ) : useDynamic && element ? (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <SpecRow label="Element" value={element.name} />
+            <SpecRow label="Category" value={item.category} />
+            <SpecRow label="Part Number" value={item.partnumber} />
+            <div>
+              <p className="text-[11px] text-muted-foreground">NDAA</p>
+              <NdaaBadge value={item.ndaa_compliant} />
+            </div>
+          </div>
+          <div className="border-t border-border pt-3">
+            <ElementAttributeForm element={element} values={attributes} onChange={() => {}} readOnly />
+          </div>
+        </>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3">
@@ -250,7 +369,15 @@ function SideDrawer({ item, onClose, onSaved, onDeleted, canWrite }: {
 export default function DeviceLibraryPage() {
   const { userRole, loading: userLoading } = useUser()
   const [selectedItem, setSelectedItem] = useState<DeviceLibraryItem | null>(null)
+  const [elements, setElements] = useState<DeviceElement[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    fetch('/api/org/device-library/elements')
+      .then(r => r.ok ? r.json() : { elements: [] })
+      .then(j => setElements(j.elements ?? []))
+      .catch(() => setElements([]))
+  }, [])
 
   const hasAccess = userRole && (DEVICE_LIBRARY_ROLES as readonly string[]).includes(userRole)
   const canWrite = !!userRole && (DEVICE_LIBRARY_WRITE_ROLES as readonly string[]).includes(userRole)
@@ -324,6 +451,7 @@ export default function DeviceLibraryPage() {
         {selectedItem && (
           <SideDrawer
             item={selectedItem}
+            element={selectedItem.element_id ? elements.find(e => e.id === selectedItem.element_id) ?? null : null}
             onClose={() => setSelectedItem(null)}
             onSaved={handleSaved}
             onDeleted={() => { setSelectedItem(null); setRefreshKey(k => k + 1) }}

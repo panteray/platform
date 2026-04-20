@@ -27,7 +27,9 @@ export async function POST(req: NextRequest) {
       poe_standard = 'PoE',
       wattage = 15,
       ndaa_compliant = false,
-      specs = {}
+      specs = {},
+      element_id = null,
+      attributes = {},
     } = body
 
     if (!model) {
@@ -71,9 +73,11 @@ export async function POST(req: NextRequest) {
         poe_standard,
         wattage,
         ndaa_compliant,
-        specs
+        specs,
+        element_id,
+        attributes,
       })
-      .select('id, category, subcategory, vendor, model, partnumber, resolution, fps, poe_standard, wattage, ndaa_compliant, specs, manufacturer_id')
+      .select('id, category, subcategory, vendor, model, partnumber, resolution, fps, poe_standard, wattage, ndaa_compliant, specs, manufacturer_id, element_id, attributes')
       .single()
 
     if (error) {

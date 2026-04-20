@@ -922,8 +922,28 @@ export interface DeviceLibraryItem {
   environment: string | null
   specs: Record<string, unknown> // JSONB — category-specific fields
   manufacturer_id: string | null // FK → device_library_manufacturers
+  element_id: string | null // FK → device_elements
+  attributes: Record<string, unknown> // JSONB — element schema-driven values
   created_at: string
   updated_at: string
+}
+
+/** Device element — top-level taxonomy (Fixed Camera, ACS Controller, etc.) */
+export interface DeviceElement {
+  id: string
+  name: string
+  category: string
+  color_hex: string | null
+  attribute_schema: ElementAttributeSchemaEntry[]
+  description: string | null
+  is_active: boolean
+}
+
+export interface ElementAttributeSchemaEntry {
+  section: string
+  attr: string
+  type: 'text' | 'multi'
+  options?: string[]
 }
 
 export interface DeviceLibraryManufacturer {
@@ -981,6 +1001,8 @@ export interface DeviceSearchResult {
   wattage: number | null
   poe_standard: string | null
   manufacturer_id: string | null
+  element_id: string | null
+  attributes: Record<string, unknown> | null
 }
 
 // ============================================================

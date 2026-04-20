@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   const url = req.nextUrl
   const q = sanitizeSearchTerm(url.searchParams.get('q')?.trim() ?? '')
   const category = url.searchParams.get('category') ?? ''
+  const elementId = url.searchParams.get('element_id') ?? ''
   const ndaaParam = url.searchParams.get('ndaa_compliant')
   const vendor = url.searchParams.get('vendor') ?? ''
   const form = url.searchParams.get('form') ?? ''
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
 
   let query = admin
     .from('device_library_items')
-    .select('id, category, subcategory, vendor, model, partnumber, resolution, fps, poe_standard, wattage, ndaa_compliant, ul_listed, ul_listing_code, form, ir, super_low_light, focal_length, focal_type, aov, imager_count, multi_imager_type, codecs, fisheye_view, environment, specs, manufacturer_id', { count: 'exact' })
+    .select('id, category, subcategory, vendor, model, partnumber, resolution, fps, poe_standard, wattage, ndaa_compliant, ul_listed, ul_listing_code, form, ir, super_low_light, focal_length, focal_type, aov, imager_count, multi_imager_type, codecs, fisheye_view, environment, specs, manufacturer_id, element_id, attributes', { count: 'exact' })
     .or(`org_id.is.null,org_id.eq.${orgId}`)
     .order(sortCol, { ascending })
     .order('model', { ascending: true })
@@ -56,6 +57,10 @@ export async function GET(req: NextRequest) {
 
   if (category) {
     query = query.eq('category', category)
+  }
+
+  if (elementId) {
+    query = query.eq('element_id', elementId)
   }
 
   if (vendor) {

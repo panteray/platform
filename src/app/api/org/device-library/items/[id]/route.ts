@@ -76,6 +76,7 @@ export async function PATCH(
     'aov', 'imager_count', 'multi_imager_type', 'codecs',
     'fisheye_view', 'environment',
     'specs', 'manufacturer_id',
+    'element_id', 'attributes',
   ]
   const updates: Record<string, unknown> = {}
   for (const key of allowed) {

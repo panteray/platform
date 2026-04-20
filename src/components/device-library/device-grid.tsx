@@ -15,7 +15,7 @@ import {
   DoorOpen, Network as NetworkIcon, Volume2, Wind, HardDrive, Package,
   Trash2, Edit3, CheckSquare, Square,
 } from 'lucide-react'
-import type { DeviceSearchResult } from '@/types/database'
+import type { DeviceSearchResult, DeviceElement } from '@/types/database'
 import { DEVICE_CATEGORIES } from '@/types/enums'
 
 /* ───────── Form Factor Icons — PNG images from Hanwha ───────── */
@@ -105,6 +105,8 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
   const [manufacturers, setManufacturers] = useState<string[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [elements, setElements] = useState<DeviceElement[]>([])
+  const [selectedElementId, setSelectedElementId] = useState('')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const filterRef = useRef<HTMLDivElement>(null)
@@ -122,6 +124,10 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
       .then(r => r.json())
       .then(j => setManufacturers(j.manufacturers ?? []))
       .catch((e) => { console.error('[DeviceGrid] Failed to load manufacturers:', e) })
+    fetch('/api/org/device-library/elements')
+      .then(r => r.json())
+      .then(j => setElements(j.elements ?? []))
+      .catch((e) => { console.error('[DeviceGrid] Failed to load elements:', e) })
   }, [])
 
   // Active-filter count (excluding category tab)
@@ -129,6 +135,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
     (selectedVendor ? 1 : 0) +
     selectedForms.size +
     (selectedSubcategory ? 1 : 0) +
+    (selectedElementId ? 1 : 0) +
     (selectedRes ? 1 : 0) +
     (selectedNdaa ? 1 : 0) +
     (selectedUl ? 1 : 0)
@@ -137,7 +144,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
   const shouldFetch = hasQuery || activeFilterCount > 0
 
   // Fetch
-  const doFetch = useCallback(async (q: string, cat: string) => {
+  const doFetch = useCallback(async (q: string, cat: string, elemId: string) => {
     setLoading(true)
     try {
       const allResults: DeviceSearchResult[] = []
@@ -146,6 +153,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
       while (true) {
         const params = new URLSearchParams({ limit: String(batchSize), offset: String(offset) })
         if (cat) params.set('category', cat)
+        if (elemId) params.set('element_id', elemId)
         if (q.trim()) params.set('q', q.trim())
         const res = await fetch(`/api/org/device-library/search?${params}`)
         if (!res.ok) break
@@ -167,9 +175,9 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
       setLoading(false)
       return
     }
-    timerRef.current = setTimeout(() => doFetch(query, category), 300)
+    timerRef.current = setTimeout(() => doFetch(query, category, selectedElementId), 300)
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
-  }, [query, category, doFetch, shouldFetch])
+  }, [query, category, selectedElementId, doFetch, shouldFetch])
 
   // Clear selection when filters/category change
   useEffect(() => { setSelectedIds(new Set()) }, [category, query])
@@ -248,6 +256,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
     setSelectedVendor('')
     setSelectedForms(new Set())
     setSelectedSubcategory('')
+    setSelectedElementId('')
     setSelectedRes('')
     setSelectedNdaa('')
     setSelectedUl('')
@@ -287,7 +296,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
       })
       if (res.ok) {
         setSelectedIds(new Set())
-        doFetch(query, category)
+        doFetch(query, category, selectedElementId)
         onBulkChanged?.()
       } else {
         const j = await res.json().catch(() => ({}))
@@ -308,7 +317,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
       })
       if (res.ok) {
         setSelectedIds(new Set())
-        doFetch(query, category)
+        doFetch(query, category, selectedElementId)
         onBulkChanged?.()
       } else {
         const j = await res.json().catch(() => ({}))
@@ -323,7 +332,7 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
     try {
       const res = await fetch(`/api/org/device-library/items/${id}`, { method: 'DELETE' })
       if (res.ok) {
-        doFetch(query, category)
+        doFetch(query, category, selectedElementId)
         onBulkChanged?.()
       } else {
         const j = await res.json().catch(() => ({}))
@@ -442,6 +451,23 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
                 </div>
               )}
 
+              {/* Non-CCTV: Element filter (schema-driven taxonomy) */}
+              {!isCctv && (
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Element</p>
+                  <select
+                    value={selectedElementId}
+                    onChange={e => setSelectedElementId(e.target.value)}
+                    className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                  >
+                    <option value="">All Elements</option>
+                    {elements.filter(el => el.category === category).map(el => (
+                      <option key={el.id} value={el.id}>{el.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Non-CCTV: Subcategory dropdown, fed by current result set */}
               {!isCctv && (
                 <div>
@@ -550,6 +576,12 @@ export function DeviceGrid({ category: externalCategory, onSelect, mode, onBrows
           {Array.from(selectedForms).map(f => (
             <Chip key={f} label={f} onRemove={() => toggleForm(f)} />
           ))}
+          {selectedElementId && (
+            <Chip
+              label={elements.find(el => el.id === selectedElementId)?.name ?? 'Element'}
+              onRemove={() => setSelectedElementId('')}
+            />
+          )}
           {selectedSubcategory && <Chip label={selectedSubcategory} onRemove={() => setSelectedSubcategory('')} />}
           {selectedRes && <Chip label={selectedRes} onRemove={() => setSelectedRes('')} />}
           {selectedNdaa && <Chip label={`NDAA: ${selectedNdaa === 'true' ? 'Compliant' : 'Non-compliant'}`} onRemove={() => setSelectedNdaa('')} />}
