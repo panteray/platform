@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   ArrowLeft, Plus, Trash2, MapPin, Layers,
-  ChevronDown, ChevronUp, Wifi, WifiOff, RefreshCw, ExternalLink,
+  Wifi, WifiOff, RefreshCw, ExternalLink, X, SlidersHorizontal,
 } from 'lucide-react'
 import { C } from '../design-canvas/constants'
 import type { Survey, SurveyFloorPlan, SurveyDevice, SurveyInfrastructure } from '@/types/database'
@@ -31,8 +31,7 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
   const [pendingCount, setPendingCount] = useState(0)
   const [syncing, setSyncing] = useState(false)
   const [activeFloorPlan, setActiveFloorPlan] = useState<string | null>(null)
-  const [showInfo, setShowInfo] = useState(true)
-  const [showInfra, setShowInfra] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [opportunities, setOpportunities] = useState<OppOption[]>([])
   const [customers, setCustomers] = useState<CustomerOption[]>([])
@@ -244,14 +243,14 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
   const selectCls = 'w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary'
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] gap-2">
+    <div className="flex flex-col h-full w-full">
       {/* Top Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-card shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
           <button onClick={onBack} className="rounded p-1 hover:bg-muted">
             <ArrowLeft className="h-4 w-4 text-muted-foreground" />
           </button>
-          <span className="text-sm font-semibold text-foreground">
+          <span className="text-sm font-semibold text-foreground truncate">
             {survey.site_name || 'Untitled Survey'}
           </span>
           {!online && (
@@ -260,9 +259,15 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
             </span>
           )}
           {online && <Wifi className="h-3 w-3 text-muted-foreground" />}
-        </div>
-        <div className="flex items-center gap-2">
           {saving && <span className="text-[11px] text-muted-foreground animate-pulse">Saving...</span>}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setShowDetails(true)}
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          >
+            <SlidersHorizontal className="h-3 w-3" /> Details
+          </button>
           <button
             onClick={handleDeleteSurvey}
             className="inline-flex items-center gap-1 rounded-md border border-destructive/30 px-2 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
@@ -280,7 +285,7 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
 
       {/* Sync Banner */}
       {pendingCount > 0 && (
-        <div className="flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+        <div className="flex items-center justify-between border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 shrink-0">
           <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
             {pendingCount} pending change{pendingCount === 1 ? '' : 's'} not yet synced
             {!online && ' — will sync when online'}
@@ -298,113 +303,9 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
         </div>
       )}
 
-      {/* Survey Info — Collapsible */}
-      <div className="rounded-lg border border-border bg-card">
-        <button
-          onClick={() => setShowInfo(!showInfo)}
-          className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold text-foreground"
-        >
-          <span className="flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5" /> Site Information
-          </span>
-          {showInfo ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </button>
-        {showInfo && (
-          <div className="border-t border-border px-3 py-3 grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Site Name</label>
-              <input
-                value={survey.site_name || ''}
-                onChange={(e) => handleFieldChange('site_name', e.target.value)}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Site Address</label>
-              <input
-                value={survey.site_address || ''}
-                onChange={(e) => handleFieldChange('site_address', e.target.value)}
-                placeholder="123 Main St, City, State"
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">OPP Number</label>
-              <select
-                value={survey.opp_id || ''}
-                onChange={(e) => handleFieldChange('opp_id', e.target.value)}
-                className={selectCls}
-              >
-                <option value="">— None —</option>
-                {opportunities.map(o => (
-                  <option key={o.id} value={o.id}>
-                    {o.opp_number || o.id}{o.project_name ? ` — ${o.project_name}` : ''}
-                  </option>
-                ))}
-              </select>
-              {linkedOpp && (
-                <a
-                  href={`/org/opportunities/${linkedOpp.id}`}
-                  className="text-[10px] text-primary hover:underline mt-0.5 inline-block"
-                >
-                  View opportunity →
-                </a>
-              )}
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Customer</label>
-              {customers.length > 0 ? (
-                <select
-                  value={survey.customer_name || ''}
-                  onChange={(e) => handleFieldChange('customer_name', e.target.value)}
-                  className={selectCls}
-                >
-                  <option value="">— Select customer —</option>
-                  {customers.map(c => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  value={survey.customer_name || ''}
-                  onChange={(e) => handleFieldChange('customer_name', e.target.value)}
-                  className={inputCls}
-                />
-              )}
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Survey Date</label>
-              <input
-                type="date"
-                value={survey.survey_date || ''}
-                onChange={(e) => handleFieldChange('survey_date', e.target.value)}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Surveyor</label>
-              <input
-                value={survey.surveyor_name || ''}
-                onChange={(e) => handleFieldChange('surveyor_name', e.target.value)}
-                className={inputCls}
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Site Notes</label>
-              <textarea
-                value={survey.site_notes || ''}
-                onChange={(e) => handleFieldChange('site_notes', e.target.value)}
-                rows={2}
-                className={`${inputCls} resize-none`}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Floor Plan Tabs */}
-      <div className="rounded-lg border border-border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex items-center" style={{ background: C.bgPanel, borderBottom: `1px solid ${C.border}` }}>
+      {/* Floor Plan Tabs + Canvas */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex items-center shrink-0" style={{ background: C.bgPanel, borderBottom: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto scrollbar-hide flex-1 min-w-0">
             {floorPlans.map((fp) => (
               <div key={fp.id} className="flex items-center gap-0.5 shrink-0">
@@ -459,7 +360,7 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
             allDevices={devices}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center py-16">
+          <div className="flex flex-1 flex-col items-center justify-center">
             <Layers className="mb-2 h-8 w-8 text-muted-foreground/30" />
             <p className="text-sm text-muted-foreground">No areas added yet</p>
             <p className="mt-1 text-xs text-muted-foreground/60">Click &quot;+ Add Area&quot; to start documenting</p>
@@ -467,50 +368,165 @@ export function SurveyDetail({ surveyId, onBack }: Props) {
         )}
       </div>
 
-      {/* Infrastructure Panel — one per floor plan */}
-      {floorPlans.map(fp => {
-        const infra = infrastructure.find(i => i.floor_plan_id === fp.id) ?? null
-        return (
-          <div key={fp.id} className="rounded-lg border border-border bg-card">
-            <button
-              onClick={() => setShowInfra(!showInfra)}
-              className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold text-foreground"
-            >
-              <span>Infrastructure — {fp.name || fp.mode}</span>
-              {showInfra ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            </button>
-            {showInfra && (
-              <SurveyInfrastructurePanel
-                surveyId={surveyId}
-                floorPlanId={fp.id}
-                floorPlanName={fp.name || fp.mode}
-                infrastructure={infra}
-                onChanged={(item) => setInfrastructure(prev => {
-                  const exists = prev.find(i => i.id === item.id)
-                  return exists ? prev.map(i => i.id === item.id ? item : i) : [...prev, item]
-                })}
-              />
-            )}
-          </div>
-        )
-      })}
+      {/* Details Slide-over */}
+      {showDetails && (
+        <>
+          <div
+            onClick={() => setShowDetails(false)}
+            className="fixed inset-0 z-40 bg-black/30"
+          />
+          <div className="fixed right-0 top-0 bottom-0 z-50 w-[420px] max-w-[100vw] bg-background border-l border-border shadow-xl flex flex-col">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+              <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                <SlidersHorizontal className="h-3.5 w-3.5" /> Survey Details
+              </span>
+              <button
+                onClick={() => setShowDetails(false)}
+                className="rounded p-1 hover:bg-muted"
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
 
-      {/* Device Summary */}
-      <div className="rounded-lg border border-border bg-card p-3">
-        <h4 className="text-xs font-semibold text-foreground mb-2">Device Summary</h4>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
-          {(['cctv', 'access_control', 'servers_nvr', 'network', 'av', 'vape_environmental', 'other'] as const).map((sys) => {
-            const count = devices.filter(d => d.system_type === sys).length
-            const label = sys === 'cctv' ? 'CCTV' : sys === 'access_control' ? 'ACS' : sys === 'servers_nvr' ? 'Servers/NVR' : sys === 'network' ? 'Network' : sys === 'av' ? 'AV' : sys === 'vape_environmental' ? 'Vape/Env' : 'Other'
-            return (
-              <div key={sys} className="text-center rounded border border-border p-2">
-                <p className="text-lg font-bold text-foreground">{count}</p>
-                <p className="text-[10px] text-muted-foreground">{label}</p>
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {/* Site Information */}
+              <div className="rounded-lg border border-border bg-card">
+                <div className="px-3 py-2 text-xs font-semibold text-foreground flex items-center gap-1.5 border-b border-border">
+                  <MapPin className="h-3.5 w-3.5" /> Site Information
+                </div>
+                <div className="px-3 py-3 grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Site Name</label>
+                    <input
+                      value={survey.site_name || ''}
+                      onChange={(e) => handleFieldChange('site_name', e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Site Address</label>
+                    <input
+                      value={survey.site_address || ''}
+                      onChange={(e) => handleFieldChange('site_address', e.target.value)}
+                      placeholder="123 Main St, City, State"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">OPP Number</label>
+                    <select
+                      value={survey.opp_id || ''}
+                      onChange={(e) => handleFieldChange('opp_id', e.target.value)}
+                      className={selectCls}
+                    >
+                      <option value="">— None —</option>
+                      {opportunities.map(o => (
+                        <option key={o.id} value={o.id}>
+                          {o.opp_number || o.id}{o.project_name ? ` — ${o.project_name}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {linkedOpp && (
+                      <a
+                        href={`/org/opportunities/${linkedOpp.id}`}
+                        className="text-[10px] text-primary hover:underline mt-0.5 inline-block"
+                      >
+                        View opportunity →
+                      </a>
+                    )}
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Customer</label>
+                    {customers.length > 0 ? (
+                      <select
+                        value={survey.customer_name || ''}
+                        onChange={(e) => handleFieldChange('customer_name', e.target.value)}
+                        className={selectCls}
+                      >
+                        <option value="">— Select customer —</option>
+                        {customers.map(c => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={survey.customer_name || ''}
+                        onChange={(e) => handleFieldChange('customer_name', e.target.value)}
+                        className={inputCls}
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Survey Date</label>
+                    <input
+                      type="date"
+                      value={survey.survey_date || ''}
+                      onChange={(e) => handleFieldChange('survey_date', e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Surveyor</label>
+                    <input
+                      value={survey.surveyor_name || ''}
+                      onChange={(e) => handleFieldChange('surveyor_name', e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-medium text-muted-foreground mb-0.5">Site Notes</label>
+                    <textarea
+                      value={survey.site_notes || ''}
+                      onChange={(e) => handleFieldChange('site_notes', e.target.value)}
+                      rows={2}
+                      className={`${inputCls} resize-none`}
+                    />
+                  </div>
+                </div>
               </div>
-            )
-          })}
-        </div>
-      </div>
+
+              {/* Infrastructure — one per floor plan */}
+              {floorPlans.map(fp => {
+                const infra = infrastructure.find(i => i.floor_plan_id === fp.id) ?? null
+                return (
+                  <div key={fp.id} className="rounded-lg border border-border bg-card">
+                    <div className="px-3 py-2 text-xs font-semibold text-foreground border-b border-border">
+                      Infrastructure — {fp.name || fp.mode}
+                    </div>
+                    <SurveyInfrastructurePanel
+                      surveyId={surveyId}
+                      floorPlanId={fp.id}
+                      floorPlanName={fp.name || fp.mode}
+                      infrastructure={infra}
+                      onChanged={(item) => setInfrastructure(prev => {
+                        const exists = prev.find(i => i.id === item.id)
+                        return exists ? prev.map(i => i.id === item.id ? item : i) : [...prev, item]
+                      })}
+                    />
+                  </div>
+                )
+              })}
+
+              {/* Device Summary */}
+              <div className="rounded-lg border border-border bg-card p-3">
+                <h4 className="text-xs font-semibold text-foreground mb-2">Device Summary</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['cctv', 'access_control', 'servers_nvr', 'network', 'av', 'vape_environmental', 'other'] as const).map((sys) => {
+                    const count = devices.filter(d => d.system_type === sys).length
+                    const label = sys === 'cctv' ? 'CCTV' : sys === 'access_control' ? 'ACS' : sys === 'servers_nvr' ? 'Servers/NVR' : sys === 'network' ? 'Network' : sys === 'av' ? 'AV' : sys === 'vape_environmental' ? 'Vape/Env' : 'Other'
+                    return (
+                      <div key={sys} className="text-center rounded border border-border p-2">
+                        <p className="text-lg font-bold text-foreground">{count}</p>
+                        <p className="text-[10px] text-muted-foreground">{label}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
