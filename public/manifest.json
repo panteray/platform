@@ -9,14 +9,16 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/brand/icon-192.png",
+      "src": "/apple-touch-icon.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/brand/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
+      "src": "/brand/logo-primary-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }

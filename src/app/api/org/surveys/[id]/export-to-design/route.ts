@@ -49,8 +49,8 @@ export async function POST(
     return NextResponse.json({ error: dErr?.message || 'Design create failed' }, { status: 500 })
   }
 
-  // 3. Load floor plans + devices from survey
-  const [{ data: fps }, { data: devices }] = await Promise.all([
+  // 3. Load floor plans, devices, cables, infrastructure, photos
+  const [{ data: fps }, { data: devices }, { data: cables }, { data: infras }, { data: photos }] = await Promise.all([
     admin
       .from('survey_floor_plans')
       .select('id, name, mode, image_url, image_width, image_height, satellite_lat, satellite_lng, satellite_zoom, scale_px_per_ft, display_order')
@@ -60,6 +60,21 @@ export async function POST(
     admin
       .from('survey_devices')
       .select('*')
+      .eq('survey_id', id)
+      .eq('org_id', dbUser.org_id),
+    admin
+      .from('survey_cables')
+      .select('*')
+      .eq('survey_id', id)
+      .eq('org_id', dbUser.org_id),
+    admin
+      .from('survey_infrastructure')
+      .select('*')
+      .eq('survey_id', id)
+      .eq('org_id', dbUser.org_id),
+    admin
+      .from('survey_photos')
+      .select('id, device_id, infra_id, storage_url, caption, lat, lng, taken_at')
       .eq('survey_id', id)
       .eq('org_id', dbUser.org_id),
   ])
@@ -133,7 +148,15 @@ export async function POST(
     }
   }
 
-  // 6. Copy devices
+  // 6. Copy devices — group photos by device first so they ride along in properties
+  const photosByDevice = new Map<string, Array<{ url: string; caption: string | null; lat: number | null; lng: number | null; taken_at: string | null }>>()
+  for (const p of photos ?? []) {
+    if (!p.device_id) continue
+    const arr = photosByDevice.get(p.device_id) ?? []
+    arr.push({ url: p.storage_url, caption: p.caption, lat: p.lat, lng: p.lng, taken_at: p.taken_at })
+    photosByDevice.set(p.device_id, arr)
+  }
+
   let copied = 0
   if (devices && devices.length > 0) {
     const rows = devices.map((d) => ({
@@ -167,6 +190,11 @@ export async function POST(
         detection_capabilities: d.detection_capabilities,
         door_config: d.door_config,
         wptp_pair_id: d.wptp_pair_id,
+        alert_destination: d.alert_destination,
+        integration_method: d.integration_method,
+        relay_output: d.relay_output,
+        power_source: d.power_source,
+        photos: photosByDevice.get(d.id) ?? [],
       },
     }))
 
@@ -181,9 +209,76 @@ export async function POST(
     copied = count ?? rows.length
   }
 
+  // 7. Copy cables — survey polyline (lat/lng or px) → design waypoints {x,y}
+  let cablesCopied = 0
+  if (cables && cables.length > 0) {
+    const cableRows = cables.map((c) => {
+      const waypoints = Array.isArray(c.polyline)
+        ? (c.polyline as unknown[]).map((pt) => Array.isArray(pt) ? { x: Number(pt[0]) || 0, y: Number(pt[1]) || 0 } : { x: 0, y: 0 })
+        : []
+      const slack = c.slack_pct ?? 0
+      const length = c.length_ft ?? 0
+      return {
+        org_id: dbUser.org_id,
+        design_id: design.id,
+        area_id: c.floor_plan_id
+          ? fpToArea.get(c.floor_plan_id) ?? fpToArea.get('__default__') ?? null
+          : fpToArea.get('__default__') ?? null,
+        cable_type: c.cable_type || 'cat6',
+        label: c.label || null,
+        waypoints,
+        length_ft: length,
+        slack_pct: slack,
+        total_length_ft: length * (1 + slack / 100),
+        service_loop_ft: 0,
+        from_device_id: null,
+        to_device_id: null,
+        mdf_idf_id: null,
+        color_hex: c.color_hex,
+      }
+    })
+    const { count: cCount } = await admin
+      .from('design_cables')
+      .insert(cableRows, { count: 'exact' })
+    cablesCopied = cCount ?? cableRows.length
+  }
+
+  // 8. Copy MDF/IDF infrastructure — only mdf/idf rows map cleanly to design_mdf_idf
+  let infraCopied = 0
+  if (infras && infras.length > 0) {
+    const mdfRows = infras
+      .filter((i) => i.type === 'mdf' || i.type === 'idf')
+      .map((i) => ({
+        org_id: dbUser.org_id,
+        design_id: design.id,
+        area_id: i.floor_plan_id
+          ? fpToArea.get(i.floor_plan_id) ?? fpToArea.get('__default__') ?? null
+          : fpToArea.get('__default__') ?? null,
+        name: i.name || (i.type === 'mdf' ? 'MDF' : 'IDF'),
+        position_x: 0,
+        position_y: 0,
+        color_hex: null,
+        service_loop_ft: 0,
+        location_description: i.location || i.mdf_idf_locations || null,
+        notes: i.notes,
+      }))
+    if (mdfRows.length > 0) {
+      const { count: iCount } = await admin
+        .from('design_mdf_idf')
+        .insert(mdfRows, { count: 'exact' })
+      infraCopied = iCount ?? mdfRows.length
+    }
+  }
+
+  // 9. Count photos that rode along inside device properties
+  const photosAttached = Array.from(photosByDevice.values()).reduce((n, arr) => n + arr.length, 0)
+
   return NextResponse.json({
     design_id: design.id,
     areas_created: fpToArea.size || 1,
     devices_copied: copied,
+    cables_copied: cablesCopied,
+    infrastructure_copied: infraCopied,
+    photos_attached: photosAttached,
   })
 }
