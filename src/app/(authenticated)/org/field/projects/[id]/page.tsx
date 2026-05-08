@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import type { Project } from '@/types/database'
 import { InstallShell, EmptySection, type InstallSection } from '@/components/field/install/InstallShell'
+import { DashboardSection } from '@/components/field/install/DashboardSection'
 import { TaskList } from '@/components/field/mobile/TaskList'
 import { DailyReport } from '@/components/field/mobile/DailyReport'
 import { QcPanel } from '@/components/field/mobile/QcPanel'
@@ -69,7 +70,7 @@ export default function FieldProjectDetailPage() {
       active={active}
       onChange={setActive}
     >
-      {active === 'dashboard' && <EmptySection title="Project Dashboard" note="Calendar, vital signs, and team panel arrive in step #2." />}
+      {active === 'dashboard' && <DashboardSection project={project} />}
       {active === 'team'      && <EmptySection title="Team & Subs"      note="Roster + sub assignments arrive in step #2." />}
       {active === 'co'        && <EmptySection title="Change Orders"   note="4-step pipeline arrives in step #4." />}
       {active === 'docs'      && <EmptySection title="Documents"       note="Document generation arrives in step #3." />}
