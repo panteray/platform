@@ -26,7 +26,7 @@ function statusToStage(status: string): PipelineStage {
   return 'Lead'
 }
 
-type OrgUser = { id: string; first_name: string; last_name: string; email: string; role: string; divisions?: string[] }
+type OrgUser = { id: string; first_name: string; last_name: string; role: string; divisions?: string[] }
 
 export function OverviewTab({ opp, callerRole, onUpdate }: Props) {
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -43,7 +43,7 @@ export function OverviewTab({ opp, callerRole, onUpdate }: Props) {
   useEffect(() => {
     Promise.all([
       fetch('/api/org/customers').then((r) => r.ok ? r.json() : []),
-      fetch('/api/org/users').then((r) => r.ok ? r.json() : []),
+      fetch('/api/org/users/assignable').then((r) => r.ok ? r.json() : []),
     ]).then(([c, u]) => { setCustomers(c); setOrgUsers(u) })
     // Load territories from org settings
     fetch('/api/profile').then(async (r) => {
