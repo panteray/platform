@@ -14,7 +14,6 @@ interface Props {
 const HIGH_LEVEL_STAGES = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost'] as const
 type PipelineStage = (typeof HIGH_LEVEL_STAGES)[number]
 const ADMIN_ROLES = ['GLOBAL_ADMIN', 'ORG_ADMIN', 'ORG_MANAGER']
-const PRESALES_ASSIGN_ROLES = ['GLOBAL_ADMIN', 'ORG_ADMIN', 'ORG_MANAGER', 'PRESALES']
 
 function statusToStage(status: string): PipelineStage {
   const s = status as OppStatus
@@ -40,7 +39,6 @@ export function OverviewTab({ opp, callerRole, onUpdate }: Props) {
   const [onHoldReason, setOnHoldReason] = useState(opp.on_hold_reason ?? '')
 
   const isAdmin = callerRole ? ADMIN_ROLES.includes(callerRole) : false
-  const canAssignPresales = callerRole ? PRESALES_ASSIGN_ROLES.includes(callerRole) : false
 
   useEffect(() => {
     Promise.all([
@@ -213,18 +211,16 @@ export function OverviewTab({ opp, callerRole, onUpdate }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={lc}>Assigned Presales</label>
-          <select className={ic} value={opp.assigned_presales_id ?? ''} disabled={!canAssignPresales || !opp.opp_type} onChange={(e) => patchField('assigned_presales_id', e.target.value || null)} style={(!canAssignPresales || !opp.opp_type) ? { opacity: 0.5, cursor: 'not-allowed' } : {}}>
+          <select className={ic} value={opp.assigned_presales_id ?? ''} disabled={!opp.opp_type} onChange={(e) => patchField('assigned_presales_id', e.target.value || null)} style={!opp.opp_type ? { opacity: 0.5, cursor: 'not-allowed' } : {}}>
             <option value="">—</option>{presalesUsers.map((u) => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
           </select>
           {!opp.opp_type && <p className="text-[10px] text-muted-foreground mt-0.5">Select OPP Type first</p>}
-          {opp.opp_type && !canAssignPresales && <p className="text-[10px] text-muted-foreground mt-0.5">Only Admin or Presales can assign</p>}
         </div>
         <div>
           <label className={lc}>Assigned PM</label>
-          <select className={ic} value={opp.assigned_pm_id ?? ''} disabled={!isAdmin} onChange={(e) => patchField('assigned_pm_id', e.target.value || null)} style={!isAdmin ? { opacity: 0.5, cursor: 'not-allowed' } : {}}>
+          <select className={ic} value={opp.assigned_pm_id ?? ''} onChange={(e) => patchField('assigned_pm_id', e.target.value || null)}>
             <option value="">—</option>{pmUsers.map((u) => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
           </select>
-          {!isAdmin && <p className="text-[10px] text-muted-foreground mt-0.5">Only Admin can assign PM</p>}
         </div>
       </div>
       <div>

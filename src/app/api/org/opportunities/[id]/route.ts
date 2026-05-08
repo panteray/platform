@@ -3,13 +3,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyOrgCRM } from '@/lib/auth'
 
 const PN_PM_ROLES = ['GLOBAL_ADMIN','ORG_ADMIN','ORG_MANAGER']
-const PRESALES_ASSIGN_ROLES = ['GLOBAL_ADMIN','ORG_ADMIN','ORG_MANAGER','PRESALES']
 
 const GENERAL_FIELDS = [
   'opp_number','opp_type','customer_id','customer_vertical','project_name','system_name',
   'install_address','state','campus_bldg_rm','multiple_locations','multiple_location_notes',
   'territory','project_description','notes','request_type','labor_requirement',
-  'quote_expected_date','assigned_isr_id','assigned_osr_id','subcontractor_id',
+  'quote_expected_date','assigned_isr_id','assigned_osr_id','assigned_presales_id','assigned_pm_id','subcontractor_id',
   'po_number','poc_name','poc_phone','poc_email','disciplines',
   'vertical','erate','program_requirements','risk_score','opp_grade','complexity_rating',
   'quoting_process_status','quoting_status_group','quoting_status','quoting_date_done',
@@ -32,7 +31,7 @@ const GENERAL_FIELDS = [
   'reason_quote_not_approved','inv_processed','project_closed','satisfaction_survey_sent',
 ]
 
-const ADMIN_ONLY_FIELDS = ['project_number','assigned_pm_id','pn_assigned_at','po_received_at']
+const ADMIN_ONLY_FIELDS = ['project_number','pn_assigned_at','po_received_at']
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -76,11 +75,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       update[f] = body[f]
     }
   }
-  if ('assigned_presales_id' in body) {
-    if (!PRESALES_ASSIGN_ROLES.includes(caller.role)) return NextResponse.json({ error: 'Cannot assign presales' }, { status: 403 })
-    update.assigned_presales_id = body.assigned_presales_id
-  }
-
   if (Object.keys(update).length === 0) return NextResponse.json({ error: 'No valid fields' }, { status: 400 })
 
   const { data: opp, error } = await admin.from('opportunities').update(update).eq('id', id).select('*, customers(id, name, customer_type, contact_name, contact_email, contact_phone, address, state, territory, region, region_state)').single()
