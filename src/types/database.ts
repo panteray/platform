@@ -2833,6 +2833,40 @@ export interface ContractClause {
   updated_at: string
 }
 
+export type ProjectDocType =
+  | 'welcome_email'
+  | 'project_workbook'
+  | 'install_reminder'
+  | 'sign_off_sheet'
+  | 'change_order_form'
+
+export interface DocTemplate {
+  id: string
+  org_id: string
+  doc_type: ProjectDocType
+  name: string
+  body_md: string
+  variables: Array<{ key: string; label: string; default?: string }>
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectDocument {
+  id: string
+  org_id: string
+  project_id: string
+  doc_type: ProjectDocType
+  version: number
+  filename: string
+  storage_path: string
+  mime_type: string
+  byte_size: number | null
+  generated_by: string | null
+  generated_at: string
+}
+
 export interface ContractTemplate {
   id: string
   org_id: string
