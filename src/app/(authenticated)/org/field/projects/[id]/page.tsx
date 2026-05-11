@@ -15,6 +15,9 @@ import { QcPanel } from '@/components/field/mobile/QcPanel'
 
 type ProjectWithRelations = Project & {
   customer?: { name: string } | null
+  pm?: { id: string; first_name: string | null; last_name: string | null; email: string } | null
+  opportunity?: { id: string; opp_number: string | null; project_name: string | null; status: string } | null
+  project_milestones?: Array<{ id: string; title: string; completed_at: string | null }>
 }
 
 const MORE_LINKS: Array<{ label: string }> = [
@@ -62,13 +65,25 @@ export default function FieldProjectDetailPage() {
 
   const siteAddress = [project.site_address, project.site_city, project.site_state].filter(Boolean).join(', ') || null
 
+  const milestones = project.project_milestones ?? []
+  const progress = milestones.length > 0
+    ? { completed: milestones.filter((m) => m.completed_at != null).length, total: milestones.length }
+    : null
+
+  const pm = project.pm
+    ? { firstName: project.pm.first_name, lastName: project.pm.last_name, email: project.pm.email }
+    : null
+
   return (
     <InstallShell
       backHref="/org/field/projects"
       pn={project.pn}
+      oppNumber={project.opportunity?.opp_number ?? null}
       name={project.name}
       status={project.status}
       siteAddress={siteAddress}
+      progress={progress}
+      pm={pm}
       active={active}
       onChange={setActive}
     >
