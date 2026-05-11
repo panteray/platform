@@ -2867,6 +2867,18 @@ export interface ProjectDocument {
   generated_at: string
 }
 
+export interface ChangeOrderPhoto {
+  id: string
+  org_id: string
+  change_order_id: string
+  storage_path: string
+  mime_type: string
+  byte_size: number | null
+  caption: string | null
+  uploaded_by: string | null
+  uploaded_at: string
+}
+
 export interface ContractTemplate {
   id: string
   org_id: string

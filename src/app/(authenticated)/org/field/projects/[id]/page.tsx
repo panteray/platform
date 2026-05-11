@@ -8,12 +8,16 @@ import type { Project } from '@/types/database'
 import { InstallShell, EmptySection, type InstallSection } from '@/components/field/install/InstallShell'
 import { DashboardSection } from '@/components/field/install/DashboardSection'
 import { DocumentsSection } from '@/components/field/install/DocumentsSection'
+import { ChangeOrdersSection } from '@/components/field/install/ChangeOrdersSection'
 import { TaskList } from '@/components/field/mobile/TaskList'
 import { DailyReport } from '@/components/field/mobile/DailyReport'
 import { QcPanel } from '@/components/field/mobile/QcPanel'
 
 type ProjectWithRelations = Project & {
   customer?: { name: string } | null
+  pm?: { id: string; first_name: string | null; last_name: string | null; email: string } | null
+  opportunity?: { id: string; opp_number: string | null; project_name: string | null; status: string } | null
+  project_milestones?: Array<{ id: string; title: string; completed_at: string | null }>
 }
 
 const MORE_LINKS: Array<{ label: string }> = [
@@ -61,19 +65,31 @@ export default function FieldProjectDetailPage() {
 
   const siteAddress = [project.site_address, project.site_city, project.site_state].filter(Boolean).join(', ') || null
 
+  const milestones = project.project_milestones ?? []
+  const progress = milestones.length > 0
+    ? { completed: milestones.filter((m) => m.completed_at != null).length, total: milestones.length }
+    : null
+
+  const pm = project.pm
+    ? { firstName: project.pm.first_name, lastName: project.pm.last_name, email: project.pm.email }
+    : null
+
   return (
     <InstallShell
       backHref="/org/field/projects"
       pn={project.pn}
+      oppNumber={project.opportunity?.opp_number ?? null}
       name={project.name}
       status={project.status}
       siteAddress={siteAddress}
+      progress={progress}
+      pm={pm}
       active={active}
       onChange={setActive}
     >
       {active === 'dashboard' && <DashboardSection project={project} />}
       {active === 'team'      && <EmptySection title="Team & Subs"      note="Roster + sub assignments arrive in step #2." />}
-      {active === 'co'        && <EmptySection title="Change Orders"   note="4-step pipeline arrives in step #4." />}
+      {active === 'co'        && <ChangeOrdersSection projectId={project.id} />}
       {active === 'docs'      && <DocumentsSection projectId={project.id} />}
       {active === 'qc'        && (
         <QcPanel projectId={project.id} onCountChange={() => {}} />

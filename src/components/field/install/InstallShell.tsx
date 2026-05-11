@@ -12,9 +12,12 @@ export type InstallSection = 'dashboard' | 'team' | 'co' | 'docs' | 'qc' | 'more
 interface Props {
   backHref: string
   pn: string | null
+  oppNumber?: string | null
   name: string
   status: string
   siteAddress?: string | null
+  progress?: { completed: number; total: number } | null
+  pm?: { firstName: string | null; lastName: string | null; email: string } | null
   active: InstallSection
   onChange: (s: InstallSection) => void
   children: ReactNode
@@ -39,19 +42,20 @@ const NAV: Array<{ key: InstallSection; label: string; icon: ReactNode }> = [
   { key: 'more',      label: 'More',            icon: <MoreHorizontal className="h-4 w-4" /> },
 ]
 
-export function InstallShell({ backHref, pn, name, status, siteAddress, active, onChange, children }: Props) {
+export function InstallShell({ backHref, pn, oppNumber, name, status, siteAddress, progress, pm, active, onChange, children }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   return (
     <div className="-m-6 flex h-[calc(100dvh-56px)] bg-background text-foreground md:h-[calc(100vh-56px)]">
       {/* Sidebar — desktop */}
       <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-border bg-card">
-        <SidebarHeader backHref={backHref} pn={pn} name={name} />
+        <SidebarHeader backHref={backHref} pn={pn} oppNumber={oppNumber ?? null} name={name} />
         <nav className="flex-1 space-y-1 p-3">
           {NAV.map((item) => (
             <NavButton key={item.key} item={item} active={active === item.key} onClick={() => onChange(item.key)} />
           ))}
         </nav>
+        {pm && <PmFooter pm={pm} />}
       </aside>
 
       {/* Drawer — phones */}
@@ -75,7 +79,7 @@ export function InstallShell({ backHref, pn, name, status, siteAddress, active, 
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <SidebarHeader backHref={backHref} pn={pn} name={name} />
+            <SidebarHeader backHref={backHref} pn={pn} oppNumber={oppNumber ?? null} name={name} />
             <nav className="flex-1 space-y-1 p-3">
               {NAV.map((item) => (
                 <NavButton
@@ -86,6 +90,7 @@ export function InstallShell({ backHref, pn, name, status, siteAddress, active, 
                 />
               ))}
             </nav>
+            {pm && <PmFooter pm={pm} />}
           </aside>
         </>
       )}
@@ -104,12 +109,18 @@ export function InstallShell({ backHref, pn, name, status, siteAddress, active, 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="font-mono text-[10px] font-semibold text-primary">PN {pn ?? '—'}</span>
+              {oppNumber && (
+                <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                  OPP {oppNumber}
+                </span>
+              )}
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_COLOR[status] ?? 'bg-muted text-muted-foreground'}`}>
                 {status.replace('_', ' ')}
               </span>
             </div>
             <h1 className="truncate text-sm font-semibold leading-tight">{name}</h1>
             {siteAddress && <p className="truncate text-[11px] text-muted-foreground">{siteAddress}</p>}
+            {progress && progress.total > 0 && <ProgressBar completed={progress.completed} total={progress.total} />}
           </div>
         </header>
         <div className="flex-1 overflow-y-auto">{children}</div>
@@ -118,7 +129,7 @@ export function InstallShell({ backHref, pn, name, status, siteAddress, active, 
   )
 }
 
-function SidebarHeader({ backHref, pn, name }: { backHref: string; pn: string | null; name: string }) {
+function SidebarHeader({ backHref, pn, oppNumber, name }: { backHref: string; pn: string | null; oppNumber: string | null; name: string }) {
   return (
     <div className="border-b border-border p-4">
       <Link
@@ -128,8 +139,49 @@ function SidebarHeader({ backHref, pn, name }: { backHref: string; pn: string | 
       >
         <ArrowLeft className="h-4 w-4" />
       </Link>
-      <div className="font-mono text-[10px] font-semibold text-primary">PN {pn ?? '—'}</div>
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-[10px] font-semibold text-primary">PN {pn ?? '—'}</span>
+        {oppNumber && <span className="font-mono text-[10px] font-semibold text-muted-foreground">OPP {oppNumber}</span>}
+      </div>
       <div className="mt-0.5 truncate text-sm font-semibold leading-tight">{name}</div>
+    </div>
+  )
+}
+
+function ProgressBar({ completed, total }: { completed: number; total: number }) {
+  const pct = total === 0 ? 0 : Math.min(100, Math.round((completed / total) * 100))
+  const isDone = pct === 100
+  return (
+    <div className="mt-1.5 flex items-center gap-2">
+      <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
+        <div
+          className={`h-full rounded-full transition-[width] duration-500 ${isDone ? 'bg-emerald-500' : 'bg-primary'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="shrink-0 font-mono text-[10px] font-semibold text-muted-foreground tabular-nums">
+        {completed}/{total} · {pct}%
+      </span>
+    </div>
+  )
+}
+
+function PmFooter({ pm }: { pm: { firstName: string | null; lastName: string | null; email: string } }) {
+  const displayName = [pm.firstName, pm.lastName].filter(Boolean).join(' ').trim() || pm.email
+  const initials = (
+    (pm.firstName?.[0] ?? '') + (pm.lastName?.[0] ?? '') || pm.email[0] || '?'
+  ).toUpperCase()
+  return (
+    <div className="border-t border-border bg-card p-3">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 font-semibold text-primary">
+          {initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-semibold text-foreground">{displayName}</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Project Manager</p>
+        </div>
+      </div>
     </div>
   )
 }
