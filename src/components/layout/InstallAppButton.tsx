@@ -57,7 +57,13 @@ export function InstallAppButton({ label = 'Install App' }: { label?: string }) 
         >
           <Download className="h-3.5 w-3.5" /> {label}
         </button>
-        {showIOSHelp && <InstallHelpModal onClose={() => setShowIOSHelp(false)} />}
+        {showIOSHelp && (
+          <InstallHelpModal
+            onClose={() => setShowIOSHelp(false)}
+            promptEvent={promptEvent}
+            onInstall={install}
+          />
+        )}
       </>
     )
   }
@@ -70,12 +76,26 @@ export function InstallAppButton({ label = 'Install App' }: { label?: string }) 
       >
         <Download className="h-3.5 w-3.5" /> {label}
       </button>
-      {showIOSHelp && <InstallHelpModal onClose={() => setShowIOSHelp(false)} />}
+      {showIOSHelp && (
+        <InstallHelpModal
+          onClose={() => setShowIOSHelp(false)}
+          promptEvent={promptEvent}
+          onInstall={install}
+        />
+      )}
     </>
   )
 }
 
-function InstallHelpModal({ onClose }: { onClose: () => void }) {
+function InstallHelpModal({
+  onClose,
+  promptEvent,
+  onInstall,
+}: {
+  onClose: () => void
+  promptEvent: BeforeInstallPromptEvent | null
+  onInstall: () => void | Promise<void>
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl">
@@ -85,6 +105,18 @@ function InstallHelpModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="space-y-3 px-5 py-4 text-sm">
           <p className="text-muted-foreground">Install Panteray to your device for offline-ready surveys and field ops.</p>
+          {promptEvent && (
+            <button
+              type="button"
+              onClick={() => {
+                void onInstall()
+                onClose()
+              }}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
+            >
+              <Download className="h-4 w-4" /> Install Now
+            </button>
+          )}
           <div className="space-y-2">
             <p className="font-medium">iPhone / iPad (Safari):</p>
             <ol className="ml-4 list-decimal space-y-1 text-xs text-muted-foreground">
