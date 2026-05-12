@@ -124,31 +124,70 @@ export function DocumentsSection({ projectId }: Props) {
             key={tile.type}
             className="overflow-hidden rounded-2xl border border-border bg-card"
           >
-            <button
-              type="button"
-              onClick={() => setExpanded(isOpen ? null : tile.type)}
-              className="flex w-full items-center gap-3 px-4 py-4 text-left"
-            >
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted ${tile.accent}`}>
-                <Icon className="h-5 w-5" strokeWidth={1.75} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-2">
-                  <h4 className="truncate text-sm font-semibold text-foreground">{tile.label}</h4>
-                  {latest && (
-                    <span className="shrink-0 text-[11px] font-mono text-muted-foreground">
-                      v{latest.version} · {formatDate(latest.generated_at)}
-                    </span>
-                  )}
+            <div className="flex w-full items-center gap-3 px-4 py-4">
+              <button
+                type="button"
+                onClick={() => setExpanded(isOpen ? null : tile.type)}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+              >
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted ${tile.accent}`}>
+                  <Icon className="h-5 w-5" strokeWidth={1.75} />
                 </div>
-                <p className="mt-0.5 truncate text-[12px] text-muted-foreground">
-                  {loading ? 'Loading…' : latest ? tile.hint : `${tile.hint} — not generated yet`}
-                </p>
-              </div>
-              <ChevronDown
-                className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`}
-              />
-            </button>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <h4 className="truncate text-sm font-semibold text-foreground">{tile.label}</h4>
+                    {latest && (
+                      <span className="shrink-0 text-[11px] font-mono text-muted-foreground">
+                        v{latest.version} · {formatDate(latest.generated_at)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 truncate text-[12px] text-muted-foreground">
+                    {loading ? 'Loading…' : latest ? tile.hint : `${tile.hint} — not generated yet`}
+                  </p>
+                </div>
+              </button>
+              {latest ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void download(latest)
+                  }}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void generate(tile.type)
+                  }}
+                  disabled={isBusy || loading}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-background hover:bg-foreground/90 disabled:opacity-50"
+                >
+                  {isBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <FileText className="h-3.5 w-3.5" />
+                  )}
+                  Generate
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setExpanded(isOpen ? null : tile.type)}
+                aria-label={isOpen ? 'Collapse' : 'Expand'}
+                className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted"
+              >
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+            </div>
 
             {isOpen && (
               <div className="border-t border-border bg-background/40 p-4">
