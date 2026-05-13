@@ -49,6 +49,9 @@ const themeScript = `(function(){try{var t=localStorage.getItem('panteray-theme'
 /* Service worker registration: production only, after load to avoid dev HMR conflicts */
 const swScript = `(function(){if('serviceWorker' in navigator && location.protocol === 'https:'){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})}})();`
 
+/* Capture beforeinstallprompt before React mounts so the event isn't lost during hydration. */
+const installPromptScript = `(function(){window.__panterayInstallPrompt=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__panterayInstallPrompt=e;});window.addEventListener('appinstalled',function(){window.__panterayInstallPrompt=null;});})();`
+
 export default function RootLayout({
   children,
 }: {
@@ -62,6 +65,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: installPromptScript }} />
         <script dangerouslySetInnerHTML={{ __html: swScript }} />
       </head>
       <body className="font-sans">
