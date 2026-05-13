@@ -2,11 +2,12 @@
 // Does NOT cache API responses or authenticated pages. Keeps caching conservative so
 // stale data never surprises a tech in the field.
 
-const CACHE_VERSION = 'panteray-v1'
+const CACHE_VERSION = 'panteray-v2'
 const APP_SHELL = [
   '/manifest.json',
   '/favicon.png',
   '/apple-touch-icon.png',
+  '/icon-512.png',
 ]
 
 self.addEventListener('install', (event) => {
