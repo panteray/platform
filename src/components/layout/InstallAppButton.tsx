@@ -23,6 +23,9 @@ export function InstallAppButton({ label = 'Install App' }: { label?: string }) 
       (navigator as unknown as { standalone?: boolean }).standalone === true
     if (standalone) setInstalled(true)
 
+    const stashed = (window as unknown as { __panterayInstallPrompt?: BeforeInstallPromptEvent | null }).__panterayInstallPrompt
+    if (stashed) setPromptEvent(stashed)
+
     const handler = (e: Event) => {
       e.preventDefault()
       setPromptEvent(e as BeforeInstallPromptEvent)
