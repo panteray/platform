@@ -41,7 +41,6 @@ import { DeviceProfilePanel } from './device-profile-panel'
 import { MdfRightPanel } from './mdf-right-panel'
 import { WallRightPanel } from './wall-right-panel'
 import { FloorPlanUploadModal } from './floor-plan-upload-modal'
-import { StorageCalculatorPanel } from './storage-calculator-panel'
 import { TopologyView } from './topology-view'
 import { RackElevationView } from './rack-elevation-view'
 import { VlanPlanner } from './vlan-planner'
@@ -113,7 +112,6 @@ const PAGE_TABS = [
   { id: 'maps', label: 'Maps' },
   { id: 'devices', label: 'Devices' },
   { id: 'additionals', label: 'Additionals' },
-  { id: 'hardware', label: 'Hardware' },
   { id: 'bom', label: 'BOM' },
   { id: 'reports', label: 'Reports' },
 ] as const
@@ -1249,7 +1247,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         </div>
 
         {/* ── LEFT PANEL (200px) ── */}
-        {showLeftPanel && activeTab !== 'hardware' && activeTab !== 'reports' && activeTab !== 'additionals' && (
+        {showLeftPanel && activeTab !== 'reports' && activeTab !== 'additionals' && (
           <LeftPanel
             devices={areaDevices}
             selectedId={selectedDeviceId}
@@ -1261,99 +1259,6 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
             onRemoveFromMap={handleRemoveFromMap}
             onUpdateQuantity={handleUpdateModelQuantity}
           />
-        )}
-
-        {/* ── HARDWARE CALCULATOR (full center when active) ── */}
-        {activeTab === 'hardware' && (
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', overflow: 'auto', background: C.bg }}>
-            <div style={{ width: '100%', maxWidth: 720, padding: '16px 0' }}>
-              <StorageCalculatorPanel
-                devices={areaDevices}
-                retentionDays={30}
-              />
-              {/* Additional hardware sections */}
-              <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-                {/* Cable Summary */}
-                <div style={{ background: C.bgPanel, borderRadius: 8, border: `1px solid ${C.border}`, padding: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 10 }}>Cable Summary</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                    <div style={{ padding: '8px 10px', background: C.bgSurface, borderRadius: 6, textAlign: 'center' }}>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: C.text, fontFamily: 'monospace' }}>{areaCables.length}</div>
-                      <div style={{ fontSize: 9, color: C.textDim }}>Cable Runs</div>
-                    </div>
-                    <div style={{ padding: '8px 10px', background: C.bgSurface, borderRadius: 6, textAlign: 'center' }}>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: C.text, fontFamily: 'monospace' }}>{areaCables.reduce((s, c) => s + (c.length_ft || 0), 0)}</div>
-                      <div style={{ fontSize: 9, color: C.textDim }}>Total Feet</div>
-                    </div>
-                    <div style={{ padding: '8px 10px', background: C.bgSurface, borderRadius: 6, textAlign: 'center' }}>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: C.text, fontFamily: 'monospace' }}>{mdfIdfs.filter(m => m.area_id === activeAreaId).length}</div>
-                      <div style={{ fontSize: 9, color: C.textDim }}>MDF/IDF</div>
-                    </div>
-                  </div>
-                  {areaCables.some(c => (c.length_ft || 0) > 328) && (
-                    <div style={{ marginTop: 8, fontSize: 10, color: '#ef4444', fontWeight: 600, background: 'rgba(239,68,68,0.08)', padding: '4px 8px', borderRadius: 4 }}>
-                      ⚠ {areaCables.filter(c => (c.length_ft || 0) > 328).length} cable(s) exceed 328ft Cat6 max
-                    </div>
-                  )}
-                </div>
-
-                {/* Lift Requirements */}
-                {(() => {
-                  const liftDevices = areaDevices.filter(d => {
-                    const p = (d.properties ?? {}) as Record<string, unknown>
-                    return (Number(p.install_height) || 0) > 12
-                  })
-                  return (
-                    <div style={{ background: C.bgPanel, borderRadius: 8, border: `1px solid ${liftDevices.length > 0 ? 'rgba(239,68,68,0.3)' : C.border}`, padding: 16 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: liftDevices.length > 0 ? '#ef4444' : C.text, marginBottom: 6 }}>
-                        {liftDevices.length > 0 ? '⚠ Lift Required' : '✓ No Lift Required'}
-                      </div>
-                      {liftDevices.length > 0 ? (
-                        <div style={{ fontSize: 10, color: C.textMuted }}>
-                          {liftDevices.length} device{liftDevices.length > 1 ? 's' : ''} above 12ft:
-                          <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            {liftDevices.map(d => {
-                              const p = (d.properties ?? {}) as Record<string, unknown>
-                              return (
-                                <div key={d.id} style={{ fontSize: 9, color: '#ef4444', fontWeight: 600 }}>
-                                  • {d.label || 'Unnamed'} — {Number(p.install_height)}ft
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: 10, color: C.textDim }}>All devices at ≤12ft — standard ladder access</div>
-                      )}
-                    </div>
-                  )
-                })()}
-
-                {/* NVR Sizing Estimate */}
-                {(() => {
-                  const camCount = areaDevices.filter(d => ['cctv','dome','bullet','turret','ptz','fisheye','multisensor_quad','multisensor_dual'].includes(d.category)).length
-                  const channelsPerNvr = 32
-                  const nvrCount = Math.max(1, Math.ceil(camCount / channelsPerNvr))
-                  return (
-                    <div style={{ background: C.bgPanel, borderRadius: 8, border: `1px solid ${C.border}`, padding: 16 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 6 }}>NVR Sizing</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <div style={{ padding: '8px 10px', background: C.bgSurface, borderRadius: 6, textAlign: 'center' }}>
-                          <div style={{ fontSize: 18, fontWeight: 700, color: C.accent, fontFamily: 'monospace' }}>{nvrCount}</div>
-                          <div style={{ fontSize: 9, color: C.textDim }}>NVR{nvrCount > 1 ? 's' : ''} needed</div>
-                        </div>
-                        <div style={{ padding: '8px 10px', background: C.bgSurface, borderRadius: 6, textAlign: 'center' }}>
-                          <div style={{ fontSize: 18, fontWeight: 700, color: C.text, fontFamily: 'monospace' }}>{camCount}/{nvrCount * channelsPerNvr}</div>
-                          <div style={{ fontSize: 9, color: C.textDim }}>Channels used</div>
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 9, color: C.textDim, marginTop: 6 }}>Based on {channelsPerNvr}-channel NVR capacity</div>
-                    </div>
-                  )
-                })()}
-              </div>
-            </div>
-          </div>
         )}
 
         {/* ── ADDITIONALS TAB — Network Topology, Rack Elevation, VLAN Planner ── */}
@@ -1463,7 +1368,6 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {([
                   { label: 'Bill of Materials (BOM)', desc: 'Device quantities grouped by model with costs', key: 'bom' },
-                  { label: 'BOM with Pricing', desc: 'Full pricing with dealer cost, markup, labor', key: 'bom-pricing' },
                   { label: 'Hardware Schedule', desc: 'Devices grouped by area with install details', key: 'hw' },
                   { label: 'Cable Schedule', desc: 'All cable runs with lengths, types, MDF assignments', key: 'cable' },
                   { label: 'Material List', desc: 'Every device with full properties', key: 'material' },
@@ -1486,7 +1390,6 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                           const run = async () => {
                             const m = await import('@/lib/export-helpers')
                             if (item.key === 'bom') await m.exportBom(designId, fmt)
-                            else if (item.key === 'bom-pricing') await m.exportBomWithPricing(designId)
                             else if (item.key === 'hw') await m.exportHardwareSchedule(designId, fmt)
                             else if (item.key === 'cable') await m.exportCableSchedule(designId, fmt)
                             else if (item.key === 'material') await m.exportMaterialList(designId, fmt)
@@ -1587,7 +1490,7 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
         )}
 
         {/* ── CANVAS ── */}
-        {activeTab !== 'hardware' && activeTab !== 'reports' && activeTab !== 'additionals' && <CanvasArea
+        {activeTab !== 'reports' && activeTab !== 'additionals' && <CanvasArea
           designId={designId}
           areaId={activeAreaId}
           floorPlan={activeFloorPlan}
@@ -1756,7 +1659,6 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
                 mdfIdfs={mdfIdfs.filter(n => n.area_id === activeAreaId)}
                 onChangeModel={handleChangeModel}
                 cables={cables.filter(c => c.area_id === activeAreaId)}
-                onOpenHardwareCalc={() => { setActiveTab('hardware'); setShowDeviceProfile(false) }}
               />
             )}
 

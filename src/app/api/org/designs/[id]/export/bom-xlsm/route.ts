@@ -60,7 +60,7 @@ export async function POST(
 
   const { data: devices } = await admin
     .from('design_devices')
-    .select('category, label, properties')
+    .select('category, label, properties, placed')
     .eq('design_id', designId)
     .order('created_at')
 
@@ -68,6 +68,7 @@ export async function POST(
   const groups = new Map<string, Line>()
   for (const d of devices ?? []) {
     const props = (d.properties ?? {}) as Props
+    if (d.placed === false && props.bom_added !== true) continue
     const vendor = String(props.manufacturer ?? '')
     const pn = String(props.model ?? props.part_number ?? d.label ?? '')
     const desc = String(props.description ?? d.label ?? '')

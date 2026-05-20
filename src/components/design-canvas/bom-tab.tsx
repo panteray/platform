@@ -49,6 +49,7 @@ export function BomTab({ designId: _designId, devices, activeAreaId, addDevice, 
     const groups = new Map<string, BomRow>()
     for (const d of devices) {
       const p = (d.properties ?? {}) as DeviceProps
+      if (d.placed === false && p.bom_added !== true) continue
       const vendor = String(p.manufacturer ?? '')
       const pn = String(p.model ?? p.part_number ?? d.label ?? '')
       const description = String(p.description ?? d.label ?? '')
@@ -101,7 +102,7 @@ export function BomTab({ designId: _designId, devices, activeAreaId, addDevice, 
             status: 'new',
             mount_type: template.mount_type,
             rotation: 0,
-            properties: { ...tProps },
+            properties: { ...tProps, bom_added: true },
             asset_type: template.asset_type,
             billing_type: template.billing_type,
             recurring_cost: template.recurring_cost,
@@ -126,6 +127,7 @@ export function BomTab({ designId: _designId, devices, activeAreaId, addDevice, 
       model: item.model,
       part_number: item.partnumber ?? '',
       description: [item.vendor, item.model].filter(Boolean).join(' '),
+      bom_added: true,
     }
     await addDevice({
       area_id: activeAreaId,
@@ -154,7 +156,7 @@ export function BomTab({ designId: _designId, devices, activeAreaId, addDevice, 
         position_x: 0, position_y: 0,
         status: 'new',
         rotation: 0,
-        properties: { manufacturer: vendor, model: pn, description },
+        properties: { manufacturer: vendor, model: pn, description, bom_added: true },
         asset_type: 'capital',
         billing_type: 'one_time',
         placed: false,
