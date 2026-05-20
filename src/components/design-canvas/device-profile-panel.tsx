@@ -46,7 +46,6 @@ interface Props {
   mdfIdfs?: DesignMdfIdf[]
   onChangeModel?: (id: string) => void
   cables?: Array<{ id: string; from_device_id?: string | null; to_device_id?: string | null; mdf_idf_id?: string | null; cable_type?: string; length_ft?: number; total_length_ft?: number }>
-  onOpenHardwareCalc?: () => void
 }
 
 /* ─── Form Field Components ─── */
@@ -147,21 +146,8 @@ function AccRow({ name, qty, onEdit }: { name: string; qty: number; onEdit?: () 
   )
 }
 
-function CalcLink({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick?: () => void }) {
-  return (
-    <button onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '8px 12px',
-      background: 'rgba(43,186,160,0.06)', border: '1px solid rgba(43,186,160,0.2)',
-      borderRadius: 6, color: '#2bbaa0', fontSize: 10, fontWeight: 600, cursor: 'pointer',
-      fontFamily: "'Inter', 'Segoe UI', sans-serif", width: '100%', textAlign: 'left',
-    }}>
-      {icon} {label}
-    </button>
-  )
-}
-
 /* ─── Component ─── */
-export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, onChangeModel, cables, onOpenHardwareCalc }: Props) {
+export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, onChangeModel, cables }: Props) {
   const [activeSection, setActiveSection] = useState<SectionId>('profile')
   const props = useMemo(() => (device.properties ?? {}) as Record<string, unknown>, [device.properties])
 
@@ -517,7 +503,6 @@ export function DeviceProfilePanel({ device, onClose, onUpdateDevice, mdfIdfs, o
                 <RecStat label="Retention" value={`${num('retention_days', 30)} days`} />
               </div>
             </div>
-            <CalcLink icon={<Zap size={14} />} label="Open in Hardware Calculator" onClick={onOpenHardwareCalc} />
 
             {/* Config Notes */}
             <Divider />
