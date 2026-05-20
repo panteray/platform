@@ -8,10 +8,6 @@ import {
 } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { DEVICE_CATEGORIES, DEVICE_LIBRARY_ROLES } from '@/types/enums'
-
-const DEVICE_LIBRARY_WRITE_ROLES = [
-  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER', 'PRESALES',
-] as const
 import type { DeviceLibraryItem, DeviceElement } from '@/types/database'
 import { DeviceGrid } from '@/components/device-library/device-grid'
 import { ElementAttributeForm } from '@/components/device-library/ElementAttributeForm'
@@ -375,8 +371,8 @@ export default function DeviceLibraryPage() {
       .catch(() => setElements([]))
   }, [])
 
-  const hasAccess = userRole && (DEVICE_LIBRARY_ROLES as readonly string[]).includes(userRole)
-  const canWrite = !!userRole && (DEVICE_LIBRARY_WRITE_ROLES as readonly string[]).includes(userRole)
+  const hasAccess = !!userRole && (DEVICE_LIBRARY_ROLES as readonly string[]).includes(userRole)
+  const canWrite = hasAccess
 
   const loadFullItem = useCallback(async (id: string) => {
     try {
