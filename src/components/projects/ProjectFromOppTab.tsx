@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { FolderKanban, Plus, ExternalLink, Users, Wrench, Loader2 } from 'lucide-react'
+import { FolderKanban, Plus, ExternalLink, Users, Wrench, Loader2, Check } from 'lucide-react'
 import type { Project, Opportunity } from '@/types/database'
 
 interface Props {
@@ -46,6 +46,31 @@ export function ProjectFromOppTab({ oppId, opp }: Props) {
   const [addUserId, setAddUserId] = useState('')
   const [addRole, setAddRole] = useState<string>('FIELD_TECH')
   const [result, setResult] = useState<{ id: string; pn: string; install_items_created: number } | null>(null)
+
+  // PN number
+  const [pnNumber, setPnNumber] = useState(opp.project_number ?? '')
+  const [pnSaving, setPnSaving] = useState(false)
+  const [pnSaved, setPnSaved] = useState(false)
+
+  const savePnNumber = async (value: string) => {
+    if (value === (opp.project_number ?? '')) return
+    setPnSaving(true)
+    setPnSaved(false)
+    const res = await fetch(`/api/org/opportunities/${oppId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_number: value.trim() || null }),
+    })
+    setPnSaving(false)
+    if (res.ok) {
+      opp.project_number = value.trim() || null
+      setPnSaved(true)
+      setTimeout(() => setPnSaved(false), 2000)
+    } else {
+      const err = await res.json().catch(() => ({}))
+      alert(err.error || 'Failed to save PN number')
+    }
+  }
 
   const load = useCallback(async () => {
     const [projRes, usersRes] = await Promise.all([
@@ -113,6 +138,22 @@ export function ProjectFromOppTab({ oppId, opp }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* PN Number */}
+      <div className="rounded-lg border border-border bg-card p-3">
+        <label className="block text-[10px] font-semibold text-muted-foreground mb-1">PN Number</label>
+        <div className="flex items-center gap-2">
+          <input
+            value={pnNumber}
+            onChange={e => setPnNumber(e.target.value)}
+            onBlur={e => savePnNumber(e.target.value)}
+            placeholder="Assign a project number..."
+            className="flex-1 rounded border border-border bg-background px-2.5 py-2 text-xs outline-none focus:border-primary"
+          />
+          {pnSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          {pnSaved && <Check className="h-4 w-4 text-emerald-500" />}
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Project</h3>

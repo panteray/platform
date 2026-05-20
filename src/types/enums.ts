@@ -396,8 +396,8 @@ export const NDAA_STATUS_OPTIONS = [
 
 /** Roles with access to Device Library (browse, import, contribute) */
 export const DEVICE_LIBRARY_ROLES = [
-  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
-  'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP', 'LEAD',
+  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER', 'MANAGER',
+  'OPERATIONS', 'SALES_ISR', 'SALES_OSR', 'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP', 'LEAD', 'FIELD_TECH',
 ] as const
 
 /** Accepted file extensions for device import */

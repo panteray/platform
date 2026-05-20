@@ -231,6 +231,7 @@ function buildCameraSymbol(
   category: string,
   rotation: number,
   isSelected: boolean,
+  colorHex?: string,
 ): google.maps.Symbol {
   const path = CAMERA_SVG_PATHS[category] || CAMERA_SVG_PATHS.dome
   // Canvas convention: 0° = East. google.maps.Symbol rotation: 0° = North, clockwise.
@@ -239,7 +240,7 @@ function buildCameraSymbol(
   return {
     path,
     rotation: symbolRotation,
-    fillColor: isSelected ? '#6d28d9' : '#1e293b',
+    fillColor: colorHex || '#1e293b',
     fillOpacity: isSelected ? 1.0 : 0.85,
     strokeColor: isSelected ? '#a78bfa' : '#64748b',
     strokeWeight: isSelected ? 2.5 : 1.5,
@@ -1193,7 +1194,7 @@ function CanvasArea(props: Props) {
 
       // Build icon: cameras use rotatable Symbol, non-cameras use form-factor SVG symbols
       const iconObj: google.maps.Symbol | google.maps.Icon = isCamera
-        ? buildCameraSymbol(dev.category, dev.rotation || 0, isSelected)
+        ? buildCameraSymbol(dev.category, dev.rotation || 0, isSelected, dev.color_hex || undefined)
         : buildDeviceSymbol(dev.category, isSelected)
 
       if (!marker) {
@@ -2278,7 +2279,7 @@ function CanvasArea(props: Props) {
         // Update camera marker icon rotation (single sensor only — multi-sensor body doesn't rotate)
         if (!isMultiSensor) {
           const devMarker = markersRef.current.get(selectedDeviceId)
-          if (devMarker) devMarker.setIcon(buildCameraSymbol(dev.category, newCanvasRot, true))
+          if (devMarker) devMarker.setIcon(buildCameraSymbol(dev.category, newCanvasRot, true, dev.color_hex || undefined))
         }
 
         // Reposition this sensor's angle handles

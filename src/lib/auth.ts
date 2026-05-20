@@ -12,13 +12,11 @@ const CRM_ALLOWED_ROLES = [
 ]
 
 const DEVICE_LIBRARY_ALLOWED_ROLES = [
-  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER',
-  'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP', 'LEAD',
+  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER', 'MANAGER',
+  'OPERATIONS', 'SALES_ISR', 'SALES_OSR', 'PRESALES', 'PROJECT_MANAGER', 'TECH_SUP', 'LEAD', 'FIELD_TECH',
 ]
 
-const DEVICE_LIBRARY_WRITE_ROLES = [
-  'GLOBAL_ADMIN', 'GLOBAL_MANAGER', 'ORG_ADMIN', 'ORG_MANAGER', 'PRESALES',
-]
+const DEVICE_LIBRARY_WRITE_ROLES = DEVICE_LIBRARY_ALLOWED_ROLES
 
 /** Returns true if the given role can add/edit/delete device library items. */
 export function canWriteDeviceLibrary(role: string | null | undefined): boolean {

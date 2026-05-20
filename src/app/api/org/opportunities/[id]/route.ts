@@ -9,7 +9,7 @@ const GENERAL_FIELDS = [
   'install_address','state','campus_bldg_rm','multiple_locations','multiple_location_notes',
   'territory','project_description','notes','request_type','labor_requirement',
   'quote_expected_date','assigned_isr_id','assigned_osr_id','assigned_presales_id','assigned_pm_id','subcontractor_id',
-  'po_number','poc_name','poc_phone','poc_email','disciplines',
+  'po_number','poc_name','poc_phone','poc_email','disciplines','project_number',
   'vertical','erate','program_requirements','risk_score','opp_grade','complexity_rating',
   'quoting_process_status','quoting_status_group','quoting_status','quoting_date_done',
   'quote_sent_date','quote_number','quote_amount','ready_for_quoting',
@@ -31,7 +31,7 @@ const GENERAL_FIELDS = [
   'reason_quote_not_approved','inv_processed','project_closed','satisfaction_survey_sent',
 ]
 
-const ADMIN_ONLY_FIELDS = ['project_number','pn_assigned_at','po_received_at']
+const ADMIN_ONLY_FIELDS = ['pn_assigned_at','po_received_at']
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
