@@ -31,7 +31,9 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { C, type CanvasTool, type IconTabId, ICON_TABS, DEVICE_CATEGORY_COLORS } from './constants'
-import type { ExportFormat } from '@/lib/export-helpers'
+import type { ExportFormat, ReportPreview } from '@/lib/export-helpers'
+import { getReportPreview } from '@/lib/export-helpers'
+import ReportPreviewModal from './report-preview-modal'
 import { CanvasArea } from './canvas-area'
 import type { DeviceFovData } from './fov-data-types'
 import { LeftPanel } from './left-panel'
@@ -115,6 +117,24 @@ const PAGE_TABS = [
   { id: 'bom', label: 'BOM' },
   { id: 'reports', label: 'Reports' },
 ] as const
+
+/* ─── Report definitions (Reports tab) ─── */
+type ReportKey = 'bom' | 'hw' | 'cable' | 'material' | 'ip-scheme' | 'rack' | 'av-flow'
+
+const REPORT_DEFS: ReadonlyArray<{
+  key: ReportKey
+  label: string
+  desc: string
+  formats: readonly ExportFormat[]
+}> = [
+  { key: 'bom', label: 'Bill of Materials (BOM)', desc: 'Device quantities grouped by model with costs', formats: ['xlsm', 'xlsx', 'pdf', 'docx'] },
+  { key: 'hw', label: 'Hardware Schedule', desc: 'Devices grouped by area with install details', formats: ['xlsx', 'pdf', 'docx'] },
+  { key: 'cable', label: 'Cable Schedule', desc: 'All cable runs with lengths, types, MDF assignments', formats: ['xlsx', 'pdf', 'docx'] },
+  { key: 'material', label: 'Material List', desc: 'Every device with full properties', formats: ['xlsx', 'pdf', 'docx'] },
+  { key: 'ip-scheme', label: 'IP Scheme Document', desc: 'VLAN/Subnet assignments from planner', formats: ['xlsx', 'pdf', 'docx'] },
+  { key: 'rack', label: 'Rack Elevation', desc: 'Per-rack device assignments and power', formats: ['xlsx', 'pdf', 'docx'] },
+  { key: 'av-flow', label: 'AV Signal Flow', desc: 'AV device signal flow diagram', formats: ['xlsx', 'pdf', 'docx'] },
+]
 
 /* ─── Component ─── */
 export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog }: Props) {
@@ -837,6 +857,75 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
   const [showReportGenerator, setShowReportGenerator] = useState(false)
   const [showDoorSchedule, setShowDoorSchedule] = useState(false)
 
+  /* ── Report preview modal ── */
+  const [previewReport, setPreviewReport] = useState<{ key: ReportKey; label: string; formats: readonly ExportFormat[] } | null>(null)
+  const [previewData, setPreviewData] = useState<ReportPreview | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [previewBusy, setPreviewBusy] = useState<ExportFormat | null>(null)
+
+  /** Builds the flat preview table for a report (fetched or from local state). */
+  const loadReportPreview = useCallback(async (key: ReportKey): Promise<ReportPreview> => {
+    const designName = design?.name || 'Design'
+    if (key === 'ip-scheme') {
+      return {
+        title: `IP Scheme — ${designName}`,
+        columns: ['#', 'VLAN ID', 'Name', 'Subnet', 'Gateway', 'DHCP Start', 'DHCP End'],
+        rows: vlans.map((v, i) => ({ '#': i + 1, 'VLAN ID': v.vlan_id, 'Name': v.vlan_name || '', 'Subnet': v.subnet || '', 'Gateway': v.gateway || '', 'DHCP Start': v.dhcp_range_start || '', 'DHCP End': v.dhcp_range_end || '' })),
+      }
+    }
+    if (key === 'rack') {
+      return {
+        title: `Rack Elevation — ${designName}`,
+        columns: ['#', 'Rack', 'U Position', 'Device', 'RU Height', 'PoE (W)', 'Power (W)'],
+        rows: racks.flatMap((r, ri) => r.slots.filter(s => s.device_name).map((s, si) => ({ '#': ri * 100 + si + 1, 'Rack': r.rack_name, 'U Position': s.u_position, 'Device': s.device_name || '', 'RU Height': s.ru_height, 'PoE (W)': s.poe_draw_w, 'Power (W)': s.power_draw_w }))),
+      }
+    }
+    if (key === 'av-flow') {
+      return {
+        title: `AV Signal Flow — ${designName}`,
+        columns: ['#', 'Device', 'Protocol', 'IP', 'VLAN', 'NIC'],
+        rows: avoipDevices.map((d, i) => ({ '#': i + 1, 'Device': d.device_name || '', 'Protocol': d.protocol, 'IP': d.ip_address || '', 'VLAN': d.vlan_id || '', 'NIC': d.nic_type })),
+      }
+    }
+    return getReportPreview(designId, key)
+  }, [designId, design, vlans, racks, avoipDevices])
+
+  /** Opens the preview modal for a report and fetches its data. */
+  const openReportPreview = useCallback((def: { key: ReportKey; label: string; formats: readonly ExportFormat[] }) => {
+    setPreviewReport(def)
+    setPreviewData(null)
+    setPreviewError(null)
+    setPreviewBusy(null)
+    setPreviewLoading(true)
+    loadReportPreview(def.key)
+      .then(setPreviewData)
+      .catch(e => setPreviewError(e instanceof Error ? e.message : 'Failed to load report data'))
+      .finally(() => setPreviewLoading(false))
+  }, [loadReportPreview])
+
+  /** Downloads the currently previewed report in the chosen format. */
+  const downloadReport = useCallback(async (fmt: ExportFormat) => {
+    if (!previewReport) return
+    const key = previewReport.key
+    setPreviewBusy(fmt)
+    try {
+      const m = await import('@/lib/export-helpers')
+      if (key === 'bom') await m.exportBom(designId, fmt)
+      else if (key === 'hw') await m.exportHardwareSchedule(designId, fmt)
+      else if (key === 'cable') await m.exportCableSchedule(designId, fmt)
+      else if (key === 'material') await m.exportMaterialList(designId, fmt)
+      else if (previewData) {
+        const fileBase = key === 'ip-scheme' ? 'IP_Scheme' : key === 'rack' ? 'Rack_Elevation' : 'AV_Signal_Flow'
+        await m.exportInFormat(previewData.title, previewData.rows, previewData.columns, `${fileBase}.xlsx`, fmt)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export failed')
+    } finally {
+      setPreviewBusy(null)
+    }
+  }, [previewReport, previewData, designId])
+
   /* ── ACS device compliance summary (for Door Schedule button badge) ── */
   const ACS_CATEGORIES = useMemo(
     () => new Set(['access_control', 'door', 'door_controller', 'card_reader', 'electric_strike', 'maglock']),
@@ -1365,65 +1454,34 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           <div style={{ flex: 1, display: 'flex', justifyContent: 'center', overflow: 'auto', background: C.bg, padding: 24 }}>
             <div style={{ width: '100%', maxWidth: 640 }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 16 }}>Export Reports</div>
+              <div style={{ fontSize: 10, color: C.textDim, marginBottom: 8 }}>
+                Click a report to preview its contents, then download.
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {([
-                  { label: 'Bill of Materials (BOM)', desc: 'Device quantities grouped by model with costs', key: 'bom' },
-                  { label: 'Hardware Schedule', desc: 'Devices grouped by area with install details', key: 'hw' },
-                  { label: 'Cable Schedule', desc: 'All cable runs with lengths, types, MDF assignments', key: 'cable' },
-                  { label: 'Material List', desc: 'Every device with full properties', key: 'material' },
-                  { label: 'IP Scheme Document', desc: 'VLAN/Subnet assignments from planner', key: 'ip-scheme' },
-                  { label: 'Rack Elevation', desc: 'Per-rack device assignments and power', key: 'rack' },
-                  { label: 'AV Signal Flow', desc: 'AV device signal flow diagram', key: 'av-flow' },
-                ] as const).map(item => (
-                  <div key={item.key} style={{
+                {REPORT_DEFS.map(item => (
+                  <button key={item.key} onClick={() => openReportPreview(item)} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '12px 16px', background: C.bgPanel, border: `1px solid ${C.border}`,
-                    borderRadius: 8,
+                    borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%',
                   }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{item.label}</div>
                       <div style={{ fontSize: 10, color: C.textDim, marginTop: 2 }}>{item.desc}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {((item.key === 'bom' ? ['xlsm', 'xlsx', 'pdf', 'docx'] : ['xlsx', 'pdf', 'docx']) as readonly ExportFormat[]).map(fmt => (
-                        <button key={fmt} onClick={() => {
-                          const run = async () => {
-                            const m = await import('@/lib/export-helpers')
-                            if (item.key === 'bom') await m.exportBom(designId, fmt)
-                            else if (item.key === 'hw') await m.exportHardwareSchedule(designId, fmt)
-                            else if (item.key === 'cable') await m.exportCableSchedule(designId, fmt)
-                            else if (item.key === 'material') await m.exportMaterialList(designId, fmt)
-                            else if (item.key === 'ip-scheme') {
-                              const rows = vlans.map((v, i) => ({ '#': i + 1, 'VLAN ID': v.vlan_id, 'Name': v.vlan_name || '', 'Subnet': v.subnet || '', 'Gateway': v.gateway || '', 'DHCP Start': v.dhcp_range_start || '', 'DHCP End': v.dhcp_range_end || '' }))
-                              const cols = ['#', 'VLAN ID', 'Name', 'Subnet', 'Gateway', 'DHCP Start', 'DHCP End']
-                              await m.exportInFormat(`IP Scheme — ${design?.name || 'Design'}`, rows, cols, 'IP_Scheme.xlsx', fmt)
-                            }
-                            else if (item.key === 'rack') {
-                              const rows = racks.flatMap((r, ri) => r.slots.filter(s => s.device_name).map((s, si) => ({ '#': ri * 100 + si + 1, 'Rack': r.rack_name, 'U Position': s.u_position, 'Device': s.device_name || '', 'RU Height': s.ru_height, 'PoE (W)': s.poe_draw_w, 'Power (W)': s.power_draw_w })))
-                              const cols = ['#', 'Rack', 'U Position', 'Device', 'RU Height', 'PoE (W)', 'Power (W)']
-                              await m.exportInFormat(`Rack Elevation — ${design?.name || 'Design'}`, rows, cols, 'Rack_Elevation.xlsx', fmt)
-                            }
-                            else if (item.key === 'av-flow') {
-                              const rows = avoipDevices.map((d, i) => ({ '#': i + 1, 'Device': d.device_name || '', 'Protocol': d.protocol, 'IP': d.ip_address || '', 'VLAN': d.vlan_id || '', 'NIC': d.nic_type }))
-                              const cols = ['#', 'Device', 'Protocol', 'IP', 'VLAN', 'NIC']
-                              await m.exportInFormat(`AV Signal Flow — ${design?.name || 'Design'}`, rows, cols, 'AV_Signal_Flow.xlsx', fmt)
-                            }
-                          }
-                          run().catch(console.error)
-                        }}
-                          style={{
-                            padding: '4px 10px', fontSize: 9, fontWeight: 700,
-                            background: fmt === 'xlsm' ? 'rgba(34,197,94,0.12)' : fmt === 'xlsx' ? `${C.accent}15` : fmt === 'pdf' ? 'rgba(239,68,68,0.08)' : 'rgba(59,130,246,0.08)',
-                            color: fmt === 'xlsm' ? '#16a34a' : fmt === 'xlsx' ? C.accent : fmt === 'pdf' ? '#ef4444' : '#3b82f6',
-                            border: `1px solid ${fmt === 'xlsm' ? 'rgba(34,197,94,0.3)' : fmt === 'xlsx' ? `${C.accent}30` : fmt === 'pdf' ? 'rgba(239,68,68,0.2)' : 'rgba(59,130,246,0.2)'}`,
-                            borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit',
-                            textTransform: 'uppercase',
-                          }}>
-                          {fmt}
-                        </button>
-                      ))}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ display: 'flex', gap: 3 }}>
+                        {item.formats.map(fmt => (
+                          <span key={fmt} style={{
+                            padding: '2px 6px', fontSize: 8, fontWeight: 700, color: C.textDim,
+                            border: `1px solid ${C.border}`, borderRadius: 3, textTransform: 'uppercase',
+                          }}>{fmt}</span>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: C.accent, fontSize: 11, fontWeight: 600 }}>
+                        <Eye size={13} /> Preview
+                      </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
               {/* Additional actions */}
@@ -1947,6 +2005,22 @@ export function DesignCanvas({ designId, onNavigateDashboard, initialShowCatalog
           areaName={activeArea?.name}
           devices={areaDevices}
           onClose={() => setShowReportGenerator(false)}
+        />
+      )}
+
+      {/* ═══════ REPORT PREVIEW MODAL ═══════ */}
+      {previewReport && (
+        <ReportPreviewModal
+          reportLabel={previewReport.label}
+          title={previewData?.title || previewReport.label}
+          columns={previewData?.columns || []}
+          rows={previewData?.rows || []}
+          formats={previewReport.formats}
+          loading={previewLoading}
+          error={previewError}
+          busy={previewBusy}
+          onDownload={downloadReport}
+          onClose={() => { setPreviewReport(null); setPreviewData(null); setPreviewError(null); setPreviewBusy(null) }}
         />
       )}
 

@@ -205,6 +205,99 @@ async function fetchExport<T>(designId: string, type: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// ---- Report preview ----
+
+export type PreviewableReport = 'bom' | 'hw' | 'cable' | 'material'
+
+export interface ReportPreview {
+  title: string
+  columns: string[]
+  rows: Record<string, unknown>[]
+}
+
+/**
+ * Fetches a report's data and returns a flat table for in-app preview.
+ * Display only — the actual download still goes through the dedicated
+ * export functions so file output is unchanged.
+ */
+export async function getReportPreview(designId: string, key: PreviewableReport): Promise<ReportPreview> {
+  if (key === 'bom') {
+    const data = await fetchExport<BomExport>(designId, 'bom')
+    const columns = ['#', 'Category', 'Manufacturer', 'Model', 'Qty', 'Unit Cost', 'Total']
+    const rows = data.items.map((item, i) => ({
+      '#': i + 1,
+      'Category': item.category,
+      'Manufacturer': item.manufacturer,
+      'Model': item.model,
+      'Qty': item.qty,
+      'Unit Cost': item.unitCost,
+      'Total': item.qty * item.unitCost,
+    }))
+    return { title: `${data.designName} — BOM`, columns, rows }
+  }
+  if (key === 'hw') {
+    const data = await fetchExport<HardwareExport>(designId, 'hardware-schedule')
+    const columns = ['#', 'Area', 'Label', 'Category', 'Status', 'Mount Type', 'Manufacturer', 'Model', 'Part #']
+    const rows: Record<string, unknown>[] = []
+    let idx = 1
+    for (const area of data.areas) {
+      for (const d of area.devices) {
+        const props = (d.properties ?? {}) as Record<string, unknown>
+        rows.push({
+          '#': idx++,
+          'Area': area.areaName || area.areaId,
+          'Label': d.label,
+          'Category': d.category,
+          'Status': d.status || 'planned',
+          'Mount Type': d.mount_type || '',
+          'Manufacturer': String(props.manufacturer ?? ''),
+          'Model': String(props.model ?? ''),
+          'Part #': String(props.part_number ?? ''),
+        })
+      }
+    }
+    return { title: `${data.designName} — Hardware Schedule`, columns, rows }
+  }
+  if (key === 'cable') {
+    const data = await fetchExport<CableExport>(designId, 'cable-schedule')
+    const mdfMap = new Map(data.mdfIdfs.map((m) => [m.id, m.name]))
+    const columns = ['#', 'Label', 'Cable Type', 'Length (ft)', 'Slack %', 'Total Length (ft)', 'Service Loop (ft)', 'MDF/IDF']
+    const rows: Record<string, unknown>[] = data.cables.map((c, i) => ({
+      '#': i + 1,
+      'Label': c.label || '',
+      'Cable Type': c.cable_type || 'cat6',
+      'Length (ft)': c.length_ft ?? '',
+      'Slack %': c.slack_pct ?? '',
+      'Total Length (ft)': c.total_length_ft ?? '',
+      'Service Loop (ft)': c.service_loop_ft ?? '',
+      'MDF/IDF': c.mdf_idf_id ? (mdfMap.get(c.mdf_idf_id) ?? c.mdf_idf_id) : '',
+    }))
+    rows.push({
+      '#': '', 'Label': 'TOTAL', 'Cable Type': '', 'Length (ft)': '', 'Slack %': '',
+      'Total Length (ft)': data.totalFootage, 'Service Loop (ft)': '', 'MDF/IDF': '',
+    })
+    return { title: `${data.designName} — Cable Schedule`, columns, rows }
+  }
+  // material
+  const data = await fetchExport<MaterialExport>(designId, 'material-list')
+  const columns = ['#', 'Label', 'Category', 'Status', 'Mount Type', 'Area', 'Manufacturer', 'Model', 'Part #']
+  const rows = data.devices.map((d, i) => {
+    const props = d.properties ?? {}
+    return {
+      '#': i + 1,
+      'Label': d.label,
+      'Category': d.category,
+      'Status': d.status || 'planned',
+      'Mount Type': d.mount_type || '',
+      'Area': d.area_id || 'unassigned',
+      'Manufacturer': String(props.manufacturer ?? ''),
+      'Model': String(props.model ?? ''),
+      'Part #': String(props.part_number ?? ''),
+    }
+  })
+  return { title: `${data.designName} — Material List`, columns, rows }
+}
+
 // ---- Public exports ----
 
 export async function exportBomTemplate(designId: string): Promise<void> {
