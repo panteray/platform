@@ -334,8 +334,14 @@ export function surveyDeviceIconDataUrl(
   deviceType: string,
   color: string,
   size = 28,
+  selected = false,
 ): string {
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(surveyDeviceSvgString(systemType, deviceType, color, size))}`
+  let svg = surveyDeviceSvgString(systemType, deviceType, color, size)
+  if (selected) {
+    const ring = `<circle cx="12" cy="12" r="11.5" fill="none" stroke="#ffffff" stroke-width="2.5" opacity="0.9"/>`
+    svg = svg.replace('</svg>', `${ring}</svg>`)
+  }
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
 /**
