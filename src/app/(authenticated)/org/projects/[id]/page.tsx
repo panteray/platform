@@ -22,6 +22,7 @@ import { ProjectLessonsLearnedTab } from '@/components/projects/ProjectLessonsLe
 import { ProjectSubsTab } from '@/components/projects/ProjectSubsTab'
 import { ProjectRiskAssessmentTab } from '@/components/projects/ProjectRiskAssessmentTab'
 import { StubTab } from '@/components/opportunities/StubTab'
+import { CustomerIntroAction } from '@/components/projects/CustomerIntroAction'
 
 const STATUS_LABELS: Record<string, string> = {
   planning: 'Planning',
@@ -102,6 +103,11 @@ export default function ProjectDetailPage() {
         >
           Field Ops
         </Link>
+      </div>
+
+      {/* Customer Introduction */}
+      <div className="mb-3">
+        <CustomerIntroAction project={project} />
       </div>
 
       {/* Tabs */}

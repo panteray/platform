@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
 import type { Opportunity, Customer } from '@/types/database'
 import { OppStatus, OPP_STATUS_ORDER, OPP_STATUS_LABELS, OppType, CustomerType, US_STATES, REQUEST_TYPE_OPTIONS, LABOR_REQUIREMENT_OPTIONS } from '@/types/enums'
+import { OutcomeSection } from './OutcomeSection'
+import { ShipHoldSection } from './ShipHoldSection'
 
 interface Props {
   opp: Opportunity
@@ -15,14 +17,20 @@ const HIGH_LEVEL_STAGES = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Clos
 type PipelineStage = (typeof HIGH_LEVEL_STAGES)[number]
 const ADMIN_ROLES = ['GLOBAL_ADMIN', 'ORG_ADMIN', 'ORG_MANAGER']
 
-function statusToStage(status: string): PipelineStage {
+function statusToStage(status: string, outcome?: string | null): PipelineStage {
   const s = status as OppStatus
+  if (outcome === 'WON' || s === OppStatus.COMPLETE || s === OppStatus.OPERATIONAL_CLOSURE) return 'Closed Won'
+  if (outcome === 'LOST' || s === OppStatus.CLOSED) return 'Closed Lost'
   if ([OppStatus.NEW, OppStatus.ASSIGNED_TO_PRESALES, OppStatus.ON_HOLD].includes(s)) return 'Lead'
   if ([OppStatus.SURVEY, OppStatus.DESIGN, OppStatus.WAITING_ON_INFO].includes(s)) return 'Qualified'
   if ([OppStatus.SUBMITTED_FOR_QUOTE, OppStatus.AWAITING_SOW, OppStatus.SUBMITTED_TO_CUSTOMER].includes(s)) return 'Proposal'
-  if ([OppStatus.AWAITING_PO, OppStatus.AWAITING_SIGNED_DOCS, OppStatus.PROJECT, OppStatus.AWAITING_DELIVERY, OppStatus.INSTALL, OppStatus.QC, OppStatus.SIGN_OFF, OppStatus.CUSTOMER_SIGNATURE].includes(s)) return 'Negotiation'
-  if (s === OppStatus.COMPLETE) return 'Closed Won'
-  if (s === OppStatus.CLOSED) return 'Closed Lost'
+  if ([
+    OppStatus.AWAITING_PO, OppStatus.AWAITING_SIGNED_DOCS, OppStatus.ORDER_ENTRY,
+    OppStatus.SHIP_HOLD, OppStatus.PM_ASSIGNMENT, OppStatus.PROJECT,
+    OppStatus.IKOM, OppStatus.CKOM, OppStatus.SCHEDULING,
+    OppStatus.AWAITING_DELIVERY, OppStatus.INSTALL, OppStatus.QC,
+    OppStatus.SIGN_OFF, OppStatus.CUSTOMER_SIGNATURE, OppStatus.OPERATIONAL_VALIDATION,
+  ].includes(s)) return 'Negotiation'
   return 'Lead'
 }
 
@@ -89,7 +97,7 @@ export function OverviewTab({ opp, callerRole, onUpdate }: Props) {
   })
   const pmUsers = orgUsers.filter((u) => u.role === 'PROJECT_MANAGER')
 
-  const currentStage = statusToStage(opp.status)
+  const currentStage = statusToStage(opp.status, opp.outcome)
   const stageIdx = HIGH_LEVEL_STAGES.indexOf(currentStage)
 
   // Fine-grained status pills (exclude ON_HOLD and CLOSED — shown separately)
@@ -103,6 +111,9 @@ export function OverviewTab({ opp, callerRole, onUpdate }: Props) {
   return (
     <div className="space-y-4">
       {error && <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{error}</div>}
+
+      <OutcomeSection opp={opp} onUpdate={onUpdate} />
+      <ShipHoldSection opp={opp} onUpdate={onUpdate} />
 
       {/* Pipeline Stepper */}
       <div>

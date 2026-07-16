@@ -29,6 +29,8 @@ const GENERAL_FIELDS = [
   'sub_approval_req','sub_pm_approval','sub_comments','sub_attn',
   'decline_reason','on_hold_reason','kill_flag','reminder_request',
   'reason_quote_not_approved','inv_processed','project_closed','satisfaction_survey_sent',
+  'outcome','lost_reason','payment_agreement_signed_at','payment_terms',
+  'ship_hold_cleared_at','customer_intro_sent_at',
 ]
 
 const ADMIN_ONLY_FIELDS = ['pn_assigned_at','po_received_at']

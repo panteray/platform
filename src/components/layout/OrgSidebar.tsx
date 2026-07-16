@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   ChevronDown, LayoutDashboard, Sparkles, Target, Building2, Factory, HardHat, Truck,
   ClipboardCheck, Ruler, FolderKanban, Package, Wrench, Sun, Headphones, ShieldCheck,
-  BookOpen, Boxes, Calculator, Settings as SettingsIcon, PanelLeft, LogOut,
+  BookOpen, Boxes, Calculator, Settings as SettingsIcon, PanelLeft, LogOut, Inbox,
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -53,6 +53,10 @@ const deliveryNav: NavItem[] = [
   { href: '/org/projects', label: 'Projects', icon: FolderKanban, color: 'text-indigo-500' },
   { href: '/org/assets', label: 'Assets', icon: Package, color: 'text-rose-500' },
   { href: '/org/field-ops', label: 'Field Ops', icon: Wrench, color: 'text-emerald-600' },
+]
+
+const opsNav: NavItem[] = [
+  { href: '/org/ops/order-entry', label: 'Order Entry', icon: Inbox, color: 'text-orange-500' },
 ]
 
 const serviceNav: NavItem[] = [
@@ -109,9 +113,9 @@ function NavLink({
 }
 
 const SECTION_STORAGE_KEY = 'panteray.sidebar.sections'
-type SectionKey = 'crm' | 'engineering' | 'delivery' | 'service' | 'tools' | 'settings'
+type SectionKey = 'crm' | 'engineering' | 'delivery' | 'ops' | 'service' | 'tools' | 'settings'
 const DEFAULT_OPEN: Record<SectionKey, boolean> = {
-  crm: true, engineering: true, delivery: true, service: true, tools: true, settings: true,
+  crm: true, engineering: true, delivery: true, ops: true, service: true, tools: true, settings: true,
 }
 
 function useSectionState() {
@@ -273,6 +277,16 @@ export function OrgSidebar() {
           <>
             <SectionHeader label="Delivery" isOpen={sections.open.delivery} onToggle={() => sections.toggle('delivery')} collapsed={collapsed} />
             {(collapsed || sections.open.delivery) && deliveryNav.map((item) => (
+              <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
+            ))}
+          </>
+        )}
+
+        {/* Ops Section */}
+        {canCRM && (
+          <>
+            <SectionHeader label="Ops" isOpen={sections.open.ops} onToggle={() => sections.toggle('ops')} collapsed={collapsed} />
+            {(collapsed || sections.open.ops) && opsNav.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href, false)} collapsed={collapsed} />
             ))}
           </>
