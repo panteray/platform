@@ -23,6 +23,7 @@ import { ProjectSubsTab } from '@/components/projects/ProjectSubsTab'
 import { ProjectRiskAssessmentTab } from '@/components/projects/ProjectRiskAssessmentTab'
 import { StubTab } from '@/components/opportunities/StubTab'
 import { CustomerIntroAction } from '@/components/projects/CustomerIntroAction'
+import { ProjectSchedulingTab } from '@/components/projects/ProjectSchedulingTab'
 
 const STATUS_LABELS: Record<string, string> = {
   planning: 'Planning',
@@ -44,7 +45,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-700',
 }
 
-const TABS = ['Overview', 'Data', 'Team', 'Tasks', 'Install', 'Daily Reports', 'Van Stock', 'Subs', 'Change Orders', 'RAID', 'Risk', 'QC', 'Status Reports', 'Lessons Learned', 'Closeout', 'Documents'] as const
+const TABS = ['Overview', 'Data', 'Team', 'Scheduling', 'Tasks', 'Install', 'Daily Reports', 'Van Stock', 'Subs', 'Change Orders', 'RAID', 'Risk', 'QC', 'Status Reports', 'Lessons Learned', 'Closeout', 'Documents'] as const
 type Tab = (typeof TABS)[number]
 
 export default function ProjectDetailPage() {
@@ -145,6 +146,7 @@ export default function ProjectDetailPage() {
           />
         )}
         {tab === 'Team' && <ProjectTeamTab projectId={project.id} />}
+        {tab === 'Scheduling' && <ProjectSchedulingTab projectId={project.id} />}
         {tab === 'Tasks' && <ProjectTasksTab projectId={project.id} />}
         {tab === 'Install' && <ProjectInstallTab projectId={project.id} />}
         {tab === 'Daily Reports' && <ProjectDailyReportsTab projectId={project.id} />}

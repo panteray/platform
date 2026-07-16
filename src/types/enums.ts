@@ -179,6 +179,18 @@ export enum InteractionDirection {
   OUTBOUND = 'OUTBOUND',
 }
 
+export enum BookingState {
+  SOFT_BOOK = 'soft_book',
+  HARD_BOOK = 'hard_book',
+  CANCELLED = 'cancelled',
+}
+
+export const BOOKING_STATE_LABELS: Record<BookingState, string> = {
+  [BookingState.SOFT_BOOK]: 'Soft Book',
+  [BookingState.HARD_BOOK]: 'Hard Book',
+  [BookingState.CANCELLED]: 'Cancelled',
+}
+
 // ---- Huddle Enums ----
 
 export enum PeerHuddleRole {

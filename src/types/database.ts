@@ -1567,6 +1567,28 @@ export interface Project {
   updated_at: string
 }
 
+export interface SchedulingRequest {
+  id: string
+  org_id: string
+  project_id: string
+  state: 'soft_book' | 'hard_book' | 'cancelled'
+  requested_start_date: string
+  requested_end_date: string | null
+  confirmed_start_date: string | null
+  confirmed_end_date: string | null
+  cutoff_date: string | null
+  poc_name: string | null
+  poc_email: string | null
+  poc_phone: string | null
+  notes: string | null
+  hard_booked_at: string | null
+  cancelled_at: string | null
+  cancelled_reason: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface ProjectTask {
   id: string
   org_id: string
