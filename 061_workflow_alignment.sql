@@ -29,7 +29,8 @@ ALTER TABLE opportunities
   ADD COLUMN IF NOT EXISTS customer_intro_sent_at      TIMESTAMPTZ;
 
 -- 4. Document ikom / ckom meeting_type convention
-COMMENT ON COLUMN project_meetings.meeting_type IS
+-- (table is meeting_minutes, created in migration 030)
+COMMENT ON COLUMN meeting_minutes.meeting_type IS
   'ikom | ckom | status | closeout | ad_hoc — ikom = internal kickoff, ckom = customer kickoff';
 
 -- 5. Auto-seed 5 canonical named milestones on project insert
