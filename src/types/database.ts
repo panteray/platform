@@ -1562,9 +1562,42 @@ export interface Project {
   actual_end_date: string | null
   budget_amount: number | null
   customer_id: string | null
+  start_reminder_sent_at: string | null
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+export interface MeetingAttendee {
+  name: string
+  role?: string
+  present?: boolean
+}
+
+export interface MeetingActionItem {
+  description: string
+  assigned_to?: string
+  due_date?: string
+  status?: string
+}
+
+export interface MeetingDecision {
+  description: string
+  decided_by?: string
+  rationale?: string
+}
+
+export interface MeetingPortalToken {
+  id: string
+  org_id: string
+  meeting_id: string
+  token: string
+  is_active: boolean
+  expires_at: string
+  acknowledged_at: string | null
+  acknowledged_by_name: string | null
+  created_by: string | null
+  created_at: string
 }
 
 export interface SchedulingRequest {
@@ -1883,6 +1916,7 @@ export interface MeetingMinutes {
   action_items: Array<{ description: string; assigned_to?: string; due_date?: string; status?: string }>
   decisions: Array<{ description: string; decided_by?: string; rationale?: string }>
   next_meeting_date: string | null
+  held_at: string | null
   created_by: string | null
   created_at: string
   updated_at: string

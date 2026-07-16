@@ -24,6 +24,9 @@ import { ProjectRiskAssessmentTab } from '@/components/projects/ProjectRiskAsses
 import { StubTab } from '@/components/opportunities/StubTab'
 import { CustomerIntroAction } from '@/components/projects/CustomerIntroAction'
 import { ProjectSchedulingTab } from '@/components/projects/ProjectSchedulingTab'
+import { ProjectMeetingsTab } from '@/components/projects/ProjectMeetingsTab'
+import { KickoffsSection } from '@/components/projects/KickoffsSection'
+import { ProjectStartReminderAction } from '@/components/projects/ProjectStartReminderAction'
 
 const STATUS_LABELS: Record<string, string> = {
   planning: 'Planning',
@@ -45,7 +48,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-700',
 }
 
-const TABS = ['Overview', 'Data', 'Team', 'Scheduling', 'Tasks', 'Install', 'Daily Reports', 'Van Stock', 'Subs', 'Change Orders', 'RAID', 'Risk', 'QC', 'Status Reports', 'Lessons Learned', 'Closeout', 'Documents'] as const
+const TABS = ['Overview', 'Data', 'Team', 'Meetings', 'Scheduling', 'Tasks', 'Install', 'Daily Reports', 'Van Stock', 'Subs', 'Change Orders', 'RAID', 'Risk', 'QC', 'Status Reports', 'Lessons Learned', 'Closeout', 'Documents'] as const
 type Tab = (typeof TABS)[number]
 
 export default function ProjectDetailPage() {
@@ -106,9 +109,11 @@ export default function ProjectDetailPage() {
         </Link>
       </div>
 
-      {/* Customer Introduction */}
-      <div className="mb-3">
+      {/* Customer Introduction + Kickoffs + Start Reminder */}
+      <div className="mb-3 space-y-2">
         <CustomerIntroAction project={project} />
+        <KickoffsSection projectId={project.id} onOpenMeetings={() => setTab('Meetings')} />
+        <ProjectStartReminderAction project={project} onUpdate={updated => setProject(updated)} />
       </div>
 
       {/* Tabs */}
@@ -146,6 +151,7 @@ export default function ProjectDetailPage() {
           />
         )}
         {tab === 'Team' && <ProjectTeamTab projectId={project.id} />}
+        {tab === 'Meetings' && <ProjectMeetingsTab projectId={project.id} />}
         {tab === 'Scheduling' && <ProjectSchedulingTab projectId={project.id} />}
         {tab === 'Tasks' && <ProjectTasksTab projectId={project.id} />}
         {tab === 'Install' && <ProjectInstallTab projectId={project.id} />}
