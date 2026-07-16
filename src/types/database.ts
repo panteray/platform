@@ -636,6 +636,12 @@ export interface Opportunity {
   inv_processed: boolean
   project_closed: boolean
   satisfaction_survey_sent: boolean
+  outcome: 'PENDING' | 'WON' | 'LOST'
+  lost_reason: string | null
+  payment_agreement_signed_at: string | null
+  payment_terms: string | null
+  ship_hold_cleared_at: string | null
+  customer_intro_sent_at: string | null
   created_at: string
   updated_at: string
 }
