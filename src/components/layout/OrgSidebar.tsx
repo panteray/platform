@@ -57,6 +57,7 @@ const deliveryNav: NavItem[] = [
 
 const opsNav: NavItem[] = [
   { href: '/org/ops/order-entry', label: 'Order Entry', icon: Inbox, color: 'text-orange-500' },
+  { href: '/org/ops/validation', label: 'Ops Validation', icon: ShieldCheck, color: 'text-green-600' },
 ]
 
 const serviceNav: NavItem[] = [

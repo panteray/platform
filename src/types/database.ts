@@ -1587,6 +1587,31 @@ export interface MeetingDecision {
   rationale?: string
 }
 
+export interface OperationalValidation {
+  id: string
+  org_id: string
+  project_id: string
+  sos_uploaded_at: string | null
+  sos_uploaded_by: string | null
+  sub_po_confirmed_at: string | null
+  sub_po_confirmed_by: string | null
+  sub_po_na: boolean
+  sub_invoice_confirmed_at: string | null
+  sub_invoice_confirmed_by: string | null
+  sub_invoice_na: boolean
+  customer_po_confirmed_at: string | null
+  customer_po_confirmed_by: string | null
+  clean_sos_confirmed_at: string | null
+  clean_sos_confirmed_by: string | null
+  validated_at: string | null
+  payment_received_at: string | null
+  payment_received_by: string | null
+  closed_at: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface MeetingPortalToken {
   id: string
   org_id: string

@@ -25,6 +25,7 @@ import { StubTab } from '@/components/opportunities/StubTab'
 import { CustomerIntroAction } from '@/components/projects/CustomerIntroAction'
 import { ProjectSchedulingTab } from '@/components/projects/ProjectSchedulingTab'
 import { ProjectMeetingsTab } from '@/components/projects/ProjectMeetingsTab'
+import { ProjectOpsValidationTab } from '@/components/projects/ProjectOpsValidationTab'
 import { KickoffsSection } from '@/components/projects/KickoffsSection'
 import { ProjectStartReminderAction } from '@/components/projects/ProjectStartReminderAction'
 
@@ -48,7 +49,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-700',
 }
 
-const TABS = ['Overview', 'Data', 'Team', 'Meetings', 'Scheduling', 'Tasks', 'Install', 'Daily Reports', 'Van Stock', 'Subs', 'Change Orders', 'RAID', 'Risk', 'QC', 'Status Reports', 'Lessons Learned', 'Closeout', 'Documents'] as const
+const TABS = ['Overview', 'Data', 'Team', 'Meetings', 'Scheduling', 'Tasks', 'Install', 'Daily Reports', 'Van Stock', 'Subs', 'Change Orders', 'RAID', 'Risk', 'QC', 'Status Reports', 'Lessons Learned', 'Closeout', 'Ops', 'Documents'] as const
 type Tab = (typeof TABS)[number]
 
 export default function ProjectDetailPage() {
@@ -165,6 +166,7 @@ export default function ProjectDetailPage() {
         {tab === 'Status Reports' && <ProjectStatusReportsTab projectId={project.id} />}
         {tab === 'Lessons Learned' && <ProjectLessonsLearnedTab projectId={project.id} />}
         {tab === 'Closeout' && <ProjectCloseoutTab projectId={project.id} />}
+        {tab === 'Ops' && <ProjectOpsValidationTab projectId={project.id} />}
         {tab === 'Documents' && <StubTab name="Documents" />}
       </div>
     </div>
